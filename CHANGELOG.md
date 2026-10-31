@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.13.1
+
+### Changes
+  - Shortened default creation software tag to `ImageScript vX.Y.Z` to prevent truncated software tags in TGA files
+  - Moved GitHub repository to imagescript/ImageScript
+
 ## 3.13.0
 
 ### New
