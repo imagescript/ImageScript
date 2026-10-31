@@ -33,7 +33,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/matmen/ImageScript.git"
+    "url": "git+https://github.com/imagescript/ImageScript.git"
   },
   "keywords": [
     "image",
@@ -85,7 +85,7 @@
   "author": "Mathis Mensing <mathis@matmen.dev>",
   "license": "(AGPL-3.0-or-later OR MIT)",
   "bugs": {
-    "url": "https://github.com/matmen/ImageScript/issues"
+    "url": "https://github.com/imagescript/ImageScript/issues"
   },
   "homepage": "https://imagescript.dev/",
   "engines": {

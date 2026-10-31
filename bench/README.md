@@ -1,6 +1,6 @@
 # ImageScript benchmark
 
-How [ImageScript](https://github.com/matmen/ImageScript) compares to other image libraries for Node.js: speed, file
+How [ImageScript](https://github.com/imagescript/ImageScript) compares to other image libraries for Node.js: speed, file
 sizes and what installing each takes. ImageScript is plain JavaScript with no dependencies, so it runs wherever
 JavaScript does, like Jimp, image-js and PureJsImage; sharp and @napi-rs/canvas wrap native libraries (libvips, Skia),
 Photon and ImageScript 1 are WebAssembly, and so is jsquash (Squoosh's libavif and libjxl, for AVIF and JPEG XL).

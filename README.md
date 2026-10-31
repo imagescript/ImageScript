@@ -1,13 +1,13 @@
 <h1 align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/matmen/ImageScript/master/media/wordmark-tagline-dark.svg">
-    <img alt="ImageScript: Pure TypeScript image processing that runs everywhere" src="https://raw.githubusercontent.com/matmen/ImageScript/master/media/wordmark-tagline.svg" width="640">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/imagescript/ImageScript/master/media/wordmark-tagline-dark.svg">
+    <img alt="ImageScript: Pure TypeScript image processing that runs everywhere" src="https://raw.githubusercontent.com/imagescript/ImageScript/master/media/wordmark-tagline.svg" width="640">
   </picture>
 </h1>
 
 [![Discord Server](https://img.shields.io/discord/691713541262147687.svg?label=Discord&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2&style=for-the-badge)](https://discord.gg/8hPrwAH)
 [![Documentation](https://img.shields.io/badge/Documentation-informational?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJJbWFnZVNjcmlwdCI+PHRpdGxlPkltYWdlU2NyaXB0PC90aXRsZT48cGF0aCBkPSJNMTMyIDk2aC0xNGEzNCAzNCAwIDAgMC0zNCAzNHY3NGEzMCAzMCAwIDAgMS0zMCAzMGgtNnY0NGg2YTMwIDMwIDAgMCAxIDMwIDMwdjc0YTM0IDM0IDAgMCAwIDM0IDM0aDE0IE0zODAgOTZoMTRhMzQgMzQgMCAwIDEgMzQgMzR2NzRhMzAgMzAgMCAwIDAgMzAgMzBoNnY0NGgtNmEzMCAzMCAwIDAgMC0zMCAzMHY3NGEzNCAzNCAwIDAgMS0zNCAzNGgtMTQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIzMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PHJlY3QgeD0iMTY0IiB5PSIxNjQiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjI4IiB5PSIxNjQiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjkyIiB5PSIxNjQiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMTY0IiB5PSIyMjgiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjI4IiB5PSIyMjgiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjkyIiB5PSIyMjgiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMTY0IiB5PSIyOTIiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjI4IiB5PSIyOTIiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjkyIiB5PSIyOTIiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PC9zdmc+Cg==)](https://imagescript.dev/)
-[![Github](https://img.shields.io/badge/Github-Repository-181717?logo=github&style=for-the-badge)](https://github.com/matmen/ImageScript)
+[![Github](https://img.shields.io/badge/Github-Repository-181717?logo=github&style=for-the-badge)](https://github.com/imagescript/ImageScript)
 [![NPM](https://nodei.co/npm/imagescript.png)](https://www.npmjs.com/package/imagescript)
 
 ---
@@ -36,9 +36,9 @@ await writeFile('output.png', await image.encode());
 ```
 
 Coordinates start at `(0, 0)`, the top left pixel. For a bigger example, see the
-[script that generates this image](https://github.com/matmen/ImageScript/blob/master/tests/readme.js):
+[script that generates this image](https://github.com/imagescript/ImageScript/blob/master/tests/readme.js):
 
-[![Example](https://github.com/matmen/ImageScript/raw/master/tests/targets/readme.png)](https://github.com/matmen/ImageScript/blob/master/tests/readme.js)
+[![Example](https://github.com/imagescript/ImageScript/raw/master/tests/targets/readme.png)](https://github.com/imagescript/ImageScript/blob/master/tests/readme.js)
 
 ---
 
@@ -76,7 +76,7 @@ P3, Adobe RGB, ...) are converted to sRGB when decoding, so images look the way 
   [hueShift](https://imagescript.dev/classes/Image.html#hueshift), ...
 
 The [documentation](https://imagescript.dev/) covers the full API. When upgrading from an older major version,
-see the [changelog](https://github.com/matmen/ImageScript/blob/master/CHANGELOG.md). [bench/](bench/README.md)
+see the [changelog](https://github.com/imagescript/ImageScript/blob/master/CHANGELOG.md). [bench/](bench/README.md)
 compares ImageScript's speed and file sizes with Jimp, sharp and other libraries.
 
 ---
