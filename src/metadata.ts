@@ -26,7 +26,7 @@ export interface Metadata {
     copyright?: string;
     /** The image's creation time. Default: now */
     creationTime?: string | number | Date;
-    /** The software used to create the image. Default: `'github.com/imagescript/ImageScript vX.X.X'`, `''` leaves it out */
+    /** The software used to create the image. Default: `'ImageScript vX.X.X'`, `''` leaves it out */
     software?: string;
     /** A disclaimer for the image */
     disclaimer?: string;
@@ -68,7 +68,7 @@ export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
 
     const resolved: ResolvedMetadata = { creationTime: time };
     for (const key of TEXT_FIELDS) {
-        const value = key === 'software' && software === undefined ? `github.com/imagescript/ImageScript v${VERSION}` : metadata?.[key];
+        const value = key === 'software' && software === undefined ? `ImageScript v${VERSION}` : metadata?.[key];
         if (value) resolved[key] = String(value);
     }
     return resolved;

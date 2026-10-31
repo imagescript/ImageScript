@@ -10,7 +10,7 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
 
 (async () => {
     const {VERSION} = await import('../dist/version.js');
-    const software = `github.com/imagescript/ImageScript v${VERSION}`;
+    const software = `ImageScript v${VERSION}`;
     const image = new Image(8, 4).fill(0xff000080);
     const animation = new Animation([Frame.from(image, 100), Frame.from(new Image(8, 4).fill(0x00ff00ff), 100)]);
 
