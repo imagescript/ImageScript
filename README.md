@@ -38,7 +38,7 @@ await writeFile('output.png', await image.encode());
 
 <p align="center">
   <a href="https://try.imagescript.dev/">
-    <img src="https://raw.githubusercontent.com/imagescript/ImageScript/master/media/playground-cta.svg" alt="Try ImageScript in the Playground" width="440">
+    <img src="https://github.com/imagescript/ImageScript/raw/master/media/playground-cta.svg" alt="Try ImageScript in the Playground" width="440">
   </a>
 </p>
 
