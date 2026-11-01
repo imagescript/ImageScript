@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and help
+    url: https://discord.gg/8hPrwAH
+    about: Ask about using ImageScript in our Discord server.
+  - name: Security vulnerability
+    url: https://github.com/imagescript/ImageScript/security/advisories/new
+    about: Report security issues privately through a GitHub security advisory.

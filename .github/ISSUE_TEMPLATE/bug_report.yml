@@ -1,0 +1,76 @@
+name: Bug report
+description: Something doesn't behave as expected
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this! A short script that shows the problem helps us a lot. For questions about using ImageScript, our [Discord](https://discord.gg/8hPrwAH) is a great place.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: What is affected?
+      options:
+        - Decoding or encoding an image format
+        - Image manipulation (resize, crop, rotate, filters, color)
+        - Compositing or drawing
+        - Animation (GIF, APNG, WebP)
+        - Text rendering
+        - SVG rendering
+        - Performance or memory usage
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ImageScript version
+      placeholder: "3.13.1"
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+      placeholder: "Node.js 22.13, Deno 2.1, Bun 1.2, Chrome 130, Cloudflare Workers, ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: Screenshots of the result are welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Code to reproduce
+      render: javascript
+      placeholder: |
+        import { Image } from 'imagescript';
+
+        const image = new Image(64, 64);
+        // ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: files
+    attributes:
+      label: Files
+      description: |
+        Input images, fonts or SVGs that are needed to reproduce the problem. You can drag and drop them here.
+        GitHub doesn't accept every format (for example AVIF, JPEG XL or TIFF), so those work best inside a `.zip`.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      description: Stack trace or console output, if there is any.
+      render: shell

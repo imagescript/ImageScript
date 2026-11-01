@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest a new function, option or format
+type: Feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing your idea! Knowing what you're trying to build helps us find the best way to support it.
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: What are you trying to do?
+      description: Describe your use case and where ImageScript doesn't cover it yet.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What could the solution look like?
+      description: A short code sketch of the API you have in mind is perfect, but a description works too.
+      render: typescript
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today?
+      description: Workarounds or other libraries you've used for this.
