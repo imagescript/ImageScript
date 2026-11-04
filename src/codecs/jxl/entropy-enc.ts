@@ -9,8 +9,9 @@ import { AnsHistogram } from './entropy.ts';
 
 /** The values of a stream with their contexts */
 export class Tokens {
-    ctx = new Uint32Array(1024);
-    value = new Uint32Array(1024);
+    // (typed so arrays in shared memory fit too)
+    ctx: Uint32Array = new Uint32Array(1024);
+    value: Uint32Array = new Uint32Array(1024);
     length = 0;
 
     push(ctx: number, value: number): void {

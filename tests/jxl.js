@@ -68,7 +68,7 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
     // lossy (with alpha) and lossless
     const big = new Image(2304, 2048);
     for (let y = 0; y < big.height; y++) for (let x = 0; x < big.width; x++) big.setPixelAt(x, y, Image.rgbaToColor(x * 7 & 255, (x ^ y) & 255, y * 3 & 255, x < 64 ? 128 : 255));
-    for (const options of [{quality: 80, effort: 0}, {}]) {
+    for (const options of [{quality: 80, effort: 0}, {effort: 0}]) {
         const data = await big.encodeJXL(options);
         const one = await Image.decode(data, {threads: 1}), four = await Image.decode(data, {threads: 4});
         if (Buffer.compare(Buffer.from(one.bitmap), Buffer.from(four.bitmap))) panic(`threads, ${options.quality ? 'lossy' : 'lossless'}: different pixels`);
