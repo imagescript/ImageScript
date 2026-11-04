@@ -3,8 +3,8 @@ name: release
 # publishing a GitHub release with the tag v<version> publishes that version to npm and JSR. The tag is the version:
 # the release is checked (semver, changelog, not yet on npm/JSR), tested on every supported platform, published with
 # the tag's version to npm (with provenance, through trusted publishing) and JSR (through GitHub OIDC, no tokens),
-# then the docs are deployed and, for regular releases, the version is committed to the default branch and the
-# benchmark in bench/ is run against the release
+# then the docs are deployed and, for regular releases, the version is committed to the default branch, the playground
+# is updated to it and the benchmark in bench/ is run against the release
 on:
   release:
     types: [published]
@@ -130,6 +130,17 @@ jobs:
         git push
       env:
         VERSION: ${{ needs.check.outputs.version }}
+
+  # updates the playground (try.imagescript.dev) to regular releases, see playground.yml
+  playground:
+    needs: [check, publish]
+    if: needs.check.outputs.dist-tag == 'latest'
+    permissions: {}
+    uses: ./.github/workflows/playground.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+    secrets:
+      PLAYGROUND_DEPLOY_KEY: ${{ secrets.PLAYGROUND_DEPLOY_KEY }}
 
   # measures the release against the other libraries and commits the results to bench/ on the default branch (after
   # the version commit, so the two don't race)

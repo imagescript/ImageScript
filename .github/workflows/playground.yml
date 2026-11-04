@@ -1,0 +1,58 @@
+name: playground
+
+# updates the playground (imagescript/playground, try.imagescript.dev) to a version of imagescript: its dependency,
+# built to check it, committed and pushed to its main branch, which deploys it. release.yml runs it for regular
+# releases; can also be run by hand from the Actions tab (empty version: the latest on npm). Needs the
+# PLAYGROUND_DEPLOY_KEY secret: the private half of a deploy key with write access to the playground's repository
+# (without it nothing is updated)
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: version to update to (release.yml passes the released one)
+        type: string
+        required: true
+    secrets:
+      PLAYGROUND_DEPLOY_KEY:
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'version to update to (empty: the latest on npm)'
+        type: string
+        default: ''
+
+permissions: {}
+
+concurrency:
+  group: playground
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 22
+    - run: |
+        if [ -z "$KEY" ]; then echo "no PLAYGROUND_DEPLOY_KEY: the playground isn't updated"; exit 0; fi
+        mkdir -p ~/.ssh
+        printf '%s\n' "$KEY" > ~/.ssh/playground
+        chmod 600 ~/.ssh/playground
+        export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/playground -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+        if [ -z "$VERSION" ]; then VERSION=$(npm view imagescript version); fi
+        git clone --depth 1 git@github.com:imagescript/playground.git playground
+        cd playground
+        # (npm can take a moment to serve a version it just published)
+        for i in $(seq 1 30); do npm view "imagescript@$VERSION" version >/dev/null 2>&1 && break; sleep 10; done
+        npm install --save-exact "imagescript@$VERSION" --no-audit --no-fund
+        if git diff --quiet; then echo "the playground already uses $VERSION"; exit 0; fi
+        npm run build
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git commit -am "imagescript $VERSION"
+        git push origin HEAD:main
+      env:
+        KEY: ${{ secrets.PLAYGROUND_DEPLOY_KEY }}
+        VERSION: ${{ inputs.version }}
