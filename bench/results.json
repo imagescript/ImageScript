@@ -1,9 +1,9 @@
 {
   "date": "2026-11-04",
   "node": "v24.22.2",
-  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "cpu": "Intel(R) Xeon(R) 6975P-C",
   "versions": {
-    "ImageScript 3": "3.13.2",
+    "ImageScript 3": "3.14.0",
     "ImageScript 1": "1.3.1",
     "Jimp": "1.6.1",
     "image-js": "1.7.1",
@@ -16,504 +16,504 @@
   "speed": {
     "decode JPEG": {
       "ImageScript 3": {
-        "opsPerSecond": 12.39,
-        "ms": 80.68
+        "opsPerSecond": 18.25,
+        "ms": 54.78
       },
       "ImageScript 1": {
-        "opsPerSecond": 6.07,
-        "ms": 164.75
+        "opsPerSecond": 8.19,
+        "ms": 122.03
       },
       "Jimp": {
-        "opsPerSecond": 6.58,
-        "ms": 151.9
+        "opsPerSecond": 7.85,
+        "ms": 127.33
       },
       "image-js": {
-        "opsPerSecond": 4.98,
-        "ms": 200.7
+        "opsPerSecond": 7.01,
+        "ms": 142.75
       },
       "PureJsImage": {
-        "opsPerSecond": 7.58,
-        "ms": 131.85
+        "opsPerSecond": 9.68,
+        "ms": 103.26
       },
       "Photon": {
-        "opsPerSecond": 21.3,
-        "ms": 46.96
+        "opsPerSecond": 29.09,
+        "ms": 34.38
       },
       "sharp": {
-        "opsPerSecond": 69.46,
-        "ms": 14.4
+        "opsPerSecond": 77,
+        "ms": 12.99
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 47.76,
-        "ms": 20.94
+        "opsPerSecond": 65.51,
+        "ms": 15.27
       }
     },
     "decode PNG": {
       "ImageScript 3": {
-        "opsPerSecond": 32.13,
-        "ms": 31.12
+        "opsPerSecond": 35.57,
+        "ms": 28.12
       },
       "ImageScript 1": {
-        "opsPerSecond": 25.53,
-        "ms": 39.16
+        "opsPerSecond": 29.69,
+        "ms": 33.69
       },
       "Jimp": {
-        "opsPerSecond": 14.56,
-        "ms": 68.68
+        "opsPerSecond": 21.25,
+        "ms": 47.05
       },
       "image-js": {
-        "opsPerSecond": 8.47,
-        "ms": 118.07
+        "opsPerSecond": 9.33,
+        "ms": 107.23
       },
       "PureJsImage": {
-        "opsPerSecond": 12.42,
-        "ms": 80.49
+        "opsPerSecond": 14.1,
+        "ms": 70.91
       },
       "Photon": {
-        "opsPerSecond": 40.53,
-        "ms": 24.67
+        "opsPerSecond": 46.4,
+        "ms": 21.55
       },
       "sharp": {
-        "opsPerSecond": 52.7,
-        "ms": 18.97
+        "opsPerSecond": 53.46,
+        "ms": 18.7
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 52.89,
-        "ms": 18.91
+        "opsPerSecond": 59.74,
+        "ms": 16.74
       }
     },
     "decode WebP": {
       "ImageScript 3": {
-        "opsPerSecond": 11.11,
-        "ms": 90.03
+        "opsPerSecond": 14.99,
+        "ms": 66.69
       },
       "PureJsImage": {
-        "opsPerSecond": 9.57,
-        "ms": 104.46
+        "opsPerSecond": 12.1,
+        "ms": 82.64
       },
       "Photon": {
-        "opsPerSecond": 11.16,
-        "ms": 89.64
+        "opsPerSecond": 15.41,
+        "ms": 64.88
       },
       "sharp": {
-        "opsPerSecond": 35.49,
-        "ms": 28.18
+        "opsPerSecond": 38.49,
+        "ms": 25.98
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 58.7,
-        "ms": 17.04
+        "opsPerSecond": 76.26,
+        "ms": 13.11
       }
     },
     "encode PNG": {
       "ImageScript 3": {
-        "opsPerSecond": 5.64,
-        "ms": 177.34
+        "opsPerSecond": 6.95,
+        "ms": 143.93
       },
       "ImageScript 1": {
-        "opsPerSecond": 3.91,
-        "ms": 255.83
+        "opsPerSecond": 4.98,
+        "ms": 200.64
       },
       "Jimp": {
-        "opsPerSecond": 4.21,
-        "ms": 237.6
+        "opsPerSecond": 4.99,
+        "ms": 200.32
       },
       "image-js": {
-        "opsPerSecond": 2.66,
-        "ms": 375.29
+        "opsPerSecond": 3.34,
+        "ms": 299.46
       },
       "PureJsImage": {
-        "opsPerSecond": 1.81,
-        "ms": 551.11
+        "opsPerSecond": 2.1,
+        "ms": 476.86
       },
       "Photon": {
-        "opsPerSecond": 9.8,
-        "ms": 102.09
+        "opsPerSecond": 12.71,
+        "ms": 78.66
       },
       "sharp": {
-        "opsPerSecond": 7.33,
-        "ms": 136.36
+        "opsPerSecond": 8.96,
+        "ms": 111.59
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 2.14,
-        "ms": 467.77
+        "opsPerSecond": 2.58,
+        "ms": 388.11
       }
     },
     "encode JPEG": {
       "ImageScript 3": {
-        "opsPerSecond": 16.05,
-        "ms": 62.29
+        "opsPerSecond": 22.04,
+        "ms": 45.37
       },
       "ImageScript 1": {
-        "opsPerSecond": 19.36,
-        "ms": 51.65
+        "opsPerSecond": 23.9,
+        "ms": 41.84
       },
       "Jimp": {
-        "opsPerSecond": 2.45,
-        "ms": 408.74
+        "opsPerSecond": 3.59,
+        "ms": 278.78
       },
       "image-js": {
-        "opsPerSecond": 9.39,
-        "ms": 106.52
+        "opsPerSecond": 11.06,
+        "ms": 90.44
       },
       "PureJsImage": {
-        "opsPerSecond": 6.98,
-        "ms": 143.33
+        "opsPerSecond": 9.51,
+        "ms": 105.21
       },
       "Photon": {
-        "opsPerSecond": 8.89,
-        "ms": 112.5
+        "opsPerSecond": 11.28,
+        "ms": 88.66
       },
       "sharp": {
-        "opsPerSecond": 55.79,
-        "ms": 17.92
+        "opsPerSecond": 66.67,
+        "ms": 15
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 34.32,
-        "ms": 29.14
+        "opsPerSecond": 46.23,
+        "ms": 21.63
       }
     },
     "encode WebP": {
       "ImageScript 3": {
-        "opsPerSecond": 0.72,
-        "ms": 1389.36
+        "opsPerSecond": 0.91,
+        "ms": 1092.95
       },
       "PureJsImage": {
-        "opsPerSecond": 0.36,
-        "ms": 2777.8
+        "opsPerSecond": 0.48,
+        "ms": 2085.49
       },
       "Photon": {
-        "opsPerSecond": 23.59,
-        "ms": 42.39
+        "opsPerSecond": 30.49,
+        "ms": 32.8
       },
       "sharp": {
-        "opsPerSecond": 0.66,
-        "ms": 1522.84
+        "opsPerSecond": 0.83,
+        "ms": 1202.86
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 2.06,
-        "ms": 484.8
+        "opsPerSecond": 2.64,
+        "ms": 378.95
       }
     },
     "resize": {
       "ImageScript 3": {
-        "opsPerSecond": 74.87,
-        "ms": 13.36
+        "opsPerSecond": 94.71,
+        "ms": 10.56
       },
       "ImageScript 1": {
-        "opsPerSecond": 343.57,
-        "ms": 2.91
+        "opsPerSecond": 330.21,
+        "ms": 3.03
       },
       "Jimp": {
-        "opsPerSecond": 58.37,
-        "ms": 17.13
+        "opsPerSecond": 93.1,
+        "ms": 10.74
       },
       "image-js": {
-        "opsPerSecond": 10.8,
-        "ms": 92.55
+        "opsPerSecond": 13.81,
+        "ms": 72.42
       },
       "PureJsImage": {
-        "opsPerSecond": 15.52,
-        "ms": 64.44
+        "opsPerSecond": 19.06,
+        "ms": 52.46
       },
       "Photon": {
-        "opsPerSecond": 14.9,
-        "ms": 67.09
+        "opsPerSecond": 26.09,
+        "ms": 38.33
       },
       "sharp": {
-        "opsPerSecond": 104.61,
-        "ms": 9.56
+        "opsPerSecond": 131.76,
+        "ms": 7.59
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 307.28,
-        "ms": 3.25
+        "opsPerSecond": 455.71,
+        "ms": 2.19
       }
     },
     "rotate": {
       "ImageScript 3": {
-        "opsPerSecond": 23.65,
-        "ms": 42.28
+        "opsPerSecond": 24.67,
+        "ms": 40.54
       },
       "ImageScript 1": {
-        "opsPerSecond": 5.45,
-        "ms": 183.54
+        "opsPerSecond": 7.53,
+        "ms": 132.79
       },
       "Jimp": {
-        "opsPerSecond": 1.68,
-        "ms": 594.69
+        "opsPerSecond": 2.29,
+        "ms": 436.25
       },
       "image-js": {
-        "opsPerSecond": 1.12,
-        "ms": 895.31
+        "opsPerSecond": 1.63,
+        "ms": 614.68
       },
       "PureJsImage": {
-        "opsPerSecond": 1.95,
-        "ms": 512.47
+        "opsPerSecond": 2.37,
+        "ms": 421.23
       },
       "Photon": {
-        "opsPerSecond": 4.49,
-        "ms": 222.51
+        "opsPerSecond": 5.38,
+        "ms": 185.85
       },
       "sharp": {
-        "opsPerSecond": 28.58,
-        "ms": 34.99
+        "opsPerSecond": 30.04,
+        "ms": 33.29
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 36.48,
-        "ms": 27.41
+        "opsPerSecond": 40.46,
+        "ms": 24.72
       }
     },
     "blur": {
       "ImageScript 3": {
-        "opsPerSecond": 12.8,
-        "ms": 78.14
+        "opsPerSecond": 18.65,
+        "ms": 53.62
       },
       "Jimp": {
-        "opsPerSecond": 0.01,
-        "ms": 91075.16
+        "opsPerSecond": 0.02,
+        "ms": 57386.04
       },
       "image-js": {
-        "opsPerSecond": 1.19,
-        "ms": 843.47
+        "opsPerSecond": 1.85,
+        "ms": 540.96
       },
       "Photon": {
-        "opsPerSecond": 6.5,
-        "ms": 153.73
+        "opsPerSecond": 7.43,
+        "ms": 134.55
       },
       "sharp": {
-        "opsPerSecond": 55,
-        "ms": 18.18
+        "opsPerSecond": 74.3,
+        "ms": 13.46
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 60.86,
-        "ms": 16.43
+        "opsPerSecond": 54.66,
+        "ms": 18.29
       }
     },
     "composite": {
       "ImageScript 3": {
-        "opsPerSecond": 400.57,
-        "ms": 2.5
+        "opsPerSecond": 508.63,
+        "ms": 1.97
       },
       "ImageScript 1": {
-        "opsPerSecond": 557.75,
-        "ms": 1.79
+        "opsPerSecond": 517.57,
+        "ms": 1.93
       },
       "Jimp": {
-        "opsPerSecond": 28.8,
-        "ms": 34.72
+        "opsPerSecond": 45.33,
+        "ms": 22.06
       },
       "image-js": {
-        "opsPerSecond": 112.51,
-        "ms": 8.89
+        "opsPerSecond": 119.76,
+        "ms": 8.35
       },
       "Photon": {
-        "opsPerSecond": 160.7,
-        "ms": 6.22
+        "opsPerSecond": 198.72,
+        "ms": 5.03
       },
       "sharp": {
-        "opsPerSecond": 187.89,
-        "ms": 5.32
+        "opsPerSecond": 245.55,
+        "ms": 4.07
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 382.77,
-        "ms": 2.61
+        "opsPerSecond": 416.64,
+        "ms": 2.4
       }
     },
     "crop": {
       "ImageScript 3": {
-        "opsPerSecond": 732.56,
-        "ms": 1.37
+        "opsPerSecond": 777.02,
+        "ms": 1.29
       },
       "ImageScript 1": {
-        "opsPerSecond": 662.85,
-        "ms": 1.51
+        "opsPerSecond": 558.94,
+        "ms": 1.79
       },
       "Jimp": {
-        "opsPerSecond": 48.55,
-        "ms": 20.6
+        "opsPerSecond": 73.78,
+        "ms": 13.55
       },
       "image-js": {
-        "opsPerSecond": 61.69,
-        "ms": 16.21
+        "opsPerSecond": 68.94,
+        "ms": 14.5
       },
       "PureJsImage": {
-        "opsPerSecond": 97.88,
-        "ms": 10.22
+        "opsPerSecond": 112.98,
+        "ms": 8.85
       },
       "Photon": {
-        "opsPerSecond": 187.41,
-        "ms": 5.34
+        "opsPerSecond": 283.11,
+        "ms": 3.53
       },
       "sharp": {
-        "opsPerSecond": 1021.9,
-        "ms": 0.98
+        "opsPerSecond": 1375.59,
+        "ms": 0.73
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 1107.76,
-        "ms": 0.9
+        "opsPerSecond": 1407.03,
+        "ms": 0.71
       }
     },
     "clone": {
       "ImageScript 3": {
-        "opsPerSecond": 961.17,
+        "opsPerSecond": 959.23,
         "ms": 1.04
       },
       "ImageScript 1": {
-        "opsPerSecond": 864.42,
-        "ms": 1.16
+        "opsPerSecond": 681.22,
+        "ms": 1.47
       },
       "Jimp": {
-        "opsPerSecond": 1231.17,
-        "ms": 0.81
+        "opsPerSecond": 513.85,
+        "ms": 1.95
       },
       "image-js": {
-        "opsPerSecond": 773.43,
-        "ms": 1.29
+        "opsPerSecond": 623.11,
+        "ms": 1.6
       },
       "PureJsImage": {
-        "opsPerSecond": 1160.64,
-        "ms": 0.86
+        "opsPerSecond": 886.94,
+        "ms": 1.13
       },
       "Photon": {
-        "opsPerSecond": 344.93,
-        "ms": 2.9
+        "opsPerSecond": 392.81,
+        "ms": 2.55
       },
       "sharp": {
-        "opsPerSecond": 1096.54,
-        "ms": 0.91
+        "opsPerSecond": 901.24,
+        "ms": 1.11
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 433.58,
-        "ms": 2.31
+        "opsPerSecond": 445.17,
+        "ms": 2.25
       }
     },
     "text": {
       "ImageScript 3": {
-        "opsPerSecond": 1864.78,
-        "ms": 0.54
+        "opsPerSecond": 2366.02,
+        "ms": 0.42
       },
       "ImageScript 1": {
-        "opsPerSecond": 59.3,
-        "ms": 16.86
+        "opsPerSecond": 79.66,
+        "ms": 12.55
       },
       "sharp": {
-        "opsPerSecond": 1816.48,
-        "ms": 0.55
+        "opsPerSecond": 1973.73,
+        "ms": 0.51
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 2803.14,
-        "ms": 0.36
+        "opsPerSecond": 3928.83,
+        "ms": 0.25
       }
     },
     "svg": {
       "ImageScript 3": {
-        "opsPerSecond": 6.31,
-        "ms": 158.42
+        "opsPerSecond": 7.68,
+        "ms": 130.23
       },
       "ImageScript 1": {
         "error": "unreachable"
       },
       "sharp": {
-        "opsPerSecond": 26.33,
-        "ms": 37.98
+        "opsPerSecond": 33.09,
+        "ms": 30.22
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 86.13,
-        "ms": 11.61
+        "opsPerSecond": 102.25,
+        "ms": 9.78
       }
     },
     "decode GIF": {
       "ImageScript 3": {
-        "opsPerSecond": 14.96,
-        "ms": 66.83
+        "opsPerSecond": 18.73,
+        "ms": 53.39
       },
       "ImageScript 1": {
-        "opsPerSecond": 7.78,
-        "ms": 128.53
+        "opsPerSecond": 10.69,
+        "ms": 93.52
       },
       "sharp": {
-        "opsPerSecond": 14.28,
-        "ms": 70.04
+        "opsPerSecond": 17.55,
+        "ms": 56.98
       }
     },
     "encode GIF": {
       "ImageScript 3": {
-        "opsPerSecond": 4.38,
-        "ms": 228.18
+        "opsPerSecond": 5.24,
+        "ms": 190.75
       },
       "ImageScript 1": {
-        "opsPerSecond": 1.15,
-        "ms": 867.69
+        "opsPerSecond": 1.6,
+        "ms": 624.45
       },
       "sharp": {
-        "opsPerSecond": 0.87,
-        "ms": 1155.42
+        "opsPerSecond": 1.14,
+        "ms": 877.47
       }
     },
     "decode AVIF": {
       "ImageScript 3": {
-        "opsPerSecond": 4.16,
-        "ms": 240.56
+        "opsPerSecond": 5.42,
+        "ms": 184.41
       },
       "PureJsImage": {
-        "opsPerSecond": 0.53,
-        "ms": 1875.14
+        "opsPerSecond": 0.72,
+        "ms": 1384.48
       },
       "sharp": {
-        "opsPerSecond": 12.2,
-        "ms": 81.94
+        "opsPerSecond": 14.65,
+        "ms": 68.25
       },
       "jsquash": {
-        "opsPerSecond": 4.47,
-        "ms": 223.59
+        "opsPerSecond": 5.91,
+        "ms": 169.23
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 15.9,
-        "ms": 62.9
+        "opsPerSecond": 19.76,
+        "ms": 50.61
       }
     },
     "decode JPEG XL": {
       "ImageScript 3": {
-        "opsPerSecond": 2.42,
-        "ms": 413.17
+        "opsPerSecond": 2.87,
+        "ms": 348.35
       },
       "PureJsImage": {
         "error": "JPEG XL XYB color encoding is outside the implemented decode subset"
       },
       "jsquash": {
-        "opsPerSecond": 2.46,
-        "ms": 406.89
+        "opsPerSecond": 3.3,
+        "ms": 303.39
       },
       "@napi-rs/canvas": {
-        "opsPerSecond": 15.26,
-        "ms": 65.53
+        "opsPerSecond": 20.79,
+        "ms": 48.09
       }
     },
     "encode AVIF": {
       "ImageScript 3": {
-        "opsPerSecond": 0.19,
-        "ms": 5150.41
+        "opsPerSecond": 0.27,
+        "ms": 3661.33
       },
       "PureJsImage": {
-        "opsPerSecond": 0.71,
-        "ms": 1408.74
+        "opsPerSecond": 1.01,
+        "ms": 988.03
       },
       "sharp": {
-        "opsPerSecond": 0.38,
-        "ms": 2602.07
+        "opsPerSecond": 0.53,
+        "ms": 1892.9
       },
       "jsquash": {
-        "opsPerSecond": 0.41,
-        "ms": 2425.52
+        "opsPerSecond": 0.55,
+        "ms": 1815.74
       }
     },
     "encode JPEG XL": {
       "ImageScript 3": {
-        "opsPerSecond": 0.36,
-        "ms": 2755.08
+        "opsPerSecond": 0.63,
+        "ms": 1591.56
       },
       "jsquash": {
-        "opsPerSecond": 0.23,
-        "ms": 4282.68
+        "opsPerSecond": 0.31,
+        "ms": 3188.38
       }
     }
   },
