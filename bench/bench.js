@@ -56,7 +56,7 @@ for (const [format, encode] of Object.entries(lib.encode))
     await measure(`encode ${formatName(format)}`, () => encode(photo));
 for (const op of ['resize', 'rotate', 'blur', 'composite', 'crop', 'clone'])
     if (lib[op]) await measure(op, () => lib[op](photo, overlay));
-// a library that has the feature but fails on this input (ImageScript 1 on the SVG) is recorded as failing
+// a library that has the feature but fails on this input is recorded as failing
 for (const op of ['text', 'svg']) {
     if (!lib[op]) continue;
     const error = await Promise.resolve().then(() => lib[op]()).then(() => null, e => e);
@@ -70,15 +70,17 @@ if (lib.animation) {
 }
 
 // encoded sizes, with each library's default settings (JPEG at quality 80, WebP lossless, AVIF and JPEG XL at the same
-// quality: with their PSNR, of the color over black, as libavif and libjxl decode them)
+// quality), and the PSNR (of the color over black) of the lossy ones: JPEG, AVIF, JPEG XL and the GIF
 const quality = {};
+const sharpPixels = async (data, animated = false) => (await sharp(data, { animated }).ensureAlpha().raw().toBuffer());
 const psnr = (a, b) => {
     let se = 0;
     for (let i = 0; i < a.length; i += 4) for (let c = 0; c < 3; c++) {
         const d = a[i + c] * a[i + 3] / 255 - b[i + c] * b[i + 3] / 255;
         se += d * d;
     }
-    return Math.round(10 * Math.log10(255 * 255 * 3 * a.length / 4 / se) * 10) / 10;
+    // (identical pixels: 'lossless', JSON has no Infinity)
+    return se === 0 ? 'lossless' : Math.round(10 * Math.log10(255 * 255 * 3 * a.length / 4 / se) * 10) / 10;
 };
 for (const [name, file] of [['photo', 'photo.jpg'], ['graphic', 'graphic.png']]) {
     const image = await input(file);
@@ -86,8 +88,16 @@ for (const [name, file] of [['photo', 'photo.jpg'], ['graphic', 'graphic.png']])
         const encoded = new Uint8Array(await encode(image));
         sizes[`${name} ${formatName(format)}`] = encoded.length;
         if (format === 'avif' || format === 'jxl') quality[`${name} ${formatName(format)}`] = psnr(pixels[file].data, await referenceDecode(encoded, format));
+        // (JPEG decoded by libjpeg-turbo, through sharp)
+        if (format === 'jpeg') quality[`${name} JPEG`] = psnr(pixels[file].data, await sharpPixels(encoded));
     }
 }
-if (lib.animation) sizes['animation GIF'] = (await lib.animation.encode(await lib.animation.decode(files['animation.gif']))).length;
+if (lib.animation) {
+    const encoded = await lib.animation.encode(await lib.animation.decode(files['animation.gif']));
+    sizes['animation GIF'] = encoded.length;
+    // (all frames, decoded by libnsgif through sharp; only if the file keeps every frame, encoders may merge equal ones)
+    const [a, b] = await Promise.all([sharpPixels(files['animation.gif'], true), sharpPixels(encoded, true)]);
+    if (a.length === b.length) quality['animation GIF'] = psnr(a, b);
+}
 
 console.log(JSON.stringify({ speed, sizes, quality }));

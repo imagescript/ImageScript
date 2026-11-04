@@ -9,7 +9,6 @@ const require = createRequire(import.meta.url);
 
 // IMAGESCRIPT=local measures this checkout (npm run build first) instead of the version from npm
 const ImageScript = await import(process.env.IMAGESCRIPT === 'local' ? '../dist/index.js' : 'imagescript');
-const ImageScriptV1 = require('imagescript-v1');
 const { Jimp, ResizeStrategy } = await import('jimp');
 const sharp = (await import('sharp')).default;
 // (as many threads as ImageScript uses by default: sharp's default on glibc Linux without jemalloc, like CI's, is one)
@@ -48,27 +47,28 @@ const font = fs.readFileSync(FONT_FILE), svg = fs.readFileSync(SVG_FILE, 'utf8')
 const svgScale = SVG_WIDTH / Number(svg.match(/<svg[^>]*\swidth="(\d+)/)[1]);
 const svgAtWidth = svg.replace(/<svg[^>]*>/, tag => tag.replace(/\s(width|height)="(\d+)"/g, (_, name, value) => ` ${name}="${Math.round(value * svgScale)}"`));
 
-const imageScript = (IS, { version, package: pkg, kind, blur = true, webp = true, bilinear = true, modern = true }) => ({
-    name: `ImageScript ${version}`, package: pkg, kind,
-    ...modern && { decodes: ['avif', 'jxl'] },
+const imageScript = IS => ({
+    name: 'ImageScript 3', package: 'imagescript', kind: 'JavaScript',
+    decodes: ['avif', 'jxl'],
     decode: data => IS.Image.decode(data),
     encode: {
         png: image => image.encode(),
         jpeg: image => image.encodeJPEG(80),
-        ...webp && { webp: image => image.encodeWebP() },
-        ...modern && { avif: image => image.encodeAVIF({ quality: AVIF_QUALITY }), jxl: image => image.encodeJXL({ quality: JXL_QUALITY }) }
+        webp: image => image.encodeWebP(),
+        avif: image => image.encodeAVIF({ quality: AVIF_QUALITY }),
+        jxl: image => image.encodeJXL({ quality: JXL_QUALITY })
     },
-    resize: image => image.clone().resize(...RESIZE, bilinear ? IS.Image.RESIZE_BILINEAR : IS.Image.RESIZE_NEAREST_NEIGHBOR),
+    resize: image => image.clone().resize(...RESIZE, IS.Image.RESIZE_BILINEAR),
     rotate: image => image.clone().rotate(ANGLE),
-    ...blur && { blur: image => image.clone().blur(BLUR) },
+    blur: image => image.clone().blur(BLUR),
     composite: (image, overlay) => image.clone().composite(overlay, ...AT),
     crop: image => image.clone().crop(...CROP),
     clone: image => image.clone(),
     text: () => IS.Image.renderText(font, TEXT_SIZE, TEXT),
     svg: () => IS.Image.renderSVG(svg, SVG_WIDTH, IS.Image.SVG_MODE_WIDTH),
     animation: {
-        decode: data => (IS.Animation ?? IS.GIF).decode(data),
-        encode: animation => animation.encodeGIF ? animation.encodeGIF() : animation.encode()
+        decode: data => IS.Animation.decode(data),
+        encode: animation => animation.encodeGIF()
     }
 });
 
@@ -87,8 +87,7 @@ const drawn = (width, height, draw) => {
 };
 
 export const libraries = [
-    imageScript(ImageScript, { version: '3', package: 'imagescript', kind: 'JavaScript' }),
-    imageScript(ImageScriptV1, { version: '1', package: 'imagescript-v1', kind: 'WebAssembly', blur: false, webp: false, bilinear: false, modern: false }),
+    imageScript(ImageScript),
     {
         name: 'Jimp', package: 'jimp', kind: 'JavaScript',
         decode: data => Jimp.fromBuffer(data),
