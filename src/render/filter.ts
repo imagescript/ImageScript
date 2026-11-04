@@ -409,14 +409,19 @@ function apply(kind: Kind, linear: boolean, ts: Matrix, region: Rect, subregion:
         case 'displacement': {
             const src = inColorSpace(input(kind.input), linear).pixmap, map = inColorSpace(input(kind.input2), linear).pixmap;
             const pixmap = create(region.width, region.height);
-            // (like resvg: the scale counts twice, the map isn't unpremultiplied)
+            // (the scale once, like the specification and browsers: resvg multiplies by it twice, moving everything out
+            // of the region at the scales SVGs use; the map's colors unpremultiplied, as the specification says)
             const sx = kind.scale * scaleX, sy = kind.scale * scaleY, w = src.width, h = src.height;
             const round = (v: number): number => Math.sign(v) * Math.round(Math.abs(v));
+            const channel = (m: number, c: number): number => {
+                const a = map.data[m + 3];
+                return c === 3 ? a / 255 : a ? map.data[m + c] / a : 0;
+            };
             for (let y = 0; y < Math.min(h, map.height); y++)
                 for (let x = 0; x < Math.min(w, map.width); x++) {
                     const m = (y * map.width + x) * 4;
-                    const ox = round(x + (map.data[m + kind.xChannel] / 255 - 0.5) * sx * kind.scale);
-                    const oy = round(y + (map.data[m + kind.yChannel] / 255 - 0.5) * sy * kind.scale);
+                    const ox = round(x + (channel(m, kind.xChannel) - 0.5) * sx);
+                    const oy = round(y + (channel(m, kind.yChannel) - 0.5) * sy);
                     if (ox < 0 || ox >= w || oy < 0 || oy >= h) continue;
                     pixmap.data.set(src.data.subarray((oy * w + ox) * 4, (oy * w + ox) * 4 + 4), (y * pixmap.width + x) * 4);
                 }

@@ -37,6 +37,9 @@
     `Animation.decode()` (which reported every image as too large); fractional loop counts in `new Animation()`.
 - `Animation.decode()` reports invalid `threads` and `maxPixels` as such, not as damaged image data.
 - `Image.decode()` refuses GIFs with a hint at `Animation.decode()` instead of "Unsupported image type".
+- SVG `feDisplacementMap` applies its `scale` once, like the specification and browsers (it multiplied by it twice, like
+  resvg, so at typical scales the whole input was displaced out of the filter region and disappeared), and reads the
+  map's colors unpremultiplied.
 
 ## 3.13.2
 
