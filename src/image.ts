@@ -32,7 +32,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC } from './util/resample.ts';
 import { rotateBilinear } from './util/rotate.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
-import { isOptions, finite, color as checkColor } from './util/options.ts';
+import { isOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 
 /** A color as a 32-bit RGBA integer (`0xRRGGBBAA`) */
@@ -1797,7 +1797,7 @@ export class Image {
     dominantColor(ignoreBlackOrOptions: boolean | DominantColorOptions = true, ignoreWhiteArgument = true, thresholdArgument = 0xf): Color {
         const { ignoreBlack = true, ignoreWhite = true, threshold: bwThreshold = 0xf } = typeof ignoreBlackOrOptions === 'object' && ignoreBlackOrOptions !== null
             ? ignoreBlackOrOptions : { ignoreBlack: ignoreBlackOrOptions, ignoreWhite: ignoreWhiteArgument, threshold: thresholdArgument };
-        const threshold = Math.min(64, Math.max(0, bwThreshold)) * 4;
+        const threshold = Math.min(64, Math.max(0, finite(bwThreshold, 'threshold'))) * 4;
         const pixels = this.__bytes__();
 
         const color = quantize.dominantColor(pixels, (r, g, b) =>
@@ -2137,8 +2137,7 @@ export class Image {
             ({ compression = 4, metadata = {} } = compressionOrOptions);
         else metadata = compressionOrOptions as Metadata;
 
-        const level = Math.min(9, Math.max(0, ~~finite(compression, 'compression level')));
-        return png.encodeRGBA(this.__bytes__(), this.width, this.height, level, pngText(resolveMetadata(metadata)));
+        return png.encodeRGBA(this.__bytes__(), this.width, this.height, compressionLevel(compression), pngText(resolveMetadata(metadata)));
     }
 
     /**
@@ -2218,9 +2217,11 @@ export class Image {
      * @param options See {@link AVIFEncodeOptions}
      */
     async encodeAVIF({ quality = 60, alphaQuality = 100, subsampling = '4:4:4', effort = 1, threads = defaultThreads(), metadata = {} }: AVIFEncodeOptions = {}): Promise<Uint8Array> {
+        checkEffort(effort, 2);
         checkThreads(threads);
+        if (subsampling !== '4:4:4' && subsampling !== '4:2:0') throw new TypeError(`subsampling must be '4:4:4' or '4:2:0', not ${String(subsampling)}`);
         const exif = exifData(resolveMetadata(metadata));
-        return avifEnc.encode(this.__bytes__(), this.width, this.height, { quality: finite(quality, 'quality'), alphaQuality: finite(alphaQuality, 'alphaQuality'), subsampling, effort, exif, threads });
+        return avifEnc.encode(this.__bytes__(), this.width, this.height, { quality: checkQuality(quality), alphaQuality: checkQuality(alphaQuality, 'alphaQuality'), subsampling, effort, exif, threads });
     }
 
     /**
@@ -2234,12 +2235,11 @@ export class Image {
      * @param options See {@link JXLEncodeOptions}
      */
     async encodeJXL({ quality, effort = 1, threads = defaultThreads(), metadata = {} }: JXLEncodeOptions = {}): Promise<Uint8Array> {
-        if (!Number.isInteger(effort) || effort < 0 || effort > 2) throw new RangeError(`effort must be an integer 0-2, not ${effort}`);
+        checkEffort(effort, 2);
         checkThreads(threads);
         let distance = 0;
         if (quality !== undefined) {
-            const q = finite(quality, 'quality');
-            if (q < 0 || q > 100) throw new RangeError(`quality must be 0-100, not ${q}`);
+            const q = checkQuality(quality);
             // (cjxl's distance of a quality)
             distance = q >= 100 ? 0 : q >= 30 ? 0.1 + (100 - q) * 0.09 : 53 / 3000 * q * q - 23 / 20 * q + 25;
         }
@@ -2267,6 +2267,7 @@ export class Image {
     static async decode(input: BinaryData, options: DecodeOptions = {}): Promise<Image> {
         const { applyOrientation = true, applyColorProfile = true, maxPixels = MAX_PIXELS, toneMapping = 'reinhard', threads = defaultThreads() } = options;
         checkThreads(threads);
+        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
         if (toneMapping !== 'reinhard' && toneMapping !== 'clamp') throw new TypeError(`toneMapping must be 'reinhard' or 'clamp', not ${String(toneMapping)}`);
         const data = view(input);
         const dataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -2386,6 +2387,7 @@ export class Image {
         if (![1, 2, 3].includes(mode))
             throw new Error('Invalid SVG scaling mode');
 
+        finite(size, 'SVG size');
         if (mode === Image.SVG_MODE_SCALE && size <= 0)
             throw new RangeError('SVG scale must be > 0');
         if (mode !== Image.SVG_MODE_SCALE && size < 1)
@@ -2451,6 +2453,7 @@ export class Image {
         const { color = 0xffffffff, layout = new TextLayout(), strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {} } = options;
         const axes = textRenderer.axisValues(variations);
         size = finite(size, 'font size');
+        if (size < 0) throw new RangeError(`Invalid font size: ${size}`);
         if (finite(strokeWidth, 'stroke width') < 0)
             throw new RangeError('Invalid stroke width');
         const fonts = Array.isArray(font) ? font : [font];

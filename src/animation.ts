@@ -10,7 +10,7 @@ import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { isOptions, finite } from './util/options.ts';
+import { isOptions, finite, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder, WebPAnimationEncoderOptions, GIFAnimationEncoderOptions, APNGAnimationEncoderOptions } from './animation-encoder.ts';
 
@@ -123,8 +123,8 @@ export class Animation extends Array<Frame> {
             if (!(this[i] instanceof Frame))
                 throw new TypeError(`Frame ${i} is not an instance of Frame`);
 
-        if (finite(loopCount, 'loop count') < -1)
-            throw new RangeError('Invalid loop count');
+        if (finite(loopCount, 'loop count') < -1 || !Number.isInteger(Number(loopCount)))
+            throw new RangeError(`Invalid loop count: ${loopCount}`);
 
         this.loopCount = loopCount;
     }
@@ -263,7 +263,7 @@ export class Animation extends Array<Frame> {
         // gifs store centiseconds; rounding keeps e.g. 16 ms (60 fps) from becoming 10 ms
         const gifFrames = frames.map(({ duration, ...f }) => ({ ...f, delay: Math.round(duration / 10) }));
 
-        return gifCodec.encode({ width: this.width, height: this.height, loopCount: this.loopCount, frames: gifFrames }, quality, gifComments(resolveMetadata(metadata)));
+        return gifCodec.encode({ width: this.width, height: this.height, loopCount: this.loopCount, frames: gifFrames }, finite(quality, 'quality'), gifComments(resolveMetadata(metadata)));
     }
 
     /**
@@ -290,7 +290,7 @@ export class Animation extends Array<Frame> {
         const frames = optimize
             ? this.__optimized__({ replace: true, even: false, alpha: frames => png.alphaCost(frames.map(f => f.pixels)) }).map(f => ({ ...f, dispose: f.dispose ? 1 : 0 }))
             : this.__apngFrames__().map(({ blend: _, ...f }) => f); // blended, the encoder's default
-        return png.encodeAnimation(frames, this.width, this.height, toPlays(this.loopCount), compression, pngText(resolveMetadata(metadata)));
+        return png.encodeAnimation(frames, this.width, this.height, toPlays(this.loopCount), compressionLevel(compression), pngText(resolveMetadata(metadata)));
     }
 
     /**
@@ -412,6 +412,12 @@ export class Animation extends Array<Frame> {
      */
     static decode(input: BinaryData, onlyExtractFirstFrame?: boolean): Promise<Animation>;
     static async decode(input: BinaryData, onlyFirstFrameOrOptions: boolean | AnimationDecodeOptions = false): Promise<Animation> {
+        // (checked outside of decoding(), which reports RangeErrors as damaged data)
+        if (isOptions(onlyFirstFrameOrOptions)) {
+            const { maxPixels = MAX_PIXELS, threads = 1 } = onlyFirstFrameOrOptions;
+            if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
+            if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
+        }
         return decoding(() => Animation.__decode__(input, onlyFirstFrameOrOptions));
     }
 
@@ -421,7 +427,6 @@ export class Animation extends Array<Frame> {
      */
     private static async __decode__(input: BinaryData, onlyFirstFrameOrOptions: boolean | AnimationDecodeOptions): Promise<Animation> {
         const { onlyFirstFrame: onlyExtractFirstFrame = false, maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)) } = isOptions(onlyFirstFrameOrOptions) ? onlyFirstFrameOrOptions : { onlyFirstFrame: onlyFirstFrameOrOptions };
-        if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
         const profile = (frames: Frame[], icc: Uint8Array | undefined, space?: jxl.ColorSpace): Frame[] => {
             const transform = !applyColorProfile ? null : icc ? profileTransform(icc) : space ? colorSpaceTransform(space.xy, space.curve) : null;
             if (transform) for (const frame of frames) transform(frame.bitmap);

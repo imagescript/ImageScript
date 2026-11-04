@@ -10,7 +10,7 @@ import { encodeVP8, encodeAlpha } from './vp8-enc.ts';
 import { rgbaToYUV } from './vp8-enc-dsp.ts';
 import { orientation as exifOrientation } from './exif.ts';
 import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
-import { finite } from '../util/options.ts';
+import { effort as checkEffort, quality as checkQuality } from '../util/options.ts';
 import { startThreads } from '../util/threads.ts';
 
 const fourCC = (s: string): number => s.charCodeAt(0) | s.charCodeAt(1) << 8 | s.charCodeAt(2) << 16 | s.charCodeAt(3) << 24;
@@ -371,11 +371,10 @@ export interface LossyOptions {
  * @returns undefined without a quality: lossless
  */
 export function lossyOptions(quality: number | undefined, effort: number, sharp: boolean, alphaQuality: number): LossyOptions | undefined {
+    // (checked for lossless images too, which don't use it)
+    checkEffort(effort, 6);
     if (quality === undefined) return undefined;
-    const q = finite(quality, 'quality'), a = finite(alphaQuality, 'alphaQuality');
-    if (q < 0 || q > 100) throw new RangeError(`quality must be 0-100, not ${q}`);
-    if (a < 0 || a > 100) throw new RangeError(`alphaQuality must be 0-100, not ${a}`);
-    if (!Number.isInteger(effort) || effort < 0 || effort > 6) throw new RangeError(`effort must be an integer 0-6, not ${effort}`);
+    const q = checkQuality(quality), a = checkQuality(alphaQuality, 'alphaQuality');
     return { quality: q, method: effort, sharp, alphaQuality: Math.round(a) };
 }
 

@@ -13,5 +13,21 @@ export function finite(value: number, name: string): number {
     return number;
 }
 
+/** A quality argument (0-100) of the encoders that take one, finite and in range */
+export function quality(value: number, name = 'quality'): number {
+    const q = finite(value, name);
+    if (q < 0 || q > 100) throw new RangeError(`${name} must be 0-100, not ${q}`);
+    return q;
+}
+
+/** An effort argument: an integer from 0 to max */
+export function effort(value: number, max: number): number {
+    if (!Number.isInteger(value) || value < 0 || value > max) throw new RangeError(`effort must be an integer 0-${max}, not ${value}`);
+    return value;
+}
+
+/** A zlib compression level: finite, clamped to 0-9 and truncated (PNG's and APNG's) */
+export const compressionLevel = (value: number): number => Math.min(9, Math.max(0, ~~finite(value, 'compression level')));
+
 /** A color argument: a finite number (as RGBA, 0xrrggbbaa) */
 export const color = (value: number, name = 'color'): number => finite(value, name);

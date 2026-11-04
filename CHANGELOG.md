@@ -22,6 +22,21 @@
   the same, except for rare coefficients the new transforms round differently (2 of 108 test encodes, both the same
   size).
 
+### Fixes
+
+- Invalid options throw a `RangeError` naming them before any work, instead of failing inside an encoder or being
+  ignored:
+  - `encodeAVIF()`: `effort` other than 0, 1 or 2 failed with a `TypeError` deep in the encoder, `quality` and
+    `alphaQuality` outside 0-100 were accepted, and an unknown `subsampling` silently meant 4:4:4 (now a
+    `TypeError`).
+  - `encodeWebP()`, `Animation.encodeWebP()` and `Animation.webpEncoder()` check `effort` for lossless images too
+    (which don't use it).
+  - `NaN` is refused as GIF `quality` and APNG `compression` (out of range values are still clamped, like PNG's), as
+    `dominantColor()`'s `threshold` and as `renderSVG()`'s size (which threw about the image's width); negative font
+    sizes in `renderText()` (which rendered an empty image); `maxPixels` that isn't positive in `Image.decode()` and
+    `Animation.decode()` (which reported every image as too large); fractional loop counts in `new Animation()`.
+- `Animation.decode()` reports invalid `threads` and `maxPixels` as such, not as damaged image data.
+
 ## 3.13.2
 
 ### Fixes

@@ -6,7 +6,7 @@ import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { finite } from './util/options.ts';
+import { finite, compressionLevel } from './util/options.ts';
 
 // (ImageScript, like GIF, counts repetitions: -1 forever, 0 play once; APNG and WebP count plays, 0 forever)
 const toPlays = (loopCount: number): number => loopCount < 0 ? 0 : loopCount + 1;
@@ -151,7 +151,8 @@ export class AnimationEncoder {
     }
 
     /** @internal */
-    static __gif__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, quality = 95 }: GIFAnimationEncoderOptions): AnimationEncoder {
+    static __gif__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, quality: qualityOption = 95 }: GIFAnimationEncoderOptions): AnimationEncoder {
+        const quality = finite(qualityOption, 'quality');
         canvas(width, height, loopCount);
         const comments = gifComments(resolveMetadata(metadata));
         // (the first frame is encoded last: it needs a transparent index if any frame restores the background)
@@ -177,7 +178,8 @@ export class AnimationEncoder {
     }
 
     /** @internal */
-    static __apng__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, compression = 4 }: APNGAnimationEncoderOptions): AnimationEncoder {
+    static __apng__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, compression: compressionOption = 4 }: APNGAnimationEncoderOptions): AnimationEncoder {
+        const compression = compressionLevel(compressionOption);
         canvas(width, height, loopCount);
         const text = pngText(resolveMetadata(metadata));
         // the frames are kept compressed (quickly): the pixel format, and whether opaque animations are stored without
