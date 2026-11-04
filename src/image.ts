@@ -2295,6 +2295,7 @@ export class Image {
             if (ImageType.isPNM(dataView)) return netpbm.decode(data, maxPixels, toneMapping);
             if (ImageType.isHDR(dataView)) return hdr.decode(data, maxPixels, toneMapping);
             if (ImageType.isTGA(dataView)) return tga.decode(data, maxPixels);
+            if (ImageType.isGIF(dataView)) throw new Error('GIFs have to be decoded with Animation.decode() (or decode(), which returns an image or an animation)');
             throw new Error('Unsupported image type');
         });
 

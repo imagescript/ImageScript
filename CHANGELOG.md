@@ -36,6 +36,7 @@
     sizes in `renderText()` (which rendered an empty image); `maxPixels` that isn't positive in `Image.decode()` and
     `Animation.decode()` (which reported every image as too large); fractional loop counts in `new Animation()`.
 - `Animation.decode()` reports invalid `threads` and `maxPixels` as such, not as damaged image data.
+- `Image.decode()` refuses GIFs with a hint at `Animation.decode()` instead of "Unsupported image type".
 
 ## 3.13.2
 

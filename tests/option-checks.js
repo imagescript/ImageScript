@@ -61,6 +61,10 @@ const rejects = async (name, fn, Type, pattern) => {
     }
     await rejects('Animation.decode threads 0', () => Animation.decode(png, {threads: 0}), RangeError, /threads must be/);
 
+    // GIFs are refused by Image.decode() with a hint at Animation.decode()
+    const gif = await new Animation([new Frame(4, 4).fill(0xff0000ff)]).encodeGIF();
+    await rejects('Image.decode GIF', () => Image.decode(gif), Error, /Animation\.decode\(\)/);
+
     // valid values keep working
     for (const effort of [0, 1, 2]) await image.encodeAVIF({effort});
     for (const subsampling of ['4:4:4', '4:2:0']) await image.encodeAVIF({quality: 50, subsampling});
