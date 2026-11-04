@@ -58,4 +58,66 @@ const difference = (a, b) => {
     // (JPEG XLs through Animation.decode too)
     const jxlFrames = await Animation.decode(await fs.readFile('./tests/icc/display-p3.jxl'));
     if (difference(jxlFrames[0], await Image.decode(await fs.readFile('./tests/icc/display-p3.ref.png'))) > 1) panic('JPEG XL through Animation.decode: differs from LittleCMS');
+
+    // lossless JPEG XLs in an enumerated color space (no ICC profile, like cjxl writes Display P3): converted to sRGB
+    // like an embedded profile. The Display P3 values, losslessly encoded, with the image header's color encoding
+    // replaced by Display P3's (D65, P3 primaries, the sRGB transfer function)
+    const p3 = await Image.decode(await fs.readFile('./tests/icc/display-p3.png'), {applyColorProfile: false});
+    const bare = new Image(p3.width, p3.height);
+    bare.bitmap.set(p3.bitmap);
+    const enumerated = withColourEncoding(jxlc(await bare.encodeJXL()), p3.width, p3.height, true, [
+        [1, 0], [1, 0], [2, 0], [2, 1], [2, 2], [4, 11 - 2], [1, 0], [2, 2], [4, 13 - 2], [2, 1],
+    ]);
+    const p3Ref = await Image.decode(await fs.readFile('./tests/icc/display-p3.ref.png'));
+    const p3Decoded = await Image.decode(enumerated);
+    if (difference(p3Decoded, p3Ref) > 1) panic(`enumerated Display P3 JPEG XL: differs from LittleCMS by ${difference(p3Decoded, p3Ref)}`);
+    if (difference(await Image.decode(enumerated, {applyColorProfile: false}), p3) !== 0) panic('enumerated Display P3 JPEG XL, applyColorProfile: false: should keep the stored colors');
+    if (difference((await Animation.decode(enumerated))[0], p3Ref) > 1) panic('enumerated Display P3 JPEG XL through Animation.decode: differs from LittleCMS');
 })();
+
+// the codestream of a JPEG XL in the container (our encoder's: one jxlc box)
+function jxlc(data) {
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    for (let o = 0; o + 8 <= data.length; o += view.getUint32(o)) {
+        if (String.fromCharCode(...data.subarray(o + 4, o + 8)) === 'jxlc') return data.subarray(o + 8, o + view.getUint32(o));
+    }
+    throw new Error('jxlc: no codestream box');
+}
+
+// a lossless JPEG XL codestream of ours (image header: 8-bit, an 8-bit alpha channel if alpha, not XYB, the default
+// color encoding) with the image header's color encoding replaced by the given fields ([bits, value], LSB first)
+function withColourEncoding(stream, width, height, alpha, fields) {
+    const header = colour => {
+        const bytes = [];
+        let buf = 0, n = 0;
+        const write = (count, v) => {
+            for (let i = 0; i < count; i++) {
+                buf |= (v >>> i & 1) << n++;
+                if (n === 8) {
+                    bytes.push(buf);
+                    buf = n = 0;
+                }
+            }
+        };
+        write(16, 0x0aff);
+        // (the size: a small one, a square)
+        if (width !== height || height > 256 || height % 8) throw new Error('withColourEncoding: small squares only');
+        write(1, 1);
+        write(5, height / 8 - 1);
+        write(3, 1);
+        write(1, 0); write(1, 0); write(1, 0); write(2, 0); write(1, 1);
+        if (alpha) {
+            write(2, 1);
+            write(1, 1);
+        } else write(2, 0);
+        write(1, 0);
+        if (colour) for (const [bits, v] of colour) write(bits, v);
+        else write(1, 1);
+        write(2, 0); write(1, 1);
+        if (n) write(8 - n, 0);
+        return Uint8Array.from(bytes);
+    };
+    const original = header(null);
+    if (Buffer.compare(Buffer.from(stream.subarray(0, original.length)), Buffer.from(original))) throw new Error('withColourEncoding: unexpected image header');
+    return Buffer.concat([header(fields), stream.subarray(original.length)]);
+}

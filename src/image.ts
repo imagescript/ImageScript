@@ -24,7 +24,7 @@ import * as quantize from './codecs/quantize.ts';
 import * as textRenderer from './render/text.ts';
 import * as svgRenderer from './render/svg.ts';
 import { BinaryData, view } from './util/mem.ts';
-import { cicpTransform, profileTransform } from './util/icc.ts';
+import { cicpTransform, colorSpaceTransform, profileTransform } from './util/icc.ts';
 import { ImageType } from './image-type.ts';
 import { TextLayout } from './text-layout.ts';
 import { Metadata, resolveMetadata, pngText, exifData } from './metadata.ts';
@@ -2266,7 +2266,7 @@ export class Image {
         const data = view(input);
         const dataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
 
-        const decoded: { width: number, height: number, pixels: Uint8Array, orientation?: number, icc?: Uint8Array, cicp?: [number, number] } = await decoding(() => {
+        const decoded: { width: number, height: number, pixels: Uint8Array, orientation?: number, icc?: Uint8Array, cicp?: [number, number], colorSpace?: jxl.ColorSpace } = await decoding(() => {
             if (ImageType.isPNG(dataView)) return png.decode(data, maxPixels);
             if (ImageType.isJPEG(dataView)) return jpeg.decode(data, { maxPixels });
             if (ImageType.isTIFF(dataView)) return tiff.decode(data, maxPixels);
@@ -2292,8 +2292,11 @@ export class Image {
             throw new Error('Unsupported image type');
         });
 
-        // (an AVIF without one: its color primaries and transfer)
-        if (applyColorProfile) (decoded.icc ? profileTransform(decoded.icc) : decoded.cicp ? cicpTransform(...decoded.cicp) : null)?.(decoded.pixels);
+        // (without one: an AVIF's color primaries and transfer, a JPEG XL's enumerated color space)
+        if (applyColorProfile) {
+            const { icc, cicp, colorSpace } = decoded;
+            (icc ? profileTransform(icc) : cicp ? cicpTransform(...cicp) : colorSpace ? colorSpaceTransform(colorSpace.xy, colorSpace.curve) : null)?.(decoded.pixels);
+        }
         // the decoded pixels become the bitmap, without a copy
         const image = new Image(decoded.width, decoded.height);
         image.bitmap = decoded.pixels;

@@ -7,7 +7,10 @@
 import { startThreads } from '../util/threads.ts';
 import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
 import { BitReader } from './jxl/bits.ts';
-import { decodeICC, imageHeader, readICC } from './jxl/headers.ts';
+import {
+    CS_GREY, CS_RGB, decodeICC, imageHeader, PRI_BT2100, PRI_CUSTOM, PRI_P3, readICC, TF_DCI, TF_HLG, TF_LINEAR, TF_PQ,
+    WP_CUSTOM, WP_DCI, WP_E, type ColourEncoding, type ImageHeader
+} from './jxl/headers.ts';
 import { frameHeader, toc } from './jxl/frame-header.ts';
 import { decodeFrame, DecoderState, type FrameThreads } from './jxl/frame.ts';
 import { ColorOutput } from './jxl/color.ts';
@@ -15,6 +18,7 @@ import { ToneMapping } from './hdr.ts';
 import { encodeRGBA } from './jxl/fast-lossless.ts';
 import { encodeVarDCT } from './jxl/vardct-enc.ts';
 import { concat } from '../util/mem.ts';
+import { srgbDecode, type Curve } from '../util/icc.ts';
 
 const CONTAINER = [0, 0, 0, 12, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a];
 
@@ -72,8 +76,41 @@ function codestream(d: Uint8Array): Uint8Array {
     return out;
 }
 
+/** A color space given by its primaries and white (xy: red, green, blue, white; null for gray) and tone curve */
+export interface ColorSpace {
+    xy: number[][] | null;
+    curve: Curve;
+}
+
+// the xy chromaticities of the enumerated white points and primaries (red, green, blue)
+const WHITE_D65 = [0.3127, 0.3290];
+const PRIMARIES: Record<number, number[][]> = {
+    [PRI_BT2100]: [[0.708, 0.292], [0.170, 0.797], [0.131, 0.046]],
+    [PRI_P3]: [[0.680, 0.320], [0.265, 0.690], [0.150, 0.060]],
+};
+
+/**
+ * The color space the decoded pixels are in when the codestream gives it by its enumerated encoding and it isn't
+ * sRGB: undefined for XYB images (which decode to sRGB), ones with an ICC profile, HDR ones (PQ, HLG: these become sRGB
+ * in ColorOutput) and unknown color spaces. Like CICP's (see cicpTransform), BT.709's transfer is taken as sRGB's
+ */
+export function colorSpace(image: ImageHeader): ColorSpace | undefined {
+    const c: ColourEncoding = image.colour;
+    if (image.xybEncoded || c.wantICC || (c.colourSpace !== CS_RGB && c.colourSpace !== CS_GREY)) return;
+    if (c.transfer === TF_PQ || c.transfer === TF_HLG) return;
+    const curve: Curve | null = c.transfer === -1 ? (c.gamma > 0 ? v => v ** (1 / c.gamma) : null)
+        : c.transfer === TF_LINEAR ? v => v : c.transfer === TF_DCI ? v => v ** 2.6 : null;
+    const white = c.whitePoint === WP_CUSTOM ? c.white : c.whitePoint === WP_E ? [1 / 3, 1 / 3] : c.whitePoint === WP_DCI ? [0.314, 0.351] : null;
+    const primaries = c.colourSpace === CS_GREY ? null : c.primaries === PRI_CUSTOM
+        ? [0, 2, 4].map(i => c.primariesXY.slice(i, i + 2)) : PRIMARIES[c.primaries] ?? null;
+    // (sRGB: nothing to convert; gray only by its curve)
+    if (c.colourSpace === CS_GREY) return curve ? { xy: null, curve } : undefined;
+    if (!curve && !white && !primaries) return;
+    return { xy: [...primaries ?? [[0.64, 0.33], [0.30, 0.60], [0.15, 0.06]], white ?? WHITE_D65], curve: curve ?? srgbDecode };
+}
+
 /** The frames shown (composited, as RGBA), their durations in milliseconds */
-export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1): AsyncGenerator<{ width: number, height: number, pixels: Uint8Array, duration: number, orientation: number, loopCount: number, icc?: Uint8Array }> {
+export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1): AsyncGenerator<{ width: number, height: number, pixels: Uint8Array, duration: number, orientation: number, loopCount: number, icc?: Uint8Array, colorSpace?: ColorSpace }> {
     const d = codestream(data);
     const r = new BitReader(d);
     const image = imageHeader(r);
@@ -82,6 +119,8 @@ export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapp
     // says what the image was before)
     const stream = image.colour.wantICC ? readICC(r) : null;
     const icc = stream && !image.xybEncoded ? decodeICC(stream) ?? undefined : undefined;
+    // (without one: the enumerated color space, if it isn't sRGB)
+    const space = icc ? undefined : colorSpace(image);
     r.zeroPadToByte();
     let at = r.bytePosition;
     if (image.preview) {
@@ -114,7 +153,7 @@ export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapp
                 shown++;
                 yield {
                     width: image.width, height: image.height, pixels: state.output.toRGBA(frame.canvas), duration: frame.header.duration * tick,
-                    orientation: image.orientation, loopCount: a ? a.numLoops : 1, icc
+                    orientation: image.orientation, loopCount: a ? a.numLoops : 1, icc, colorSpace: space
                 };
             }
             if (frame.header.isLast) return;
@@ -125,7 +164,7 @@ export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapp
 }
 
 /** Decodes the first frame shown */
-export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1): Promise<{ width: number, height: number, pixels: Uint8Array, orientation: number, icc?: Uint8Array }> {
+export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1): Promise<{ width: number, height: number, pixels: Uint8Array, orientation: number, icc?: Uint8Array, colorSpace?: ColorSpace }> {
     for await (const frame of frames(data, maxPixels, toneMapping, threads)) return frame;
     throw new Error('JPEG XL: no frame shown');
 }

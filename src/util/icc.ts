@@ -3,7 +3,7 @@
 // CMYK and other color spaces, and ones close enough to sRGB aren't applied
 
 /** a profile's tone curve: an encoded value (0-1) to linear light */
-type Curve = (v: number) => number;
+export type Curve = (v: number) => number;
 
 const s15Fixed16 = (view: DataView, o: number): number => view.getInt32(o) / 65536;
 
@@ -153,6 +153,21 @@ const BRADFORD = [0.8951, 0.2664, -0.1614, -0.7502, 1.7135, 0.0367, 0.0389, -0.0
 export function cicpTransform(primaries: number, transfer: number): ((rgba: Uint8Array | Uint8ClampedArray) => void) | null {
     const xy = CICP_PRIMARIES[primaries];
     if (!xy || transfer === 16 || transfer === 18) return null;
+    const curve: Curve = transfer === 4 ? v => v ** 2.2 : transfer === 5 ? v => v ** 2.8 : transfer === 8 ? v => v : srgbDecode;
+    return colorSpaceTransform(xy, curve);
+}
+
+/** sRGB's tone curve */
+export const srgbDecode: Curve = v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+
+/**
+ * The transform of 8-bit RGBA pixels in a color space given by its primaries and white (xy chromaticities: red, green,
+ * blue, white; null for gray, which is taken to have sRGB's white) and tone curve to sRGB, like an ICC profile's: null
+ * for sRGB and ones that can't be applied
+ */
+export function colorSpaceTransform(xy: number[][] | null, curve: Curve): ((rgba: Uint8Array | Uint8ClampedArray) => void) | null {
+    if (!xy) return transform({ gray: true, matrix: SRGB_D50, curves: [curve, curve, curve] });
+    if (xy.some(([x, y]) => !(y > 0) || !Number.isFinite(x))) return null;
     const xyz = ([x, y]: number[]): number[] => [x / y, 1, (1 - x - y) / y];
     // the primaries' XYZ (columns) scaled so they add up to the white, then adapted to D50 by Bradford
     const p = [0, 1, 2].map(i => xyz(xy[i])), white = xyz(xy[3]);
@@ -164,8 +179,6 @@ export function cicpTransform(primaries: number, transfer: number): ((rgba: Uint
     const cone = (v: number[]): number[] => [0, 1, 2].map(r => BRADFORD[r * 3] * v[0] + BRADFORD[r * 3 + 1] * v[1] + BRADFORD[r * 3 + 2] * v[2]);
     const from = cone(white), to = cone(D50);
     const adapt = multiply3(invert3(BRADFORD) as number[], multiply3([to[0] / from[0], 0, 0, 0, to[1] / from[1], 0, 0, 0, to[2] / from[2]], BRADFORD));
-    const curve: Curve = transfer === 4 ? v => v ** 2.2 : transfer === 5 ? v => v ** 2.8 : transfer === 8 ? v => v
-        : v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
     return transform({ gray: false, matrix: multiply3(adapt, matrix), curves: [curve, curve, curve] });
 }
 

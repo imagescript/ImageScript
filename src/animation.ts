@@ -1,4 +1,4 @@
-import { profileTransform } from './util/icc.ts';
+import { colorSpaceTransform, profileTransform } from './util/icc.ts';
 import * as gifCodec from './codecs/gif.ts';
 import * as png from './codecs/png.ts';
 import * as webp from './codecs/webp.ts';
@@ -422,8 +422,8 @@ export class Animation extends Array<Frame> {
     private static async __decode__(input: BinaryData, onlyFirstFrameOrOptions: boolean | AnimationDecodeOptions): Promise<Animation> {
         const { onlyFirstFrame: onlyExtractFirstFrame = false, maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)) } = isOptions(onlyFirstFrameOrOptions) ? onlyFirstFrameOrOptions : { onlyFirstFrame: onlyFirstFrameOrOptions };
         if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
-        const profile = (frames: Frame[], icc: Uint8Array | undefined): Frame[] => {
-            const transform = applyColorProfile && icc ? profileTransform(icc) : null;
+        const profile = (frames: Frame[], icc: Uint8Array | undefined, space?: jxl.ColorSpace): Frame[] => {
+            const transform = !applyColorProfile ? null : icc ? profileTransform(icc) : space ? colorSpaceTransform(space.xy, space.curve) : null;
             if (transform) for (const frame of frames) transform(frame.bitmap);
             return frames;
         };
@@ -451,16 +451,17 @@ export class Animation extends Array<Frame> {
 
         if (type === 'jxl') {
             const frames: Frame[] = [];
-            let loopCount = -1, icc: Uint8Array | undefined;
+            let loopCount = -1, icc: Uint8Array | undefined, space: jxl.ColorSpace | undefined;
             for await (const decoded of jxl.frames(data, maxPixels, 'reinhard', threads)) {
                 const frame = new Frame(decoded.width, decoded.height, decoded.duration, 0, 0, Frame.DISPOSAL_BACKGROUND);
                 frame.bitmap = decoded.pixels;
                 frames.push(frame.__orient__(decoded.orientation));
                 loopCount = fromPlays(decoded.loopCount);
                 icc = decoded.icc;
+                space = decoded.colorSpace;
                 if (onlyExtractFirstFrame) break;
             }
-            return new Animation(profile(frames, icc), frames.length > 1 ? loopCount : -1);
+            return new Animation(profile(frames, icc, space), frames.length > 1 ? loopCount : -1);
         }
 
         if (type) return new Animation([Frame.from(await Image.decode(data, { maxPixels, applyColorProfile }), 0)]);
