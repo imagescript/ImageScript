@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.13.2
+
+### Fixes
+
+- Lossless JPEG XLs whose color space their codestream names, without an ICC profile, are converted to sRGB like
+  ones with a profile (#83). cjxl stores Display P3 images this way, and they came out washed out because the P3
+  values were read as sRGB: up to 41 levels off LittleCMS's conversion, now within 1. Applies to `Image.decode` and
+  `Animation.decode`; turn it off with `applyColorProfile: false`. The P3 and BT.2100 primaries, custom primaries and
+  white points, and linear, DCI and gamma transfer functions are all converted. Lossy (XYB) JPEG XLs, ones with an
+  ICC profile and HDR ones (PQ, HLG) decode as before.
+
 ## 3.13.1
 
 ### Changes
