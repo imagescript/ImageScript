@@ -102,7 +102,7 @@ const work = { row: new Float64Array(256), scratch: new Float64Array(256) };
 const SEC8 = secHalf(8);
 
 // the inverse 8-point DCT of buf[o + k * step] in place (like dct's recursion, unrolled)
-function idct8(buf: Float32Array, o: number, step: number): void {
+export function idct8(buf: Float32Array, o: number, step: number): void {
     const v0 = buf[o], v1 = buf[o + step], v2 = buf[o + 2 * step], v3 = buf[o + 3 * step];
     const v4 = buf[o + 4 * step], v5 = buf[o + 5 * step], v6 = buf[o + 6 * step], v7 = buf[o + 7 * step];
     // the even half: v0, v2, v4, v6
@@ -229,7 +229,28 @@ const set = (b: Block, x: number, y: number, v: number): void => {
     b.buf[b.offset + y * b.stride + x] = v;
 };
 const tmp = { a: new Float32Array(64), b: new Float32Array(64) };
-const blockOf = (buf: Float32Array, offset: number, w: number, h: number, stride = w): Block => ({ buf, offset, stride, w, h });
+
+// the inverse 4-point DCT of buf[o + k * step] in place (dct4's)
+function idct4(buf: Float32Array, o: number, step: number): void {
+    const i0 = buf[o], i1 = buf[o + step], i2 = buf[o + 2 * step], i3 = buf[o + 3 * step];
+    const t0 = i1 * Math.SQRT2, t1 = i1 + i3, out0 = (t0 + t1) * SEC0, out1 = (t0 - t1) * SEC1;
+    const sum02 = i0 + i2, sub02 = i0 - i2;
+    buf[o] = sum02 + out0;
+    buf[o + step] = sub02 + out1;
+    buf[o + 2 * step] = sub02 - out1;
+    buf[o + 3 * step] = sum02 - out0;
+}
+
+// the inverse 2D DCTs of 8x4 and 4x4 blocks at buf[o] (rows, then columns: dct2d's)
+function idct8x4(buf: Float32Array, o: number): void {
+    for (let y = 0; y < 4; y++) idct8(buf, o + y * 8, 1);
+    for (let x = 0; x < 8; x++) idct4(buf, o + x, 8);
+}
+
+function idct4x4(buf: Float32Array, o: number): void {
+    for (let y = 0; y < 4; y++) idct4(buf, o + y * 4, 1);
+    for (let x = 0; x < 4; x++) idct4(buf, o + x, 4);
+}
 
 function idct2InPlace(b: Block, size: number): void {
     const half = size / 2, s = tmp.a;
@@ -259,7 +280,7 @@ function dct4x4(b: Block): void {
             const o = (y * 2 + x) * 16;
             // (transposed)
             for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 4; ix++) s[o + ix * 4 + iy] = get(b, x + ix * 2, y + iy * 2);
-            dct2d(blockOf(s, o, 4, 4), true);
+            idct4x4(s, o);
         }
     }
     for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 4; ix++) set(b, x * 4 + ix, y * 4 + iy, s[(y * 2 + x) * 16 + iy * 4 + ix]);
@@ -290,7 +311,7 @@ function dct4x8(b: Block, transposed: boolean): void {
     const s = tmp.b;
     for (let i = 0; i < 2; i++) {
         for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 8; ix++) s[i * 32 + iy * 8 + ix] = get(b, ix, iy * 2 + i);
-        dct2d(blockOf(s, i * 32, 8, 4), true);
+        idct8x4(s, i * 32);
     }
     for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
         if (transposed) set(b, y, x, s[y * 8 + x]);
@@ -298,19 +319,20 @@ function dct4x8(b: Block, transposed: boolean): void {
     }
 }
 
+const afvScratch = { coeffs: new Float64Array(16), samples: new Float64Array(16), s4: new Float32Array(16), s8: new Float32Array(32) };
+
 function afv(b: Block, n: number): void {
     const flipX = n % 2, flipY = n >> 1;
-    const coeffs = new Float64Array(16), samples = new Float64Array(16);
+    const coeffs = afvScratch.coeffs, samples = afvScratch.samples.fill(0), s4 = afvScratch.s4, s8 = afvScratch.s8;
     coeffs[0] = (get(b, 0, 0) + get(b, 1, 0) + get(b, 0, 1)) * 4;
     for (let i = 1; i < 16; i++) coeffs[i] = get(b, 2 * (i % 4), 2 * (i >> 2));
     for (let i = 0; i < 16; i++) for (let k = 0; k < 16; k++) samples[k] += coeffs[i] * AFV_BASIS[i * 16 + k];
-    const s4 = new Float32Array(16), s8 = new Float32Array(32);
     s4[0] = get(b, 0, 0) - get(b, 1, 0) + get(b, 0, 1);
     for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 4; ix++) if (ix | iy) s4[ix * 4 + iy] = get(b, 2 * ix + 1, 2 * iy);
-    dct2d(blockOf(s4, 0, 4, 4), true);
+    idct4x4(s4, 0);
     s8[0] = get(b, 0, 0) - get(b, 0, 1);
     for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 8; ix++) if (ix | iy) s8[iy * 8 + ix] = get(b, ix, 2 * iy + 1);
-    dct2d(blockOf(s8, 0, 8, 4), true);
+    idct8x4(s8, 0);
     for (let iy = 0; iy < 4; iy++) {
         const ay = flipY ? 3 - iy : iy;
         for (let ix = 0; ix < 4; ix++) set(b, flipX * 4 + ix, flipY * 4 + iy, samples[ay * 4 + (flipX ? 3 - ix : ix)]);
@@ -337,7 +359,7 @@ export function inverseTransform(b: Block, type: number): void {
 export { sub as subBlock };
 
 // the AFV basis (16 x 16)
-const AFV_BASIS = [
+export const AFV_BASIS = [
     0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
     0.876902929799142, 0.2206518106944235, -0.10140050393753763, -0.1014005039375375, 0.2206518106944236, -0.10140050393753777, -0.10140050393753772, -0.10140050393753763, -0.10140050393753758, -0.10140050393753769, -0.1014005039375375, -0.10140050393753768, -0.10140050393753768, -0.10140050393753759, -0.10140050393753763, -0.10140050393753741,
     0.0, 0.0, 0.40670075830260755, 0.44444816619734445, 0.0, 0.0, 0.19574399372042936, 0.2929100136981264, -0.40670075830260716, -0.19574399372042872, 0.0, 0.11379074460448091, -0.44444816619734384, -0.29291001369812636, -0.1137907446044814, 0.0,

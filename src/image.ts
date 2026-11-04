@@ -242,8 +242,8 @@ export interface JXLEncodeOptions {
      */
     effort?: number;
     /**
-     * At most this many worker threads compress lossily in parallel (the same file, faster: 2.6 times with 8 on a
-     * 1920x1080 photo at effort 1, 4.2 times on 3840x2160), `1` for none. Small images (under about 1.5 megapixels at
+     * At most this many worker threads compress lossily in parallel (the same file, faster: 2.3 times with 8 on a
+     * 1920x1080 photo at effort 1, 3.8 times on 3840x2160), `1` for none. Small images (under about 1.5 megapixels at
      * effort 0, 512x512 pixels at 1, 384x384 at 2), and runtimes whose workers can't share memory (browsers without
      * cross-origin isolation) encode without them.
      * Default: the processors available, at most 8

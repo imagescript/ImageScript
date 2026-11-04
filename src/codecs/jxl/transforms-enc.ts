@@ -1,69 +1,15 @@
 /*!
  * The forward transforms of JPEG XL's varblocks for the encoder: DCTs (the decoder's DCTs forward), the special 8x8
- * transforms (DCT2X2, DCT4X4 and IDENTITY like libjxl's TransformFromPixels, lib/jxl/enc_transforms-inl.h: Copyright
- * (c) the JPEG XL Project Authors, BSD-3-Clause License, see THIRD_PARTY_NOTICES.md; the others by inverting their
- * inverse as a matrix), and the LF of the varblocks from their lowest frequencies
+ * transforms (DCT2X2, DCT4X4, IDENTITY, DCT4X8, DCT8X4 and AFV like libjxl's TransformFromPixels,
+ * lib/jxl/enc_transforms-inl.h: Copyright (c) the JPEG XL Project Authors, BSD-3-Clause License, see
+ * THIRD_PARTY_NOTICES.md), and the LF of the varblocks from their lowest frequencies
  */
-import { dct2d, inverseTransform, scaleF } from './dct.ts';
+import { AFV_BASIS, dct2d, scaleF } from './dct.ts';
 import { SIZES, single } from './vardct.ts';
 import { fdct8, fdct16, fdct32, fdct64 } from './fdct.ts';
 
-/** A sparse matrix (64 x 64): per row its non-zero entries' columns and values */
-interface Sparse {
-    start: Int32Array;
-    column: Int32Array;
-    value: Float64Array;
-}
-
-const forwardMatrices = new Map<number, Sparse>();
-
-// the forward transform of a special 8x8 type: the inverse of its inverse's matrix (Gauss-Jordan elimination), sparse
-function forwardMatrix(type: number): Sparse {
-    const cached = forwardMatrices.get(type);
-    if (cached) return cached;
-    // (the inverse transform of each unit coefficient: the columns)
-    const m = new Float64Array(64 * 128), buf = new Float32Array(64);
-    for (let k = 0; k < 64; k++) {
-        buf.fill(0);
-        buf[k] = 1;
-        inverseTransform({ buf, offset: 0, stride: 8, w: 8, h: 8 }, type);
-        for (let p = 0; p < 64; p++) m[p * 128 + k] = buf[p];
-    }
-    for (let i = 0; i < 64; i++) m[i * 128 + 64 + i] = 1;
-    for (let col = 0; col < 64; col++) {
-        let pivot = col;
-        for (let r = col + 1; r < 64; r++) if (Math.abs(m[r * 128 + col]) > Math.abs(m[pivot * 128 + col])) pivot = r;
-        if (pivot !== col) {
-            for (let k = 0; k < 128; k++) {
-                const t = m[col * 128 + k];
-                m[col * 128 + k] = m[pivot * 128 + k];
-                m[pivot * 128 + k] = t;
-            }
-        }
-        const inv = 1 / m[col * 128 + col];
-        for (let k = 0; k < 128; k++) m[col * 128 + k] *= inv;
-        for (let r = 0; r < 64; r++) {
-            if (r === col) continue;
-            const factor = m[r * 128 + col];
-            if (factor) for (let k = 0; k < 128; k++) m[r * 128 + k] -= factor * m[col * 128 + k];
-        }
-    }
-    const start = new Int32Array(65), column: number[] = [], value: number[] = [];
-    for (let r = 0; r < 64; r++) {
-        for (let k = 0; k < 64; k++) {
-            const v = m[r * 128 + 64 + k];
-            if (Math.abs(v) < 1e-9) continue;
-            column.push(k);
-            value.push(v);
-        }
-        start[r + 1] = column.length;
-    }
-    const f = { start, column: Int32Array.from(column), value: Float64Array.from(value) };
-    forwardMatrices.set(type, f);
-    return f;
-}
-
-const px = new Float64Array(64), tmp = new Float32Array(64), block4 = new Float32Array(16);
+const SEC0 = 0.5411961, SEC1 = 1.306563;
+const tmp = new Float32Array(64), block4 = new Float32Array(16);
 
 // the 2x2 sums and differences of the top s x s of a block (libjxl's DCT2TopBlock)
 function dct2Top(src: Float32Array, so: number, stride: number, out: Float32Array, size: number): void {
@@ -90,46 +36,43 @@ function dct2x2Corner(c: Float32Array): void {
     c[9] = (b00 - b01 - b10 + b11) * 0.25;
 }
 
-// the special 8x8 transforms with a direct forward transform (libjxl's TransformFromPixels): DCT2X2, DCT4X4, IDENTITY
-function special8x8(type: number, src: Float32Array, so: number, stride: number, c: Float32Array): boolean {
+// DCT2X2, DCT4X4 and IDENTITY (libjxl's TransformFromPixels)
+function special8x8(type: number, src: Float32Array, so: number, stride: number, c: Float32Array): void {
     if (type === 2) {
         dct2Top(src, so, stride, c, 8);
         dct2Top(c, 0, 8, c, 4);
         dct2Top(c, 0, 8, c, 2);
-        return true;
+        return;
     }
     if (type === 3) {
         for (let y = 0; y < 2; y++) {
             for (let x = 0; x < 2; x++) {
                 for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 4; ix++) block4[iy * 4 + ix] = src[so + (y * 4 + iy) * stride + x * 4 + ix];
-                dct2d({ buf: block4, offset: 0, stride: 4, w: 4, h: 4 }, false);
+                dct4x4(block4);
                 // (transposed, like libjxl's scaled DCT of square blocks)
                 for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 4; ix++) c[(y + iy * 2) * 8 + x + ix * 2] = block4[ix * 4 + iy];
             }
         }
         dct2x2Corner(c);
-        return true;
+        return;
     }
-    if (type === 1) {
-        for (let y = 0; y < 2; y++) {
-            for (let x = 0; x < 2; x++) {
-                let dc = 0;
-                for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 4; ix++) dc += src[so + (y * 4 + iy) * stride + x * 4 + ix];
-                const center = src[so + (y * 4 + 1) * stride + x * 4 + 1];
-                for (let iy = 0; iy < 4; iy++) {
-                    for (let ix = 0; ix < 4; ix++) {
-                        if (ix === 1 && iy === 1) continue;
-                        c[(y + iy * 2) * 8 + x + ix * 2] = src[so + (y * 4 + iy) * stride + x * 4 + ix] - center;
-                    }
+    // (IDENTITY)
+    for (let y = 0; y < 2; y++) {
+        for (let x = 0; x < 2; x++) {
+            let dc = 0;
+            for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 4; ix++) dc += src[so + (y * 4 + iy) * stride + x * 4 + ix];
+            const center = src[so + (y * 4 + 1) * stride + x * 4 + 1];
+            for (let iy = 0; iy < 4; iy++) {
+                for (let ix = 0; ix < 4; ix++) {
+                    if (ix === 1 && iy === 1) continue;
+                    c[(y + iy * 2) * 8 + x + ix * 2] = src[so + (y * 4 + iy) * stride + x * 4 + ix] - center;
                 }
-                c[(y + 2) * 8 + x + 2] = c[y * 8 + x];
-                c[y * 8 + x] = dc / 16;
             }
+            c[(y + 2) * 8 + x + 2] = c[y * 8 + x];
+            c[y * 8 + x] = dc / 16;
         }
-        dct2x2Corner(c);
-        return true;
     }
-    return false;
+    dct2x2Corner(c);
 }
 
 // the DCT of a w x h block in place (rows, then columns), unrolled up to 64 points (direct calls, which inline)
@@ -154,6 +97,73 @@ function fdct(buf: Float32Array, o: number, step: number, n: number): void {
     else fdct64(buf, o, step);
 }
 
+const half = new Float32Array(32), quarter = new Float32Array(16), corner = new Float64Array(16);
+
+// the forward 4-point DCT of buf[o + k * step] in place (dct.ts's)
+function fdct4(buf: Float32Array, o: number, step: number): void {
+    const i0 = buf[o], i1 = buf[o + step], i2 = buf[o + 2 * step], i3 = buf[o + 3 * step];
+    const sum03 = i0 + i3, sum12 = i1 + i2, t0 = (i0 - i3) * SEC0, t1 = (i1 - i2) * SEC1;
+    const out0 = (t0 + t1) / 4, out1 = (t0 - t1) / 4;
+    buf[o] = (sum03 + sum12) / 4;
+    buf[o + step] = out0 * Math.SQRT2 + out1;
+    buf[o + 2 * step] = (sum03 - sum12) / 4;
+    buf[o + 3 * step] = out1;
+}
+
+// the 2D DCTs of 8x4 and 4x4 blocks (rows, then columns: like dct2d)
+function dct8x4(buf: Float32Array): void {
+    for (let y = 0; y < 32; y += 8) fdct8(buf, y, 1);
+    for (let x = 0; x < 8; x++) fdct4(buf, x, 8);
+}
+
+function dct4x4(buf: Float32Array): void {
+    for (let y = 0; y < 16; y += 4) fdct4(buf, y, 1);
+    for (let x = 0; x < 4; x++) fdct4(buf, x, 4);
+}
+
+// DCT4X8 (two 8x4 DCTs of the top and bottom half, interleaved by rows) and DCT8X4 (of the left and right half)
+function dct4x8(src: Float32Array, so: number, stride: number, c: Float32Array, transposed: boolean): void {
+    for (let i = 0; i < 2; i++) {
+        for (let iy = 0; iy < 4; iy++) {
+            for (let ix = 0; ix < 8; ix++) half[iy * 8 + ix] = transposed ? src[so + ix * stride + i * 4 + iy] : src[so + (i * 4 + iy) * stride + ix];
+        }
+        dct8x4(half);
+        for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 8; ix++) c[(iy * 2 + i) * 8 + ix] = half[iy * 8 + ix];
+    }
+    // (the sum and difference of their DCs)
+    const d0 = c[0], d1 = c[8];
+    c[0] = (d0 + d1) * 0.5;
+    c[8] = (d0 - d1) * 0.5;
+}
+
+// AFV (libjxl's AFVTransformFromPixels): the 4x4 corner of the type (n: flipped in x by its bit 0, y by bit 1) by
+// the AFV basis, the 4x4 beside it and the 8x4 half below or above by DCTs, their DCs combined
+function afv(n: number, src: Float32Array, so: number, stride: number, c: Float32Array): void {
+    const flipX = n & 1, flipY = n >> 1;
+    for (let iy = 0; iy < 4; iy++) {
+        const ay = flipY ? 3 - iy : iy;
+        for (let ix = 0; ix < 4; ix++) corner[ay * 4 + (flipX ? 3 - ix : ix)] = src[so + (flipY * 4 + iy) * stride + flipX * 4 + ix];
+    }
+    for (let i = 1; i < 16; i++) {
+        let v = 0;
+        for (let k = 0; k < 16; k++) v += AFV_BASIS[i * 16 + k] * corner[k];
+        c[2 * (i >> 2) * 8 + 2 * (i % 4)] = v;
+    }
+    let dc = 0;
+    for (let k = 0; k < 16; k++) dc += AFV_BASIS[k] * corner[k];
+    for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 4; ix++) quarter[iy * 4 + ix] = src[so + (flipY * 4 + iy) * stride + (1 - flipX) * 4 + ix];
+    dct4x4(quarter);
+    for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 4; ix++) c[2 * iy * 8 + 2 * ix + 1] = quarter[ix * 4 + iy];
+    for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 8; ix++) half[iy * 8 + ix] = src[so + ((1 - flipY) * 4 + iy) * stride + ix];
+    dct8x4(half);
+    for (let iy = 0; iy < 4; iy++) for (let ix = 0; ix < 8; ix++) c[(2 * iy + 1) * 8 + ix] = half[iy * 8 + ix];
+    // (the DCs: the corner's is 4 (c00 + c10 + c01), the 4x4's c00 - c10 + c01, the 8x4's c00 - c01)
+    const a = dc / 4, s = (a + quarter[0]) / 2;
+    c[1] = (a - quarter[0]) / 2;
+    c[0] = (s + half[0]) / 2;
+    c[8] = (s - half[0]) / 2;
+}
+
 /**
  * The forward transform of a varblock of a type: the pixels at src[so] (rows stride apart) become its coefficients
  * (in the decoder's layout, rows of the varblock's width) and the LF of its 8x8 blocks (rows of its width in blocks)
@@ -161,17 +171,9 @@ function fdct(buf: Float32Array, o: number, step: number, n: number): void {
 export function forwardTransform(type: number, src: Float32Array, so: number, stride: number, coeffs: Float32Array, lf: Float32Array): void {
     const w8 = SIZES[2 * type], h8 = SIZES[2 * type + 1], w = w8 * 8, h = h8 * 8;
     if (single(type) && type !== 0) {
-        if (special8x8(type, src, so, stride, coeffs)) {
-            lf[0] = coeffs[0];
-            return;
-        }
-        const { start, column, value } = forwardMatrix(type);
-        for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) px[y * 8 + x] = src[so + y * stride + x];
-        for (let r = 0; r < 64; r++) {
-            let v = 0;
-            for (let k = start[r]; k < start[r + 1]; k++) v += value[k] * px[column[k]];
-            coeffs[r] = v;
-        }
+        if (type === 12 || type === 13) dct4x8(src, so, stride, coeffs, type === 13);
+        else if (type >= 14) afv(type - 14, src, so, stride, coeffs);
+        else special8x8(type, src, so, stride, coeffs);
         lf[0] = coeffs[0];
         return;
     }

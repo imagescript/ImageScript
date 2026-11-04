@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.13.3
+
+### Performance
+
+- Lossy `encodeJXL()` is faster: a 1920x1080 photo at quality 90 takes 1.6 s instead of 2.3 s at effort 1 and 2.4 s
+  instead of 4.8 s at effort 2 on one thread; with 8 threads 0.72 s instead of 0.81 s and 0.95 s instead of 1.46 s
+  (3840x2160: 1.6 s instead of 2.0 s and 2.5 s instead of 4.1 s). The 4x8 and AFV transforms are computed directly
+  instead of by a 64x64 matrix, the varblock search rounds without `Math.round()` (slow in V8), patch search skips
+  large components after a quick labeling, and the search is split into smaller pieces for the threads. The files stay
+  the same, except for rare coefficients the new transforms round differently (2 of 108 test encodes, both the same
+  size).
+
 ## 3.13.2
 
 ### Fixes

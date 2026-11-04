@@ -53,6 +53,76 @@ function fromF16(bits: number): number {
     return e === 0 ? s * m / 1024 / 16384 : s * (1 + m / 1024) * 2 ** (e - 15);
 }
 
+/**
+ * Whether the 8-connected component of the pixels outside the background (isBackground 0) a pixel is in spans at
+ * least MAX_PATCH_SIZE pixels in x or y
+ */
+function largeComponents(isBackground: Uint8Array, width: number, height: number): (pixel: number) => boolean {
+    // (the components' labels: per pixel, unions of the labels in parent; at roots their bounding boxes)
+    const labels = new Int32Array(width * height).fill(-1);
+    let parent = new Int32Array(1024), count = 0;
+    const find = (l: number): number => {
+        while (parent[l] !== l) l = parent[l] = parent[parent[l]];
+        return l;
+    };
+    const union = (a: number, b: number): number => {
+        a = find(a);
+        b = find(b);
+        if (a === b) return a;
+        if (a < b) {
+            parent[b] = a;
+            return a;
+        }
+        parent[a] = b;
+        return b;
+    };
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const i = y * width + x;
+            if (isBackground[i]) continue;
+            // (the neighbors before: left, and the 3 above)
+            let l = x > 0 ? labels[i - 1] : -1;
+            if (y > 0) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (x + dx < 0 || x + dx >= width) continue;
+                    const n = labels[i - width + dx];
+                    if (n >= 0) l = l < 0 ? n : union(l, n);
+                }
+            }
+            if (l < 0) {
+                if (count === parent.length) {
+                    const grown = new Int32Array(2 * count);
+                    grown.set(parent);
+                    parent = grown;
+                }
+                parent[count] = count;
+                l = count++;
+            }
+            labels[i] = l;
+        }
+    }
+    const box = new Int32Array(4 * count);
+    for (let l = 0; l < count; l++) {
+        box[4 * l] = box[4 * l + 2] = 0x7fffffff;
+        box[4 * l + 1] = box[4 * l + 3] = -1;
+    }
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const l = labels[y * width + x];
+            if (l < 0) continue;
+            const r = 4 * find(l);
+            if (x < box[r]) box[r] = x;
+            if (x > box[r + 1]) box[r + 1] = x;
+            if (y < box[r + 2]) box[r + 2] = y;
+            if (y > box[r + 3]) box[r + 3] = y;
+        }
+    }
+    return pixel => {
+        const r = 4 * find(labels[pixel]);
+        return box[r + 1] - box[r] >= MAX_PATCH_SIZE || box[r + 3] - box[r + 2] >= MAX_PATCH_SIZE;
+    };
+}
+
 /** libjxl's FindTextLikePatches: repeated small features on flat backgrounds of screenshot-like areas */
 function candidates(planes: Float32Array[], stride: number, width: number, height: number): Candidate[] {
     const [p0, p1, p2] = planes;
@@ -123,11 +193,13 @@ function candidates(planes: Float32Array[], stride: number, width: number, heigh
 
     // small connected components outside the background, bordered by one background color
     // (a stack of pixel indices, grown as needed: a pixel is pushed by each neighbor reaching it before it's visited)
+    // (those too large first, by their bounding boxes from a union-find labeling: skipped without the search)
+    const large = largeComponents(isBackground, width, height);
     const visited = new Uint8Array(width * height), found: Candidate[] = [];
     let stack = new Int32Array(1024);
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-            if (isBackground[y * width + x] || visited[y * width + x]) continue;
+            if (isBackground[y * width + x] || visited[y * width + x] || large(y * width + x)) continue;
             stack[0] = y * width + x;
             let top = 1, minX = x, maxX = x, minY = y, maxY = y, reference = -1, allSimilar = true;
             while (top) {

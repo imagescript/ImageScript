@@ -138,62 +138,67 @@ function perBlockModulations(distance: number, px: Float32Array, py: Float32Arra
     if (distance >= 2) dampen = Math.max(0, 1 - (distance - 2) / (14 - 2));
     const mul = scale * dampen, add = (1 - dampen) * baseLevel;
     for (let by = 0; by < bh; by++) {
-        for (let bx = 0; bx < bw; bx++) {
-            const o = by * 8 * w + bx * 8;
-            let v = computeMask(aq[by * bw + bx]);
-            // high frequencies: the (limited) differences of Y to the right and below
-            let hf = 0;
-            for (let dy = 0; dy < 8; dy++) {
-                const r = o + dy * w, next = dy === 7 ? r : r + w;
-                for (let dx = 0; dx < 8; dx++) {
-                    const p = py[r + dx];
-                    if (dx < 7) hf += Math.min(0.0206, Math.abs(p - py[r + dx + 1]));
-                    hf += Math.min(0.0206, Math.abs(p - py[next + dx]));
-                }
-            }
-            v += hf * -0.38 + 0.42;
-            // gamma
-            let ratio = 0;
-            for (let dy = 0; dy < 8; dy++) {
-                for (let dx = 0; dx < 8; dx++) {
-                    const iny = py[o + dy * w + dx] + 0.16, inx = px[o + dy * w + dx];
-                    ratio += gammaRatioInverse(iny - inx) + gammaRatioInverse(iny + inx);
-                }
-            }
-            v += 0.1005613337192697 * Math.log2(ratio * (0.5 / 64));
-            // blue (but not all blue)
-            const LIMIT = 0.027121074570634722;
-            let blue = 0;
-            for (let dy = 0; dy < 8; dy++) {
-                for (let dx = 0; dx < 8; dx++) {
-                    const i = o + dy * w + dx, eff = py[i] + 0.084381641171960495 + Math.abs(px[i]);
-                    if (pb[i] > eff) blue += Math.min(pb[i] - eff, LIMIT);
-                }
-            }
-            if (blue >= 32 * LIMIT) blue = 64 * LIMIT - blue;
-            if (blue >= 15.398788439047934 * LIMIT) blue = 15.398788439047934 * LIMIT;
-            v += blue * 0.14207000358439159;
-            aq[by * bw + bx] = Math.exp(v) * mul + add;
+        for (let bx = 0; bx < bw; bx++) aq[by * bw + bx] = Math.exp(blockModulation(px, py, pb, by * 8 * w + bx * 8, w, aq[by * bw + bx])) * mul + add;
+    }
+}
+
+// the modulation of a block (at o; e: its erosion) before the exponentiation (a function of its own: V8 kept leaving
+// and re-entering perBlockModulations' inner loops compiled on stack)
+function blockModulation(px: Float32Array, py: Float32Array, pb: Float32Array, o: number, w: number, e: number): number {
+    let v = computeMask(e);
+    // high frequencies: the (limited) differences of Y to the right and below
+    let hf = 0;
+    for (let dy = 0; dy < 8; dy++) {
+        const r = o + dy * w, next = dy === 7 ? r : r + w;
+        for (let dx = 0; dx < 8; dx++) {
+            const p = py[r + dx];
+            if (dx < 7) hf += Math.min(0.0206, Math.abs(p - py[r + dx + 1]));
+            hf += Math.min(0.0206, Math.abs(p - py[next + dx]));
         }
     }
+    v += hf * -0.38 + 0.42;
+    // gamma
+    let ratio = 0;
+    for (let dy = 0; dy < 8; dy++) {
+        for (let dx = 0; dx < 8; dx++) {
+            const iny = py[o + dy * w + dx] + 0.16, inx = px[o + dy * w + dx];
+            ratio += gammaRatioInverse(iny - inx) + gammaRatioInverse(iny + inx);
+        }
+    }
+    v += 0.1005613337192697 * Math.log2(ratio * (0.5 / 64));
+    // blue (but not all blue)
+    const LIMIT = 0.027121074570634722;
+    let blue = 0;
+    for (let dy = 0; dy < 8; dy++) {
+        for (let dx = 0; dx < 8; dx++) {
+            const i = o + dy * w + dx, eff = py[i] + 0.084381641171960495 + Math.abs(px[i]);
+            if (pb[i] > eff) blue += Math.min(pb[i] - eff, LIMIT);
+        }
+    }
+    if (blue >= 32 * LIMIT) blue = 64 * LIMIT - blue;
+    if (blue >= 15.398788439047934 * LIMIT) blue = 15.398788439047934 * LIMIT;
+    return v + blue * 0.14207000358439159;
 }
 
 // rows y0 to y1 of a symmetric 5x5 convolution with mirrored borders (libjxl's Symmetric5): the weights of the center,
 // the edges 1 and 2 away, the diagonals 1 and 2 away and the knight moves
 function symmetric5(m: Float32Array, w: number, h: number, [c, r, R, d, D, L]: number[], out: Float32Array, y0: number, y1: number): void {
-    const weights = [D, L, R, L, D, L, d, r, d, L, R, r, c, r, R, L, d, r, d, L, D, L, R, L, D];
     const mirror = (v: number, n: number): number => {
         while (v < 0 || v >= n) v = v < 0 ? -v - 1 : 2 * n - 1 - v;
         return v;
     };
+    // (the weights by column: of rows -2 to 2; summed by column, then row)
     for (let y = y0; y < y1; y++) {
-        const rows = [-2, -1, 0, 1, 2].map(dy => mirror(y + dy, h) * w);
+        const r0 = mirror(y - 2, h) * w, r1 = mirror(y - 1, h) * w, r2 = y * w, r3 = mirror(y + 1, h) * w, r4 = mirror(y + 2, h) * w;
         for (let x = 0; x < w; x++) {
+            const inside = x >= 2 && x + 2 < w;
+            const c0 = inside ? x - 2 : mirror(x - 2, w), c1 = inside ? x - 1 : mirror(x - 1, w), c3 = inside ? x + 1 : mirror(x + 1, w), c4 = inside ? x + 2 : mirror(x + 2, w);
             let sum = 0;
-            for (let dx = -2; dx <= 2; dx++) {
-                const col = x + dx >= 0 && x + dx < w ? x + dx : mirror(x + dx, w);
-                for (let k = 0; k < 5; k++) sum += weights[k * 5 + dx + 2] * m[rows[k] + col];
-            }
+            sum += D * m[r0 + c0]; sum += L * m[r1 + c0]; sum += R * m[r2 + c0]; sum += L * m[r3 + c0]; sum += D * m[r4 + c0];
+            sum += L * m[r0 + c1]; sum += d * m[r1 + c1]; sum += r * m[r2 + c1]; sum += d * m[r3 + c1]; sum += L * m[r4 + c1];
+            sum += R * m[r0 + x]; sum += r * m[r1 + x]; sum += c * m[r2 + x]; sum += r * m[r3 + x]; sum += R * m[r4 + x];
+            sum += L * m[r0 + c3]; sum += d * m[r1 + c3]; sum += r * m[r2 + c3]; sum += d * m[r3 + c3]; sum += L * m[r4 + c3];
+            sum += D * m[r0 + c4]; sum += L * m[r1 + c4]; sum += R * m[r2 + c4]; sum += L * m[r3 + c4]; sum += D * m[r4 + c4];
             out[y * w + x] = sum;
         }
     }

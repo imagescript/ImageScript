@@ -6,9 +6,10 @@
  */
 import { runChunks, shared, sharedOf, type ChunkTask, type Thread } from '../../util/threads.ts';
 import { forwardTransform } from './transforms-enc.ts';
-import { inverseTransform } from './dct.ts';
+import { idct8, inverseTransform } from './dct.ts';
+import { idct16, idct32, idct64 } from './idct.ts';
 import { defaultDequant, MATRIX_INDEX } from './quant.ts';
-import { SIZES, transposed } from './vardct.ts';
+import { SIZES, single, transposed } from './vardct.ts';
 import type { QuantField } from './aq-enc.ts';
 
 const DCT8 = 0, IDENTITY = 1, DCT2X2 = 2, DCT4X4 = 3, DCT16X16 = 4, DCT32X32 = 5, DCT16X8 = 6, DCT8X16 = 7;
@@ -41,6 +42,19 @@ function inverseDequant(type: number): Float32Array[] {
     return inv;
 }
 
+// the inverse DCT of a w x h block (8 to 64 points: like dct2d, rows then columns, by direct calls)
+function idct2(buf: Float32Array, w: number, h: number): void {
+    for (let y = 0; y < h; y++) idct(buf, y * w, 1, w);
+    for (let x = 0; x < w; x++) idct(buf, x, w, h);
+}
+
+function idct(buf: Float32Array, o: number, step: number, n: number): void {
+    if (n === 8) idct8(buf, o, step);
+    else if (n === 16) idct16(buf, o, step);
+    else if (n === 32) idct32(buf, o, step);
+    else idct64(buf, o, step);
+}
+
 // the estimated cost of a varblock of a type at pixels x, y: its bits (by the square roots of the quantized
 // coefficients and the non-zero counts) and the information lost (an 8-norm of the masked errors in pixels)
 function estimateEntropy(type: number, entropyMul: number, x: number, y: number, cfg: Config): number {
@@ -65,14 +79,17 @@ function estimateEntropy(type: number, entropyMul: number, x: number, y: number,
     for (let c = 0; c < 3; c++) {
         const src = scratch[c], ys = scratch[1], m = matrices[c], im = inverses[c], cmap = c === 2 ? 1 : 0;
         let sqrtSum = 0, nonZeros = 0;
+        // (rounded by Math.floor(v + 0.5): Math.round but for values within an ulp below halves, and faster in V8)
         for (let i = 0; i < size; i++) {
-            const v = (src[i] - ys[i] * cmap) * im[i] * quant, r = Math.round(v);
+            const v = (src[i] - ys[i] * cmap) * im[i] * quant, r = Math.floor(v + 0.5);
             errors[i] = m[i] * (v - r);
-            const q = Math.abs(r);
-            sqrtSum += Math.sqrt(q);
-            if (q) nonZeros++;
+            if (r) {
+                sqrtSum += Math.sqrt(Math.abs(r));
+                nonZeros++;
+            }
         }
-        inverseTransform({ buf: errors, offset: 0, stride: w, w, h }, type);
+        if (type === 0 || !single(type)) idct2(errors, w, h);
+        else inverseTransform({ buf: errors, offset: 0, stride: w, w, h }, type);
         let lossc = 0;
         for (let py = 0; py < h; py++) {
             const mo = (y + py) * stride + x;
@@ -293,8 +310,8 @@ export async function chooseVarblocks(planes: Float32Array[], stride: number, bw
         planes: threads ? planes.map(sharedOf) : planes,
         field: threads ? { quant: shared(field.quant), mask: shared(field.mask), mask1x1: sharedOf(field.mask1x1) } : field,
     };
-    // (a row of 64x64 areas each, independent of the others)
-    await runChunks(threads, task, Math.ceil(bh / 8), varblockChunks(task));
+    // (up to 8 64x64 areas of a row each, independent of the others: small enough to keep all threads busy)
+    await runChunks(threads, task, Math.ceil(bh / 8) * Math.ceil(bw / 64), varblockChunks(task));
     return types;
 }
 
@@ -310,7 +327,7 @@ export interface VarblockTask extends ChunkTask {
     types: Int8Array;
 }
 
-/** The search of a row of 64x64 areas (the chunk), its types set */
+/** The search of up to 8 64x64 areas of a row (the chunk: of each row's segments of 8), its types set */
 export function varblockChunks({ planes, stride, bw, bh, field, distance, speed, types }: VarblockTask): (chunk: number) => void {
     const ratio = (distance + 0.13731742964354549) / (1 + 0.13731742964354549);
     const cfg: Config = {
@@ -320,8 +337,9 @@ export function varblockChunks({ planes, stride, bw, bh, field, distance, speed,
         costDelta: 10.833273317067883 * ratio ** 0.36702940662370243
     };
     const s = new Strategy(bw, bh, types);
-    return row => {
-        const by = row * 8;
-        for (let bx = 0; bx < bw; bx += 8) processRect(bx, by, Math.min(8, bw - bx), Math.min(8, bh - by), speed, cfg, s);
+    const segments = Math.ceil(bw / 64);
+    return chunk => {
+        const by = Math.floor(chunk / segments) * 8, x0 = (chunk % segments) * 64;
+        for (let bx = x0; bx < Math.min(bw, x0 + 64); bx += 8) processRect(bx, by, Math.min(8, bw - bx), Math.min(8, bh - by), speed, cfg, s);
     };
 }

@@ -223,7 +223,8 @@ export function coefficientChunks({ planes, pw, bw, bh, types, muls, globalScale
                 const w8 = SIZES[2 * type], h8 = SIZES[2 * type + 1], w = w8 * 8, h = h8 * 8, o = (by - ty) * 8 * pw + bx * 8;
                 for (let c = 0; c < 3; c++) {
                     forwardTransform(type, planes[c], by * 8 * pw + bx * 8, pw, coeffs, lfBlock);
-                    for (let y = 0; y < h; y++) raw[c].set(coeffs.subarray(y * w, (y + 1) * w), o + y * pw);
+                    const r = raw[c];
+                    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) r[o + y * pw + x] = coeffs[y * w + x];
                     for (let y = 0; y < h8; y++) for (let x = 0; x < w8; x++) lfValues[c][(by + y) * bw + bx + x] = lfBlock[y * w8 + x];
                 }
             }
@@ -249,7 +250,7 @@ export function coefficientChunks({ planes, pw, bw, bh, types, muls, globalScale
                             // (not the lowest frequencies: the LF)
                             if (one ? k === 0 : x < w8 && y < h8) continue;
                             const v = (c === 1 ? src[o + y * pw + x] : src[o + y * pw + x] - k0 * yDequant[k]) / m[k] * scale;
-                            const q = Math.abs(v) >= thresholds[(y >= h / 2 ? 2 : 0) + (x >= w / 2 ? 1 : 0)] ? Math.round(v) : 0;
+                            const q = Math.abs(v) >= thresholds[(y >= h / 2 ? 2 : 0) + (x >= w / 2 ? 1 : 0)] ? Math.floor(v + 0.5) : 0;
                             out[go + y * pw + x] = q;
                             if (c === 1) {
                                 const d = q === 0 ? 0 : Math.abs(q) <= 1 ? q * QUANT_BIAS[1] : q - QUANT_BIAS_NUMERATOR / q;
