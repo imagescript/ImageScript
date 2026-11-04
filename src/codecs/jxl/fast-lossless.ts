@@ -694,8 +694,8 @@ export function encode(px: Uint8Array, width: number, height: number, numChans: 
 
 // ---- headers
 
-// a regular modular frame: one pass, no filters, replacing, the last one
-function frameHeader(w: BitWriter, alpha: boolean): void {
+/** A regular modular frame: one pass, no filters, replacing, the last one */
+export function frameHeader(w: BitWriter, alpha: boolean): void {
     w.write(1, 0);
     w.write(2, 0b00);
     w.write(1, 1);

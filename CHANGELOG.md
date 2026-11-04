@@ -1,6 +1,16 @@
 # Changelog
 
-## 3.13.3
+## 3.14.0
+
+### New
+
+- Lossless `encodeJXL()` compresses like libjxl's `cjxl -e 3` (effort 3) by default: about 15% smaller files for
+  photos (a 1920x1080 photo: 1.17 MB instead of 1.39 MB) and 13% for graphics, within 1-2% of cjxl's sizes. It
+  uses a palette of up to 1024 colors where it fits (else palettes of the channels that use few of their values),
+  YCoCg and the weighted predictor in contexts of its error, and codes the groups in worker threads
+  (`JXLEncodeOptions.threads`, the same files): the photo takes 0.24 s with 8 threads, 0.65 s with one. `effort: 0`
+  keeps the fast mode, byte for byte what `cjxl -e 1` writes (0.11 s for the photo); `effort` applies to lossless
+  compression now too.
 
 ### Performance
 

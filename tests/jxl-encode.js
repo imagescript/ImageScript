@@ -10,7 +10,7 @@ const panic = message => {
 const sha256 = data => crypto.createHash('sha256').update(data).digest('hex');
 
 // what cjxl -e 1 writes (scripts/jxl-lossless-references.py): on CPUs with AVX2 or NEON (chunks of 16 pixels, what
-// encodeJXL writes), and without SIMD (chunks of 8)
+// encodeJXL writes at effort 0), and without SIMD (chunks of 8); the sizes of cjxl -e 3's files (effort 1's are close)
 const references = {
     16: {
         'external.png': '487aec362b353952b9f4c30dbb764293f3f78381e6b3a8372ec9895365a34970',
@@ -27,6 +27,7 @@ const references = {
         'external.png grey': '51feda0399a3e76d681d671ed5d114b1c852ef23518d54f1f90f0bd7817f6602'
     }
 };
+const e3Sizes = {'external.png': 312341, 'circle.png': 1889, 'screen.png': 35408, 'potato.png': 4848, 'external.png grey': 164355};
 
 // the samples of the channels encodeJXL picks
 const samples = image => {
@@ -55,24 +56,63 @@ const codestream = jxl => {
         const image = await Image.decode(await fs.readFile(`./tests/targets/${name}`));
         // (grey: the red channel)
         if (grey) for (let i = 0; i < image.bitmap.length; i += 4) image.bitmap[i + 1] = image.bitmap[i + 2] = image.bitmap[i];
-        const jxl = await image.encodeJXL();
+        const jxl = await image.encodeJXL({effort: 0});
         if (sha256(codestream(jxl)) !== references[16][key]) panic(`${key}: not what cjxl -e 1 writes`);
         const [px, channels] = samples(image);
         if (sha256(encode(px, image.width, image.height, channels, 8)) !== references[8][key]) panic(`${key}: not what cjxl -e 1 writes without SIMD`);
         const decoded = await Image.decode(jxl);
         if (Buffer.compare(Buffer.from(decoded.bitmap), Buffer.from(image.bitmap)) !== 0) panic(`${key}: not lossless`);
+        // effort 1 (the default): like cjxl -e 3, within 2% (and some bytes of headers)
+        const e1 = codestream(await image.encodeJXL());
+        if (e1.length > e3Sizes[key] * 1.02 + 64) panic(`${key}, effort 1: ${e1.length} B, cjxl -e 3 ${e3Sizes[key]} B`);
+        if (Buffer.compare(Buffer.from((await Image.decode(e1)).bitmap), Buffer.from(image.bitmap)) !== 0) panic(`${key}, effort 1: not lossless`);
+    }
+
+    // effort 1's transforms: a palette of all channels (or the colors without alpha), palettes of channels with few of
+    // their values (with YCoCg after them), YCoCg alone, grey with alpha, frequent colors of the implicit palette; one
+    // group (all in the global stream) and several, a pixel; the same with threads
+    {
+        const photo = (await Image.decode(await fs.readFile('./tests/targets/external.png'))).resize(300, 211);
+        const few = new Image(300, 260);
+        for (let y = 0; y < few.height; y++) for (let x = 0; x < few.width; x++) few.setPixelAt(x, y, [0xff0000ff, 0x00ff00ff, 0x123456ff, 0xffffff80][(x >> 4 ^ y >> 3) & 3]);
+        const fewOpaque = few.clone();
+        for (let i = 3; i < fewOpaque.bitmap.length; i += 4) fewOpaque.bitmap[i] = 255;
+        const quantized = photo.clone(), alpha = photo.clone(), greyAlpha = photo.clone(), cube = new Image(64, 64).fill(0x000000ff);
+        for (let i = 0; i < quantized.bitmap.length; i += 4) {
+            quantized.bitmap[i] &= 0xe0;
+            quantized.bitmap[i + 1] &= 0xf0;
+            alpha.bitmap[i + 3] = (i >> 2) % 300;
+            greyAlpha.bitmap[i] = greyAlpha.bitmap[i + 2] = greyAlpha.bitmap[i + 1];
+            greyAlpha.bitmap[i + 3] = (i >> 4) & 255;
+        }
+        for (let x = 0; x < 64; x++) for (let y = 0; y < 8; y++) cube.setPixelAt(x, y, x & 1 ? 0xff3f00ff : y ? 0x7fbf3fff : 0x123456ff);
+        // (a rare color of the implicit palette: by its implicit index)
+        for (let x = 0; x < 3; x++) cube.setPixelAt(x, 63, 0x00ff00ff);
+        const fewAlpha = few.clone();
+        for (let i = 3; i < fewAlpha.bitmap.length; i += 4) fewAlpha.bitmap[i] = (i >> 2) % 251;
+        const cases = {photo, few, fewOpaque, fewAlpha, quantized, alpha, greyAlpha, cube, pixel: new Image(1, 1).fill(0x336699ff)};
+        for (const [name, image] of Object.entries(cases)) {
+            const jxl = await image.encodeJXL({threads: 1, metadata: {creationTime: 0}});
+            if (Buffer.compare(Buffer.from((await Image.decode(jxl)).bitmap), Buffer.from(image.bitmap)) !== 0) panic(`effort 1, ${name}: not lossless`);
+            if (jxl.length > (await image.encodeJXL({effort: 0, metadata: {creationTime: 0}})).length) panic(`effort 1, ${name}: larger than effort 0`);
+        }
+        const large = photo.clone().resize(800, 660);
+        for (let i = 3; i < large.bitmap.length; i += 4) large.bitmap[i] = (i >> 2) % large.width & 255;
+        const one = await large.encodeJXL({threads: 1, metadata: {creationTime: 0}}), four = await large.encodeJXL({threads: 4, metadata: {creationTime: 0}});
+        if (Buffer.compare(Buffer.from(one), Buffer.from(four))) panic('lossless threads: not the same file');
+        if (Buffer.compare(Buffer.from((await Image.decode(four)).bitmap), Buffer.from(large.bitmap))) panic('lossless threads: not lossless');
     }
 
     // two colors of the same hash in the palette detection's chunk of 8 pixels (libjxl misses that, losing a color)
     const image = new Image(16, 16).fill(0xc86432ff);
     image.setPixelAt(1, 1, 0x010000ff);
     image.setPixelAt(2, 1, 0x76c500ff);
-    const decoded = await Image.decode(await image.encodeJXL());
+    const decoded = await Image.decode(await image.encodeJXL({effort: 0}));
     if (decoded.getPixelAt(1, 1) !== 0x010000ff || decoded.getPixelAt(2, 1) !== 0x76c500ff) panic('colors of the same hash');
     // a pixel; transparent grey
     for (const [w, h, color] of [[1, 1, 0x123456ff], [5, 3, 0x80808040]]) {
         const small = new Image(w, h).fill(color);
-        const back = await Image.decode(await small.encodeJXL());
+        const back = await Image.decode(await small.encodeJXL({effort: 0}));
         if (back.width !== w || back.height !== h || back.getPixelAt(0, 0) !== color) panic(`${w}x${h}: not lossless`);
     }
 

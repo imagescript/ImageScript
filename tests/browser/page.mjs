@@ -13,8 +13,11 @@ const digest = async data => [...new Uint8Array(await crypto.subtle.digest('SHA-
         results.threaded = await digest(await image.encodeAVIF({ effort: 1, threads: 4, metadata: { creationTime: 0 } }));
         results.jxlSingle = await digest(await image.encodeJXL({ quality: 85, threads: 1, metadata: { creationTime: 0 } }));
         results.jxlThreaded = await digest(await image.encodeJXL({ quality: 85, threads: 4, metadata: { creationTime: 0 } }));
-        // (decoding from 4 megapixels)
+        // (decoding from 4 megapixels; lossless groups threaded from 724x724)
         const big = image.clone().resize(2304, 2048), jxl = await big.encodeJXL({ quality: 80, effort: 0 });
+        const lossless = image.clone().resize(1024, 768);
+        results.losslessSingle = await digest(await lossless.encodeJXL({ threads: 1, metadata: { creationTime: 0 } }));
+        results.losslessThreaded = await digest(await lossless.encodeJXL({ threads: 4, metadata: { creationTime: 0 } }));
         results.decodeSingle = await digest((await Image.decode(jxl, { threads: 1 })).bitmap);
         results.decodeThreaded = await digest((await Image.decode(jxl, { threads: 4 })).bitmap);
         results.smoke = await smoke();

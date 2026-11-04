@@ -6,6 +6,7 @@ import { varblockChunks } from '../codecs/jxl/acs-enc.ts';
 import { maskBlurChunks, maskingChunks } from '../codecs/jxl/aq-enc.ts';
 import { coefficientChunks, hfTokenChunks, xybChunks } from '../codecs/jxl/vardct-enc.ts';
 import { groupChunks, postChunks } from '../codecs/jxl/frame.ts';
+import { modularGroupChunks, modularWriteChunks } from '../codecs/jxl/modular-lossless.ts';
 import type { ChunkTask } from './threads.ts';
 
 // the chunk tasks (see runChunks): a task's function of its chunks
@@ -20,6 +21,8 @@ const chunkTasks: Record<string, (task: never) => (chunk: number) => unknown> = 
     'jxl-varblocks': varblockChunks,
     'jxl-coefficients': coefficientChunks,
     'jxl-hf-tokens': hfTokenChunks,
+    'jxl-modular-groups': modularGroupChunks,
+    'jxl-modular-write': modularWriteChunks,
     'jxl-groups': groupChunks,
     'jxl-post': postChunks,
 };

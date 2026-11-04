@@ -16,6 +16,7 @@ import { decodeFrame, DecoderState, type FrameThreads } from './jxl/frame.ts';
 import { ColorOutput } from './jxl/color.ts';
 import { ToneMapping } from './hdr.ts';
 import { encodeRGBA } from './jxl/fast-lossless.ts';
+import { encodeModular } from './jxl/modular-lossless.ts';
 import { encodeVarDCT } from './jxl/vardct-enc.ts';
 import { concat } from '../util/mem.ts';
 import { srgbDecode, type Curve } from '../util/icc.ts';
@@ -33,7 +34,8 @@ export function isJXL(d: Uint8Array): boolean {
  * codestream, in the container if there is Exif data (a TIFF header and IFDs); lossy with up to threads worker threads
  */
 export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, distance = 0, effort = 1, threads = 1): Promise<Uint8Array> {
-    const stream = distance > 0 ? await encodeVarDCT(rgba, width, height, { distance, effort, threads }) : encodeRGBA(rgba, width, height);
+    const stream = distance > 0 ? await encodeVarDCT(rgba, width, height, { distance, effort, threads })
+        : effort ? await encodeModular(rgba, width, height, threads) : encodeRGBA(rgba, width, height);
     if (!exif?.length) return stream;
     // (ftyp: brand jxl, minor version 0, compatible jxl; Exif: the offset of the TIFF header, 0, then the TIFF data)
     const jxl = [0x6a, 0x78, 0x6c, 0x20];

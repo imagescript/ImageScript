@@ -549,7 +549,7 @@ const DELTA_PALETTE = [
     96, 45, -45, 24, 24, 45, -45, 64, 64, -64, 128, 128, 0, 0, 0, -128, -24, 45, -45
 ];
 
-function paletteValue(palette: Channel, index: number, c: number, bitDepth: number): number {
+export function paletteValue(palette: Channel, index: number, c: number, bitDepth: number): number {
     const size = palette.w;
     if (index < 0) {
         if (c >= 3) return 0;

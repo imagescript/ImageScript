@@ -39,6 +39,14 @@ const token = (v: number): number => {
     return SPLIT + ((n - SPLIT_EXPONENT) << (MSB + LSB)) + ((m >>> (n - MSB)) << LSB) + (m & ((1 << LSB) - 1));
 };
 
+/** The number of tokens (of 32-bit values) */
+export const MAX_TOKEN = token(0xffffffff) + 1;
+
+/** Counts the tokens of values (from to to) by context, into counts (MAX_TOKEN per context) */
+export function countTokens(counts: Float64Array, ctx: Uint32Array, value: Uint32Array, from: number, to: number): void {
+    for (let i = from; i < to; i++) counts[ctx[i] * MAX_TOKEN + token(value[i])]++;
+}
+
 // ---- ANS
 
 const ANS_LOG_TAB_SIZE = 12, ANS_TAB_SIZE = 1 << ANS_LOG_TAB_SIZE, LOG_ALPHABET_SIZE = 8;
@@ -250,22 +258,19 @@ export class EntropyCode {
     private readonly ctxMap: Uint8Array;
     private readonly ans: AnsCode[];
 
-    constructor(streams: Tokens[], readonly numContexts: number, { maxClusters = 64 }: EntropyOptions = {}) {
-        // the histograms of the contexts' tokens
+    /** the code of streams' tokens, or of their counts (see countTokens) */
+    constructor(streams: Tokens[] | Float64Array, readonly numContexts: number, { maxClusters = 64 }: EntropyOptions = {}) {
+        // the histograms of the contexts' tokens (up to the largest token used)
+        let counts: Float64Array;
+        if (streams instanceof Float64Array) counts = streams;
+        else {
+            counts = new Float64Array(numContexts * MAX_TOKEN);
+            for (const t of streams) countTokens(counts, t.ctx, t.value, 0, t.length);
+        }
         let alphabet = 1;
-        for (const t of streams) {
-            for (let i = 0; i < t.length; i++) {
-                const tk = token(t.value[i]);
-                if (tk + 1 > alphabet) alphabet = tk + 1;
-            }
-        }
-        const hist = Array.from({ length: numContexts }, () => new Float64Array(alphabet)), totals = new Float64Array(numContexts);
-        for (const t of streams) {
-            for (let i = 0; i < t.length; i++) {
-                hist[t.ctx[i]][token(t.value[i])]++;
-                totals[t.ctx[i]]++;
-            }
-        }
+        for (let i = 0; i < counts.length; i++) if (counts[i] && i % MAX_TOKEN + 1 > alphabet) alphabet = i % MAX_TOKEN + 1;
+        const hist = Array.from({ length: numContexts }, (_, c) => counts.slice(c * MAX_TOKEN, c * MAX_TOKEN + alphabet));
+        const totals = Float64Array.from(hist, h => h.reduce((sum, v) => sum + v, 0));
         this.ctxMap = new Uint8Array(numContexts);
         const clusters = cluster(hist, totals, Math.min(maxClusters, 255, numContexts), this.ctxMap).map(h => {
             let size = h.length;
@@ -293,29 +298,45 @@ export class EntropyCode {
 
     /** writes the tokens of a stream */
     writeTokens(w: BitWriter, t: Tokens): void {
-        const map = this.ctxMap;
-        // ANS: the tokens in reverse, the 16 bits of each renormalization read after the token's symbol (before its
-        // raw bits); the final state first
-        const codes = this.ans, n = t.length, chunks = new Int32Array(n);
-        let state = 0x130000;
-        for (let i = n - 1; i >= 0; i--) {
-            const code = codes[map[t.ctx[i]]], tk = token(t.value[i]), freq = code.freq[tk];
-            chunks[i] = -1;
-            if (state >>> 20 >= freq) {
-                chunks[i] = state & 0xffff;
-                state >>>= 16;
-            }
-            const v = Math.floor(state / freq);
-            state = v * ANS_TAB_SIZE + code.reverse[tk][state - v * freq];
+        writeTokens(w, this.tables(), t.ctx, t.value, 0, t.length);
+    }
+
+    /** what writing tokens needs (for threads, which get copies) */
+    tables(): CodeTables {
+        return { ctxMap: this.ctxMap, freq: this.ans.map(c => c.freq), reverse: this.ans.map(c => c.reverse) };
+    }
+}
+
+/** An entropy code's tables for writing tokens: the context map, per cluster the symbols' frequencies and table slots */
+export interface CodeTables {
+    ctxMap: Uint8Array;
+    freq: Int32Array[];
+    reverse: Int32Array[][];
+}
+
+/** Writes tokens (from to to) with a code */
+export function writeTokens(w: BitWriter, { ctxMap: map, freq: freqs, reverse }: CodeTables, ctx: Uint32Array, value: Uint32Array, from: number, to: number): void {
+    // ANS: the tokens in reverse, the 16 bits of each renormalization read after the token's symbol (before its raw
+    // bits); the final state first
+    const chunks = new Int32Array(to - from);
+    let state = 0x130000;
+    for (let i = to - 1; i >= from; i--) {
+        const c = map[ctx[i]], tk = token(value[i]), freq = freqs[c][tk];
+        chunks[i - from] = -1;
+        if (state >>> 20 >= freq) {
+            chunks[i - from] = state & 0xffff;
+            state >>>= 16;
         }
-        w.write(32, state);
-        for (let i = 0; i < n; i++) {
-            if (chunks[i] >= 0) w.write(16, chunks[i]);
-            const v = t.value[i];
-            if (v >= SPLIT) {
-                const nbits = 31 - Math.clz32(v) - MSB - LSB;
-                w.write(nbits, (v >>> LSB) & ((1 << nbits) - 1));
-            }
+        const v = Math.floor(state / freq);
+        state = v * ANS_TAB_SIZE + reverse[c][tk][state - v * freq];
+    }
+    w.write(32, state);
+    for (let i = from; i < to; i++) {
+        if (chunks[i - from] >= 0) w.write(16, chunks[i - from]);
+        const v = value[i];
+        if (v >= SPLIT) {
+            const nbits = 31 - Math.clz32(v) - MSB - LSB;
+            w.write(nbits, (v >>> LSB) & ((1 << nbits) - 1));
         }
     }
 }

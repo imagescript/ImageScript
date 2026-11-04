@@ -236,16 +236,19 @@ export interface JXLEncodeOptions {
      */
     quality?: number;
     /**
-     * How hard lossy compression searches for the best transforms: 0-2, faster to smaller. 0 uses 8x8 DCTs only (like
-     * `cjxl -e 3`), 1 and 2 search their sizes like `cjxl -e 5` (2 tries more of the small ones), and 2 also stores
-     * text-like features that repeat (the glyphs of screenshots) once, as patches like `cjxl -e 7`. Default: `1`
+     * How hard compression works: 0-2, faster to smaller. Lossy: 0 uses 8x8 DCTs only (like `cjxl -e 3`), 1 and 2
+     * search their sizes like `cjxl -e 5` (2 tries more of the small ones), and 2 also stores text-like features that
+     * repeat (the glyphs of screenshots) once, as patches like `cjxl -e 7`. Lossless: 0 is `cjxl -e 1`'s fast mode
+     * (byte for byte), 1 and 2 like `cjxl -e 3` (about 15% smaller for photos, 13% for graphics; a few times slower).
+     * Default: `1`
      */
     effort?: number;
     /**
-     * At most this many worker threads compress lossily in parallel (the same file, faster: 2.3 times with 8 on a
-     * 1920x1080 photo at effort 1, 3.8 times on 3840x2160), `1` for none. Small images (under about 1.5 megapixels at
-     * effort 0, 512x512 pixels at 1, 384x384 at 2), and runtimes whose workers can't share memory (browsers without
-     * cross-origin isolation) encode without them.
+     * At most this many worker threads compress in parallel (the same file, faster: lossy 2.3 times with 8 on a
+     * 1920x1080 photo at effort 1, 3.8 times on 3840x2160; lossless 2.8 and 4.3 times), `1` for none. Small images
+     * (lossy under about 1.5 megapixels at effort 0, 512x512 pixels at 1, 384x384 at 2; lossless under 724x724 and
+     * always at effort 0), and runtimes whose workers can't share memory (browsers without cross-origin isolation)
+     * encode without them.
      * Default: the processors available, at most 8
      */
     threads?: number;
@@ -2221,11 +2224,13 @@ export class Image {
     }
 
     /**
-     * Encodes the image as JPEG XL: losslessly (the default), the codestream byte for byte like libjxl's `cjxl -e 1` on
-     * CPUs with AVX2 or NEON (its fast lossless mode: the gradient predictor, a palette if the image has at most 511
-     * colors besides black, else YCoCg; greyscale if the image is), or lossy with a quality (like `cjxl -q`: XYB,
-     * varblocks of libjxl's search, chroma from luma, the edge preserving filter). Alpha (if the image has
-     * transparency) is lossless either way. The codestream is in the container, with the metadata as Exif
+     * Encodes the image as JPEG XL: losslessly (the default) like libjxl's `cjxl -e 3` (a palette of up to 1024 colors,
+     * else palettes of channels using few of their values; YCoCg; the weighted predictor in contexts of its error;
+     * greyscale if the image is), at effort 0 the codestream byte for byte like `cjxl -e 1` on CPUs with AVX2 or NEON
+     * (its fast lossless mode: the gradient predictor, a palette if the image has at most 511 colors besides black,
+     * else YCoCg), or lossy with a quality (like `cjxl -q`: XYB, varblocks of libjxl's search, chroma from luma, the
+     * edge preserving filter). Alpha (if the image has transparency) is lossless either way. The codestream is in the
+     * container, with the metadata as Exif
      * @param options See {@link JXLEncodeOptions}
      */
     async encodeJXL({ quality, effort = 1, threads = defaultThreads(), metadata = {} }: JXLEncodeOptions = {}): Promise<Uint8Array> {
