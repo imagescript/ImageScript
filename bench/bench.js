@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import sharp from 'sharp';
 import { Bench } from 'tinybench';
-import { libraries, referenceDecode, AVIF_QUALITY } from './libs.js';
+import { libraries, referenceDecode, AVIF_QUALITY, WEBP_QUALITY } from './libs.js';
 
 const lib = libraries.find(l => l.name === process.argv[2]);
 if (!lib) throw new Error(`unknown library ${process.argv[2]}, one of: ${libraries.map(l => l.name).join(', ')}`);
@@ -16,7 +16,9 @@ const files = {
     'animation.gif': fs.readFileSync(new URL('./inputs/animation.gif', import.meta.url))
 };
 files['photo.png'] = await sharp(files['photo.jpg']).png().toBuffer();
-files['photo.webp'] = await sharp(files['photo.jpg']).webp({ quality: 80 }).toBuffer();
+files['photo.webp'] = await sharp(files['photo.jpg']).webp({ quality: WEBP_QUALITY }).toBuffer();
+// (the animation as an animated WebP, by libwebp)
+files['animation.webp'] = await sharp(files['animation.gif'], { animated: true }).webp({ quality: WEBP_QUALITY }).toBuffer();
 // (and AVIF by libaom, JPEG XL by libjxl: sharp's and jsquash's encoders at the benchmark's qualities)
 files['photo.avif'] = await sharp(files['photo.jpg']).avif({ quality: AVIF_QUALITY }).toBuffer();
 const rawOf = async file => { const { data, info } = await sharp(files[file]).ensureAlpha().raw().toBuffer({ resolveWithObject: true }); return { data, width: info.width, height: info.height }; };
@@ -24,7 +26,7 @@ const pixels = { 'photo.jpg': await rawOf('photo.jpg'), 'graphic.png': await raw
 files['photo.jxl'] = new Uint8Array(await (libraries.find(l => l.name === 'jsquash').encode.jxl)({ ...pixels['photo.jpg'], data: new Uint8ClampedArray(pixels['photo.jpg'].data) }));
 
 const speed = {}, sizes = {};
-const formatName = format => ({ jpeg: 'JPEG', png: 'PNG', webp: 'WebP', avif: 'AVIF', jxl: 'JPEG XL' })[format];
+const formatName = format => ({ jpeg: 'JPEG', png: 'PNG', webp: 'WebP', webpLossy: 'WebP lossy', avif: 'AVIF', jxl: 'JPEG XL', jxlLossless: 'JPEG XL lossless' })[format];
 
 // collect: canvases (native memory) and Photon images (WebAssembly memory) hold their pixels outside the V8 heap and
 // only free them in finalizers that run on a later event-loop turn, which tinybench's loop never yields to. So between
@@ -54,7 +56,7 @@ for (const [task, file, format] of [['decode JPEG', 'photo.jpg'], ['decode PNG',
 }
 for (const [format, encode] of Object.entries(lib.encode))
     await measure(`encode ${formatName(format)}`, () => encode(photo));
-for (const op of ['resize', 'rotate', 'blur', 'composite', 'crop', 'clone'])
+for (const op of ['resize', 'resizeBicubic', 'cover', 'crop', 'rotate', 'rotate90', 'flip', 'blur', 'sharpen', 'composite', 'greyscale', 'adjust'])
     if (lib[op]) await measure(op, () => lib[op](photo, overlay));
 // a library that has the feature but fails on this input is recorded as failing
 for (const op of ['text', 'svg']) {
@@ -67,10 +69,12 @@ if (lib.animation) {
     const animation = await lib.animation.decode(files['animation.gif']);
     await measure('decode GIF', () => lib.animation.decode(files['animation.gif']));
     await measure('encode GIF', () => lib.animation.encode(animation));
+    await measure('decode animated WebP', () => lib.animation.decode(files['animation.webp']));
+    if (lib.animation.encodeWebP) await measure('encode animated WebP', () => lib.animation.encodeWebP(animation));
 }
 
 // encoded sizes, with each library's default settings (JPEG at quality 80, WebP lossless, AVIF and JPEG XL at the same
-// quality), and the PSNR (of the color over black) of the lossy ones: JPEG, AVIF, JPEG XL and the GIF
+// quality), and the PSNR (of the color over black) of the lossy ones: JPEG, lossy WebP, AVIF, JPEG XL and the animations
 const quality = {};
 const sharpPixels = async (data, animated = false) => (await sharp(data, { animated }).ensureAlpha().raw().toBuffer());
 const psnr = (a, b) => {
@@ -88,8 +92,8 @@ for (const [name, file] of [['photo', 'photo.jpg'], ['graphic', 'graphic.png']])
         const encoded = new Uint8Array(await encode(image));
         sizes[`${name} ${formatName(format)}`] = encoded.length;
         if (format === 'avif' || format === 'jxl') quality[`${name} ${formatName(format)}`] = psnr(pixels[file].data, await referenceDecode(encoded, format));
-        // (JPEG decoded by libjpeg-turbo, through sharp)
-        if (format === 'jpeg') quality[`${name} JPEG`] = psnr(pixels[file].data, await sharpPixels(encoded));
+        // (JPEG and WebP decoded by libjpeg-turbo and libwebp, through sharp)
+        if (format === 'jpeg' || format === 'webpLossy') quality[`${name} ${formatName(format)}`] = psnr(pixels[file].data, await sharpPixels(encoded));
     }
 }
 if (lib.animation) {
@@ -98,6 +102,12 @@ if (lib.animation) {
     // (all frames, decoded by libnsgif through sharp; only if the file keeps every frame, encoders may merge equal ones)
     const [a, b] = await Promise.all([sharpPixels(files['animation.gif'], true), sharpPixels(encoded, true)]);
     if (a.length === b.length) quality['animation GIF'] = psnr(a, b);
+    if (lib.animation.encodeWebP) {
+        const webp = await lib.animation.encodeWebP(await lib.animation.decode(files['animation.gif']));
+        sizes['animation WebP'] = webp.length;
+        const c = await sharpPixels(webp, true);
+        if (a.length === c.length) quality['animation WebP'] = psnr(a, c);
+    }
 }
 
 console.log(JSON.stringify({ speed, sizes, quality }));
