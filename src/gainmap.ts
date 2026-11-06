@@ -36,8 +36,7 @@ const perChannel = (value: number | number[], name: string): number[] => {
  * (JPEG-R) photos from phones carry it. HDR displays show the image boosted by it, the others the image as it is.
  *
  * {@link Image.decode} reads the gain maps of JPEGs, AVIFs and JPEG XLs into {@link Image.gainMap},
- * {@link Image.encodeJPEG}, {@link Image.encodeAVIF} and {@link Image.encodeJXL} write them;
- * the map's pixels are only decoded once they're needed. The map covers the whole image, at any resolution (phones
+ * {@link Image.encodeJPEG}, {@link Image.encodeAVIF} and {@link Image.encodeJXL} write them. The map covers the whole image, at any resolution (phones
  * write a quarter of the width and height). Its value `v` (0-255, per channel or one for all) boosts the linear
  * light of the image by `2^(gainMapMin + (gainMapMax - gainMapMin) * (v / 255)^(1 / gamma))`
  */
@@ -59,12 +58,8 @@ export class GainMap {
     /** whether the boost applies in the SDR image's color space (else in the HDR image's) */
     useBaseColorSpace: boolean;
 
-    /** the map's JPEG (without metadata) until its pixels are used */
-    private __jpeg__: Uint8Array | null = null;
-    /** its pixels from then on */
+    /** its pixels */
     private __pixels__: Image | null = null;
-    /** an Apple gain map's headroom: its values are converted when decoded (and the JPEG can't be kept as it is) */
-    private __apple__ = 0;
 
     /**
      * Creates a gain map
@@ -87,21 +82,38 @@ export class GainMap {
         this.__check__();
     }
 
-    /** @internal from a decoded file: the map's JPEG, its pixels decoded when first used */
+    /**
+     * @internal from a decoded file: the map's JPEG, decoded now (a damaged one throws here, not in a later
+     * operation); `apple`: an Apple gain map's headroom, its values converted to the parameters' scale
+     */
     static __from_jpeg__(map: Uint8Array, params: codec.Params, apple = 0): GainMap {
-        const gainMap = Object.create(GainMap.prototype) as GainMap;
-        gainMap.__pixels__ = null;
-        gainMap.__apple__ = apple;
-        gainMap.__jpeg__ = codec.stripMetadata(map);
-        gainMap.__set_params__(params);
-        return gainMap;
+        const { width, height, pixels } = jpeg.decode(map);
+        const image = new Image(width, height);
+        image.bitmap = pixels;
+        if (apple) {
+            const table = new Uint8Array(256);
+            for (let v = 0; v < 256; v++) table[v] = Math.round(255 * codec.appleValue(v / 255, apple));
+            for (let i = 0; i < pixels.length; i += 4) {
+                pixels[i] = table[pixels[i]];
+                pixels[i + 1] = table[pixels[i + 1]];
+                pixels[i + 2] = table[pixels[i + 2]];
+            }
+        }
+        return GainMap.__from_pixels__(image, params, false);
     }
 
-    /** @internal from decoded pixels (an AVIF's or JPEG XL's map) */
-    static __from_pixels__(image: Image, params: codec.Params): GainMap {
+    /**
+     * @internal from decoded pixels (an AVIF's or JPEG XL's map); `grey`: a map whose channels differ by at most 2
+     * levels anywhere is made grey (a grey map stored in color, like libjxl writes them: one channel when written)
+     */
+    static __from_pixels__(image: Image, params: codec.Params, grey = true): GainMap {
+        const px = image.bitmap;
+        if (grey) {
+            let spread = 0;
+            for (let i = 0; i < px.length && spread <= 2; i += 4) spread = Math.max(spread, Math.abs(px[i] - px[i + 1]), Math.abs(px[i] - px[i + 2]));
+            if (spread > 0 && spread <= 2) for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = Math.round((px[i] + px[i + 1] + px[i + 2]) / 3);
+        }
         const gainMap = Object.create(GainMap.prototype) as GainMap;
-        gainMap.__jpeg__ = null;
-        gainMap.__apple__ = 0;
         gainMap.__pixels__ = image;
         gainMap.__set_params__(params);
         return gainMap;
@@ -140,50 +152,29 @@ export class GainMap {
         if (p.capacityMin < 0 || p.capacityMax <= p.capacityMin) throw new RangeError('The gain map\'s hdrCapacityMax must be above its hdrCapacityMin, which can\'t be negative');
     }
 
-    /** The map's pixels (decoded when first read). Changes to them are written when the image is encoded */
+    /** The map's pixels. Changes to them are written when the image is encoded */
     get image(): Image {
-        if (!this.__pixels__) {
-            const { width, height, pixels } = jpeg.decode(this.__jpeg__ as Uint8Array);
-            const image = new Image(width, height);
-            image.bitmap = pixels;
-            if (this.__apple__) {
-                // (Apple's values to the parameters' log2 scale)
-                const table = new Uint8Array(256);
-                for (let v = 0; v < 256; v++) table[v] = Math.round(255 * codec.appleValue(v / 255, this.__apple__));
-                for (let i = 0; i < pixels.length; i += 4) {
-                    pixels[i] = table[pixels[i]];
-                    pixels[i + 1] = table[pixels[i + 1]];
-                    pixels[i + 2] = table[pixels[i + 2]];
-                }
-                this.__apple__ = 0;
-            }
-            this.__pixels__ = image;
-            // (from now on the pixels can change: encoding writes them anew)
-            this.__jpeg__ = null;
-        }
-        return this.__pixels__;
+        return this.__pixels__ as Image;
     }
 
     set image(image: Image) {
         if (!(image instanceof Image)) throw new TypeError('The gain map has to be an Image');
         this.__pixels__ = image;
-        this.__jpeg__ = null;
     }
 
-    /** The map's width (without decoding it) */
+    /** The map's width */
     get width(): number {
-        return this.__pixels__ ? this.__pixels__.width : codec.dimensions(this.__jpeg__ as Uint8Array)?.width ?? 0;
+        return (this.__pixels__ as Image).width;
     }
 
-    /** The map's height (without decoding it) */
+    /** The map's height */
     get height(): number {
-        return this.__pixels__ ? this.__pixels__.height : codec.dimensions(this.__jpeg__ as Uint8Array)?.height ?? 0;
+        return (this.__pixels__ as Image).height;
     }
 
     /** `1` for a grey map (one boost for red, green and blue), `3` for one per channel */
     get channels(): 1 | 3 {
-        if (!this.__pixels__) return codec.componentCount(this.__jpeg__ as Uint8Array) === 1 ? 1 : 3;
-        const bitmap = this.__pixels__.bitmap;
+        const bitmap = (this.__pixels__ as Image).bitmap;
         for (let i = 0; i < bitmap.length; i += 4) if (bitmap[i] !== bitmap[i + 1] || bitmap[i] !== bitmap[i + 2]) return 3;
         return 1;
     }
@@ -192,18 +183,14 @@ export class GainMap {
     clone(): GainMap {
         const copy = Object.create(GainMap.prototype) as GainMap;
         copy.__set_params__(this.__params__());
-        copy.__jpeg__ = this.__jpeg__;
-        copy.__apple__ = this.__apple__;
-        copy.__pixels__ = this.__pixels__ ? this.__pixels__.clone() : null;
+        copy.__pixels__ = (this.__pixels__ as Image).clone();
         return copy;
     }
 
     /**
-     * @internal the map's JPEG without metadata: the decoded file's as it is if the pixels weren't used and no quality
-     * or size is asked for, else encoded anew
+     * @internal the map as a JPEG without metadata, at a quality (default 90) and size
      */
     __body__(quality?: number, width?: number, height?: number): Uint8Array {
-        if (this.__jpeg__ && !this.__apple__ && quality === undefined && (width === undefined || width === this.width && height === this.height)) return this.__jpeg__;
         let image = this.image;
         if (width !== undefined && height !== undefined && (width !== image.width || height !== image.height)) image = image.clone().resize(width, height);
         const bitmap = image.bitmap;
@@ -270,8 +257,7 @@ export class GainMap {
     /**
      * Encodes the gain map alone: a JPEG with its parameters (hdrgm XMP and ISO 21496-1), like the second image in an
      * Ultra HDR JPEG
-     * @param quality The JPEG quality (1-100). Default: `90`, or the decoded file's map as it is if its pixels weren't
-     *     used
+     * @param quality The JPEG quality (1-100). Default: `90`
      */
     async encode(quality?: number): Promise<Uint8Array> {
         if (quality !== undefined) quality = Math.max(1, checkQuality(quality));
@@ -289,9 +275,6 @@ export class GainMap {
         if (found) return GainMap.__from_jpeg__(found.map, found.params, found.apple);
         const params = codec.readParams(bytes);
         if (!params) throw new Error('No gain map (or no gain map parameters) found');
-        const gainMap = GainMap.__from_jpeg__(bytes, params);
-        // (decoded now: a damaged JPEG throws here, not later)
-        void gainMap.image;
-        return gainMap;
+        return GainMap.__from_jpeg__(bytes, params);
     }
 }

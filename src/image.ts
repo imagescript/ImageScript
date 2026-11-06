@@ -114,8 +114,8 @@ export interface JPEGEncodeOptions {
     metadata?: Metadata;
     /**
      * Whether to write the image's {@link Image.gainMap} (an Ultra HDR JPEG, brighter on HDR displays), or how:
-     * `quality` the map's JPEG quality (default: `90`, or the decoded map as it was if it's unchanged), `scale` its
-     * size as a factor of the image's (0-1, default: the map's size). Default: `true` (written if there is one)
+     * `quality` the map's JPEG quality (default: `90`), `scale` its size as a factor of the image's (0-1, default: the
+     * map's size). Default: `true` (written if there is one)
      */
     gainMap?: boolean | { quality?: number, scale?: number };
 }
@@ -233,7 +233,7 @@ export interface DecodeOptions {
     toneMapping?: ToneMapping;
     /**
      * Whether to read the gain maps of JPEGs (Ultra HDR, JPEG-R, ISO 21496-1, Apple's), AVIFs (tone mapped items) and
-     * JPEG XLs (jhgm boxes) into {@link Image.gainMap}. A JPEG's map's pixels are only decoded when they're needed. Default: `true`
+     * JPEG XLs (jhgm boxes) into {@link Image.gainMap}. Default: `true`
      */
     gainMap?: boolean;
     /**
@@ -1640,7 +1640,7 @@ export class Image {
      * Inverts the images colors
      */
     invert(): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.invert());
+        if (this.__gain_map__) return this.__unboost__(image => image.invert());
         const bitmap = this.bitmap;
         for (let i = 0; i < bitmap.length; i += 4) {
             bitmap[i] = 255 - bitmap[i];
@@ -1655,7 +1655,7 @@ export class Image {
      * Inverts the images lightness (HSL), keeping hue and saturation: dark colors become light and vice versa
      */
     invertLightness(): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.invertLightness());
+        if (this.__gain_map__) return this.__unboost__(image => image.invertLightness());
         return this.__map_hsla__(c => { c.l = 1 - c.l; });
     }
 
@@ -1664,7 +1664,7 @@ export class Image {
      * and the others scale along, black becomes white
      */
     invertValue(): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.invertValue());
+        if (this.__gain_map__) return this.__unboost__(image => image.invertValue());
         const bitmap = this.bitmap;
         for (let i = 0; i < bitmap.length; i += 4) {
             const max = Math.max(bitmap[i], bitmap[i + 1], bitmap[i + 2]);
@@ -1818,7 +1818,7 @@ export class Image {
      * @param factor The factor (>= 0, 1 keeps the image)
      */
     brightness(factor: number): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.brightness(factor));
+        if (this.__gain_map__) return this.__recolor__(image => image.brightness(factor), false, v => v * factor);
         factor = finite(factor, 'brightness factor');
         if (factor < 0)
             throw new RangeError('Invalid brightness factor');
@@ -1830,7 +1830,7 @@ export class Image {
      * @param factor The factor (>= 0, 1 keeps the image, 0 makes it grey)
      */
     contrast(factor: number): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.contrast(factor));
+        if (this.__gain_map__) return this.__recolor__(image => image.contrast(factor), false, v => (v - 0.5) * factor + 0.5);
         factor = finite(factor, 'contrast factor');
         if (factor < 0)
             throw new RangeError('Invalid contrast factor');
@@ -1842,7 +1842,7 @@ export class Image {
      * @param gamma The gamma (> 0, 1 keeps the image)
      */
     gamma(gamma: number): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.gamma(gamma));
+        if (this.__gain_map__) return this.__recolor__(image => image.gamma(gamma), false, v => Math.max(0, v) ** (1 / gamma));
         gamma = finite(gamma, 'gamma');
         if (gamma <= 0)
             throw new RangeError('Invalid gamma');
@@ -2128,13 +2128,30 @@ export class Image {
     }
 
     /**
-     * A color change with a gain map: made to the pixels (without the map), then to the map (the same change made to
-     * the HDR rendition, see util/gain.ts). Changes of only the colors' hue and saturation leave a single channel map
-     * as it is
+     * A change after which the image has no HDR highlights (the inverts: the boosted light would become the darkest):
+     * made to the pixels, the map then boosts nothing
      * @internal
      * @ignore
      */
-    protected __recolor__(apply: (image: Image) => void, chromaOnly = false): this {
+    protected __unboost__(apply: (image: Image) => void): this {
+        const map = this.__gain_map__ as GainMap;
+        this.__gain_map__ = null;
+        try {
+            apply(this);
+        } finally {
+            this.__gain_map__ = gain.neutralMap(map, this.width, this.width, this.height);
+        }
+        return this;
+    }
+
+    /**
+     * A color change with a gain map: made to the pixels (without the map), then to the map (the same change made to
+     * the HDR rendition, see util/gain.ts; `exact`: the change as a function of an encoded value, for values above SDR
+     * white too). Changes of only the colors' hue and saturation leave a single channel map as it is
+     * @internal
+     * @ignore
+     */
+    protected __recolor__(apply: (image: Image) => void, chromaOnly = false, exact?: (value: number) => number): this {
         const map = this.__gain_map__ as GainMap;
         this.__gain_map__ = null;
         try {
@@ -2144,7 +2161,7 @@ export class Image {
             }
             const before = this.__resize__(map.width, map.height);
             apply(this);
-            gain.recolor(map, before, this.__resize__(map.width, map.height), apply);
+            gain.recolor(map, before, apply, exact);
             return this;
         } finally {
             this.__gain_map__ = map;

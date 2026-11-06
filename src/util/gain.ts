@@ -157,42 +157,77 @@ export function gainSampler(source: Image): ((x: number, y: number, out: number[
     return (x, y, out) => sample(gains, width, height, (x + 0.5) * sx, (y + 0.5) * sy, out);
 }
 
+// sRGB's curve extended above 1 (values brighter than SDR white): linear light <-> encoded values (SDR white 1)
+const encodeExtended = (v: number): number => v <= 0.0031308 ? 12.92 * Math.max(0, v) : 1.055 * v ** (1 / 2.4) - 0.055;
+const decodeExtended = (e: number): number => e <= 0.04045 ? Math.max(0, e) / 12.92 : ((e + 0.055) / 1.055) ** 2.4;
+
 /**
  * The map after a color change of the whole image (brightness, contrast, invert...): the same change is made to the
- * HDR rendition at the map's resolution, as an image whose white is its brightest light (`apply` is called with it), the new gain is its light over the changed image's. `before`, `after`: the image before and after, at the
- * map's size
+ * HDR rendition at the map's resolution, on sRGB values with SDR white as 1 and highlights above it, so a pixel the
+ * map doesn't boost changes like the SDR image (its gain stays) and highlights change alike. `exact`: the change as a
+ * function of an encoded value (0-1 for SDR, above for highlights; brightness, contrast, gamma), else `apply` makes it
+ * on an image: each pixel scaled down to fit (by its brightest channel, if that's above SDR white) and back up. The
+ * SDR side of the ratio is the change made to `before` (the image before, at the map's size) too, not the changed
+ * image downscaled: both sides alike (a change that clips, averaged afterwards, would differ)
  */
-export function recolor(map: GainMap, before: Image, after: Image, apply: (proxy: Image) => void): void {
+export function recolor(map: GainMap, before: Image, apply: (proxy: Image) => void, exact?: (value: number) => number): void {
     const gains = decodeGains(map);
-    const proxy = before.clone();
-    const p = proxy.bitmap, b = before.bitmap;
+    const b = before.bitmap;
+    // (the SDR image changed, linear)
+    const sdr = new Float32Array(gains.length);
+    if (exact) for (let i = 0, g = 0; i < b.length; i += 4, g += 3) for (let c = 0; c < 3; c++) sdr[g + c] = decodeExtended(Math.min(1, exact(b[i + c] / 255)));
+    else {
+        const sdrImage = before.clone();
+        apply(sdrImage);
+        const a = sdrImage.bitmap;
+        for (let i = 0, g = 0; i < a.length; i += 4, g += 3) for (let c = 0; c < 3; c++) sdr[g + c] = LINEAR[a[i + c]];
+    }
     const oS = map.offsetSDR, oH = map.offsetHDR;
-    // (the HDR light, exactly, and as the proxy has it: its white the brightest light, at least SDR white)
-    const light = new Float32Array(gains.length);
+    // (the HDR light, its encoded values and each pixel's scale: its brightest encoded channel, at least 1)
+    const light = new Float32Array(gains.length), encoded = new Float32Array(gains.length), scale = new Float32Array(gains.length / 3);
     let peak = 1;
-    for (let i = 0, g = 0; i < p.length; i += 4, g += 3)
-        for (let c = 0; c < 3; c++) peak = Math.max(peak, light[g + c] = Math.max(0, (LINEAR[b[i + c]] + oS[c]) * 2 ** gains[g + c] - oH[c]));
-    for (let i = 0, g = 0; i < p.length; i += 4, g += 3) for (let c = 0; c < 3; c++) p[i + c] = encodeSRGB(light[g + c] / peak);
-    const lo = Math.min(0, ...map.gainMapMin), hi = Math.max(Math.log2(peak), ...map.gainMapMax);
-    const original = p.slice();
-    apply(proxy);
-    const single = map.channels === 1;
-    const a = after.bitmap, H = [0, 0, 0];
-    for (let i = 0, g = 0; i < p.length; i += 4, g += 3) {
-        // (the change the proxy went through: none keeps the light exactly; relative to the value it had where that's
-        // precise enough (above 32, an eighth of the range), else the new value as it is)
+    for (let i = 0, g = 0; i < b.length; i += 4, g += 3) {
+        let m = 1;
         for (let c = 0; c < 3; c++) {
-            const was = original[i + c], is = p[i + c];
-            H[c] = was === is ? light[g + c] : was >= 32 ? light[g + c] * LINEAR[is] / LINEAR[was] : LINEAR[is] * peak;
+            const h = light[g + c] = Math.max(0, (LINEAR[b[i + c]] + oS[c]) * 2 ** gains[g + c] - oH[c]);
+            peak = Math.max(peak, h);
+            m = Math.max(m, encoded[g + c] = encodeExtended(h));
         }
+        scale[g / 3] = m;
+    }
+    const changed = new Float32Array(gains.length);
+    if (exact) for (let g = 0; g < gains.length; g++) changed[g] = decodeExtended(exact(encoded[g]));
+    else {
+        const proxy = new Image(before.width, before.height), p = proxy.bitmap;
+        for (let i = 0, g = 0; i < p.length; i += 4, g += 3) {
+            for (let c = 0; c < 3; c++) p[i + c] = Math.round(255 * encoded[g + c] / scale[g / 3]);
+            p[i + 3] = b[i + 3];
+        }
+        const original = p.slice();
+        apply(proxy);
+        for (let i = 0, g = 0; i < p.length; i += 4, g += 3) {
+            const m = scale[g / 3];
+            // (unchanged: the light as it was; else relative to the value it had where that's precise enough (above
+            // 32, an eighth of the range), else the new value as it is)
+            for (let c = 0; c < 3; c++) {
+                const was = original[i + c], is = p[i + c];
+                changed[g + c] = was === is ? light[g + c] : was >= 32 ? light[g + c] * decodeExtended(is * m / 255) / decodeExtended(was * m / 255) : decodeExtended(is * m / 255);
+            }
+        }
+    }
+    let changedPeak = 1;
+    for (let g = 0; g < changed.length; g++) changedPeak = Math.max(changedPeak, changed[g]);
+    const lo = Math.min(0, ...map.gainMapMin), hi = Math.max(Math.log2(Math.max(peak, changedPeak)), ...map.gainMapMax);
+    const single = map.channels === 1;
+    for (let g = 0; g < gains.length; g += 3) {
         if (single) {
             let s = 0, h = 0;
             for (let c = 0; c < 3; c++) {
-                s += LUMA[c] * (LINEAR[a[i + c]] + oS[c]);
-                h += LUMA[c] * (H[c] + oH[c]);
+                s += LUMA[c] * (sdr[g + c] + oS[c]);
+                h += LUMA[c] * (changed[g + c] + oH[c]);
             }
             gains[g] = gains[g + 1] = gains[g + 2] = ratio(h, s, lo, hi);
-        } else for (let c = 0; c < 3; c++) gains[g + c] = ratio(H[c] + oH[c], LINEAR[a[i + c]] + oS[c], lo, hi);
+        } else for (let c = 0; c < 3; c++) gains[g + c] = ratio(changed[g + c] + oH[c], sdr[g + c] + oS[c], lo, hi);
     }
     encodeGains(map, gains, map.width, map.height, single);
 }

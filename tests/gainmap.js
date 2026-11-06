@@ -45,8 +45,8 @@ const meanValue = (image, left, top, right, bottom) => {
 		if (image.gainMap !== null || image.width !== 512) panic(`${name}: ${image.gainMap ? 'a gain map' : image.width}`);
 	}
 
-	// writing: decode -> encode keeps the map (as it was: the same pixels), the base as without one; gainMap: false
-	// leaves it out
+	// writing: decode -> encode keeps the map (close: encoded anew), the base as without one; gainMap: false leaves it
+	// out
 	for (const name of ['single-channel', 'multi-channel']) {
 		const image = await Image.decode(files[name]);
 		const encoded = await image.encodeJPEG(90);
@@ -54,7 +54,12 @@ const meanValue = (image, left, top, right, bottom) => {
 		const back = await Image.decode(encoded);
 		if (!back.gainMap || !close(back.gainMap.gainMapMax, image.gainMap.gainMapMax) || !close(back.gainMap.gainMapMin, image.gainMap.gainMapMin) || back.gainMap.hdrCapacityMax !== image.gainMap.hdrCapacityMax)
 			panic(`${name}: the written map's parameters differ`);
-		if (!same(back.gainMap.image, (await Image.decode(files[name])).gainMap.image)) panic(`${name}: the copied map's pixels differ`);
+		{
+			let sum = 0;
+			const a = back.gainMap.image.bitmap, b = image.gainMap.image.bitmap;
+			for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i]);
+			if (sum / a.length > 0.5) panic(`${name}: the written map is off by ${sum / a.length}`);
+		}
 		if (!same(back, await Image.decode(plain))) panic(`${name}: the base differs with the map written`);
 		if ((await Image.decode(plain)).gainMap !== null) panic(`${name}: gainMap: false wrote the map`);
 
@@ -272,6 +277,26 @@ const meanValue = (image, left, top, right, bottom) => {
 		try { call(image); } catch { threw = true; }
 		if (!threw) panic(`${name}: no error`);
 		if (image.width !== single.width || !same(image, single) || !same(image.gainMap.image, single.gainMap.image)) panic(`${name}: changed before throwing`);
+	}
+
+	// color changes on values with SDR white as 1: where the map doesn't darken, the HDR rendition stays at least as
+	// bright as the SDR image (no gains below 0 appear), the highlights stretch along; the inverts leave no boost
+	{
+		const gainsOf = map => {
+			const px = map.image.bitmap, out = [];
+			for (let i = 0; i < px.length; i += 4) out.push(map.gainMapMin[0] + (map.gainMapMax[0] - map.gainMapMin[0]) * (px[i] / 255) ** (1 / map.gamma[0]));
+			return out;
+		};
+		const bright = new Image(64, 64).fill((x, y) => ((y * 4) * 0x1010100 | 255) >>> 0);
+		bright.gainMap = new GainMap(new Image(64, 64).fill(x => ((x * 4) * 0x1010100 | 255) >>> 0), {gainMapMin: 0, gainMapMax: 2, offsetSDR: 0, offsetHDR: 0});
+		for (const [name, edit] of [['contrast 1.4', i => i.contrast(1.4)], ['contrast 0.6', i => i.contrast(0.6)], ['brightness 1.3', i => i.brightness(1.3)], ['gamma 1.5', i => i.gamma(1.5)], ['lightness 1.2', i => i.lightness(1.2)]]) {
+			const out = edit(bright.clone());
+			const lowest = Math.min(...gainsOf(out.gainMap));
+			if (lowest < -0.05) panic(`${name}: the HDR rendition got darker than SDR (gain ${lowest})`);
+		}
+		if (!(Math.max(...bright.clone().contrast(1.4).gainMap.gainMapMax) > 2)) panic('contrast 1.4: the highlights didn\'t stretch');
+		const inverted = bright.clone().invert().gainMap;
+		if (gainsOf(inverted).some(g => Math.abs(g) > 0.02)) panic('invert: the map still boosts');
 	}
 
 	// other formats don't carry it, removing works
