@@ -165,6 +165,15 @@ const meanValue = (image, left, top, right, bottom) => {
 		if (!same(grey.gainMap.image, single.gainMap.image)) panic('greyscale: a single channel map changed');
 	}
 
+	// invalid arguments throw before the image or its map changes
+	for (const [name, call] of [['blur', i => i.blur('5')], ['fill', i => i.fill('red')], ['cover', i => i.cover(-1, 10)]]) {
+		const image = single.clone();
+		let threw = false;
+		try { call(image); } catch { threw = true; }
+		if (!threw) panic(`${name}: no error`);
+		if (image.width !== single.width || !same(image, single) || !same(image.gainMap.image, single.gainMap.image)) panic(`${name}: changed before throwing`);
+	}
+
 	// other formats don't carry it, removing works
 	const removed = single.clone();
 	removed.gainMap = null;

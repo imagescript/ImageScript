@@ -761,6 +761,7 @@ export class Image {
      */
     fill(color: Color | ColorFunction): this {
         const view = new DataView(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
+        if (typeof color !== 'function') color = checkColor(color);
         // (the new pixels have no HDR light beyond their own: no boost anywhere)
         if (this.__gain_map__) this.__gain_map__ = gain.neutralMap(this.__gain_map__, this.width, this.width, this.height);
 
@@ -770,7 +771,6 @@ export class Image {
                 for (let x = 0; x < this.width; x++, offset += 4)
                     view.setUint32(offset, color(x, y), false);
         } else {
-            color = checkColor(color);
             if (!this.bitmap.length) return this;
             view.setUint32(0, color, false);
             const u32 = new Uint32Array(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength / 4);
@@ -959,6 +959,11 @@ export class Image {
         const options = resizeOptions(modeOrOptions);
         width = Math.floor(width);
         height = Math.floor(height);
+        // (checked before anything changes: a box below a pixel used to resize the image, then fail to crop it)
+        if (!(width >= 1 && Number.isFinite(width)))
+            throw new RangeError('Image has to be at least 1 pixel wide');
+        if (!(height >= 1 && Number.isFinite(height)))
+            throw new RangeError('Image has to be at least 1 pixel high');
         const scale = Math.max(width / this.width, height / this.height);
         const resizedWidth = Math.max(width, Math.round(this.width * scale)), resizedHeight = Math.max(height, Math.round(this.height * scale));
         // only the part the crop keeps is resampled (the same pixels as resizing the whole image, then cropping)
@@ -1747,11 +1752,11 @@ export class Image {
      * @param radius The blur radius: the gaussian's standard deviation in pixels, like CSS' blur()
      */
     blur(radius: number): this {
-        // (the gain map blurred alike, at its resolution)
-        const map = this.__gain_map__;
-        if (map && Number(radius) * map.width / this.width >= 0.5) map.image = map.image.clone().blur(Number(radius) * map.width / this.width);
         if (!Number.isFinite(radius) || radius < 0)
             throw new RangeError('Invalid blur radius');
+        // (the gain map blurred alike, at its resolution)
+        const map = this.__gain_map__;
+        if (map && radius * map.width / this.width >= 0.5) map.image = map.image.clone().blur(radius * map.width / this.width);
 
         if (boxBlurRGBA(this.bitmap, this.width, this.height, radius)) return this;
         const pixels = premultiply(this.bitmap);
