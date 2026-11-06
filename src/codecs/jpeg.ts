@@ -1068,7 +1068,8 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
         { plane: Y, stride: W, h: hmax, v: hmax, blocksX: lumaBlocksX, blocksY: lumaBlocksY, table: 0 },
         { plane: Cb, stride: CW, h: 1, v: 1, blocksX: chromaBlocksX, blocksY: chromaBlocksY, table: 1 },
         { plane: Cr, stride: CW, h: 1, v: 1, blocksX: chromaBlocksX, blocksY: chromaBlocksY, table: 1 }
-    ].slice(0, grey ? 1 : 3);
+    ];
+    const componentCount = grey ? 1 : 3;
 
     // quantized blocks in MCU order (Y blocks, then Cb, then Cr), their coefficients in zigzag order, with the index
     // of each block's last nonzero coefficient. MCUs reaching past a component's blocks get dummy blocks (jccoefct.c):
@@ -1083,7 +1084,7 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
 
     for (let my = 0; my < mcusPerColumn; my++)
         for (let mx = 0; mx < mcusPerLine; mx++)
-            for (let c = 0; c < components.length; c++) {
+            for (let c = 0; c < componentCount; c++) {
                 const { plane, stride, h: ch, v: cv, blocksX, blocksY, table } = components[c];
                 const reciprocal = divisors[table];
 

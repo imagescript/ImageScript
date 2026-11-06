@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.16.1
+
+### Performance
+
+- `encodeJPEG()` is about 4% faster again: 3.16.0's greyscale JPEG support (for gain maps) had slowed down its block
+  loop. Output is unchanged, byte for byte.
+
 ## 3.16.0
 
 ### New
