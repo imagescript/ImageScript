@@ -245,6 +245,26 @@ const meanValue = (image, left, top, right, bottom) => {
 		if (scaled.gainMap.width !== 128 || scaled.gainMap.height !== 96) panic(`AVIF ${name}: scaled map ${scaled.gainMap.width}x${scaled.gainMap.height}`);
 	}
 
+	// JPEG XL: the gain map in a jhgm box (lossy and lossless), the image as without one
+	for (const [name, image] of [['single-channel', single], ['multi-channel', multi]]) {
+		for (const options of [{quality: 80}, {}]) {
+			const jxl = await image.encodeJXL(options);
+			const back = await Image.decode(jxl);
+			const map = back.gainMap;
+			if (!map || map.channels !== image.gainMap.channels || map.width !== image.gainMap.width || !close(map.gainMapMax, image.gainMap.gainMapMax) || !close(map.gainMapMin, image.gainMap.gainMapMin) || Math.abs(map.hdrCapacityMax - image.gainMap.hdrCapacityMax) > 1e-6)
+				panic(`JXL ${name} ${JSON.stringify(options)}: ${map ? `${map.channels} channels, ${map.width}, ${map.gainMapMax}` : 'no gain map'}`);
+			let sum = 0;
+			const a = map.image.bitmap, b = image.gainMap.image.bitmap;
+			for (let i = 0; i < a.length; i += 4) sum += Math.abs(a[i] - b[i]);
+			if (sum / (a.length / 4) > 1) panic(`JXL ${name}: map off by ${sum / (a.length / 4)}`);
+			const plain = await image.encodeJXL({...options, gainMap: false});
+			if ((await Image.decode(plain)).gainMap !== null || !same(back, await Image.decode(plain))) panic(`JXL ${name}: the base differs with the map, or gainMap: false wrote it`);
+			if ((await Image.decode(jxl, {gainMap: false})).gainMap !== null) panic(`JXL ${name}: gainMap: false still read the map`);
+		}
+		const lossless = await Image.decode(await image.encodeJXL({gainMap: {quality: 100}}));
+		if (!same(lossless.gainMap.image, image.gainMap.image)) panic(`JXL ${name}: a lossless map changed`);
+	}
+
 	// invalid arguments throw before the image or its map changes
 	for (const [name, call] of [['blur', i => i.blur('5')], ['fill', i => i.fill('red')], ['cover', i => i.cover(-1, 10)]]) {
 		const image = single.clone();

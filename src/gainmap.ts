@@ -35,8 +35,8 @@ const perChannel = (value: number | number[], name: string): number[] => {
  * A gain map: a small image saying how much brighter each part of an image gets on an HDR display, as Ultra HDR
  * (JPEG-R) photos from phones carry it. HDR displays show the image boosted by it, the others the image as it is.
  *
- * {@link Image.decode} reads the gain maps of JPEGs and AVIFs into {@link Image.gainMap}, {@link Image.encodeJPEG} and
- * {@link Image.encodeAVIF} write them;
+ * {@link Image.decode} reads the gain maps of JPEGs, AVIFs and JPEG XLs into {@link Image.gainMap},
+ * {@link Image.encodeJPEG}, {@link Image.encodeAVIF} and {@link Image.encodeJXL} write them;
  * the map's pixels are only decoded once they're needed. The map covers the whole image, at any resolution (phones
  * write a quarter of the width and height). Its value `v` (0-255, per channel or one for all) boosts the linear
  * light of the image by `2^(gainMapMin + (gainMapMax - gainMapMin) * (v / 255)^(1 / gamma))`

@@ -20,6 +20,7 @@ import { encodeModular } from './jxl/modular-lossless.ts';
 import { encodeVarDCT } from './jxl/vardct-enc.ts';
 import { concat } from '../util/mem.ts';
 import { srgbDecode, type Curve } from '../util/icc.ts';
+import { readISO, writeISO, type Params } from './gainmap.ts';
 
 const CONTAINER = [0, 0, 0, 12, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a];
 
@@ -33,14 +34,27 @@ export function isJXL(d: Uint8Array): boolean {
  * Encodes RGBA pixels as a JPEG XL, lossless or lossy (with a Butteraugli distance above 0, and an effort 0-2): the
  * codestream, in the container if there is Exif data (a TIFF header and IFDs); lossy with up to threads worker threads
  */
-export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, distance = 0, effort = 1, threads = 1): Promise<Uint8Array> {
-    const stream = distance > 0 ? await encodeVarDCT(rgba, width, height, { distance, effort, threads })
-        : effort ? await encodeModular(rgba, width, height, threads) : encodeRGBA(rgba, width, height);
-    if (!exif?.length) return stream;
+export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, distance = 0, effort = 1, threads = 1, gainMap?: GainMapInput): Promise<Uint8Array> {
+    const codestreamOf = (pixels: Uint8Array, w: number, h: number, d: number): Promise<Uint8Array> | Uint8Array => d > 0 ? encodeVarDCT(pixels, w, h, { distance: d, effort, threads })
+        : effort ? encodeModular(pixels, w, h, threads) : encodeRGBA(pixels, w, h);
+    const stream = await codestreamOf(rgba, width, height, distance);
+    if (!exif?.length && !gainMap) return stream;
     // (ftyp: brand jxl, minor version 0, compatible jxl; Exif: the offset of the TIFF header, 0, then the TIFF data)
     const jxl = [0x6a, 0x78, 0x6c, 0x20];
-    return concat([CONTAINER, ...box('ftyp', jxl, [0, 0, 0, 0], jxl), ...box('Exif', [0, 0, 0, 0], exif), ...box('jxlc', stream)]);
+    const boxes = [...box('ftyp', jxl, [0, 0, 0, 0], jxl)];
+    if (exif?.length) boxes.push(...box('Exif', [0, 0, 0, 0], exif));
+    if (gainMap) {
+        // jhgm (libjxl's JxlGainMapWriteBundle): version 0, the ISO 21496-1 metadata (its size, 16 bits), no color
+        // encoding or ICC profile (sizes 0: the alternate image's are the base image's), then the map's codestream
+        const metadata = writeISO(gainMap.params);
+        const map = await codestreamOf(gainMap.pixels, gainMap.width, gainMap.height, gainMap.distance);
+        boxes.push(...box('jhgm', [0, metadata.length >> 8, metadata.length & 255], metadata, [0, 0, 0, 0, 0], map));
+    }
+    return concat([CONTAINER, ...boxes, ...box('jxlc', stream)]);
 }
+
+/** A gain map to write: its RGBA pixels, parameters and the distance to encode it at (0: losslessly) */
+export interface GainMapInput { pixels: Uint8Array, width: number, height: number, params: Params, distance: number }
 
 // a box: its header and content
 const box = (type: string, ...content: ArrayLike<number>[]): ArrayLike<number>[] => {
@@ -50,10 +64,9 @@ const box = (type: string, ...content: ArrayLike<number>[]): ArrayLike<number>[]
 
 const fourcc = (d: Uint8Array, o: number): string => String.fromCharCode(d[o], d[o + 1], d[o + 2], d[o + 3]);
 
-/** The codestream of a file: itself, or the container's jxlc box or jxlp boxes joined */
-function codestream(d: Uint8Array): Uint8Array {
-    if (d[0] === 0xff) return d;
-    const view = new DataView(d.buffer, d.byteOffset, d.byteLength), parts: Uint8Array[] = [];
+// the container's boxes: their types and contents
+function* boxesOf(d: Uint8Array): Generator<{ type: string, content: Uint8Array }> {
+    const view = new DataView(d.buffer, d.byteOffset, d.byteLength);
     for (let o = 0; o + 8 <= d.length;) {
         let size = view.getUint32(o), header = 8;
         const type = fourcc(d, o + 4);
@@ -63,10 +76,19 @@ function codestream(d: Uint8Array): Uint8Array {
             header = 16;
         } else if (size === 0) size = d.length - o;
         if (size < header || o + size > d.length) throw new Error(`JPEG XL: invalid ${type} box`);
-        if (type === 'jxlc') return d.subarray(o + header, o + size);
-        // (jxlp: a 4-byte index, then a part)
-        if (type === 'jxlp') parts.push(d.subarray(o + header + 4, o + size));
+        yield { type, content: d.subarray(o + header, o + size) };
         o += size;
+    }
+}
+
+/** The codestream of a file: itself, or the container's jxlc box or jxlp boxes joined */
+function codestream(d: Uint8Array): Uint8Array {
+    if (d[0] === 0xff) return d;
+    const parts: Uint8Array[] = [];
+    for (const { type, content } of boxesOf(d)) {
+        if (type === 'jxlc') return content;
+        // (jxlp: a 4-byte index, then a part)
+        if (type === 'jxlp') parts.push(content.subarray(4));
     }
     if (!parts.length) throw new Error('JPEG XL: no codestream');
     const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
@@ -165,8 +187,33 @@ export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapp
     }
 }
 
-/** Decodes the first frame shown */
-export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1): Promise<{ width: number, height: number, pixels: Uint8Array, orientation: number, icc?: Uint8Array, colorSpace?: ColorSpace }> {
-    for await (const frame of frames(data, maxPixels, toneMapping, threads)) return frame;
+/** Decodes the first frame shown (and the gain map of the jhgm box, if asked for and there is one that can be read) */
+export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1, gainMap = false): Promise<{ width: number, height: number, pixels: Uint8Array, orientation: number, icc?: Uint8Array, colorSpace?: ColorSpace, gainMap?: { width: number, height: number, pixels: Uint8Array, params: Params } }> {
+    for await (const frame of frames(data, maxPixels, toneMapping, threads)) {
+        if (!gainMap || data[0] === 0xff) return frame;
+        return { ...frame, gainMap: await decodeGainMap(data, maxPixels).catch(() => undefined) };
+    }
     throw new Error('JPEG XL: no frame shown');
+}
+
+// the jhgm box's gain map (libjxl's JxlGainMapReadBundle): version 0, the ISO 21496-1 metadata (its size, 16 bits),
+// the alternate image's color encoding and ICC profile (their sizes, 8 and 32 bits), the map's codestream
+async function decodeGainMap(data: Uint8Array, maxPixels: number): Promise<{ width: number, height: number, pixels: Uint8Array, params: Params } | undefined> {
+    for (const { type, content: c } of boxesOf(data)) {
+        if (type !== 'jhgm') continue;
+        if (c.length < 3 || c[0] !== 0) return undefined;
+        const metadataSize = c[1] << 8 | c[2];
+        let o = 3 + metadataSize;
+        if (o + 1 > c.length) return undefined;
+        const metadata = c.subarray(3, o);
+        // (the metadata as ISO 21496-1 has it; or after a version byte, like AVIF's tmap item)
+        const params = readISO(metadata) ?? (metadata[0] === 0 ? readISO(metadata.subarray(1)) : null);
+        o += 1 + c[o];
+        if (!params || o + 4 > c.length) return undefined;
+        o += 4 + (c[o] << 24 >>> 0) + (c[o + 1] << 16 | c[o + 2] << 8 | c[o + 3]);
+        if (o >= c.length) return undefined;
+        // (its values as they are: no color management, no tone mapping)
+        for await (const { width, height, pixels } of frames(c.subarray(o), maxPixels, 'clamp', 1)) return { width, height, pixels, params };
+    }
+    return undefined;
 }

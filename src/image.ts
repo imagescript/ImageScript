@@ -232,8 +232,8 @@ export interface DecodeOptions {
      */
     toneMapping?: ToneMapping;
     /**
-     * Whether to read the gain maps of JPEGs (Ultra HDR, JPEG-R, ISO 21496-1, Apple's) and AVIFs (tone mapped items)
-     * into {@link Image.gainMap}. A JPEG's map's pixels are only decoded when they're needed. Default: `true`
+     * Whether to read the gain maps of JPEGs (Ultra HDR, JPEG-R, ISO 21496-1, Apple's), AVIFs (tone mapped items) and
+     * JPEG XLs (jhgm boxes) into {@link Image.gainMap}. A JPEG's map's pixels are only decoded when they're needed. Default: `true`
      */
     gainMap?: boolean;
     /**
@@ -271,6 +271,12 @@ export interface JXLEncodeOptions {
     threads?: number;
     /** Metadata to include, see {@link Metadata} */
     metadata?: Metadata;
+    /**
+     * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a jhgm box, like libjxl's), or how:
+     * `quality` (1-100 like `quality`, 100 lossless; default `90`) and `scale` (its size relative to the image, default
+     * its own). Default: `true`
+     */
+    gainMap?: boolean | { quality?: number, scale?: number };
 }
 
 /** Options of {@link Image.encodeAVIF} */
@@ -2488,16 +2494,14 @@ export class Image {
      * container, with the metadata as Exif
      * @param options See {@link JXLEncodeOptions}
      */
-    async encodeJXL({ quality, effort = 1, threads = defaultThreads(), metadata = {} }: JXLEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeJXL({ quality, effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true }: JXLEncodeOptions = {}): Promise<Uint8Array> {
         checkEffort(effort, 2);
         checkThreads(threads);
-        let distance = 0;
-        if (quality !== undefined) {
-            const q = checkQuality(quality);
-            // (cjxl's distance of a quality)
-            distance = q >= 100 ? 0 : q >= 30 ? 0.1 + (100 - q) * 0.09 : 53 / 3000 * q * q - 23 / 20 * q + 25;
-        }
-        return jxl.encode(this.__bytes__(), this.width, this.height, exifData(resolveMetadata(metadata)), distance, effort, threads);
+        // (cjxl's distance of a quality)
+        const distanceOf = (q: number): number => q >= 100 ? 0 : q >= 30 ? 0.1 + (100 - q) * 0.09 : 53 / 3000 * q * q - 23 / 20 * q + 25;
+        const distance = quality === undefined ? 0 : distanceOf(checkQuality(quality));
+        const map = this.__gain_map_pixels__(gainMap);
+        return jxl.encode(this.__bytes__(), this.width, this.height, exifData(resolveMetadata(metadata)), distance, effort, threads, map && { ...map, distance: distanceOf(map.quality) });
     }
 
     /**
@@ -2542,7 +2546,7 @@ export class Image {
                 return { width, height, pixels };
             };
             if (ImageType.isAVIF(dataView)) return avif.decode(data, maxPixels, toneMapping, threads, gainMap);
-            if (ImageType.isJXL(dataView)) return jxl.decode(data, maxPixels, toneMapping, threads);
+            if (ImageType.isJXL(dataView)) return jxl.decode(data, maxPixels, toneMapping, threads, gainMap);
             if (ImageType.isBMP(dataView)) return bitmap(bmp.decode(data, maxPixels));
             if (ImageType.isICO(dataView)) return bitmap(ico.decode(data, maxPixels));
             if (ImageType.isQOI(dataView)) return qoi.decode(data, maxPixels);
