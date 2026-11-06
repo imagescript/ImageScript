@@ -13,7 +13,8 @@ const files = {
     'photo.jpg': fs.readFileSync(new URL('./inputs/photo.jpg', import.meta.url)),
     'graphic.png': fs.readFileSync(new URL('./inputs/graphic.png', import.meta.url)),
     'overlay.png': fs.readFileSync(new URL('./inputs/overlay.png', import.meta.url)),
-    'animation.gif': fs.readFileSync(new URL('./inputs/animation.gif', import.meta.url))
+    'animation.gif': fs.readFileSync(new URL('./inputs/animation.gif', import.meta.url)),
+    'hdr.jpg': fs.readFileSync(new URL('./inputs/hdr.jpg', import.meta.url))
 };
 files['photo.png'] = await sharp(files['photo.jpg']).png().toBuffer();
 files['photo.webp'] = await sharp(files['photo.jpg']).webp({ quality: WEBP_QUALITY }).toBuffer();
@@ -58,6 +59,9 @@ for (const [format, encode] of Object.entries(lib.encode))
     await measure(`encode ${formatName(format)}`, () => encode(photo));
 for (const op of ['resize', 'resizeBicubic', 'cover', 'crop', 'rotate', 'rotate90', 'flip', 'blur', 'sharpen', 'composite', 'greyscale', 'adjust'])
     if (lib[op]) await measure(op, () => lib[op](photo, overlay));
+// HDR: only when the thumbnail really has a gain map (a version that drops it doesn't count)
+if (lib.hdrThumbnail && (await sharp(await lib.hdrThumbnail(files['hdr.jpg'])).metadata()).gainMap)
+    await measure('hdr thumbnail', () => lib.hdrThumbnail(files['hdr.jpg']));
 // a library that has the feature but fails on this input is recorded as failing
 for (const op of ['text', 'svg']) {
     if (!lib[op]) continue;

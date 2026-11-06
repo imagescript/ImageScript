@@ -76,6 +76,8 @@ const imageScript = IS => ({
     crop: image => image.clone().crop(...CROP),
     greyscale: image => image.clone().greyscale(),
     adjust: image => image.clone().brightness(ADJUST).contrast(ADJUST),
+    // an Ultra HDR photo to a thumbnail that stays HDR: decoded, covered and encoded with its gain map
+    hdrThumbnail: async data => (await IS.Image.decode(data)).cover(THUMB, THUMB, IS.Image.RESIZE_BILINEAR).encodeJPEG(80),
     text: () => IS.Image.renderText(font, TEXT_SIZE, TEXT),
     svg: () => IS.Image.renderSVG(svg, SVG_WIDTH, IS.Image.SVG_MODE_WIDTH),
     animation: {
@@ -208,6 +210,8 @@ export const libraries = [
             input: overlay.data, raw: { width: overlay.width, height: overlay.height, channels: 4 }, left: AT[0], top: AT[1]
         }])),
         crop: image => toRaw(pipeline(image).extract({ left: CROP[0], top: CROP[1], width: CROP[2], height: CROP[3] })),
+        // (withGainMap: an HDR image in floats, and a new gain map made for the JPEG)
+        hdrThumbnail: data => sharp(data).withGainMap().resize(THUMB, THUMB, { kernel: 'linear', fit: 'cover' }).jpeg({ quality: 80 }).toBuffer(),
         // pango sizes fonts in points: at 72 dpi a point is a pixel
         text: () => toRaw(sharp({ text: { text: `<span foreground="white">${TEXT}</span>`, font: `Source Sans 3 ${TEXT_SIZE}`, fontfile: fileURLToPath(FONT_FILE), dpi: 72, rgba: true } })),
         svg: () => toRaw(sharp(Buffer.from(svg), { density: 72 * svgScale }).ensureAlpha()),

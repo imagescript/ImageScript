@@ -987,9 +987,15 @@ export interface EncodeMetadata {
     exif?: Uint8Array;
     /** written as comment (COM) */
     comment?: Uint8Array;
+    /** whole marker segments written after these (e.g. a gain map's XMP, ISO 21496-1 and MPF segments) */
+    segments?: Uint8Array[];
+    /** a greyscale JPEG (one component, the luma of the pixels) */
+    grey?: boolean;
+    /** whether to keep the chroma at full resolution at any quality (else only above 90) */
+    fullChroma?: boolean;
 }
 
-export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment }: EncodeMetadata = {}): Uint8Array {
+export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment, segments, grey = false, fullChroma = false }: EncodeMetadata = {}): Uint8Array {
     if (!width || !height || width > 0xffff || height > 0xffff) throw new RangeError('JPEG: invalid dimensions');
 
     quality = Math.min(100, Math.max(1, Math.round(quality)));
@@ -1000,7 +1006,8 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
 
     // like libjpeg-turbo (cjpeg -optimize, -sample 1x1 above 90), byte for byte: its color conversion, downsampling,
     // integer DCT, quantization and padding
-    const subsample = quality <= 90;
+    // (greyscale: like cjpeg -grayscale, one component, no subsampling)
+    const subsample = quality <= 90 && !grey && !fullChroma;
     const hmax = subsample ? 2 : 1;
     const mcuSize = 8 * hmax;
     const mcusPerLine = Math.ceil(width / mcuSize);
@@ -1061,13 +1068,13 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
         { plane: Y, stride: W, h: hmax, v: hmax, blocksX: lumaBlocksX, blocksY: lumaBlocksY, table: 0 },
         { plane: Cb, stride: CW, h: 1, v: 1, blocksX: chromaBlocksX, blocksY: chromaBlocksY, table: 1 },
         { plane: Cr, stride: CW, h: 1, v: 1, blocksX: chromaBlocksX, blocksY: chromaBlocksY, table: 1 }
-    ];
+    ].slice(0, grey ? 1 : 3);
 
     // quantized blocks in MCU order (Y blocks, then Cb, then Cr), their coefficients in zigzag order, with the index
     // of each block's last nonzero coefficient. MCUs reaching past a component's blocks get dummy blocks (jccoefct.c):
     // without AC coefficients, with the DC coefficient of the block before (below the image: of the MCU's block
     // before the row)
-    const blocksPerMcu = hmax * hmax + 2;
+    const blocksPerMcu = grey ? 1 : hmax * hmax + 2;
     const count = mcusPerLine * mcusPerColumn * blocksPerMcu;
     const coefficients = new Int16Array(count * 64);
     const owners = new Uint8Array(count), ends = new Uint8Array(count);
@@ -1076,7 +1083,7 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
 
     for (let my = 0; my < mcusPerColumn; my++)
         for (let mx = 0; mx < mcusPerLine; mx++)
-            for (let c = 0; c < 3; c++) {
+            for (let c = 0; c < components.length; c++) {
                 const { plane, stride, h: ch, v: cv, blocksX, blocksY, table } = components[c];
                 const reciprocal = divisors[table];
 
@@ -1115,7 +1122,7 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
     const frequencies = [new Int32Array(257), new Int32Array(257), new Int32Array(257), new Int32Array(257)];
     countSymbols(blocks, frequencies);
 
-    const huffman = frequencies.map(buildOptimalTable);
+    const huffman = frequencies.slice(0, grey ? 2 : 4).map(buildOptimalTable);
     const writer = new BitWriter(width * height);
 
     writer.bytes(0xff, 0xd8);
@@ -1129,19 +1136,23 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
     };
     if (exif) segment(0xe1, concat([[0x45, 0x78, 0x69, 0x66, 0, 0], exif]));
     if (comment) segment(0xfe, comment);
+    if (segments) for (const bytes of segments) for (let i = 0; i < bytes.length; i++) writer.bytes(bytes[i]);
 
     // DQT, a segment per table like libjpeg
-    for (let t = 0; t < 2; t++) {
+    for (let t = 0; t < (grey ? 1 : 2); t++) {
         writer.bytes(0xff, 0xdb, 0x00, 0x43, t);
         for (let k = 0; k < 64; k++) writer.bytes(tables[t][ZIGZAG[k]]);
     }
 
     // SOF0
-    writer.bytes(0xff, 0xc0, 0x00, 0x11, 0x08, height >> 8, height & 0xff, width >> 8, width & 0xff, 0x03);
-    writer.bytes(1, hmax << 4 | hmax, 0, 2, 0x11, 1, 3, 0x11, 1);
+    if (grey) writer.bytes(0xff, 0xc0, 0x00, 0x0b, 0x08, height >> 8, height & 0xff, width >> 8, width & 0xff, 0x01, 1, 0x11, 0);
+    else {
+        writer.bytes(0xff, 0xc0, 0x00, 0x11, 0x08, height >> 8, height & 0xff, width >> 8, width & 0xff, 0x03);
+        writer.bytes(1, hmax << 4 | hmax, 0, 2, 0x11, 1, 3, 0x11, 1);
+    }
 
     // DHT: luma DC, luma AC, chroma DC, chroma AC
-    for (const [index, id] of [[0, 0x00], [1, 0x10], [2, 0x01], [3, 0x11]] as Array<[number, number]>) {
+    for (const [index, id] of ([[0, 0x00], [1, 0x10], [2, 0x01], [3, 0x11]] as Array<[number, number]>).slice(0, grey ? 2 : 4)) {
         const { bits, values } = huffman[index];
         const length = 19 + values.length;
         writer.bytes(0xff, 0xc4, length >> 8, length & 0xff, id);
@@ -1150,7 +1161,8 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
     }
 
     // SOS
-    writer.bytes(0xff, 0xda, 0x00, 0x0c, 0x03, 1, 0x00, 2, 0x11, 3, 0x11, 0x00, 0x3f, 0x00);
+    if (grey) writer.bytes(0xff, 0xda, 0x00, 0x08, 0x01, 1, 0x00, 0x00, 0x3f, 0x00);
+    else writer.bytes(0xff, 0xda, 0x00, 0x0c, 0x03, 1, 0x00, 2, 0x11, 3, 0x11, 0x00, 0x3f, 0x00);
 
     writeBlocks(blocks, huffman, writer);
     writer.flush();

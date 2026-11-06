@@ -11,6 +11,8 @@ export { Image } from './image.ts';
 export type { Color, ColorFunction, ResizeMode, SVGScaleMode, PNGMetadata, TextStyle, DecodeOptions, CompositeOptions, BlendMode, CropCircleOptions, DominantColorOptions, RotateOptions, ColorToAlphaOptions, ResizeOptions, AdjustOptions, SharpenOptions, PNGEncodeOptions, JPEGEncodeOptions, WebPEncodeOptions, AVIFEncodeOptions, JXLEncodeOptions, EncodeOptions, SVGOptions, TextOptions, RoundCornersOptions, FisheyeOptions, TrimOptions } from './image.ts';
 export { Frame } from './frame.ts';
 export type { FrameDisposalModeName, FrameDisposalModeId, FrameOptions } from './frame.ts';
+export { GainMap } from './gainmap.ts';
+export type { GainMapOptions } from './gainmap.ts';
 export { GIF } from './gif.ts';
 export { Animation } from './animation.ts';
 export type { AnimationOptions, AnimationDecodeOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';

@@ -34,6 +34,9 @@ import { rotateBilinear } from './util/rotate.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { isOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
+import { GainMap } from './gainmap.ts';
+import * as gain from './util/gain.ts';
+import * as gainMapCodec from './codecs/gainmap.ts';
 
 /** A color as a 32-bit RGBA integer (`0xRRGGBBAA`) */
 export type Color = number;
@@ -109,6 +112,12 @@ export interface JPEGEncodeOptions {
     quality?: number;
     /** Metadata to include, see {@link Metadata} */
     metadata?: Metadata;
+    /**
+     * Whether to write the image's {@link Image.gainMap} (an Ultra HDR JPEG, brighter on HDR displays), or how:
+     * `quality` the map's JPEG quality (default: `90`, or the decoded map as it was if it's unchanged), `scale` its
+     * size as a factor of the image's (0-1, default: the map's size). Default: `true` (written if there is one)
+     */
+    gainMap?: boolean | { quality?: number, scale?: number };
 }
 
 /** Options of {@link Image.encodeWebP} */
@@ -222,6 +231,11 @@ export interface DecodeOptions {
      * brighter than white. Default: `'reinhard'`
      */
     toneMapping?: ToneMapping;
+    /**
+     * Whether to read the gain maps of JPEGs (Ultra HDR, JPEG-R, ISO 21496-1) into {@link Image.gainMap}. Its pixels
+     * are only decoded when they're needed. Default: `true`
+     */
+    gainMap?: boolean;
     /**
      * At most this many worker threads decode in parallel (lossy JPEG XLs from 4 megapixels on, one per 2 megapixels
      * at most, lossless ones from 1.5 megapixels and 512 KiB on; AVIFs from 4 megapixels on: the conversion to RGB,
@@ -404,6 +418,11 @@ export class Image {
      * @ignore
      */
     protected __bitmap__!: Uint8ClampedArray;
+    /**
+     * @internal
+     * @ignore
+     */
+    protected __gain_map__: GainMap | null = null;
 
     /**
      * Creates a new image with the given dimensions
@@ -422,6 +441,19 @@ export class Image {
         this.__width__ = width;
         this.__height__ = height;
         this.__set_bitmap__(new Uint8ClampedArray(width * height * 4));
+    }
+
+    /**
+     * The image's gain map, if it has one (JPEGs from phones, Ultra HDR): how much brighter each part gets on HDR
+     * displays. {@link Image.encodeJPEG} writes it. `null` removes it
+     */
+    get gainMap(): GainMap | null {
+        return this.__gain_map__;
+    }
+
+    set gainMap(gainMap: GainMap | null) {
+        if (gainMap !== null && !(gainMap instanceof GainMap)) throw new TypeError('The gain map has to be a GainMap or null');
+        this.__gain_map__ = gainMap;
     }
 
     /**
@@ -729,6 +761,8 @@ export class Image {
      */
     fill(color: Color | ColorFunction): this {
         const view = new DataView(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
+        // (the new pixels have no HDR light beyond their own: no boost anywhere)
+        if (this.__gain_map__) this.__gain_map__ = gain.neutralMap(this.__gain_map__, this.width, this.width, this.height);
 
         if (typeof color === 'function') {
             let offset = 0;
@@ -755,6 +789,7 @@ export class Image {
         image.__width__ = this.width;
         image.__height__ = this.height;
         image.__set_bitmap__(new Uint8ClampedArray(this.bitmap));
+        image.__gain_map__ = this.__gain_map__ ? this.__gain_map__.clone() : null;
         return image;
     }
 
@@ -808,6 +843,7 @@ export class Image {
     scale(factor: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
         const { mode, fast } = resizeOptions(modeOrOptions);
         const image = this.__scale__(factor, mode, fast);
+        this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         return this.__apply__(image);
     }
 
@@ -842,6 +878,7 @@ export class Image {
     resize(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
         const { mode, fast } = resizeOptions(modeOrOptions);
         const image = this.__resize__(width, height, mode, fast);
+        this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         return this.__apply__(image);
     }
 
@@ -894,7 +931,9 @@ export class Image {
         const options = resizeOptions(modeOrOptions);
         const result = new Image(width, height);
         this.contain(width, height, options);
-        result.composite(this, (width - this.width) / 2, (height - this.height) / 2);
+        const x = (width - this.width) / 2 | 0, y = (height - this.height) / 2 | 0;
+        result.composite(this, x, y);
+        this.__gain_map__?.__transform__(this.width, this.height, result.width, result.height, (X, Y) => [X - x, Y - y]);
         return this.__apply__(result);
     }
 
@@ -926,6 +965,8 @@ export class Image {
         if (options.mode !== Image.RESIZE_NEAREST_NEIGHBOR && width >= 1 && height >= 1) {
             const region = { x: ~~((resizedWidth - width) / 2), y: ~~((resizedHeight - height) / 2), width, height };
             this.__rescaled__?.(resizedWidth, resizedHeight);
+            const fx = resizedWidth / this.width, fy = resizedHeight / this.height;
+            this.__gain_map__?.__transform__(this.width, this.height, width, height, (X, Y) => [(X + region.x) / fx, (Y + region.y) / fy], Math.min(fx, fy));
             return this.__apply__(this.__resize__(resizedWidth, resizedHeight, options.mode, options.fast, region));
         }
         this.resize(resizedWidth, resizedHeight, options);
@@ -992,7 +1033,22 @@ export class Image {
      * @param height The new images height
      */
     crop(x: number, y: number, width: number, height: number): this {
-        return this.__apply__(this.__crop__(...this.__crop_bounds__(x, y, width, height)));
+        const bounds = this.__crop_bounds__(x, y, width, height);
+        this.__crop_gain_map__(this, ...bounds);
+        return this.__apply__(this.__crop__(...bounds));
+    }
+
+    /**
+     * The gain map of a crop of this image (into the image `target`, which can be this one)
+     * @internal
+     * @ignore
+     */
+    protected __crop_gain_map__(target: Image, x: number, y: number, width: number, height: number): void {
+        const map = this.__gain_map__;
+        if (!map) return;
+        const copy = target === this ? map : map.clone();
+        copy.__transform__(this.width, this.height, width, height, (X, Y) => [X + x, Y + y]);
+        target.__gain_map__ = copy;
     }
 
     /**
@@ -1005,7 +1061,10 @@ export class Image {
      * @param height The region's height
      */
     region(x: number, y: number, width: number, height: number): Image {
-        return this.__crop__(...this.__crop_bounds__(x, y, width, height));
+        const bounds = this.__crop_bounds__(x, y, width, height);
+        const image = this.__crop__(...bounds);
+        this.__crop_gain_map__(image, ...bounds);
+        return image;
     }
 
     /**
@@ -1037,7 +1096,9 @@ export class Image {
      */
     trim(color?: Color, options: TrimOptions = {}): this {
         const bounds = this.__trim_bounds__(color, options);
-        return bounds ? this.__apply__(this.__crop__(...bounds)) : this;
+        if (!bounds) return this;
+        this.__crop_gain_map__(this, ...bounds);
+        return this.__apply__(this.__crop__(...bounds));
     }
 
     /**
@@ -1118,12 +1179,17 @@ export class Image {
         width = ~~finite(width, 'width');
         height = ~~finite(height, 'height');
 
-        if (typeof color !== 'function') return this.__fast_box__(x, y, width, height, checkColor(color));
-
-        for (let tY = Math.max(0, -y); tY < height && tY + y < this.height; tY++)
+        if (typeof color !== 'function') this.__fast_box__(x, y, width, height, checkColor(color));
+        else for (let tY = Math.max(0, -y); tY < height && tY + y < this.height; tY++)
             for (let tX = Math.max(0, -x); tX < width && tX + x < this.width; tX++)
                 this.__set_pixel__(tX + x, tY + y, color(tX, tY));
 
+        // (the box's pixels have no HDR light beyond their own)
+        if (this.__gain_map__) gain.redraw(this, this.__gain_map__, Math.max(0, x), Math.max(0, y), Math.min(this.width, x + width), Math.min(this.height, y + height), (_x, _y, S, _boost, out) => {
+            out[0] = S[0];
+            out[1] = S[1];
+            out[2] = S[2];
+        });
         return this;
     }
 
@@ -1182,6 +1248,15 @@ export class Image {
             }
         }
 
+        // (the circle's pixels have no HDR light beyond their own; at the antialiased edge in part, by the coverage)
+        const map = this.__gain_map__;
+        if (map) {
+            const oS = map.offsetSDR, oH = map.offsetHDR;
+            gain.redraw(this, map, Math.max(0, Math.floor(cx - radius)), Math.max(0, Math.floor(cy - radius)), Math.min(this.width, Math.ceil(cx + radius)), Math.min(this.height, Math.ceil(cy + radius)), (px, py, S, boost, out) => {
+                const coverage = Math.min(1, Math.max(0, circleCoverage(px, py, cx, cy, radius)));
+                for (let c = 0; c < 3; c++) out[c] = coverage * S[c] + (1 - coverage) * ((S[c] + oS[c]) * boost[c] - oH[c]);
+            });
+        }
         return this;
     }
 
@@ -1278,6 +1353,7 @@ export class Image {
      */
     red(factor: number, absolute?: boolean): this;
     red(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.red(factor, absoluteOrOptions as boolean));
         const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
         factor = finite(factor, 'red factor');
         if (factor < 0)
@@ -1301,6 +1377,7 @@ export class Image {
      */
     green(factor: number, absolute?: boolean): this;
     green(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.green(factor, absoluteOrOptions as boolean));
         const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
         factor = finite(factor, 'green factor');
         if (factor < 0)
@@ -1324,6 +1401,7 @@ export class Image {
      */
     blue(factor: number, absolute?: boolean): this;
     blue(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.blue(factor, absoluteOrOptions as boolean));
         const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
         factor = finite(factor, 'blue factor');
         if (factor < 0)
@@ -1362,6 +1440,7 @@ export class Image {
      */
     lightness(value: number, absolute?: boolean): this;
     lightness(value: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.lightness(value, absoluteOrOptions as boolean));
         const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
         value = finite(value, 'lightness value');
         if (value < 0)
@@ -1383,6 +1462,7 @@ export class Image {
      */
     saturation(value: number, absolute?: boolean): this;
     saturation(value: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.saturation(value, absoluteOrOptions as boolean), true);
         const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
         value = finite(value, 'saturation value');
         if (value < 0)
@@ -1417,9 +1497,11 @@ export class Image {
         const blend = BLEND_MODES[mode];
         if (!blend || !Object.prototype.hasOwnProperty.call(BLEND_MODES, mode))
             throw new RangeError(`Invalid blend mode: ${mode}`);
-        if (mode !== 'normal') return this.__blend__(source, x, y, opacity, blend);
         if (opacity === 0) return this;
+        if (this.__gain_map__ || source.__gain_map__) return this.__composite_gain__(source, x, y, opacity, mode);
+        if (mode !== 'normal') return this.__blend__(source, x, y, opacity, blend);
 
+        // (the loop stays inline here: as a method of its own it ran about 20% slower)
         const left = Math.max(0, x), top = Math.max(0, y);
         const right = Math.min(this.width, x + source.width), bottom = Math.min(this.height, y + source.height);
         const dst = this.bitmap, src = source.bitmap;
@@ -1449,6 +1531,57 @@ export class Image {
             }
         }
 
+        return this;
+    }
+
+    /**
+     * Composites (with a gain map on either side): the pixels, then the gain map where the source went (the HDR light
+     * composited like the pixels, see util/gain.ts)
+     * @internal
+     * @ignore
+     */
+    protected __composite_gain__(source: Image, x: number, y: number, opacity: number, mode: BlendMode): this {
+        const left = Math.max(0, x), top = Math.max(0, y);
+        const right = Math.min(this.width, x + source.width), bottom = Math.min(this.height, y + source.height);
+        if (right <= left || bottom <= top) return this;
+        const before = this.__crop__(left, top, right - left, bottom - top).bitmap, beforeWidth = right - left;
+        // (the pixels: composited without the maps)
+        const ownMap = this.__gain_map__, sourceMap = source.__gain_map__;
+        this.__gain_map__ = source.__gain_map__ = null;
+        try {
+            this.composite(source, x, y, { opacity, mode });
+        } finally {
+            this.__gain_map__ = ownMap;
+            source.__gain_map__ = sourceMap;
+        }
+        const blend = mode !== 'normal';
+
+        const map = this.__gain_map__ ??= gain.neutralMap(sourceMap as GainMap, source.width, this.width, this.height);
+        if (sourceMap) map.hdrCapacityMax = Math.max(map.hdrCapacityMax, sourceMap.hdrCapacityMax);
+        const sample = gain.gainSampler(source);
+        const sourceOS = sourceMap?.offsetSDR ?? [0, 0, 0], sourceOH = sourceMap?.offsetHDR ?? [0, 0, 0];
+        const oS = map.offsetSDR, oH = map.offsetHDR;
+        const src = source.bitmap, Gs = [0, 0, 0];
+        gain.redraw(this, map, left, top, right, bottom, (px, py, S, boost, out) => {
+            const s = 4 * ((py - y) * source.width + px - x), b = 4 * ((py - top) * beforeWidth + px - left);
+            const as = src[s + 3] / 255 * opacity, ab = before[b + 3] / 255;
+            const ao = as + ab * (1 - as);
+            if (sample) sample(px - x, py - y, Gs);
+            for (let c = 0; c < 3; c++) {
+                const Sd = gain.LINEAR[before[b + c]], Ss = gain.LINEAR[src[s + c]];
+                const Hd = (Sd + oS[c]) * boost[c] - oH[c];
+                const Hs = sample ? (Ss + sourceOS[c]) * 2 ** Gs[c] - sourceOH[c] : Ss;
+                if (blend && ab === 1) {
+                    // (blend modes keep the backdrop's boost on the blended color)
+                    out[c] = (S[c] + oS[c]) * boost[c] - oH[c];
+                    continue;
+                }
+                // the source's share of the result as the pixels got it (composited in sRGB, not linear light): the
+                // HDR light is mixed alike, so it looks like the SDR result, boosted
+                const share = Math.abs(Ss - Sd) > 1e-4 ? Math.min(1, Math.max(0, (S[c] - Sd) / (Ss - Sd))) : ao > 0 ? as / ao : 0;
+                out[c] = ao > 0 ? share * Hs + (1 - share) * Hd : 0;
+            }
+        }, map.channels === 1 && (!sourceMap || sourceMap.channels === 1), Math.max(0, ...(sourceMap?.gainMapMax ?? [0])));
         return this;
     }
 
@@ -1490,6 +1623,7 @@ export class Image {
      * Inverts the images colors
      */
     invert(): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.invert());
         const bitmap = this.bitmap;
         for (let i = 0; i < bitmap.length; i += 4) {
             bitmap[i] = 255 - bitmap[i];
@@ -1504,6 +1638,7 @@ export class Image {
      * Inverts the images lightness (HSL), keeping hue and saturation: dark colors become light and vice versa
      */
     invertLightness(): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.invertLightness());
         return this.__map_hsla__(c => { c.l = 1 - c.l; });
     }
 
@@ -1512,6 +1647,7 @@ export class Image {
      * and the others scale along, black becomes white
      */
     invertValue(): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.invertValue());
         const bitmap = this.bitmap;
         for (let i = 0; i < bitmap.length; i += 4) {
             const max = Math.max(bitmap[i], bitmap[i + 1], bitmap[i + 2]);
@@ -1535,6 +1671,7 @@ export class Image {
      * @param degrees How many degrees to shift the hue by
      */
     hueShift(degrees: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.hueShift(degrees), true);
         degrees = finite(degrees, 'hue shift');
         return this.__map_hsla__(c => { c.h += degrees / 360; });
     }
@@ -1610,6 +1747,9 @@ export class Image {
      * @param radius The blur radius: the gaussian's standard deviation in pixels, like CSS' blur()
      */
     blur(radius: number): this {
+        // (the gain map blurred alike, at its resolution)
+        const map = this.__gain_map__;
+        if (map && Number(radius) * map.width / this.width >= 0.5) map.image = map.image.clone().blur(Number(radius) * map.width / this.width);
         if (!Number.isFinite(radius) || radius < 0)
             throw new RangeError('Invalid blur radius');
 
@@ -1661,6 +1801,7 @@ export class Image {
      * @param factor The factor (>= 0, 1 keeps the image)
      */
     brightness(factor: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.brightness(factor));
         factor = finite(factor, 'brightness factor');
         if (factor < 0)
             throw new RangeError('Invalid brightness factor');
@@ -1672,6 +1813,7 @@ export class Image {
      * @param factor The factor (>= 0, 1 keeps the image, 0 makes it grey)
      */
     contrast(factor: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.contrast(factor));
         factor = finite(factor, 'contrast factor');
         if (factor < 0)
             throw new RangeError('Invalid contrast factor');
@@ -1683,6 +1825,7 @@ export class Image {
      * @param gamma The gamma (> 0, 1 keeps the image)
      */
     gamma(gamma: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.gamma(gamma));
         gamma = finite(gamma, 'gamma');
         if (gamma <= 0)
             throw new RangeError('Invalid gamma');
@@ -1693,6 +1836,7 @@ export class Image {
      * Converts the image to greyscale by its luma (ITU-R 601, like Pillow), keeping the alpha
      */
     greyscale(): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.greyscale(), true);
         const bitmap = this.bitmap;
         for (let i = 0; i < bitmap.length; i += 4)
             bitmap[i] = bitmap[i + 1] = bitmap[i + 2] = bitmap[i] * 19595 + bitmap[i + 1] * 38470 + bitmap[i + 2] * 7471 + 0x8000 >> 16;
@@ -1703,6 +1847,7 @@ export class Image {
      * Applies a sepia tone
      */
     sepia(): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.sepia(), true);
         const bitmap = this.bitmap;
         for (let i = 0; i < bitmap.length; i += 4) {
             const r = bitmap[i], g = bitmap[i + 1], b = bitmap[i + 2];
@@ -1837,6 +1982,15 @@ export class Image {
         const {width, height} = this;
         const src = this.__u32__;
 
+        // (the gain map: the same rotation, sampled)
+        const rotateGainMap = (outWidth: number, outHeight: number): void => {
+            const rad = angle * Math.PI / 180, sin = Math.sin(rad), cos = Math.cos(rad);
+            this.__gain_map__?.__transform__(width, height, outWidth, outHeight, (X, Y) => {
+                const dx = X - outWidth / 2, dy = Y - outHeight / 2;
+                return [dx * cos - dy * sin + width / 2, dx * sin + dy * cos + height / 2];
+            });
+        };
+
         // right angles are exact pixel permutations
         if (angle === 90 || angle === 180 || angle === 270) {
             const out = new Image(angle === 180 ? width : height, angle === 180 ? height : width);
@@ -1850,6 +2004,7 @@ export class Image {
                     else dst[x * height + height - 1 - y] = i;
                 }
 
+            rotateGainMap(out.width, out.height);
             return this.__apply__(out);
         }
 
@@ -1858,6 +2013,7 @@ export class Image {
         const outWidth = resize ? Math.round(Math.abs(width * cos) + Math.abs(height * sin)) : width;
         const outHeight = resize ? Math.round(Math.abs(width * sin) + Math.abs(height * cos)) : height;
         const out = new Image(outWidth, outHeight);
+        rotateGainMap(outWidth, outHeight);
         if (fast && rotateBilinear(this.bitmap, width, height, out.bitmap, outWidth, outHeight, sin, cos)) return this.__apply__(out);
         const s8 = this.bitmap, d8 = out.bitmap;
 
@@ -1938,6 +2094,7 @@ export class Image {
             }
         } else throw new RangeError('Invalid flip direction');
 
+        this.__gain_map__?.__transform__(width, height, width, height, direction === 'horizontal' ? (X, Y) => [width - X, Y] : (X, Y) => [X, height - Y]);
         return this;
     }
 
@@ -1951,6 +2108,30 @@ export class Image {
      */
     protected __bytes__(): Uint8Array {
         return new Uint8Array(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
+    }
+
+    /**
+     * A color change with a gain map: made to the pixels (without the map), then to the map (the same change made to
+     * the HDR rendition, see util/gain.ts). Changes of only the colors' hue and saturation leave a single channel map
+     * as it is
+     * @internal
+     * @ignore
+     */
+    protected __recolor__(apply: (image: Image) => void, chromaOnly = false): this {
+        const map = this.__gain_map__ as GainMap;
+        this.__gain_map__ = null;
+        try {
+            if (chromaOnly && map.channels === 1) {
+                apply(this);
+                return this;
+            }
+            const before = this.__resize__(map.width, map.height);
+            apply(this);
+            gain.recolor(map, before, this.__resize__(map.width, map.height), apply);
+            return this;
+        } finally {
+            this.__gain_map__ = map;
+        }
     }
 
     /**
@@ -2122,6 +2303,12 @@ export class Image {
             }
         }
 
+        this.__gain_map__?.__transform__(w, h, w, h, (X, Y) => {
+            const xco = X / w - 0.5, yco = Y / h - 0.5, dfc = Math.sqrt(xco ** 2 + yco ** 2);
+            if (dfc === 0) return [X, Y];
+            const dis = 2 * dfc ** strength;
+            return [(dis * xco / dfc + 0.5) * w, (dis * yco / dfc + 0.5) * h];
+        });
         return this.__apply__(r);
     }
 
@@ -2187,9 +2374,25 @@ export class Image {
      */
     encodeJPEG(quality?: number): Promise<Uint8Array>;
     async encodeJPEG(qualityOrOptions: number | JPEGEncodeOptions = 90): Promise<Uint8Array> {
-        const { quality = 90, metadata = {} } = isOptions(qualityOrOptions) ? qualityOrOptions : { quality: qualityOrOptions };
+        const { quality = 90, metadata = {}, gainMap: gainMapOption = true } = isOptions(qualityOrOptions) ? qualityOrOptions : { quality: qualityOrOptions };
         const m = resolveMetadata(metadata);
-        return jpeg.encode(this.__bytes__(), this.width, this.height, finite(quality, 'quality'), { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined });
+        const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined };
+        const gainMap = this.__gain_map__;
+        if (!gainMap || gainMapOption === false) return jpeg.encode(this.__bytes__(), this.width, this.height, finite(quality, 'quality'), base);
+
+        // the gain map's JPEG first: the primary's XMP holds its length
+        const { quality: mapQuality, scale } = typeof gainMapOption === 'object' && gainMapOption !== null ? gainMapOption : {} as { quality?: number, scale?: number };
+        let width: number | undefined, height: number | undefined;
+        if (scale !== undefined) {
+            const s = finite(scale, 'gain map scale');
+            if (!(s > 0 && s <= 1)) throw new RangeError(`The gain map scale must be above 0 and at most 1, not ${s}`);
+            width = Math.max(1, Math.round(this.width * s));
+            height = Math.max(1, Math.round(this.height * s));
+        }
+        const params = gainMap.__params__();
+        const map = gainMapCodec.mapWithMetadata(gainMap.__body__(mapQuality === undefined ? undefined : Math.max(1, checkQuality(mapQuality, 'gain map quality')), width, height), params);
+        const primary = jpeg.encode(this.__bytes__(), this.width, this.height, finite(quality, 'quality'), { ...base, segments: gainMapCodec.primarySegments(map.length) });
+        return gainMapCodec.finish(primary, map);
     }
 
     /**
@@ -2282,7 +2485,7 @@ export class Image {
      * @return The decoded image
      */
     static async decode(input: BinaryData, options: DecodeOptions = {}): Promise<Image> {
-        const { applyOrientation = true, applyColorProfile = true, maxPixels = MAX_PIXELS, toneMapping = 'reinhard', threads = defaultThreads() } = options;
+        const { applyOrientation = true, applyColorProfile = true, maxPixels = MAX_PIXELS, toneMapping = 'reinhard', threads = defaultThreads(), gainMap = true } = options;
         checkThreads(threads);
         if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
         if (toneMapping !== 'reinhard' && toneMapping !== 'clamp') throw new TypeError(`toneMapping must be 'reinhard' or 'clamp', not ${String(toneMapping)}`);
@@ -2324,7 +2527,28 @@ export class Image {
         // the decoded pixels become the bitmap, without a copy
         const image = new Image(decoded.width, decoded.height);
         image.bitmap = decoded.pixels;
-        return applyOrientation && decoded.orientation ? image.__orient__(decoded.orientation) : image;
+        // (a gain map that can't be read leaves the image without one, it doesn't fail the decoding)
+        if (gainMap && ImageType.isJPEG(dataView)) {
+            try {
+                const found = gainMapCodec.find(data);
+                const size = found && gainMapCodec.dimensions(found.map);
+                if (found && size && size.width * size.height <= maxPixels) image.__gain_map__ = GainMap.__from_jpeg__(found.map, found.params);
+            } catch {
+                image.__gain_map__ = null;
+            }
+        }
+        if (applyOrientation && decoded.orientation && decoded.orientation > 1) {
+            image.__orient__(decoded.orientation);
+            const map = image.__gain_map__;
+            if (map) {
+                try {
+                    map.image = map.image.__orient__(decoded.orientation);
+                } catch {
+                    image.__gain_map__ = null;
+                }
+            }
+        }
+        return image;
     }
 
     /**

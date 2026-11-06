@@ -45,7 +45,8 @@ const SECTIONS = [
     ['Image operations', [['resize', 'resize to half'], ['resizeBicubic', 'resize to half, bicubic'], ['cover', 'thumbnail (cover 400×400)'],
         ['crop', 'crop'], ['rotate', 'rotate by 30°'], ['rotate90', 'rotate by 90°'], ['flip', 'flip'], ['blur', 'blur (radius 5)'],
         ['sharpen', 'sharpen'], ['composite', 'composite an overlay'], ['greyscale', 'greyscale'], ['adjust', 'brightness and contrast']]],
-    ['Rendering', [['text', 'render text'], ['svg', 'render SVG']]]
+    ['Rendering', [['text', 'render text'], ['svg', 'render SVG']]],
+    ['HDR photos', [['hdr thumbnail', 'thumbnail, keeping HDR']]]
 ].map(([section, tasks]) => [section, tasks.filter(([key]) => results.speed[key])]);
 // (the tables' labels name the operation too)
 const SPEED = SECTIONS.flatMap(([section, tasks]) => tasks.map(([key, label]) =>

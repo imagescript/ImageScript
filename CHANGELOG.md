@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.16.0
+
+### New
+
+- HDR photos (Ultra HDR / JPEG-R JPEGs, as phones take them: an SDR JPEG with a gain map saying how much brighter
+  each part gets on HDR displays) stay HDR. `Image.decode` reads the gain map into the new `image.gainMap` (a
+  `GainMap`: its pixels, decoded only when needed, and its parameters, from ISO 21496-1 or Adobe's hdrgm XMP), and
+  `encodeJPEG()` writes it back with both kinds of metadata (Android, Chrome and Apple read them): decoding and
+  re-encoding a photo keeps the gain map as it was. Before, it was dropped and HDR photos came out SDR only.
+  - The gain map follows the image: resizing, `cover`/`contain`/`fit`, cropping, `region`, trimming, rotating,
+    flipping, `fisheye` and the Exif orientation transform it alike (at its own resolution, a quarter of the width
+    and height in photos from phones).
+  - Drawing keeps it right: what `composite()` puts over the image brings its own gain map (or none: no boost there),
+    blended with the image's by the light of both; `drawBox`, `drawCircle` and `fill` leave no boost where they
+    draw. Images without a gain map get one when an HDR image is composited onto them.
+  - Color changes (`brightness`, `contrast`, `gamma`, `lightness`, `red`/`green`/`blue`, the inverts, and for maps
+    with a gain per channel also `saturation`, `hueShift`, `greyscale`, `sepia`) are made to the HDR rendition too,
+    with its brightest light as white, so the highlights change like the rest; `blur` blurs the gain map alike.
+  - `new GainMap(image, options)` makes gain maps (`image.gainMap = ...`, `null` removes it), `GainMap.decode()` and
+    `gainMap.encode()` read and write one alone. `encodeJPEG({ gainMap: { quality, scale } })` re-encodes the map
+    at a quality or size, `{ gainMap: false }` leaves it out; `DecodeOptions.gainMap: false` doesn't read it.
+  - Files with the gain map cut off (some chat apps and uploads keep the index but drop the map) and broken gain map
+    metadata decode as before, without one.
+
 ## 3.15.0
 
 ### New
