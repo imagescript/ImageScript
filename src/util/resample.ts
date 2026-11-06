@@ -88,19 +88,53 @@ function coefficients(inSize: number, outSize: number, filter: Filter, bits: num
     return { start, weights, taps };
 }
 
+/** the part of the resized image to produce (in its coordinates): the whole image, or what a crop of it keeps */
+export interface Region {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+/**
+ * The coefficients of the output indices `from` to `from + count` of a full pass from `inSize` to `outSize`, their
+ * starts relative to `offset` (the same weights as resampling the whole axis, so a region equals that part of the
+ * whole result)
+ */
+function sliced(inSize: number, outSize: number, filter: Filter, bits: number, pad: boolean, from: number, count: number): Coefficients {
+    const c = coefficients(inSize, outSize, filter, bits, pad);
+    if (from === 0 && count === outSize) return c;
+    return { start: c.start.slice(from, from + count), weights: c.weights.slice(from * c.taps, (from + count) * c.taps), taps: c.taps };
+}
+
+/**
+ * The source columns a horizontal pass reads (`x0` to `x1`), its starts made relative to `x0`; without one (the width
+ * stays) the region's own columns
+ */
+function window(horizontal: Coefficients | null, region: Region): { x0: number, x1: number } {
+    if (!horizontal) return { x0: region.x, x1: region.x + region.width };
+    const { start, taps } = horizontal, x0 = start[0], x1 = start[start.length - 1] + taps;
+    for (let i = 0; i < start.length; i++) start[i] -= x0;
+    return { x0, x1 };
+}
+
 /** most taps per pass of the fast resampling */
 const FAST_TAPS = 4;
 
 /**
  * Resamples RGBA pixels with the given filter, in premultiplied alpha so transparent pixels don't bleed their color
  */
-export function resample(src: Uint8ClampedArray, width: number, height: number, outWidth: number, outHeight: number, filter: Filter, out: Uint8ClampedArray, fast = false): void {
+export function resample(src: Uint8ClampedArray, width: number, height: number, outWidth: number, outHeight: number, filter: Filter, out: Uint8ClampedArray, fast = false, region: Region = { x: 0, y: 0, width: outWidth, height: outHeight }): void {
+    // a part of the result only reads the source pixels it needs, so whether the image is opaque (which picks the
+    // arithmetic) is decided on all of them first, like resampling the whole image would
+    const partial = region.width !== outWidth || region.height !== outHeight;
+    const opaque = partial ? isOpaque(src) : undefined;
     // opaque pixels don't need premultiplying, and with non-negative weights two channels share a multiplication
     if (littleEndian && filter.support <= 1) {
-        if (fast && resampleFast(src, width, height, outWidth, outHeight, filter, out)) return;
-        if (resampleOpaque(src, width, height, outWidth, outHeight, filter, out)) return;
-    }
-    resamplePremultiplied(src, width, height, outWidth, outHeight, filter, out);
+        if (fast && resampleFast(src, width, height, outWidth, outHeight, filter, out, region, opaque)) return;
+        if (opaque !== false && resampleOpaque(src, width, height, outWidth, outHeight, filter, out, region)) return;
+    } else if (opaque !== false && resampleOpaqueSigned(src, width, height, outWidth, outHeight, filter, out, region)) return;
+    resamplePremultiplied(src, width, height, outWidth, outHeight, filter, out, region);
 }
 
 /**
@@ -108,34 +142,41 @@ export function resample(src: Uint8ClampedArray, width: number, height: number, 
  * all opaque. Between the passes, each pixel is two words of two 16-bit lanes, the channels with 8 fractional bits:
  * red and blue in the first, green in the second
  */
-function resampleOpaque(src: Uint8ClampedArray, width: number, height: number, outWidth: number, outHeight: number, filter: Filter, out: Uint8ClampedArray): boolean {
+function resampleOpaque(src: Uint8ClampedArray, width: number, height: number, outWidth: number, outHeight: number, filter: Filter, out: Uint8ClampedArray, region: Region): boolean {
     const pixels = new Int32Array(src.buffer, src.byteOffset, width * height);
     // transparent images usually show it in the first or last row, before a pass is spent on them
     let all = -1;
     for (let x = 0, last = (height - 1) * width; x < width; x++) all &= pixels[x] & pixels[last + x];
     if (all >>> 24 !== 255) return false;
 
-    const lanes = new Int32Array(width * outHeight * 2);
+    // the horizontal pass's coefficients first: they tell which source columns the vertical pass needs (cw of them,
+    // from x0; the rows between the passes are cw wide)
+    const horizontal = outWidth === width ? null : sliced(width, outWidth, filter, BITS, false, region.x, region.width);
+    const { x0, x1 } = window(horizontal, region), cw = x1 - x0;
+    const rh = region.height;
+
+    const lanes = new Int32Array(cw * rh * 2);
     if (outHeight === height) {
-        for (let i = 0, o = 0; i < pixels.length; i++, o += 2) {
-            const p = pixels[i];
-            all &= p;
-            lanes[o] = (p & 0xff00ff) << 8;
-            lanes[o + 1] = (p & 0xff00) | 0;
-        }
+        for (let y = 0, o = 0; y < rh; y++)
+            for (let i = (region.y + y) * width + x0, end = i + cw; i < end; i++, o += 2) {
+                const p = pixels[i];
+                all &= p;
+                lanes[o] = (p & 0xff00ff) << 8;
+                lanes[o + 1] = (p & 0xff00) | 0;
+            }
     } else {
         // with up to 4 rows (bilinear to half the size, area to a third), 8-bit weights stay within a step of the
         // exact result: then red and blue fit into one multiplication (each lane at most 255 * 256)
-        let coefficientsV = coefficients(height, outHeight, filter, 8);
+        let coefficientsV = sliced(height, outHeight, filter, 8, false, region.y, rh);
         const swar = coefficientsV.taps <= 4;
-        if (!swar) coefficientsV = coefficients(height, outHeight, filter, BITS);
+        if (!swar) coefficientsV = sliced(height, outHeight, filter, BITS, false, region.y, rh);
         const { start, weights, taps } = coefficientsV;
-        for (let y = 0, o = 0; y < outHeight; y++) {
-            const w = y * taps, r0 = start[y] * width;
+        for (let y = 0, o = 0; y < rh; y++) {
+            const w = y * taps, r0 = start[y] * width + x0;
             if (swar && taps === 4) {
                 const w0 = weights[w], w1 = weights[w + 1], w2 = weights[w + 2], w3 = weights[w + 3];
                 const r1 = r0 + width, r2 = r1 + width, r3 = r2 + width;
-                for (let x = 0; x < width; x++, o += 2) {
+                for (let x = 0; x < cw; x++, o += 2) {
                     const p0 = pixels[r0 + x], p1 = pixels[r1 + x], p2 = pixels[r2 + x], p3 = pixels[r3 + x];
                     all &= p0 & p1 & p2 & p3;
                     lanes[o] = Math.imul(p0 & 0xff00ff, w0) + Math.imul(p1 & 0xff00ff, w1) + Math.imul(p2 & 0xff00ff, w2) + Math.imul(p3 & 0xff00ff, w3);
@@ -143,7 +184,7 @@ function resampleOpaque(src: Uint8ClampedArray, width: number, height: number, o
                 }
             } else if (swar && taps === 3) {
                 const w0 = weights[w], w1 = weights[w + 1], w2 = weights[w + 2], r1 = r0 + width, r2 = r1 + width;
-                for (let x = 0; x < width; x++, o += 2) {
+                for (let x = 0; x < cw; x++, o += 2) {
                     const p0 = pixels[r0 + x], p1 = pixels[r1 + x], p2 = pixels[r2 + x];
                     all &= p0 & p1 & p2;
                     lanes[o] = Math.imul(p0 & 0xff00ff, w0) + Math.imul(p1 & 0xff00ff, w1) + Math.imul(p2 & 0xff00ff, w2);
@@ -151,14 +192,14 @@ function resampleOpaque(src: Uint8ClampedArray, width: number, height: number, o
                 }
             } else if (swar && taps === 2) {
                 const w0 = weights[w], w1 = weights[w + 1], r1 = r0 + width;
-                for (let x = 0; x < width; x++, o += 2) {
+                for (let x = 0; x < cw; x++, o += 2) {
                     const p0 = pixels[r0 + x], p1 = pixels[r1 + x];
                     all &= p0 & p1;
                     lanes[o] = Math.imul(p0 & 0xff00ff, w0) + Math.imul(p1 & 0xff00ff, w1);
                     lanes[o + 1] = (p0 >> 8 & 255) * w0 + (p1 >> 8 & 255) * w1;
                 }
             } else if (swar) {
-                for (let x = 0; x < width; x++, o += 2) {
+                for (let x = 0; x < cw; x++, o += 2) {
                     let rb = 0, g = 0;
                     for (let k = 0, s = r0 + x; k < taps; k++, s += width) {
                         const p = pixels[s], wk = weights[w + k];
@@ -170,7 +211,7 @@ function resampleOpaque(src: Uint8ClampedArray, width: number, height: number, o
                     lanes[o + 1] = g;
                 }
             } else {
-                for (let x = 0; x < width; x++, o += 2) {
+                for (let x = 0; x < cw; x++, o += 2) {
                     let r = 0, g = 0, b = 0, k = 0, s = r0 + x;
                     for (; k + 1 < taps; k += 2, s += width * 2) {
                         const p = pixels[s], q = pixels[s + width], w0 = weights[w + k], w1 = weights[w + k + 1];
@@ -194,8 +235,8 @@ function resampleOpaque(src: Uint8ClampedArray, width: number, height: number, o
     }
     if (all >>> 24 !== 255) return false;
 
-    const result = new Int32Array(out.buffer, out.byteOffset, outWidth * outHeight);
-    if (outWidth === width) {
+    const result = new Int32Array(out.buffer, out.byteOffset, region.width * rh);
+    if (!horizontal) {
         for (let i = 0, o = 0; i < result.length; i++, o += 2) {
             const rb = lanes[o], g = lanes[o + 1];
             result[i] = ((rb & 0xffff) + 128 >> 8) | (g + 128 >> 8) << 8 | ((rb >>> 16) + 128 >> 8) << 16 | 0xff000000;
@@ -205,11 +246,11 @@ function resampleOpaque(src: Uint8ClampedArray, width: number, height: number, o
 
     // 8 fractional bits of the lanes and BITS of the weights
     const R = 1 << 7 + BITS, S = 8 + BITS;
-    const { start, weights, taps } = coefficients(width, outWidth, filter, BITS);
-    for (let y = 0, o = 0; y < outHeight; y++) {
-        const row = y * width * 2;
+    const { start, weights, taps } = horizontal, rw = region.width;
+    for (let y = 0, o = 0; y < rh; y++) {
+        const row = y * cw * 2;
         if (taps === 4) {
-            for (let x = 0; x < outWidth; x++, o++) {
+            for (let x = 0; x < rw; x++, o++) {
                 const s = row + start[x] * 2, w = x * 4;
                 const a0 = lanes[s], a1 = lanes[s + 2], a2 = lanes[s + 4], a3 = lanes[s + 6];
                 const w0 = weights[w], w1 = weights[w + 1], w2 = weights[w + 2], w3 = weights[w + 3];
@@ -219,7 +260,7 @@ function resampleOpaque(src: Uint8ClampedArray, width: number, height: number, o
                 result[o] = (r + R >> S) | (g + R >> S) << 8 | (b + R >> S) << 16 | 0xff000000;
             }
         } else if (taps === 2) {
-            for (let x = 0; x < outWidth; x++, o++) {
+            for (let x = 0; x < rw; x++, o++) {
                 const s = row + start[x] * 2, w = x * 2;
                 const a0 = lanes[s], a1 = lanes[s + 2], w0 = weights[w], w1 = weights[w + 1];
                 const r = (a0 & 0xffff) * w0 + (a1 & 0xffff) * w1;
@@ -228,7 +269,7 @@ function resampleOpaque(src: Uint8ClampedArray, width: number, height: number, o
                 result[o] = (r + R >> S) | (g + R >> S) << 8 | (b + R >> S) << 16 | 0xff000000;
             }
         } else {
-            for (let x = 0; x < outWidth; x++, o++) {
+            for (let x = 0; x < rw; x++, o++) {
                 let r = 0, g = 0, b = 0, k = 0, s = row + start[x] * 2;
                 const w = x * taps;
                 for (; k + 1 < taps; k += 2, s += 4) {
@@ -262,16 +303,16 @@ function packedSum(pixels: Int32Array, s: number, step: number, weights: Int32Ar
     return (rb >>> 8 & 0xff00ff) | (ga & 0xff00ff00);
 }
 
-// the vertical pass of resampleFast: from `pixels` into `rows` (outHeight rows of the full width), returns the source
-// pixels and-ed together (their alpha shows whether they're opaque)
-function verticalFast(pixels: Int32Array, rows: Int32Array, width: number, outHeight: number, { start, weights, taps }: Coefficients): number {
+// the vertical pass of resampleFast: from `pixels` (`width` wide) into `rows` (a row per coefficient, of the cw columns
+// from x0), returns the source pixels and-ed together (their alpha shows whether they're opaque)
+function verticalFast(pixels: Int32Array, rows: Int32Array, width: number, x0: number, cw: number, { start, weights, taps }: Coefficients): number {
     let all = -1;
-    for (let y = 0, o = 0; y < outHeight; y++) {
-        const w = y * taps, r0 = start[y] * width;
+    for (let y = 0, o = 0; y < start.length; y++) {
+        const w = y * taps, r0 = start[y] * width + x0;
         if (taps === 4) {
             const w0 = weights[w], w1 = weights[w + 1], w2 = weights[w + 2], w3 = weights[w + 3];
             const r1 = r0 + width, r2 = r1 + width, r3 = r2 + width;
-            for (let x = 0; x < width; x++, o++) {
+            for (let x = 0; x < cw; x++, o++) {
                 const p0 = pixels[r0 + x], p1 = pixels[r1 + x], p2 = pixels[r2 + x], p3 = pixels[r3 + x];
                 all &= p0 & p1 & p2 & p3;
                 const rb = Math.imul(p0 & 0xff00ff, w0) + Math.imul(p1 & 0xff00ff, w1) + Math.imul(p2 & 0xff00ff, w2) + Math.imul(p3 & 0xff00ff, w3) + 0x800080;
@@ -280,7 +321,7 @@ function verticalFast(pixels: Int32Array, rows: Int32Array, width: number, outHe
             }
         } else if (taps === 2) {
             const w0 = weights[w], w1 = weights[w + 1], r1 = r0 + width;
-            for (let x = 0; x < width; x++, o++) {
+            for (let x = 0; x < cw; x++, o++) {
                 const p0 = pixels[r0 + x], p1 = pixels[r1 + x];
                 all &= p0 & p1;
                 const rb = Math.imul(p0 & 0xff00ff, w0) + Math.imul(p1 & 0xff00ff, w1) + 0x800080;
@@ -288,7 +329,7 @@ function verticalFast(pixels: Int32Array, rows: Int32Array, width: number, outHe
                 rows[o] = (rb >>> 8 & 0xff00ff) | (ga & 0xff00ff00);
             }
         } else {
-            for (let x = 0; x < width; x++, o++) {
+            for (let x = 0; x < cw; x++, o++) {
                 for (let k = 0, s = r0 + x; k < taps; k++, s += width) all &= pixels[s];
                 rows[o] = packedSum(pixels, r0 + x, width, weights, w, taps);
             }
@@ -297,7 +338,7 @@ function verticalFast(pixels: Int32Array, rows: Int32Array, width: number, outHe
     return all;
 }
 
-// the horizontal pass of resampleFast: from `rows` (full width) into `result`
+// the horizontal pass of resampleFast: from `rows` (`width` wide) into `result`
 function horizontalFast(rows: Int32Array, result: Int32Array, width: number, outWidth: number, outHeight: number, { start, weights, taps }: Coefficients): void {
     for (let y = 0, o = 0; y < outHeight; y++) {
         const row = y * width;
@@ -330,15 +371,18 @@ function horizontalFast(rows: Int32Array, result: Int32Array, width: number, out
  * less of the color of pixels that are almost transparent. Returns false (without writing anything) when a pass
  * needs more than {@link FAST_TAPS} pixels: the rounding of the weights adds up
  */
-function resampleFast(src: Uint8ClampedArray, width: number, height: number, outWidth: number, outHeight: number, filter: Filter, out: Uint8ClampedArray): boolean {
-    const vertical = coefficients(height, outHeight, filter, 8, true), horizontal = coefficients(width, outWidth, filter, 8, true);
-    if (vertical.taps > FAST_TAPS || horizontal.taps > FAST_TAPS) return false;
+function resampleFast(src: Uint8ClampedArray, width: number, height: number, outWidth: number, outHeight: number, filter: Filter, out: Uint8ClampedArray, region: Region, known?: boolean): boolean {
+    const { width: rw, height: rh } = region;
+    const vertical = sliced(height, outHeight, filter, 8, true, region.y, rh);
+    const horizontal = outWidth === width ? null : sliced(width, outWidth, filter, 8, true, region.x, rw);
+    if (vertical.taps > FAST_TAPS || horizontal && horizontal.taps > FAST_TAPS) return false;
+    const { x0, x1 } = window(horizontal, region), cw = x1 - x0;
 
     // transparent images usually show it in the first or last row, otherwise the vertical pass finds out (and runs
     // again on the premultiplied pixels)
     let pixels = new Int32Array(src.buffer, src.byteOffset, width * height), all = -1;
     for (let x = 0, last = (height - 1) * width; x < width; x++) all &= pixels[x] & pixels[last + x];
-    let opaque = all >>> 24 === 255 && (outHeight !== height || isOpaque(src));
+    let opaque = known ?? (all >>> 24 === 255 && (outHeight !== height || isOpaque(src)));
     const premultiplied = (): Int32Array => {
         const bitmap = new Uint8ClampedArray(src.length);
         premultiply8(src, bitmap);
@@ -346,20 +390,140 @@ function resampleFast(src: Uint8ClampedArray, width: number, height: number, out
     };
     if (!opaque) pixels = premultiplied();
 
+    // the rows between the passes: cw wide, from column x0 (the source itself when neither pass applies to it)
     let rows = pixels;
     if (outHeight !== height) {
-        rows = new Int32Array(width * outHeight);
-        if (verticalFast(pixels, rows, width, outHeight, vertical) >>> 24 !== 255 && opaque) {
+        rows = new Int32Array(cw * rh);
+        if (verticalFast(pixels, rows, width, x0, cw, vertical) >>> 24 !== 255 && opaque) {
             opaque = false;
-            verticalFast(premultiplied(), rows, width, outHeight, vertical);
+            verticalFast(premultiplied(), rows, width, x0, cw, vertical);
         }
+    } else if (cw !== width || rh !== height) {
+        rows = new Int32Array(cw * rh);
+        for (let y = 0; y < rh; y++) rows.set(pixels.subarray((region.y + y) * width + x0, (region.y + y) * width + x1), y * cw);
     }
 
-    const result = new Int32Array(out.buffer, out.byteOffset, outWidth * outHeight);
-    if (outWidth === width) result.set(rows);
-    else horizontalFast(rows, result, width, outWidth, outHeight, horizontal);
+    const result = new Int32Array(out.buffer, out.byteOffset, rw * rh);
+    if (!horizontal) result.set(rows);
+    else horizontalFast(rows, result, cw, rw, rh, horizontal);
 
     if (!opaque) unpremultiply8(out);
+    return true;
+}
+
+/**
+ * Resamples opaque pixels with a filter that has negative weights (bicubic), returns false (without writing anything
+ * final) if a pixel it reads isn't opaque. The same arithmetic as {@link resamplePremultiplied} with every alpha 255
+ * (so the same result), without the alpha channel: the color channels between the passes are channel * 255
+ */
+function resampleOpaqueSigned(src: Uint8ClampedArray, width: number, height: number, outWidth: number, outHeight: number, filter: Filter, out: Uint8ClampedArray, region: Region): boolean {
+    const pixels = new Int32Array(src.buffer, src.byteOffset, width * height);
+    let all = -1;
+    for (let x = 0, last = (height - 1) * width; x < width; x++) all &= pixels[x] & pixels[last + x];
+    if (all >>> 24 !== 255) return false;
+
+    const horizontal = outWidth === width ? null : sliced(width, outWidth, filter, BITS, false, region.x, region.width);
+    const { x0, x1 } = window(horizontal, region), cw = x1 - x0, rh = region.height;
+    // three planes of cw * rh: channel * 255 (the premultiplied path's values at alpha 255)
+    const R = new Int32Array(cw * rh), G = new Int32Array(cw * rh), B = new Int32Array(cw * rh);
+    if (outHeight === height) {
+        for (let y = 0, o = 0; y < rh; y++)
+            for (let i = (region.y + y) * width + x0, end = i + cw; i < end; i++, o++) {
+                const p = pixels[i];
+                all &= p;
+                R[o] = (p & 255) * 255;
+                G[o] = (p >> 8 & 255) * 255;
+                B[o] = (p >> 16 & 255) * 255;
+            }
+    } else {
+        const { start, weights, taps } = sliced(height, outHeight, filter, BITS, false, region.y, rh);
+        // the premultiplied path sums channel * (weight * 255): here the integer sum of channel * weight (well within
+        // 32 bits) times 255, the same number. A row at a time, a source row (tap) at a time: sequential reads
+        const H = ONE >> 1;
+        for (let y = 0, o = 0; y < rh; y++, o += cw) {
+            const w = y * taps;
+            // two source rows per sweep (the first sweep sets, the others add), then the odd one
+            for (let k = 0; k + 1 < taps; k += 2) {
+                const wa = weights[w + k], wb = weights[w + k + 1], ra = (start[y] + k) * width + x0, rb = ra + width;
+                if (k === 0) {
+                    for (let x = 0; x < cw; x++) {
+                        const p = pixels[ra + x], q = pixels[rb + x];
+                        all &= p & q;
+                        R[o + x] = (p & 255) * wa + (q & 255) * wb;
+                        G[o + x] = (p >> 8 & 255) * wa + (q >> 8 & 255) * wb;
+                        B[o + x] = (p >> 16 & 255) * wa + (q >> 16 & 255) * wb;
+                    }
+                } else {
+                    for (let x = 0; x < cw; x++) {
+                        const p = pixels[ra + x], q = pixels[rb + x];
+                        all &= p & q;
+                        R[o + x] += (p & 255) * wa + (q & 255) * wb;
+                        G[o + x] += (p >> 8 & 255) * wa + (q >> 8 & 255) * wb;
+                        B[o + x] += (p >> 16 & 255) * wa + (q >> 16 & 255) * wb;
+                    }
+                }
+            }
+            if (taps & 1) {
+                const k = taps - 1, wk = weights[w + k], r = (start[y] + k) * width + x0;
+                for (let x = 0; x < cw; x++) {
+                    const p = pixels[r + x];
+                    all &= p;
+                    if (k === 0) {
+                        R[o + x] = (p & 255) * wk;
+                        G[o + x] = (p >> 8 & 255) * wk;
+                        B[o + x] = (p >> 16 & 255) * wk;
+                    } else {
+                        R[o + x] += (p & 255) * wk;
+                        G[o + x] += (p >> 8 & 255) * wk;
+                        B[o + x] += (p >> 16 & 255) * wk;
+                    }
+                }
+            }
+            for (let x = o, end = o + cw; x < end; x++) {
+                R[x] = R[x] * 255 + H >> BITS;
+                G[x] = G[x] * 255 + H >> BITS;
+                B[x] = B[x] * 255 + H >> BITS;
+            }
+        }
+    }
+    if (all >>> 24 !== 255) return false;
+
+    // the premultiplied path's unpremultiplying at alpha 255 (its alpha sums to 65025 * ONE)
+    const f = 255 / (65025 * ONE), rw = region.width;
+    const { start, weights, taps } = horizontal ?? { start: null, weights: null, taps: 0 };
+    for (let y = 0, o = 0; y < rh; y++) {
+        const row = y * cw;
+        if (!start || !weights) {
+            for (let x = 0; x < rw; x++, o += 4) {
+                const s = row + x;
+                out[o] = R[s] * ONE * f;
+                out[o + 1] = G[s] * ONE * f;
+                out[o + 2] = B[s] * ONE * f;
+                out[o + 3] = 255;
+            }
+            continue;
+        }
+        for (let x = 0; x < rw; x++, o += 4) {
+            let r = 0, g = 0, b = 0, k = 0, s = row + start[x];
+            const w = x * taps;
+            for (; k + 1 < taps; k += 2, s += 2) {
+                const w0 = weights[w + k], w1 = weights[w + k + 1];
+                r += R[s] * w0 + R[s + 1] * w1;
+                g += G[s] * w0 + G[s + 1] * w1;
+                b += B[s] * w0 + B[s + 1] * w1;
+            }
+            if (k < taps) {
+                const w0 = weights[w + k];
+                r += R[s] * w0;
+                g += G[s] * w0;
+                b += B[s] * w0;
+            }
+            out[o] = r * f;
+            out[o + 1] = g * f;
+            out[o + 2] = b * f;
+            out[o + 3] = 255;
+        }
+    }
     return true;
 }
 
@@ -367,22 +531,25 @@ function resampleFast(src: Uint8ClampedArray, width: number, height: number, out
  * Resamples any pixels, premultiplied: between the passes, the color channels are channel * alpha and the alpha
  * channel is alpha * 255 (0-65025 each, beyond with overshooting filters)
  */
-function resamplePremultiplied(src: Uint8ClampedArray, width: number, height: number, outWidth: number, outHeight: number, filter: Filter, out: Uint8ClampedArray): void {
-    const plane = new Int32Array(width * outHeight * 4);
+function resamplePremultiplied(src: Uint8ClampedArray, width: number, height: number, outWidth: number, outHeight: number, filter: Filter, out: Uint8ClampedArray, region: Region): void {
+    const horizontal = outWidth === width ? null : sliced(width, outWidth, filter, BITS, false, region.x, region.width);
+    const { x0, x1 } = window(horizontal, region), cw = x1 - x0, rh = region.height;
+    const plane = new Int32Array(cw * rh * 4);
     if (outHeight === height) {
-        for (let s = 0; s < src.length; s += 4) {
-            const a = src[s + 3];
-            plane[s] = src[s] * a;
-            plane[s + 1] = src[s + 1] * a;
-            plane[s + 2] = src[s + 2] * a;
-            plane[s + 3] = a * 255;
-        }
+        for (let y = 0, o = 0; y < rh; y++)
+            for (let s = ((region.y + y) * width + x0) * 4, end = s + cw * 4; s < end; s += 4, o += 4) {
+                const a = src[s + 3];
+                plane[o] = src[s] * a;
+                plane[o + 1] = src[s + 1] * a;
+                plane[o + 2] = src[s + 2] * a;
+                plane[o + 3] = a * 255;
+            }
     } else {
-        const { start, weights, taps } = coefficients(height, outHeight, filter, BITS);
+        const { start, weights, taps } = sliced(height, outHeight, filter, BITS, false, region.y, rh);
         const stride = width * 4, H = ONE >> 1;
-        for (let y = 0, o = 0; y < outHeight; y++) {
-            const w = y * taps, r0 = start[y] * stride;
-            for (let x = 0; x < stride; x += 4, o += 4) {
+        for (let y = 0, o = 0; y < rh; y++) {
+            const w = y * taps, r0 = start[y] * stride + x0 * 4;
+            for (let x = 0; x < cw * 4; x += 4, o += 4) {
                 let r = 0, g = 0, b = 0, a = 0, k = 0, s = r0 + x;
                 for (; k + 1 < taps; k += 2, s += stride * 2) {
                     const t = s + stride, wa = weights[w + k] * src[s + 3], wb = weights[w + k + 1] * src[t + 3];
@@ -406,10 +573,10 @@ function resamplePremultiplied(src: Uint8ClampedArray, width: number, height: nu
         }
     }
 
-    const { start, weights, taps } = outWidth === width ? { start: null, weights: null, taps: 0 } : coefficients(width, outWidth, filter, BITS);
-    for (let y = 0, o = 0; y < outHeight; y++) {
-        const row = y * width * 4;
-        for (let x = 0; x < outWidth; x++, o += 4) {
+    const { start, weights, taps } = horizontal ?? { start: null, weights: null, taps: 0 };
+    for (let y = 0, o = 0; y < rh; y++) {
+        const row = y * cw * 4;
+        for (let x = 0; x < region.width; x++, o += 4) {
             let r = 0, g = 0, b = 0, a = 0;
             if (!start || !weights) {
                 const s = row + x * 4;

@@ -29,7 +29,7 @@ import { ImageType } from './image-type.ts';
 import { TextLayout } from './text-layout.ts';
 import { Metadata, resolveMetadata, pngText, exifData } from './metadata.ts';
 import { encode as utf8 } from './util/utf8.ts';
-import { resample, BOX, TRIANGLE, CUBIC } from './util/resample.ts';
+import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { rotateBilinear } from './util/rotate.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { isOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
@@ -119,9 +119,12 @@ export interface WebPEncodeOptions {
      */
     quality?: number;
     /**
-     * How much effort lossy compression takes (0-6, libwebp's method): higher is smaller but slower. 0-2 pick the
+     * How much effort compression takes (0-6): higher is smaller but slower. Lossy (libwebp's method): 0-2 pick the
      * predictions by how close they are, 3 and up also by how many bits they take, 5 and 6 also optimize the
-     * quantized values. Default: `2`: about a quarter of the time of 4 (cwebp's default) for files about 5% larger
+     * quantized values; the default `2` takes about a quarter of the time of 4 (cwebp's default) for files about 5%
+     * larger. Lossless: 0 is a fast mode (photos in about a fifth of the time, graphics in about a third, files about
+     * 6-8% larger), 1 takes about two thirds of the time for files up to 2% larger, 2 and up compress the most.
+     * Default: `2`
      */
     effort?: number;
     /**
@@ -918,7 +921,14 @@ export class Image {
         width = Math.floor(width);
         height = Math.floor(height);
         const scale = Math.max(width / this.width, height / this.height);
-        this.resize(Math.max(width, Math.round(this.width * scale)), Math.max(height, Math.round(this.height * scale)), options);
+        const resizedWidth = Math.max(width, Math.round(this.width * scale)), resizedHeight = Math.max(height, Math.round(this.height * scale));
+        // only the part the crop keeps is resampled (the same pixels as resizing the whole image, then cropping)
+        if (options.mode !== Image.RESIZE_NEAREST_NEIGHBOR && width >= 1 && height >= 1) {
+            const region = { x: ~~((resizedWidth - width) / 2), y: ~~((resizedHeight - height) / 2), width, height };
+            this.__rescaled__?.(resizedWidth, resizedHeight);
+            return this.__apply__(this.__resize__(resizedWidth, resizedHeight, options.mode, options.fast, region));
+        }
+        this.resize(resizedWidth, resizedHeight, options);
         return this.crop((this.width - width) / 2, (this.height - height) / 2, width, height);
     }
 
@@ -927,7 +937,7 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __resize__(width: number, height: number, mode: ResizeMode = Image.RESIZE_BILINEAR, fast = true): Image {
+    protected __resize__(width: number, height: number, mode: ResizeMode = Image.RESIZE_BILINEAR, fast = true, region?: Region): Image {
         if (width === Image.RESIZE_AUTO && height === Image.RESIZE_AUTO) throw new Error('RESIZE_AUTO can only be used for either width or height, not for both');
         else if (width === Image.RESIZE_AUTO) width = Math.max(1, Math.round(this.width / this.height * Math.floor(height)));
         else if (height === Image.RESIZE_AUTO) height = Math.max(1, Math.round(this.height / this.width * Math.floor(width)));
@@ -944,8 +954,8 @@ export class Image {
         const filter = mode === Image.RESIZE_BILINEAR ? TRIANGLE : mode === Image.RESIZE_BICUBIC ? CUBIC : mode === Image.RESIZE_AREA ? BOX : null;
         if (!filter) throw new Error('Invalid resize mode');
 
-        const image = new Image(width, height);
-        resample(this.bitmap, this.width, this.height, width, height, filter, image.bitmap, fast);
+        const image = new Image(region?.width ?? width, region?.height ?? height);
+        resample(this.bitmap, this.width, this.height, width, height, filter, image.bitmap, fast, region);
         return image;
     }
 
@@ -1944,6 +1954,13 @@ export class Image {
     }
 
     /**
+     * For a resize to the given size that only produces a part of it (frames scale their offsets)
+     * @internal
+     * @ignore
+     */
+    protected __rescaled__?(width: number, height: number): void;
+
+    /**
      * @internal
      * @ignore
      */
@@ -2184,7 +2201,7 @@ export class Image {
         checkThreads(threads);
         const exif = exifData(resolveMetadata(metadata));
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
-        if (!lossy) return webp.encode(this.__bytes__(), this.width, this.height, exif, threads);
+        if (!lossy) return webp.encode(this.__bytes__(), this.width, this.height, exif, threads, effort);
         return webp.encodeLossy(this.__bytes__(), this.width, this.height, lossy, exif);
     }
 

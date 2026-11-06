@@ -183,4 +183,14 @@ export class Frame extends Image {
 
         return this;
     }
+
+    /**
+     * Scales the offsets like {@link Frame.resize} for a resize to the given size (that only produces a part of it)
+     * @internal
+     * @ignore
+     */
+    protected override __rescaled__(width: number, height: number): void {
+        this.xOffset = Math.round(this.xOffset * width / this.width);
+        this.yOffset = Math.round(this.yOffset * height / this.height);
+    }
 }

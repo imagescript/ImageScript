@@ -769,11 +769,52 @@ interface Stream {
     count: number;
 }
 
+/** How hard lossless compression works (by effort, see {@link TUNING}) */
+export interface Tuning {
+    /** most candidates per hash chain lookup of the backward reference search */
+    chain: number;
+    /** the same for predicted images (photos: their residuals rarely repeat far away), if different */
+    predictedChain?: number;
+    /**
+     * whether the main image's references are also searched with only the pixel to the left and the one above (no
+     * hash chains), the estimated smaller one kept: photos' residuals rarely repeat further away, and short matches
+     * there take more bits than the literals they replace
+     */
+    nearOnly?: boolean;
+    /** whether a match is put off by a pixel if the next one starts a longer one */
+    lazy: boolean;
+    /** whether the color cache size is searched (else 10 bits for images with many colors) */
+    cacheSearch: boolean;
+    /** whether blocks get their own prefix codes (entropy image) where it pays off */
+    groups: boolean;
+    /** whether red and blue are predicted from green (color transform) */
+    colorTransform: boolean;
+    /** whether the transforms are picked by estimated entropy (else subtract green and predict) */
+    analyze: boolean;
+    /** the predictor modes tried per block */
+    modes: number[];
+    /** whether images with 17-256 colors are also tried predicted instead of with a palette */
+    tryPredicted: boolean;
+}
+
+const ALL_MODES = Array.from({ length: 14 }, (_, i) => i);
+
+/**
+ * by effort: 0 a fast mode (3 predictors, a short reference search, predicted images only referencing the pixel to
+ * the left and the one above, one prefix code, no color transform), 1 in between (a shorter reference search, no
+ * color transform, no palette-or-predicted comparison), 2 everything
+ */
+export const TUNING: Tuning[] = [
+    { chain: 4, predictedChain: 0, lazy: false, cacheSearch: false, groups: false, colorTransform: false, analyze: true, modes: [1, 2, 11], tryPredicted: false },
+    { chain: 8, nearOnly: true, lazy: true, cacheSearch: true, groups: true, colorTransform: false, analyze: true, modes: ALL_MODES, tryPredicted: false },
+    { chain: 24, nearOnly: true, lazy: true, cacheSearch: true, groups: true, colorTransform: true, analyze: true, modes: ALL_MODES, tryPredicted: true },
+];
+
 /**
  * Finds backward references (hash chains over pixel pairs; a match is put off by a pixel if the next one starts a
- * longer one)
+ * longer one, with `lazy`)
  */
-function tokenize(pixels: Uint32Array, width: number): Stream {
+function tokenize(pixels: Uint32Array, width: number, tuning: Tuning = TUNING[2]): Stream {
     const n = pixels.length;
     const ops = new Uint8Array(n), values = new Uint32Array(n), distances = new Uint32Array(n);
     let count = 0;
@@ -787,7 +828,7 @@ function tokenize(pixels: Uint32Array, width: number): Stream {
     const distanceCode = (d: number): number => shortCodes.get(d) ?? d + 120;
 
     // distances are coded with at most 20 bits (minus the 120 short codes)
-    const HASH_BITS = 15, CHAIN = 24, MAX_LENGTH = 4096, MIN_LENGTH = 3, WINDOW = (1 << 20) - 120;
+    const HASH_BITS = 15, CHAIN = tuning.chain, MAX_LENGTH = 4096, MIN_LENGTH = 3, WINDOW = (1 << 20) - 120;
     const head = new Int32Array(1 << HASH_BITS).fill(-1);
     const chain = new Int32Array(n);
     // hashes of the pixel pairs starting at every index (but the last)
@@ -838,7 +879,7 @@ function tokenize(pixels: Uint32Array, width: number): Stream {
     for (let i = 0; i < n;) {
         insertUpTo(i);
         find(i);
-        if (bestLength >= MIN_LENGTH && bestLength < MAX_LENGTH && i + 1 < n) {
+        if (tuning.lazy && bestLength >= MIN_LENGTH && bestLength < MAX_LENGTH && i + 1 < n) {
             // (lazily: a literal first if the next pixel starts a match longer by more than one)
             const length = bestLength, distance = bestDistance;
             insertUpTo(i + 1);
@@ -965,6 +1006,16 @@ function bestCacheBits(stream: Stream, pixels: Uint32Array): number {
         }
     }
     return best;
+}
+
+// the estimated bits of a stream (with a color cache of 10 bits, like most large images get): the symbols' entropies
+// and the lengths' and distances' extra bits
+function streamBits(stream: Stream, pixels: Uint32Array): number {
+    const cacheBits = 10;
+    let bits = entropyBits(histograms(withCache(stream, pixels, cacheBits), cacheBits));
+    const { ops, values, distances, count } = stream;
+    for (let k = 0; k < count; k++) if (ops[k] === Op.COPY) bits += prefixEncode(values[k]).bits + prefixEncode(distances[k]).bits;
+    return bits;
 }
 
 // the estimated bits of histograms (their entropies, about 5 bits per symbol used for the codes)
@@ -1161,15 +1212,35 @@ export function costChunks({ entries, starts, used, logs, costs, nearest }: Cost
  * Writes an entropy coded image (main image with prefix groups per block, or a transform's sub-image with one): with
  * the color cache size (none, or 1-10 bits) and groups whose symbols are estimated to take the fewest bits
  */
-async function writeImage(w: BitWriter, pixels: Uint32Array, width: number, isMain: boolean, threads: Thread[] | null = null): Promise<void> {
-    const tokens = tokenize(pixels, width);
-    const cacheBits = isMain ? bestCacheBits(tokens, pixels) : 0;
+async function writeImage(w: BitWriter, pixels: Uint32Array, width: number, isMain: boolean, threads: Thread[] | null = null, tuning: Tuning = TUNING[2]): Promise<void> {
+    // (references only to the pixel to the left and the one above, if that's estimated smaller: compared on the whole
+    // image up to a megapixel, above on three bands from the top, the middle and the bottom third, together an eighth)
+    let chain = tuning.chain, tokens: Stream | null = null;
+    if (isMain && tuning.nearOnly && chain) {
+        const near = { ...tuning, chain: 0 };
+        if (pixels.length <= 1 << 20) {
+            const a = tokenize(pixels, width, near), b = tokenize(pixels, width, tuning);
+            tokens = streamBits(a, pixels) < streamBits(b, pixels) ? a : b;
+        } else {
+            const height = pixels.length / width, rows = Math.max(8, Math.floor(height / 24));
+            let nearBits = 0, farBits = 0;
+            for (let k = 0; k < 3; k++) {
+                const top = Math.max(0, Math.min(height - rows, Math.floor((k + 0.5) * height / 3 - rows / 2)));
+                const band = pixels.subarray(top * width, (top + rows) * width);
+                nearBits += streamBits(tokenize(band, width, near), band);
+                farBits += streamBits(tokenize(band, width, tuning), band);
+            }
+            if (nearBits < farBits) chain = 0;
+        }
+    }
+    tokens ??= tokenize(pixels, width, chain === tuning.chain ? tuning : { ...tuning, chain });
+    const cacheBits = !isMain ? 0 : tuning.cacheSearch ? bestCacheBits(tokens, pixels) : pixels.length > 4096 ? 10 : 0;
     const stream = withCache(tokens, pixels, cacheBits), counts = histograms(stream, cacheBits);
     const best = entropyBits(counts);
     const height = pixels.length / width;
     // (the groups of blocks of 16 pixels)
     let groups: Int32Array | null = null, groupCounts: Int32Array[][] = [counts], prefixBits = 0;
-    if (isMain && pixels.length > 4096) {
+    if (isMain && tuning.groups && pixels.length > 4096) {
         const r = await prefixGroups(stream, width, height, cacheBits, 4, threads);
         if (r && r[2] < best) {
             [groups, groupCounts] = r;
@@ -1186,7 +1257,7 @@ async function writeImage(w: BitWriter, pixels: Uint32Array, width: number, isMa
         w.write(groups ? 1 : 0, 1);
         if (groups) {
             w.write(prefixBits - 2, 3);
-            await writeImage(w, Uint32Array.from(groups, g => g << 8), subSize(width, prefixBits), false);
+            await writeImage(w, Uint32Array.from(groups, g => g << 8), subSize(width, prefixBits), false, null, tuning);
         }
     }
 
@@ -1438,12 +1509,12 @@ function analyze(argb: Uint32Array, width: number, height: number, bits: number)
  * Picks a predictor per block and replaces the pixels with their residuals
  * @return the sub-image of modes
  */
-async function applyPredictor(p: Uint32Array, width: number, height: number, bits: number, threads: Thread[] | null): Promise<Uint32Array> {
+async function applyPredictor(p: Uint32Array, width: number, height: number, bits: number, threads: Thread[] | null, candidates: number[] = ALL_MODES): Promise<Uint32Array> {
     const blocksX = subSize(width, bits), blocksY = subSize(height, bits);
     // predictions use the original pixels, so modes are chosen and residuals computed on a copy (in shared memory with
     // p, for threads)
     const task: PredictorTask = {
-        task: 'vp8l-predictor', p, src: threads ? shared(p) : p.slice(), width, height, bits,
+        task: 'vp8l-predictor', p, src: threads ? shared(p) : p.slice(), width, height, bits, candidates,
         modes: new Uint32Array(threads ? new SharedArrayBuffer(4 * blocksX * blocksY) : new ArrayBuffer(4 * blocksX * blocksY)),
     };
     await runChunks(threads, task, Math.ceil(blocksY / PREDICTOR_ROWS), predictorChunks(task));
@@ -1461,10 +1532,12 @@ export interface PredictorTask extends ChunkTask {
     width: number;
     height: number;
     bits: number;
+    /** the modes tried */
+    candidates: number[];
 }
 
 /** The predictors of PREDICTOR_ROWS rows of blocks (the chunk), the residuals of their pixels */
-export function predictorChunks({ p, src, modes, width, height, bits }: PredictorTask): (chunk: number) => void {
+export function predictorChunks({ p, src, modes, width, height, bits, candidates }: PredictorTask): (chunk: number) => void {
     const blocksX = subSize(width, bits), blocksY = subSize(height, bits), size = 1 << bits;
     // (a block's rows are predicted into `predicted`: the first row from the left, the first column from the top,
     // whatever the mode)
@@ -1482,9 +1555,9 @@ export function predictorChunks({ p, src, modes, width, height, bits }: Predicto
     return chunk => {
         for (let by = chunk * PREDICTOR_ROWS; by < Math.min(blocksY, (chunk + 1) * PREDICTOR_ROWS); by++)
             for (let bx = 0; bx < blocksX; bx++) {
-                let best = 0, bestCost = Infinity;
+                let best = candidates[0], bestCost = Infinity;
                 const x0 = bx * size, y0 = by * size, x1 = Math.min(width, x0 + size), y1 = Math.min(height, y0 + size);
-                for (let mode = 0; mode < 14; mode++) {
+                for (const mode of candidates) {
                     let cost = 0;
                     for (let y = y0; y < y1 && cost < bestCost; y++) {
                         predictRow(mode, x0, x1, y);
@@ -1505,21 +1578,22 @@ export function predictorChunks({ p, src, modes, width, height, bits }: Predicto
  * Encodes ARGB pixels into a VP8L bitstream (the payload of a VP8L chunk): with a palette for up to 256 colors, unless
  * predicting them compresses better (smooth gradients, like alpha)
  */
-export async function encode(argb: Uint32Array, width: number, height: number, threads: Thread[] | null = null): Promise<Uint8Array> {
+export async function encode(argb: Uint32Array, width: number, height: number, threads: Thread[] | null = null, effort = 2): Promise<Uint8Array> {
     if (width < 1 || height < 1 || width > 16384 || height > 16384) throw new RangeError('VP8L: dimensions must be 1-16384');
+    const tuning = TUNING[Math.min(2, effort)];
     const colors = new Map<number, number>();
     for (let i = 0; i < argb.length && colors.size <= 256; i++) if (!colors.has(argb[i])) colors.set(argb[i], colors.size);
-    if (colors.size > 256) return encodeWith(argb, width, height, null, threads);
-    const indexed = await encodeWith(argb, width, height, colors, threads);
+    if (colors.size > 256) return encodeWith(argb, width, height, null, threads, tuning);
+    const indexed = await encodeWith(argb, width, height, colors, threads, tuning);
     // (few colors: their packed indices win)
-    if (colors.size <= 16) return indexed;
-    const predicted = await encodeWith(argb, width, height, null, threads);
+    if (colors.size <= 16 || !tuning.tryPredicted) return indexed;
+    const predicted = await encodeWith(argb, width, height, null, threads, tuning);
     return predicted.length < indexed.length ? predicted : indexed;
 }
 
 // the bitstream with a palette (the colors' indices) or with the green subtracted and predicted (the predictors and
 // prefix groups searched in threads, if there are)
-async function encodeWith(argb: Uint32Array, width: number, height: number, colors: Map<number, number> | null, threads: Thread[] | null): Promise<Uint8Array> {
+async function encodeWith(argb: Uint32Array, width: number, height: number, colors: Map<number, number> | null, threads: Thread[] | null, tuning: Tuning): Promise<Uint8Array> {
     const w = new BitWriter();
     let hasAlpha = false;
     for (let i = 0; i < argb.length; i++) if (argb[i] >>> 24 !== 255) { hasAlpha = true; break; }
@@ -1530,7 +1604,7 @@ async function encodeWith(argb: Uint32Array, width: number, height: number, colo
     w.write(hasAlpha ? 1 : 0, 1);
     w.write(0, 3);
 
-    let pixels: Uint32Array, codedWidth = width;
+    let pixels: Uint32Array, codedWidth = width, predicted = false;
     if (colors) {
         // (a palette, with several pixels packed per byte for up to 16 colors; sorted palettes delta-code better)
         const palette = Uint32Array.from([...colors.keys()].sort((a, b) => a - b));
@@ -1541,7 +1615,7 @@ async function encodeWith(argb: Uint32Array, width: number, height: number, colo
         w.write(palette.length - 1, 8);
         const deltas = palette.slice();
         for (let i = palette.length - 1; i > 0; i--) deltas[i] = subPixels(palette[i], palette[i - 1]);
-        await writeImage(w, deltas, palette.length, false);
+        await writeImage(w, deltas, palette.length, false, null, tuning);
 
         codedWidth = subSize(width, bits);
         pixels = new Uint32Array(codedWidth * height);
@@ -1558,7 +1632,7 @@ async function encodeWith(argb: Uint32Array, width: number, height: number, colo
         for (let i = 0; i < pixels.length && !redBlue; i++) if (pixels[i] & 0x00ff00ff) redBlue = true;
         // (and the predictor and subtracting green only where they're estimated to pay off: graphics with flat areas
         // and repeated parts compress better without the predictor)
-        const { predict, subtractGreen } = analyze(argb, width, height, 4);
+        const { predict, subtractGreen } = tuning.analyze ? analyze(argb, width, height, 4) : { predict: true, subtractGreen: true };
         if (redBlue && subtractGreen) {
             w.write(1, 1);
             w.write(Transform.SUBTRACT_GREEN, 2);
@@ -1571,14 +1645,15 @@ async function encodeWith(argb: Uint32Array, width: number, height: number, colo
 
         const bits = 4;
         if (predict) {
+            predicted = true;
             w.write(1, 1);
             w.write(Transform.PREDICTOR, 2);
             w.write(bits - 2, 3);
-            const modes = await applyPredictor(pixels, width, height, bits, threads);
-            await writeImage(w, modes, subSize(width, bits), false);
+            const modes = await applyPredictor(pixels, width, height, bits, threads, tuning.modes);
+            await writeImage(w, modes, subSize(width, bits), false, null, tuning);
             // (the residuals' red and blue predicted from their green, like libwebp does with the predictor; not if no block
             // gains from it, all multipliers 0 leave the pixels as they are)
-            if (redBlue) {
+            if (redBlue && tuning.colorTransform) {
                 const colorBits = 5, before = pixels.slice(), multipliers = colorTransform(pixels, width, height, colorBits);
                 // (nor if red and blue don't take fewer bits in all, with about 12 bits per block that changes them)
                 const changed = multipliers.reduce((n, m) => n + (m !== 0xff000000 ? 1 : 0), 0);
@@ -1587,13 +1662,14 @@ async function encodeWith(argb: Uint32Array, width: number, height: number, colo
                     w.write(1, 1);
                     w.write(Transform.COLOR, 2);
                     w.write(colorBits - 2, 3);
-                    await writeImage(w, multipliers, subSize(width, colorBits), false);
+                    await writeImage(w, multipliers, subSize(width, colorBits), false, null, tuning);
                 }
             }
         }
     }
 
     w.write(0, 1); // no more transforms
-    await writeImage(w, pixels, codedWidth, true, threads);
+    const chain = predicted && tuning.predictedChain !== undefined ? tuning.predictedChain : tuning.chain;
+    await writeImage(w, pixels, codedWidth, true, threads, { ...tuning, chain });
     return w.finish();
 }

@@ -28,7 +28,7 @@ export interface AnimationEncoderOptions {
 export interface WebPAnimationEncoderOptions extends AnimationEncoderOptions {
     /** Lossy frames (0-100), see {@link WebPAnimationEncodeOptions.quality}. Without it the frames are lossless */
     quality?: number;
-    /** How much effort lossy frames take (0-6), see {@link WebPEncodeOptions.effort}. Default: `2` */
+    /** How much effort the frames take (0-6, lossy and lossless), see {@link WebPEncodeOptions.effort}. Default: `2` */
     effort?: number;
     /** Lossy frames: libwebp's sharp YUV conversion, see {@link WebPEncodeOptions.sharpYuv}. Default: `false` */
     sharpYuv?: boolean;
@@ -134,7 +134,7 @@ export class AnimationEncoder {
         let full = false;
         const add = async (f: webp.WebPEncodeFrame): Promise<void> => {
             alpha ||= webp.needsAlpha(f, !chunks.length, width, height);
-            chunks.push(await webp.frameChunk(f, lossy));
+            chunks.push(await webp.frameChunk(f, lossy, effort));
         };
         return new AnimationEncoder(width, height, {
             optimize: { replace: true, even: true, alpha: 'frame', tolerance: lossy ? webp.lossyTolerance(lossy.quality) : undefined },

@@ -70,7 +70,7 @@ export interface WebPAnimationEncodeOptions extends AnimationEncodeOptions {
      * up to 3 per channel at quality 85, 1 at 100)
      */
     quality?: number;
-    /** How much effort lossy frames take (0-6), see {@link WebPEncodeOptions.effort}. Default: `2` */
+    /** How much effort the frames take (0-6, lossy and lossless), see {@link WebPEncodeOptions.effort}. Default: `2` */
     effort?: number;
     /** Lossy frames: libwebp's sharp YUV conversion, see {@link WebPEncodeOptions.sharpYuv}. Default: `false` */
     sharpYuv?: boolean;
@@ -306,7 +306,7 @@ export class Animation extends Array<Frame> {
 
         const tolerance = lossy ? webp.lossyTolerance(lossy.quality) : undefined;
         const frames = optimize ? this.__optimized__({ replace: true, even: true, alpha: 'frame', tolerance }) : this.__webpFrames__();
-        return webp.encodeAnimation(frames, this.width, this.height, toPlays(this.loopCount), exifData(resolveMetadata(metadata)), lossy);
+        return webp.encodeAnimation(frames, this.width, this.height, toPlays(this.loopCount), exifData(resolveMetadata(metadata)), lossy, effort);
     }
 
     /**

@@ -42,7 +42,14 @@ interface Component {
     /** blocks are allocated for whole MCUs */
     blocksPerLineForMcu: number;
     blocksPerColumnForMcu: number;
+    /**
+     * progressive: the coefficients of all blocks. Sequential: of one row of MCUs (the component's v block rows),
+     * which the decoder turns into `plane` (the samples) as soon as the row is complete
+     */
     coefficients: Int16Array;
+    /** sequential: the sample plane, and which of its block rows are done (the others stay mid grey) */
+    plane?: Uint8Array;
+    done?: Uint8Array;
     pred: number;
     dcTable?: HuffmanTable;
     acTable?: HuffmanTable;
@@ -250,7 +257,7 @@ function createFrame(progressive: boolean, height: number, width: number, compon
     }
 
     if (!width || !sampling.length) throw new Error('JPEG: invalid dimensions');
-    // each component takes coefficients for the whole image (grey, YCbCr/RGB and CMYK have up to 4)
+    // (grey, YCbCr/RGB and CMYK have up to 4)
     if (sampling.length > 4) throw new Error(`JPEG: ${sampling.length} components are not supported`);
 
     const hmax = Math.max(...sampling.map(c => c.h));
@@ -272,7 +279,10 @@ function createFrame(progressive: boolean, height: number, width: number, compon
             blocksPerColumn: Math.ceil(componentHeight / 8),
             blocksPerLineForMcu,
             blocksPerColumnForMcu,
-            coefficients: new Int16Array(blocksPerLineForMcu * blocksPerColumnForMcu * 64),
+            // progressive scans refine all coefficients, sequential ones are done with a row of MCUs at a time
+            coefficients: new Int16Array(blocksPerLineForMcu * (progressive ? blocksPerColumnForMcu : c.v) * 64),
+            plane: progressive ? undefined : new Uint8Array(blocksPerLineForMcu * 8 * blocksPerColumnForMcu * 8),
+            done: progressive ? undefined : new Uint8Array(blocksPerColumnForMcu),
             pred: 0
         };
     });
@@ -478,6 +488,15 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         ? components[0].blocksPerLine * components[0].blocksPerColumn
         : frame.mcusPerLine * frame.mcusPerColumn;
     const interval = restartInterval || total;
+    // sequential scans keep one row of MCUs (of a single component's scan: one block row), turned into samples once
+    // it's complete or the scan ends: the block row it starts at, -1 without one
+    const sequential = !frame.progressive;
+    let pending = -1;
+    const finish = (): void => {
+        if (pending < 0) return;
+        for (const component of components) render(component, single ? pending : pending * component.v, single ? 1 : component.v);
+        pending = -1;
+    };
 
     for (const component of components) component.pred = 0;
 
@@ -487,18 +506,24 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
                 const component = components[0];
                 const row = unit / component.blocksPerLine | 0;
                 const column = unit % component.blocksPerLine;
-                decodeBlock(component, (row * component.blocksPerLineForMcu + column) * 64);
+                if (sequential) {
+                    pending = row;
+                    decodeBlock(component, column * 64);
+                    if (column === component.blocksPerLine - 1) finish();
+                } else decodeBlock(component, (row * component.blocksPerLineForMcu + column) * 64);
             } else {
                 const mcuRow = unit / frame.mcusPerLine | 0;
                 const mcuColumn = unit % frame.mcusPerLine;
+                if (sequential) pending = mcuRow;
 
                 for (const component of components)
                     for (let v = 0; v < component.v; v++)
                         for (let h = 0; h < component.h; h++) {
-                            const row = mcuRow * component.v + v;
+                            const row = sequential ? v : mcuRow * component.v + v;
                             const column = mcuColumn * component.h + h;
                             decodeBlock(component, (row * component.blocksPerLineForMcu + column) * 64);
                         }
+                if (sequential && mcuColumn === frame.mcusPerLine - 1) finish();
             }
         }
 
@@ -509,17 +534,43 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         buffer = 0;
         while (pos + 1 < data.length && !(data[pos] === 0xff && data[pos + 1] >= 0xd0 && data[pos + 1] <= 0xd7)) {
             // a different marker means the scan ended early
-            if (data[pos] === 0xff && data[pos + 1] !== 0x00 && data[pos + 1] !== 0xff) return pos;
+            if (data[pos] === 0xff && data[pos + 1] !== 0x00 && data[pos + 1] !== 0xff) {
+                finish();
+                return pos;
+            }
             pos++;
         }
 
-        if (pos + 1 >= data.length) return pos;
+        if (pos + 1 >= data.length) {
+            finish();
+            return pos;
+        }
         pos += 2;
         eobrun = 0;
         for (const component of components) component.pred = 0;
     }
 
+    finish();
     return pos;
+}
+
+// a sequential scan's decoded block rows (`count` of them, in the coefficient buffer from its first row) into the
+// component's samples, emptying the buffer for the next ones (blocks only get their nonzero coefficients)
+function render(component: Component, row: number, count: number): void {
+    const { plane, done, coefficients, blocksPerLineForMcu: line } = component;
+    if (!plane || !done) return;
+    const stride = line * 8, workspace = new Int32Array(64);
+    const quantization = component.quantization || new Int32Array(64);
+    for (let r = 0; r < count; r++) {
+        const blockRow = row + r;
+        // (like rendering all blocks at the end: the ones of the image, not the padding of the last MCUs)
+        if (blockRow < component.blocksPerColumn) {
+            for (let column = 0; column < component.blocksPerLine; column++)
+                idct(coefficients, (r * line + column) * 64, quantization, workspace, plane, blockRow * 8 * stride + column * 8, stride);
+            done[blockRow] = 1;
+        }
+    }
+    coefficients.fill(0, 0, count * line * 64);
 }
 
 // libjpeg's jpeg_idct_islow
@@ -658,6 +709,13 @@ function idct(coefficients: Int16Array, offset: number, quantization: Int32Array
 // runs the IDCT over every block, producing the component's sample plane
 function buildPlane(component: Component): { plane: Uint8Array, stride: number } {
     const stride = component.blocksPerLineForMcu * 8;
+    // sequential: already rendered, the rows no scan reached are mid grey (what blocks without coefficients render to)
+    if (component.plane && component.done) {
+        const { plane, done } = component;
+        for (let row = 0; row < component.blocksPerColumn; row++)
+            if (!done[row]) for (let y = row * 8; y < row * 8 + 8; y++) plane.fill(128, y * stride, y * stride + component.blocksPerLine * 8);
+        return { plane, stride };
+    }
     const plane = new Uint8Array(stride * component.blocksPerColumnForMcu * 8);
     const workspace = new Int32Array(64);
     // components without any scan data decode to mid grey

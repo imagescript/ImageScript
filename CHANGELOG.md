@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.15.0
+
+### New
+
+- `effort` applies to lossless `encodeWebP()` (and lossless animation frames) too: `0` is a fast mode (3 predictors,
+  a short search for repeated pixels, one prefix code, no color transform), `1` is in between, `2` (the default) and
+  up compress the most. A 1920x1080 photo with 8 threads: 0.20 s for 1.32 MB at effort 0, 0.57 s for 1.20 MB at 1,
+  0.70 s for 1.22 MB at 2; a 1434x1434 graphic: 76 ms for 346 kB, 188 ms for 301 kB, 199 ms for 277 kB. Over a
+  corpus of photos and graphics, effort 0 takes about a fifth (photos) to a third (graphics) of the time for files
+  6-8% larger, effort 1 about two thirds for files up to 2% larger.
+
+### Performance
+
+- Lossless `encodeWebP()` makes photos about 3-4% smaller and graphics about 1.5%, and photos above a megapixel take
+  less time (the 1920x1080 bench photo: 1.22 MB in 0.70 s instead of 1.34 MB in 0.80 s, with 8 threads): predicted
+  images also try referencing only the pixel to the left and the one above, kept where that's estimated smaller
+  (short matches further away take more bits than the pixels they replace; above a megapixel the estimate is made on
+  three bands of rows, and the search for matches further away is left out).
+- `cover()` only resamples the part of the image it keeps instead of resizing all of it and then cropping: a 400x400
+  thumbnail of a 1920x1080 photo takes 10 ms instead of 15.6 ms. The pixels are the same.
+- Bicubic `resize()` of opaque images is about 1.4 times as fast (a 1920x1080 photo to half: 31 ms instead of 43 ms):
+  it leaves out the alpha channel and reads the source rows in order. The pixels are the same.
+- Decoding baseline (non-progressive) JPEGs takes less memory: the blocks are turned into pixels a row at a time
+  instead of keeping every coefficient until the end (a 1920x1080 photo: 15 MB at the peak instead of 23 MB). The
+  pixels are the same.
+
 ## 3.14.0
 
 ### New
