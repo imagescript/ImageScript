@@ -71,7 +71,7 @@ await writeFile('output.png', await image.encode());
 | GIF, APNG (animations) | ✓ | ✓ |
 | BMP, QOI, TGA, Netpbm | ✓ | ✓ |
 | TIFF, ICO/CUR, Radiance HDR | ✓ | |
-| [Ultra HDR](https://imagescript.dev/classes/GainMap.html) (JPEG with a gain map) | ✓ | ✓, kept through edits |
+| [HDR gain maps](https://imagescript.dev/classes/GainMap.html) (Ultra HDR and iPhone JPEGs, AVIF) | ✓ | ✓, kept through edits |
 
 [Animations](https://imagescript.dev/classes/Animation.html) can be decoded from GIF, APNG, WebP and JPEG XL,
 and encoded as GIF, APNG or WebP, all at once or

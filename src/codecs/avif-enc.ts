@@ -6,6 +6,7 @@
  */
 import { encodeAV1, encodeAV1Threaded, type AV1Image, type AV1Params } from './av1/encode.ts';
 import { startThreads } from '../util/threads.ts';
+import { writeISO, type Params } from './gainmap.ts';
 
 /** Options of the AVIF encoder */
 export interface AVIFOptions {
@@ -21,6 +22,8 @@ export interface AVIFOptions {
     exif?: Uint8Array;
     /** at most this many worker threads (1: none) */
     threads: number;
+    /** a gain map (RGBA, grey for one for all channels), written as a tone mapped derived item like libavif does */
+    gainMap?: { pixels: Uint8Array, width: number, height: number, params: Params, quality: number };
 }
 
 // (images below this many pixels encode faster without threads, which take about 0.1 s to start, and the pixels per
@@ -37,6 +40,8 @@ const qindex = (quality: number): number => QINDEX[Math.round((100 - Math.max(0,
 
 // BT.601 full range (the color description: BT.709 primaries, sRGB transfer, BT.601 matrix)
 const KR = 0.299, KB = 0.114, KG = 1 - KR - KB, CICP = [1, 13, 6];
+// (a gain map's: unspecified primaries and transfer, its values aren't colors; BT.601's matrix)
+const MAP_CICP = [2, 2, 6];
 
 function toYUV(rgba: Uint8Array, width: number, height: number, subsampled: boolean): Uint8Array[] {
     const n = width * height, y = new Uint8Array(n);
@@ -177,7 +182,7 @@ function seqMonochrome(d: Uint8Array, o: number): boolean {
 }
 
 /** Encodes RGBA pixels as an AVIF (with an alpha image if the image has transparency) */
-export async function encode(rgba: Uint8Array, width: number, height: number, { quality, alphaQuality, subsampling, effort, exif, threads: maxThreads }: AVIFOptions): Promise<Uint8Array> {
+export async function encode(rgba: Uint8Array, width: number, height: number, { quality, alphaQuality, subsampling, effort, exif, threads: maxThreads, gainMap }: AVIFOptions): Promise<Uint8Array> {
     if (width < 1 || height < 1) throw new RangeError('AVIF: dimensions must be at least 1');
     if (width > 65536 || height > 65536) throw new RangeError('AVIF: dimensions must be at most 65536');
     let opaque = true;
@@ -212,7 +217,10 @@ export async function encode(rgba: Uint8Array, width: number, height: number, { 
         }
         return encodeAV1(image, params);
     };
-    let color: Uint8Array, alpha: Uint8Array | null = null;
+    let color: Uint8Array, alpha: Uint8Array | null = null, map: Uint8Array | null = null;
+    // (the gain map: monochrome if grey, else 4:4:4, its values as they are, no transfer)
+    let mapGray = true;
+    if (gainMap) for (let i = 0; i < gainMap.pixels.length; i += 4) if (gainMap.pixels[i] !== gainMap.pixels[i + 1] || gainMap.pixels[i] !== gainMap.pixels[i + 2]) { mapGray = false; break; }
     try {
         color = await av1({ planes, width, height, layout: gray ? 0 : subsampled ? 1 : 3, cicp }, { qidx: qindex(quality), effort });
         if (!opaque) {
@@ -220,39 +228,65 @@ export async function encode(rgba: Uint8Array, width: number, height: number, { 
             for (let i = 0; i < a.length; i++) a[i] = original[4 * i + 3];
             alpha = await av1({ planes: [a], width, height, layout: 0, cicp: [2, 2, 2] }, { qidx: qindex(alphaQuality), effort });
         }
+        if (gainMap) {
+            const { pixels, width: w, height: h } = gainMap;
+            const mapPlanes = mapGray ? [Uint8Array.from({ length: w * h }, (_, i) => pixels[4 * i])] : toYUV(pixels, w, h, false);
+            map = await av1({ planes: mapPlanes, width: w, height: h, layout: mapGray ? 0 : 3, cicp: MAP_CICP }, { qidx: qindex(gainMap.quality), effort });
+        }
     } finally {
         stop();
     }
 
     // the boxes: ftyp, meta (the items, their locations in mdat, their properties), mdat
     const profile = subsampled || gray ? 'MA1B' : 'MA1A';
-    const ftyp = box('ftyp', ascii('avif'), u32(0), ascii('avif'), ascii('mif1'), ascii('miaf'), ascii(profile));
+    const ftyp = box('ftyp', ascii('avif'), u32(0), ascii('avif'), ascii('mif1'), ascii('miaf'), ascii(profile), map ? ascii('tmap') : []);
     const hdlr = fullBox('hdlr', 0, 0, u32(0), ascii('pict'), u32(0), u32(0), u32(0), [0]);
     const pitm = fullBox('pitm', 0, 0, u16(1));
-    // the items: the color image (1), the alpha image, the Exif data (its TIFF header's offset, 0, then the TIFF data)
-    const items: { type: string, name: string, data: ArrayLike<number>[] }[] = [{ type: 'av01', name: 'Color', data: [color] }];
-    if (alpha) items.push({ type: 'av01', name: 'Alpha', data: [alpha] });
-    if (exif?.length) items.push({ type: 'Exif', name: 'Exif', data: [u32(0), exif] });
-    const sizes = items.map(item => item.data.reduce((n, d) => n + d.length, 0));
-    const infe = (id: number, type: string, name: string): number[] => fullBox('infe', 2, 0, u16(id), u16(0), ascii(type), ascii(name), [0]);
-    const iinf = fullBox('iinf', 0, 0, u16(items.length), ...items.map((item, i) => infe(i + 1, item.type, item.name)));
-    // (the alpha image is auxiliary to the color image, the Exif data describes it)
-    const exifId = exif?.length ? items.length : 0;
-    const iref = alpha || exifId ? fullBox('iref', 0, 0, alpha ? box('auxl', u16(2), u16(1), u16(1)) : [], exifId ? box('cdsc', u16(exifId), u16(1), u16(1)) : []) : [];
-    const ispe = fullBox('ispe', 0, 0, u32(width), u32(height));
-    const colr = box('colr', ascii('nclx'), u16(cicp[0]), u16(cicp[1]), u16(cicp[2]), [0x80]);
+    // the items (ids from 1): the color image, the alpha image, the gain map (hidden) and the tone mapped item made of
+    // the color image and it (its data: version 0 and the ISO 21496-1 metadata), the Exif data (its TIFF header's
+    // offset, 0, then the TIFF data); properties are added to ipco (1-based) and associated (essential: | 0x80)
+    const items: { type: string, name: string, hidden?: boolean, data: ArrayLike<number>[], props: number[] }[] = [];
+    const properties: number[][] = [];
+    const property = (p: number[]): number => properties.push(p);
+    const nclx = (c: number[]): number[] => box('colr', ascii('nclx'), u16(c[0]), u16(c[1]), u16(c[2]), [0x80]);
     const pixi = (channels: number): number[] => fullBox('pixi', 0, 0, [channels], new Array<number>(channels).fill(8));
-    const auxC = fullBox('auxC', 0, 0, ascii('urn:mpeg:mpegB:cicp:systems:auxiliary:alpha'), [0]);
-    // (properties 1-based: ispe, av1C, colr, pixi; alpha: av1C, pixi, auxC)
-    const ipco = box('ipco', ispe, av1C(color), colr, pixi(gray ? 1 : 3), alpha ? av1C(alpha) : [], alpha ? pixi(1) : [], alpha ? auxC : []);
-    const ipma = fullBox('ipma', 0, 0, u32(alpha ? 2 : 1), u16(1), [4, 1, 0x82, 3, 4], alpha ? [...u16(2), 4, 1, 0x85, 6, 7] : []);
+    const ispe = property(fullBox('ispe', 0, 0, u32(width), u32(height)));
+    const colorConfig = property(av1C(color)) | 0x80, colr = property(nclx(cicp));
+    items.push({ type: 'av01', name: 'Color', data: [color], props: [ispe, colorConfig, colr, property(pixi(gray ? 1 : 3))] });
+    const alphaId = alpha ? items.push({
+        type: 'av01', name: 'Alpha', data: [alpha],
+        props: [ispe, property(av1C(alpha)) | 0x80, property(pixi(1)), property(fullBox('auxC', 0, 0, ascii('urn:mpeg:mpegB:cicp:systems:auxiliary:alpha'), [0]))]
+    }) : 0;
+    let mapId = 0, tmapId = 0;
+    if (map && gainMap) {
+        mapId = items.push({
+            type: 'av01', name: 'GMap', hidden: true, data: [map],
+            props: [property(fullBox('ispe', 0, 0, u32(gainMap.width), u32(gainMap.height))), property(av1C(map)) | 0x80, property(nclx(MAP_CICP)), property(pixi(mapGray ? 1 : 3))]
+        });
+        // (the HDR rendition's colors: the image's primaries with PQ's transfer, like avifenc assumes for JPEG gain maps)
+        tmapId = items.push({ type: 'tmap', name: 'TMap', data: [[0], writeISO(gainMap.params)], props: [ispe, property(nclx([cicp[0], 16, cicp[2]]))] });
+    }
+    const exifId = exif?.length ? items.push({ type: 'Exif', name: 'Exif', data: [u32(0), exif], props: [] }) : 0;
+    const sizes = items.map(item => item.data.reduce((n, d) => n + d.length, 0));
+    const infe = (id: number, item: typeof items[number]): number[] => fullBox('infe', 2, item.hidden ? 1 : 0, u16(id), u16(0), ascii(item.type), ascii(item.name), [0]);
+    const iinf = fullBox('iinf', 0, 0, u16(items.length), ...items.map((item, i) => infe(i + 1, item)));
+    // (the alpha image is auxiliary to the color image, the tone mapped item made of the color image and the gain map,
+    // the Exif data describes the color image)
+    const refs = [alphaId ? box('auxl', u16(alphaId), u16(1), u16(1)) : [], tmapId ? box('dimg', u16(tmapId), u16(2), u16(1), u16(mapId)) : [],
+        exifId ? box('cdsc', u16(exifId), u16(1), u16(1)) : []];
+    const iref = refs.some(r => r.length) ? fullBox('iref', 0, 0, ...refs) : [];
+    const ipco = box('ipco', ...properties);
+    const associated = items.map((item, i) => [i + 1, item.props] as const).filter(([, props]) => props.length);
+    const ipma = fullBox('ipma', 0, 0, u32(associated.length), ...associated.map(([id, props]) => [...u16(id), props.length, ...props]));
     const iprp = box('iprp', ipco, ipma);
+    // (the tone mapped item preferred over the color image: an alternatives group, its id after the items')
+    const grpl = tmapId ? box('grpl', fullBox('altr', 0, 0, u32(items.length + 1), u32(2), u32(tmapId), u32(1))) : [];
     // the locations (absolute offsets into mdat, one after the other, filled in once the size of meta is known)
     const ilocFor = (offset: number): number[] => fullBox('iloc', 0, 0, [0x44, 0x00], u16(items.length), ...items.map((_, i) => {
         const at = offset + sizes.slice(0, i).reduce((n, size) => n + size, 0);
         return [...u16(i + 1), ...u16(0), ...u16(1), ...u32(at), ...u32(sizes[i])];
     }));
-    const metaFor = (offset: number): number[] => fullBox('meta', 0, 0, hdlr, pitm, ilocFor(offset), iinf, iref, iprp);
+    const metaFor = (offset: number): number[] => fullBox('meta', 0, 0, hdlr, pitm, ilocFor(offset), iinf, iref, iprp, grpl);
     const headerSize = ftyp.length + metaFor(0).length + 8;
     const head = [...ftyp, ...metaFor(headerSize)];
     const mdatSize = 8 + sizes.reduce((n, size) => n + size, 0);

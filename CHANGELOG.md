@@ -23,6 +23,8 @@
     at a quality or size, `{ gainMap: false }` leaves it out; `DecodeOptions.gainMap: false` doesn't read it.
   - Files with the gain map cut off (some chat apps and uploads keep the index but drop the map) and broken gain map
     metadata decode as before, without one.
+  - AVIFs carry gain maps too (a tone mapped item, AVIF 1.2): `Image.decode` reads them and `encodeAVIF()` writes
+    them (with the same `gainMap` option), so Ultra HDR JPEGs convert to HDR AVIFs a fraction of the size.
   - iPhone JPEGs carry Apple's own kind of gain map (with its headroom in Apple's XMP or Exif maker note): it's read
     too, converted to the same parameters, and written as an Ultra HDR gain map.
 

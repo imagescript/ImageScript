@@ -251,7 +251,7 @@ export function valid(p: Params): boolean {
 // ISO 21496-1 (version 0): u16 minimum version, u16 writer version, flags (0x80: 3 channels, 0x40: use the base color
 // space, 4: the base is the HDR image, 8: a common denominator; libultrahdr's bits), then the headrooms and per channel min, max, gamma,
 // base offset, alternate offset, as fractions (big endian, signed where they can be negative)
-function readISO(data: Uint8Array): Params | null {
+export function readISO(data: Uint8Array): Params | null {
     if (data.length < 5) return null;
     const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
     if (view.getUint16(0) !== 0) return null;

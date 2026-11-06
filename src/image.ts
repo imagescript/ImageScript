@@ -232,8 +232,8 @@ export interface DecodeOptions {
      */
     toneMapping?: ToneMapping;
     /**
-     * Whether to read the gain maps of JPEGs (Ultra HDR, JPEG-R, ISO 21496-1) into {@link Image.gainMap}. Its pixels
-     * are only decoded when they're needed. Default: `true`
+     * Whether to read the gain maps of JPEGs (Ultra HDR, JPEG-R, ISO 21496-1, Apple's) and AVIFs (tone mapped items)
+     * into {@link Image.gainMap}. A JPEG's map's pixels are only decoded when they're needed. Default: `true`
      */
     gainMap?: boolean;
     /**
@@ -292,6 +292,12 @@ export interface AVIFEncodeOptions {
     threads?: number;
     /** Metadata to include, see {@link Metadata} */
     metadata?: Metadata;
+    /**
+     * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a tone mapped item, like libavif
+     * writes), or how: `quality` (1-100, default `90`) and `scale` (its size relative to the image, default its own).
+     * Default: `true`
+     */
+    gainMap?: boolean | { quality?: number, scale?: number };
 }
 
 /** Text style options of {@link Image.renderText} */
@@ -2441,12 +2447,35 @@ export class Image {
      * Encodes the image as AVIF (AV1, with an alpha image if the image has transparency)
      * @param options See {@link AVIFEncodeOptions}
      */
-    async encodeAVIF({ quality = 60, alphaQuality = 100, subsampling = '4:4:4', effort = 1, threads = defaultThreads(), metadata = {} }: AVIFEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeAVIF({ quality = 60, alphaQuality = 100, subsampling = '4:4:4', effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true }: AVIFEncodeOptions = {}): Promise<Uint8Array> {
         checkEffort(effort, 2);
         checkThreads(threads);
         if (subsampling !== '4:4:4' && subsampling !== '4:2:0') throw new TypeError(`subsampling must be '4:4:4' or '4:2:0', not ${String(subsampling)}`);
         const exif = exifData(resolveMetadata(metadata));
-        return avifEnc.encode(this.__bytes__(), this.width, this.height, { quality: checkQuality(quality), alphaQuality: checkQuality(alphaQuality, 'alphaQuality'), subsampling, effort, exif, threads });
+        return avifEnc.encode(this.__bytes__(), this.width, this.height, {
+            quality: checkQuality(quality), alphaQuality: checkQuality(alphaQuality, 'alphaQuality'), subsampling, effort, exif, threads, gainMap: this.__gain_map_pixels__(gainMap)
+        });
+    }
+
+    /**
+     * The gain map to write for an encode's gainMap option (its pixels at the asked scale, its parameters, the
+     * quality), undefined without one
+     * @internal
+     * @ignore
+     */
+    protected __gain_map_pixels__(option: boolean | { quality?: number, scale?: number }): { pixels: Uint8Array, width: number, height: number, params: gainMapCodec.Params, quality: number } | undefined {
+        const gainMap = this.__gain_map__;
+        if (!gainMap || option === false) return undefined;
+        const { quality = 90, scale } = typeof option === 'object' && option !== null ? option : {} as { quality?: number, scale?: number };
+        const mapQuality = Math.max(1, checkQuality(quality, 'gain map quality'));
+        let map = gainMap.image;
+        if (scale !== undefined) {
+            const s = finite(scale, 'gain map scale');
+            if (!(s > 0 && s <= 1)) throw new RangeError(`The gain map scale must be above 0 and at most 1, not ${s}`);
+            const width = Math.max(1, Math.round(this.width * s)), height = Math.max(1, Math.round(this.height * s));
+            if (width !== map.width || height !== map.height) map = map.clone().resize(width, height);
+        }
+        return { pixels: map.__bytes__(), width: map.width, height: map.height, params: gainMap.__params__(), quality: mapQuality };
     }
 
     /**
@@ -2497,7 +2526,7 @@ export class Image {
         const data = view(input);
         const dataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
 
-        const decoded: { width: number, height: number, pixels: Uint8Array, orientation?: number, icc?: Uint8Array, cicp?: [number, number], colorSpace?: jxl.ColorSpace } = await decoding(() => {
+        const decoded: { width: number, height: number, pixels: Uint8Array, orientation?: number, icc?: Uint8Array, cicp?: [number, number], colorSpace?: jxl.ColorSpace, gainMap?: avif.DecodedGainMap } = await decoding(() => {
             if (ImageType.isPNG(dataView)) return png.decode(data, maxPixels);
             if (ImageType.isJPEG(dataView)) return jpeg.decode(data, { maxPixels });
             if (ImageType.isTIFF(dataView)) return tiff.decode(data, maxPixels);
@@ -2512,7 +2541,7 @@ export class Image {
                 const { width, height, pixels } = decoded.embedded === 'png' ? await png.decode(decoded.data, maxPixels) : jpeg.decode(decoded.data, { maxPixels });
                 return { width, height, pixels };
             };
-            if (ImageType.isAVIF(dataView)) return avif.decode(data, maxPixels, toneMapping, threads);
+            if (ImageType.isAVIF(dataView)) return avif.decode(data, maxPixels, toneMapping, threads, gainMap);
             if (ImageType.isJXL(dataView)) return jxl.decode(data, maxPixels, toneMapping, threads);
             if (ImageType.isBMP(dataView)) return bitmap(bmp.decode(data, maxPixels));
             if (ImageType.isICO(dataView)) return bitmap(ico.decode(data, maxPixels));
@@ -2541,6 +2570,12 @@ export class Image {
             } catch {
                 image.__gain_map__ = null;
             }
+        }
+        if (decoded.gainMap) {
+            const { width, height, pixels, params } = decoded.gainMap;
+            const map = new Image(width, height);
+            map.bitmap = pixels;
+            image.__gain_map__ = GainMap.__from_pixels__(map, params);
         }
         if (applyOrientation && decoded.orientation && decoded.orientation > 1) {
             image.__orient__(decoded.orientation);

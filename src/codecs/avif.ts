@@ -10,6 +10,10 @@ import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
 import { decodeAV1, Frame } from './av1/frame.ts';
 import { toSRGB, hdrToLinear, ToneMapping } from './hdr.ts';
 import { runChunks, sharedOf, startThreads, type ChunkTask, type Thread } from '../util/threads.ts';
+import { readISO, type Params } from './gainmap.ts';
+
+/** A decoded gain map: its RGBA pixels and parameters */
+export interface DecodedGainMap { width: number, height: number, pixels: Uint8Array, params: Params }
 
 interface Box { type: string, start: number, end: number }
 
@@ -568,7 +572,7 @@ const MIN_THREADED_PIXELS = 4 << 20, PIXELS_PER_THREAD = 1 << 20;
 const TILES_PER_THREAD = 4;
 
 /** Decodes an AVIF's primary item or first frame, the conversion to RGBA in up to threads worker threads */
-export async function decode(d: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1): Promise<{ width: number, height: number, pixels: Uint8Array, icc?: Uint8Array, cicp?: [number, number] }> {
+export async function decode(d: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1, gainMap = false): Promise<{ width: number, height: number, pixels: Uint8Array, icc?: Uint8Array, cicp?: [number, number], gainMap?: DecodedGainMap }> {
     if (!isAVIF(d)) throw new Error('AVIF: invalid header');
     let meta: Box | undefined, moov: Box | undefined;
     for (const box of boxes(d, 0, d.length)) {
@@ -597,7 +601,10 @@ export async function decode(d: Uint8Array, maxPixels = MAX_PIXELS, toneMapping:
             const n = Math.min(threads, Math.floor(pixels / PIXELS_PER_THREAD));
             const pool = n > 1 && pixels >= MIN_THREADED_PIXELS && pixels <= maxPixels ? startThreads(n) : null;
             try {
-                return await decodeImage(d, it, items, idat, alphaItem, alphaOf, maxPixels, toneMapping, pool);
+                const image: Awaited<ReturnType<typeof decodeImage>> & { gainMap?: DecodedGainMap } = await decodeImage(d, it, items, idat, alphaItem, alphaOf, maxPixels, toneMapping, pool);
+                // (a gain map that can't be read leaves the image without one)
+                if (gainMap) image.gainMap = await decodeGainMap(d, primary, items, idat, maxPixels).catch(() => undefined);
+                return image;
             } finally {
                 if (pool) for (const t of pool) t.terminate();
             }
@@ -625,15 +632,43 @@ async function decodeImage(d: Uint8Array, it: Item, items: Map<number, Item>, id
         if (tiles.length && tiles.every(t => t)) alpha = await decodeGrid(d, it, items, idat, maxPixels, threads, tiles.map(t => (t as Item).id));
     }
     let pixels = await toRgba(color, alpha, toneMapping, alphaItem && (it.refs.get('prem') ?? []).includes(alphaItem.id), threads);
-    let { width, height } = color;
-    // the transformations, in the order of their properties
+    const transformed = transform(d, it, color.width, color.height, pixels);
+    const { width, height } = transformed;
+    pixels = transformed.pixels;
+    // (without a profile, the color primaries and transfer of the nclx box or the sequence header: see cicpTransform)
+    return { width, height, pixels, icc, cicp: icc ? undefined : [color.primaries, color.transfer] };
+}
+
+// an item's transformations (crop, rotation, mirroring), in the order of its properties
+function transform(d: Uint8Array, it: Item, width: number, height: number, pixels: Uint8Array): { width: number, height: number, pixels: Uint8Array } {
     for (const { box } of it.props) {
         if (box.type === 'clap') ({ width, height, pixels } = clap(d, box, width, height, pixels));
         else if (box.type === 'irot') ({ width, height, pixels } = rotate(pixels, width, height, d[box.start] & 3));
         else if (box.type === 'imir') pixels = mirror(pixels, width, height, d[box.start] & 1);
     }
-    // (without a profile, the color primaries and transfer of the nclx box or the sequence header: see cicpTransform)
-    return { width, height, pixels, icc, cicp: icc ? undefined : [color.primaries, color.transfer] };
+    return { width, height, pixels };
+}
+
+// the gain map of the primary item (AVIF 1.2, like libavif's read.c): a tone mapped ('tmap') derived item made from
+// the primary item and the gain map item (its dimg references, in that order), its data a version byte (0) and the
+// ISO 21496-1 metadata. The map item is transformed like the primary (libavif writes the same properties to both)
+async function decodeGainMap(d: Uint8Array, primary: number, items: Map<number, Item>, idat: Box | undefined, maxPixels: number): Promise<DecodedGainMap | undefined> {
+    for (const tmap of items.values()) {
+        const inputs = tmap.refs.get('dimg') ?? [];
+        if (tmap.type !== 'tmap' || inputs.length !== 2 || inputs[0] !== primary) continue;
+        const data = itemData(d, tmap, idat);
+        if (data[0] !== 0) return undefined;
+        const params = readISO(data.subarray(1));
+        const mapItem = items.get(inputs[1]);
+        if (!params || !mapItem) return undefined;
+        const yuv = await decodeItem(d, mapItem, items, idat, maxPixels, null);
+        applyColr(d, mapItem, yuv);
+        // (its values as they are: no transfer function to tone map)
+        yuv.transfer = 13;
+        const { width, height, pixels } = transform(d, mapItem, yuv.width, yuv.height, await toRgba(yuv, null, 'clamp'));
+        return { width, height, pixels, params };
+    }
+    return undefined;
 }
 
 // the ICC profile of a colr box (prof or rICC)

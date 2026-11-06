@@ -227,6 +227,24 @@ const meanValue = (image, left, top, right, bottom) => {
 		}
 	}
 
+	// AVIF: the gain map as a tone mapped item (and back), the image without one the same as with gainMap: false
+	for (const [name, image] of [['single-channel', single], ['multi-channel', multi]]) {
+		const avif = await image.encodeAVIF({quality: 80});
+		const back = await Image.decode(avif);
+		const map = back.gainMap;
+		if (!map || map.channels !== image.gainMap.channels || map.width !== image.gainMap.width || !close(map.gainMapMax, image.gainMap.gainMapMax) || !close(map.gainMapMin, image.gainMap.gainMapMin) || Math.abs(map.hdrCapacityMax - image.gainMap.hdrCapacityMax) > 1e-6)
+			panic(`AVIF ${name}: ${map ? `${map.channels} channels, ${map.width}, ${map.gainMapMax}` : 'no gain map'}`);
+		let sum = 0;
+		const a = map.image.bitmap, b = image.gainMap.image.bitmap;
+		for (let i = 0; i < a.length; i += 4) sum += Math.abs(a[i] - b[i]);
+		if (sum / (a.length / 4) > 1.5) panic(`AVIF ${name}: map off by ${sum / (a.length / 4)}`);
+		const plain = await image.encodeAVIF({quality: 80, gainMap: false});
+		if ((await Image.decode(plain)).gainMap !== null || !same(back, await Image.decode(plain))) panic(`AVIF ${name}: the base differs with the map, or gainMap: false wrote it`);
+		if ((await Image.decode(avif, {gainMap: false})).gainMap !== null) panic(`AVIF ${name}: gainMap: false still read the map`);
+		const scaled = await Image.decode(await image.encodeAVIF({quality: 80, gainMap: {scale: 0.25, quality: 60}}));
+		if (scaled.gainMap.width !== 128 || scaled.gainMap.height !== 96) panic(`AVIF ${name}: scaled map ${scaled.gainMap.width}x${scaled.gainMap.height}`);
+	}
+
 	// invalid arguments throw before the image or its map changes
 	for (const [name, call] of [['blur', i => i.blur('5')], ['fill', i => i.fill('red')], ['cover', i => i.cover(-1, 10)]]) {
 		const image = single.clone();
