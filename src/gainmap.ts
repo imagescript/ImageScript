@@ -62,6 +62,8 @@ export class GainMap {
     private __jpeg__: Uint8Array | null = null;
     /** its pixels from then on */
     private __pixels__: Image | null = null;
+    /** an Apple gain map's headroom: its values are converted when decoded (and the JPEG can't be kept as it is) */
+    private __apple__ = 0;
 
     /**
      * Creates a gain map
@@ -85,9 +87,10 @@ export class GainMap {
     }
 
     /** @internal from a decoded file: the map's JPEG, its pixels decoded when first used */
-    static __from_jpeg__(map: Uint8Array, params: codec.Params): GainMap {
+    static __from_jpeg__(map: Uint8Array, params: codec.Params, apple = 0): GainMap {
         const gainMap = Object.create(GainMap.prototype) as GainMap;
         gainMap.__pixels__ = null;
+        gainMap.__apple__ = apple;
         gainMap.__jpeg__ = codec.stripMetadata(map);
         gainMap.__set_params__(params);
         return gainMap;
@@ -132,6 +135,17 @@ export class GainMap {
             const { width, height, pixels } = jpeg.decode(this.__jpeg__ as Uint8Array);
             const image = new Image(width, height);
             image.bitmap = pixels;
+            if (this.__apple__) {
+                // (Apple's values to the parameters' log2 scale)
+                const table = new Uint8Array(256);
+                for (let v = 0; v < 256; v++) table[v] = Math.round(255 * codec.appleValue(v / 255, this.__apple__));
+                for (let i = 0; i < pixels.length; i += 4) {
+                    pixels[i] = table[pixels[i]];
+                    pixels[i + 1] = table[pixels[i + 1]];
+                    pixels[i + 2] = table[pixels[i + 2]];
+                }
+                this.__apple__ = 0;
+            }
             this.__pixels__ = image;
             // (from now on the pixels can change: encoding writes them anew)
             this.__jpeg__ = null;
@@ -168,6 +182,7 @@ export class GainMap {
         const copy = Object.create(GainMap.prototype) as GainMap;
         copy.__set_params__(this.__params__());
         copy.__jpeg__ = this.__jpeg__;
+        copy.__apple__ = this.__apple__;
         copy.__pixels__ = this.__pixels__ ? this.__pixels__.clone() : null;
         return copy;
     }
@@ -177,7 +192,7 @@ export class GainMap {
      * or size is asked for, else encoded anew
      */
     __body__(quality?: number, width?: number, height?: number): Uint8Array {
-        if (this.__jpeg__ && quality === undefined && (width === undefined || width === this.width && height === this.height)) return this.__jpeg__;
+        if (this.__jpeg__ && !this.__apple__ && quality === undefined && (width === undefined || width === this.width && height === this.height)) return this.__jpeg__;
         let image = this.image;
         if (width !== undefined && height !== undefined && (width !== image.width || height !== image.height)) image = image.clone().resize(width, height);
         const bitmap = image.bitmap;
@@ -254,13 +269,13 @@ export class GainMap {
 
     /**
      * Decodes a gain map JPEG with its parameters (hdrgm XMP or ISO 21496-1), like the second image in an Ultra HDR
-     * JPEG, or the gain map of an Ultra HDR JPEG
+     * JPEG, or the gain map of an Ultra HDR JPEG (or an iPhone's JPEG: its values converted to these parameters)
      * @param data The JPEG
      */
     static async decode(data: BinaryData): Promise<GainMap> {
         const bytes = view(data);
         const found = codec.find(bytes);
-        if (found) return GainMap.__from_jpeg__(found.map, found.params);
+        if (found) return GainMap.__from_jpeg__(found.map, found.params, found.apple);
         const params = codec.readParams(bytes);
         if (!params) throw new Error('No gain map (or no gain map parameters) found');
         const gainMap = GainMap.__from_jpeg__(bytes, params);

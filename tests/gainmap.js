@@ -165,6 +165,68 @@ const meanValue = (image, left, top, right, bottom) => {
 		if (!same(grey.gainMap.image, single.gainMap.image)) panic('greyscale: a single channel map changed');
 	}
 
+	// Apple's gain maps (iPhone JPEGs): an MPF image with Apple's XMP, the headroom in that XMP or the primary's Exif
+	// maker note; values v boost by 1 + (headroom - 1) * v^1.961, read as the parameters' log2 scale
+	{
+		const segment = (marker, body) => Buffer.concat([Buffer.from([0xff, marker, (body.length + 2) >> 8, (body.length + 2) & 255]), body]);
+		const afterSOI = (jpeg, ...parts) => Buffer.concat([jpeg.subarray(0, 2), ...parts, jpeg.subarray(2)]);
+		const appleFile = (headroomXMP, exif) => {
+			const ramp = new Image(64, 32).fill(x => ((x * 4) * 0x1010100) | 255);
+			const xmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about=""'
+				+ ' xmlns:HDRGainMap="http://ns.apple.com/HDRGainMap/1.0/" xmlns:apdi="http://ns.apple.com/pixeldatainfo/1.0/">'
+				+ '<HDRGainMap:HDRGainMapVersion>131072</HDRGainMap:HDRGainMapVersion>'
+				+ (headroomXMP ? `<HDRGainMap:HDRGainMapHeadroom>${headroomXMP}</HDRGainMap:HDRGainMapHeadroom>` : '')
+				+ '<apdi:AuxiliaryImageType>urn:com:apple:photo:2020:aux:hdrgainmap</apdi:AuxiliaryImageType></rdf:Description></rdf:RDF></x:xmpmeta>';
+			return Promise.all([new Image(128, 64).fill(0x808080ff).encodeJPEG(90), ramp.encodeJPEG(100)]).then(([base, map]) => {
+				map = afterSOI(Buffer.from(map), segment(0xe1, Buffer.concat([Buffer.from('http://ns.adobe.com/xap/1.0/\0'), Buffer.from(xmp)])));
+				// the primary's MPF index (big endian), offsets from its TIFF header
+				const mpf = Buffer.alloc(4 + 82);
+				mpf.write('MPF\0');
+				const t = mpf.subarray(4);
+				t.writeUInt32BE(0x4d4d002a, 0); t.writeUInt32BE(8, 4); t.writeUInt16BE(3, 8);
+				t.writeUInt16BE(0xb000, 10); t.writeUInt16BE(7, 12); t.writeUInt32BE(4, 14); t.writeUInt32BE(0x30313030, 18);
+				t.writeUInt16BE(0xb001, 22); t.writeUInt16BE(4, 24); t.writeUInt32BE(1, 26); t.writeUInt32BE(2, 30);
+				t.writeUInt16BE(0xb002, 34); t.writeUInt16BE(7, 36); t.writeUInt32BE(32, 38); t.writeUInt32BE(50, 42);
+				const parts = [segment(0xe2, mpf)];
+				if (exif) parts.unshift(segment(0xe1, exif));
+				const primary = afterSOI(Buffer.from(base), ...parts);
+				const tiff = 2 + (exif ? 4 + exif.length : 0) + 4 + 4;
+				t.writeUInt32BE(0x030000, 50); t.writeUInt32BE(primary.length, 54);
+				t.writeUInt32BE(map.length, 70); t.writeUInt32BE(primary.length - tiff, 74);
+				primary.set(t, tiff);
+				return Buffer.concat([primary, map]);
+			});
+		};
+		// Exif (big endian): IFD0 -> Exif IFD -> a maker note with tag 33 = 0.5 (2^1.8 headroom, like iOS 15)
+		const exif = Buffer.alloc(6 + 8 + 18 + 18 + 14 + 18 + 8);
+		exif.write('Exif\0\0');
+		const e = exif.subarray(6);
+		e.writeUInt32BE(0x4d4d002a, 0); e.writeUInt32BE(8, 4);
+		e.writeUInt16BE(1, 8); e.writeUInt16BE(0x8769, 10); e.writeUInt16BE(4, 12); e.writeUInt32BE(1, 14); e.writeUInt32BE(26, 18);
+		e.writeUInt16BE(1, 26); e.writeUInt16BE(0x927c, 28); e.writeUInt16BE(7, 30); e.writeUInt32BE(40, 32); e.writeUInt32BE(44, 36);
+		const note = e.subarray(44);
+		note.write('Apple iOS\0\0\x01MM', 'latin1');
+		note.writeUInt16BE(1, 14); note.writeUInt16BE(33, 16); note.writeUInt16BE(10, 18); note.writeUInt32BE(1, 20); note.writeUInt32BE(32, 24);
+		note.writeInt32BE(1, 32); note.writeUInt32BE(2, 36);
+
+		for (const [name, file, headroom] of [['XMP headroom', await appleFile('4', null), 4], ['maker note headroom', await appleFile(null, exif), 2 ** 1.8]]) {
+			const image = await Image.decode(file);
+			const map = image.gainMap;
+			if (!map || Math.abs(map.gainMapMax[0] - Math.log2(headroom)) > 1e-4 || map.gainMapMin[0] !== 0 || map.hdrCapacityMax !== map.gainMapMax[0]) panic(`Apple, ${name}: ${map ? map.gainMapMax : 'no map'}`);
+			// the ramp's values as Apple applies them
+			const px = map.image.bitmap;
+			for (let x = 0; x < 64; x += 9) {
+				const stored = Math.min(255, x * 4) / 255;
+				const want = Math.log2(1 + (headroom - 1) * stored ** 1.961);
+				const got = map.gainMapMax[0] * px[4 * x] / 255;
+				if (Math.abs(want - got) > 0.03) panic(`Apple, ${name}: value ${x * 4} gives ${got} stops, not ${want}`);
+			}
+			// written as an Ultra HDR JPEG (ISO 21496-1 and hdrgm), the same boosts
+			const back = (await Image.decode(await image.encodeJPEG(90))).gainMap;
+			if (!back || !close(back.gainMapMax, map.gainMapMax)) panic(`Apple, ${name}: not written back`);
+		}
+	}
+
 	// invalid arguments throw before the image or its map changes
 	for (const [name, call] of [['blur', i => i.blur('5')], ['fill', i => i.fill('red')], ['cover', i => i.cover(-1, 10)]]) {
 		const image = single.clone();

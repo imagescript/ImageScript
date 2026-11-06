@@ -1,7 +1,10 @@
 // Gain map JPEGs (Ultra HDR, JPEG-R, ISO 21496-1): an SDR JPEG (the primary image) with a second JPEG appended, the
 // gain map, which says how much brighter each part gets on an HDR display. The primary's MPF index (APP2 "MPF\0")
 // says where the gain map is; the gain map's parameters are in its own ISO 21496-1 block (APP2) and/or Adobe's
-// hdrgm XMP (APP1). Layout and defaults like Google's libultrahdr (lib/src/jpegr.cpp, gainmapmetadata.cpp)
+// hdrgm XMP (APP1). Layout and defaults like Google's libultrahdr (lib/src/jpegr.cpp, gainmapmetadata.cpp).
+// iPhones (iOS 14.1 on) write their own kind: the gain map is an MPF image marked by Apple's XMP, its headroom in that
+// XMP (iOS 18 on) or in the primary's Exif maker note, and it boosts by 1 + (headroom - 1) * value^1.961 (like
+// Skia: SkXmp.cpp, SkExif.cpp, SkGainmapShader.cpp)
 
 /** The parameters of a gain map (log2 values like hdrgm's XMP; per channel: red, green, blue) */
 export interface Params {
@@ -25,6 +28,9 @@ const XMP_NAMESPACE = 'http://ns.adobe.com/xap/1.0/\0';
 const ISO_NAMESPACE = 'urn:iso:std:iso:ts:21496:-1\0';
 const MPF_SIGNATURE = 'MPF\0';
 const HDRGM_URI = 'http://ns.adobe.com/hdr-gain-map/1.0/';
+const APPLE_GAIN_MAP = 'urn:com:apple:photo:2020:aux:hdrgainmap';
+/** The exponent of Apple's gain map values */
+export const APPLE_GAMMA = 1.961;
 
 const ascii = (text: string): Uint8Array => Uint8Array.from(text, c => c.charCodeAt(0));
 const startsWith = (data: Uint8Array, offset: number, text: string): boolean => {
@@ -86,40 +92,41 @@ export function dimensions(data: Uint8Array): { width: number, height: number } 
     return null;
 }
 
-// the second image of the primary's MPF index, null if there's none (or it lies outside the file: chat apps and
-// some uploads cut the gain map off but keep the index)
-function mpfSecondImage(data: Uint8Array, primary: Segment[]): Uint8Array | null {
+// the images after the first of the primary's MPF index (none that lie outside the file: chat apps and some uploads
+// cut the gain map off but keep the index)
+function mpfImages(data: Uint8Array, primary: Segment[]): Uint8Array[] {
+    const images: Uint8Array[] = [];
     for (const { marker, body, start } of primary) {
         if (marker !== 0xe2 || !startsWith(body, 0, MPF_SIGNATURE)) continue;
         const tiff = start + 4 + 4;
         const view = new DataView(data.buffer, data.byteOffset + tiff, body.length - 4);
-        if (view.byteLength < 8) return null;
+        if (view.byteLength < 8) return images;
         const little = view.getUint16(0) === 0x4949;
         const u16 = (o: number): number => view.getUint16(o, little), u32 = (o: number): number => view.getUint32(o, little);
         const ifd = u32(4);
-        if (ifd + 2 > view.byteLength) return null;
+        if (ifd + 2 > view.byteLength) return images;
         const count = u16(ifd);
-        let entries = -1, images = 0;
+        let entries = -1, imageCount = 0;
         for (let k = 0; k < count; k++) {
             const t = ifd + 2 + 12 * k;
-            if (t + 12 > view.byteLength) return null;
+            if (t + 12 > view.byteLength) return images;
             const tag = u16(t);
-            if (tag === 0xb001) images = u32(t + 8);
+            if (tag === 0xb001) imageCount = u32(t + 8);
             if (tag === 0xb002) entries = u32(t + 8);
         }
-        if (entries < 0 || images < 2) return null;
-        for (let k = 1; k < images; k++) {
+        if (entries < 0 || imageCount < 2) return images;
+        for (let k = 1; k < imageCount; k++) {
             const e = entries + 16 * k;
-            if (e + 16 > view.byteLength) return null;
+            if (e + 16 > view.byteLength) return images;
             const size = u32(e + 4), offset = u32(e + 8);
             if (!offset || !size) continue;
             const begin = tiff + offset;
             if (begin + size > data.length || data[begin] !== 0xff || data[begin + 1] !== 0xd8) continue;
-            return data.subarray(begin, begin + size);
+            images.push(data.subarray(begin, begin + size));
         }
-        return null;
+        return images;
     }
-    return null;
+    return images;
 }
 
 // the gain map by the primary's XMP container directory (its Item:Length, at the end of the file), for files without
@@ -137,13 +144,84 @@ function containerSecondImage(data: Uint8Array, primary: Segment[]): Uint8Array 
     return null;
 }
 
-/** A JPEG's gain map (the map's JPEG) and its parameters, null if it has none (or none that can be read) */
-export function find(data: Uint8Array): { map: Uint8Array, params: Params } | null {
+/**
+ * A JPEG's gain map (the map's JPEG) and its parameters, null if it has none (or none that can be read). `apple`: the
+ * headroom of an Apple gain map, whose values need converting (see {@link appleValue})
+ */
+export function find(data: Uint8Array): { map: Uint8Array, params: Params, apple?: number } | null {
     const primary = segments(data);
-    const map = mpfSecondImage(data, primary) ?? containerSecondImage(data, primary);
-    if (!map) return null;
-    const params = readParams(map);
-    return params ? { map, params } : null;
+    const images = mpfImages(data, primary);
+    const container = containerSecondImage(data, primary);
+    if (container) images.push(container);
+    for (const map of images) {
+        const params = readParams(map);
+        if (params) return { map, params };
+    }
+    // (Apple's: the headroom read only once a map is marked as one)
+    for (const map of images) {
+        const apple = readApple(map, primary);
+        if (apple) return { map, ...apple };
+    }
+    return null;
+}
+
+/** An Apple gain map's stored value (0-1) as the value of the parameters {@link find} gives it (log2 gain over the headroom's) */
+export const appleValue = (value: number, headroom: number): number => Math.log2(1 + (headroom - 1) * value ** APPLE_GAMMA) / Math.log2(headroom);
+
+// an MPF image marked as Apple's gain map: its headroom (its XMP's, else the primary's maker note's) and parameters
+// for the converted values (log2 gain 0 up to the headroom's, like the display applies it)
+function readApple(map: Uint8Array, primary: Segment[]): { params: Params, apple: number } | null {
+    let xmp: string | null = null;
+    for (const { marker, body } of segments(map))
+        if (marker === 0xe1 && startsWith(body, 0, XMP_NAMESPACE)) xmp = latin1(body.subarray(XMP_NAMESPACE.length));
+    if (!xmp || !xmp.includes(APPLE_GAIN_MAP) || !/HDRGainMapVersion/.test(xmp)) return null;
+    const value = (name: string): number | null => {
+        const m = new RegExp(`:${name}\\s*(?:=\\s*["']([^"']*)["']|>([^<]*)<)`).exec(xmp);
+        return m ? Number((m[1] ?? m[2]).trim()) : null;
+    };
+    const headroom = value('HDRGainMapHeadroom') ?? makerNoteHeadroom(primary);
+    if (!(headroom !== null && headroom > 1 && Number.isFinite(headroom))) return null;
+    const stops = Math.log2(headroom);
+    const params: Params = { min: [0, 0, 0], max: [stops, stops, stops], gamma: [1, 1, 1], offsetSDR: [0, 0, 0], offsetHDR: [0, 0, 0], capacityMin: 0, capacityMax: stops, useBaseColorSpace: true };
+    return { params, apple: headroom };
+}
+
+// the headroom of an iPhone photo from its Exif maker note (tags 33 and 48: Apple's "Applying Apple HDR effect to your
+// photos", by Skia's SkExif.cpp), null without one
+function makerNoteHeadroom(primary: Segment[]): number | null {
+    const exif = primary.find(({ marker, body }) => marker === 0xe1 && startsWith(body, 0, 'Exif\0\0'));
+    if (!exif) return null;
+    const tiff = exif.body.subarray(6);
+    if (tiff.length < 8) return null;
+    const view = new DataView(tiff.buffer, tiff.byteOffset, tiff.byteLength);
+    const little = view.getUint16(0) === 0x4949;
+    // an IFD's entries: tag, type, count, value or offset (from `base`)
+    const entries = (v: DataView, at: number, le: boolean): { tag: number, type: number, count: number, value: number }[] => {
+        if (at + 2 > v.byteLength) return [];
+        const out = [];
+        for (let k = 0, n = v.getUint16(at, le); k < n && at + 2 + 12 * k + 12 <= v.byteLength; k++) {
+            const e = at + 2 + 12 * k;
+            out.push({ tag: v.getUint16(e, le), type: v.getUint16(e + 2, le), count: v.getUint32(e + 4, le), value: v.getUint32(e + 8, le) });
+        }
+        return out;
+    };
+    const sub = entries(view, view.getUint32(4, little), little).find(e => e.tag === 0x8769);
+    const note = sub && entries(view, sub.value, little).find(e => e.tag === 0x927c);
+    if (!note || note.value + note.count > tiff.length) return null;
+    const maker = tiff.subarray(note.value, note.value + note.count);
+    if (!startsWith(maker, 0, 'Apple iOS\0\0\x01MM')) return null;
+    const mv = new DataView(maker.buffer, maker.byteOffset, maker.byteLength);
+    let m33: number | null = null, m48 = 0;
+    for (const { tag, type, count, value } of entries(mv, 14, false)) {
+        if ((tag !== 33 && tag !== 48) || type !== 10 || count < 1 || value + 8 > maker.length) continue;
+        const d = mv.getUint32(value + 4);
+        if (!d) continue;
+        const r = mv.getInt32(value) / d;
+        if (tag === 33) m33 = r; else m48 = r;
+    }
+    if (m33 === null) return null;
+    const stops = m33 < 1 ? (m48 <= 0.01 ? -20 * m48 + 1.8 : -0.101 * m48 + 1.601) : (m48 <= 0.01 ? -70 * m48 + 3 : -0.303 * m48 + 2.303);
+    return 2 ** Math.max(stops, 0);
 }
 
 /** The parameters in a gain map JPEG: ISO 21496-1 first (like libultrahdr), else hdrgm XMP; null if neither is valid */

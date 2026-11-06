@@ -2537,7 +2537,7 @@ export class Image {
             try {
                 const found = gainMapCodec.find(data);
                 const size = found && gainMapCodec.dimensions(found.map);
-                if (found && size && size.width * size.height <= maxPixels) image.__gain_map__ = GainMap.__from_jpeg__(found.map, found.params);
+                if (found && size && size.width * size.height <= maxPixels) image.__gain_map__ = GainMap.__from_jpeg__(found.map, found.params, found.apple);
             } catch {
                 image.__gain_map__ = null;
             }

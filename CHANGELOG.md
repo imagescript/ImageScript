@@ -23,6 +23,8 @@
     at a quality or size, `{ gainMap: false }` leaves it out; `DecodeOptions.gainMap: false` doesn't read it.
   - Files with the gain map cut off (some chat apps and uploads keep the index but drop the map) and broken gain map
     metadata decode as before, without one.
+  - iPhone JPEGs carry Apple's own kind of gain map (with its headroom in Apple's XMP or Exif maker note): it's read
+    too, converted to the same parameters, and written as an Ultra HDR gain map.
 
 ## 3.15.0
 
