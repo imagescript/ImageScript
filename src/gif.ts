@@ -15,7 +15,7 @@ export class GIF extends Animation {
     /**
      * Creates a new GIF image
      * @param frames The frames to create the GIF from
-     * @param loopCountOrOptions How many times to repeat the GIF (-1 = forever, 0 = play once), or see
+     * @param loopCountOrOptions How many times to repeat the GIF (`Infinity` = forever, 0 = play once), or see
      *     {@link AnimationOptions}
      */
     constructor(frames: Frame[], loopCountOrOptions?: number | AnimationOptions) {

@@ -17,6 +17,8 @@
 - `cropCircle({ size: 'contain' | 'cover' })`: `'contain'` (the default, as before) keeps the circle inside the image.
 - `Image.renderText(text, { font, size, color, layout, ...style })`: the text first, everything else in the options.
   `layout` is `TextLayoutOptions` or a `TextLayout`: `Image.renderText('Hi', { font, size: 32, layout: { maxWidth: 400 } })`.
+- `Infinity` as the loop count of animations that loop forever (`new Animation(frames, { loopCount: Infinity })`,
+  and the encoders'). Animations that loop forever still have `-1` as their `loopCount` (also the decoded ones).
 - `Animation.webpEncoder()`, `gifEncoder()` and `apngEncoder()` take the options of `encodeWebP()`, `encodeGIF()` and
   `encodeAPNG()`, plus `loopCount`: the options are documented once.
 
@@ -28,6 +30,7 @@
   `pixels()`. Removed in 4.0.
 - `Image.renderText(font, size, text, ...)`: use `renderText(text, { font, size, ... })`. Removed in 4.0, as is the
   swapped use of `horizontalAlign` and `verticalAlign` values of `TextLayout`.
+- `-1` as a loop count, use `Infinity`. Removed in 4.0, when animations that loop forever have `Infinity`.
 - `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and
   `APNGAnimationEncoderOptions`: they are the same as `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`,
   `GIFEncodeOptions` and `APNGEncodeOptions` with `loopCount`, which are all the types there are in 4.0.

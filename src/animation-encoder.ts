@@ -10,7 +10,7 @@ import { finite, compressionLevel } from './util/options.ts';
 import type { AnimationOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // (ImageScript, like GIF, counts repetitions: -1 forever, 0 play once; APNG and WebP count plays, 0 forever)
-const toPlays = (loopCount: number): number => loopCount < 0 ? 0 : loopCount + 1;
+const toPlays = (loopCount: number): number => loopCount < 0 || loopCount === Infinity ? 0 : loopCount + 1;
 
 /**
  * The options all animation encoders of {@link Animation.webpEncoder} and the others have
@@ -237,7 +237,7 @@ export class AnimationEncoder {
 
 function canvas(width: number, height: number, loopCount: number): void {
     if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`Invalid canvas size: ${width}x${height}`);
-    if (!Number.isInteger(loopCount) || loopCount < -1) throw new RangeError('Invalid loop count');
+    if (loopCount !== Infinity && (!Number.isInteger(loopCount) || loopCount < -1)) throw new RangeError('Invalid loop count');
 }
 
 // a frame in the WebP codec's terms (odd offsets: one transparent pixel more on the left/top, blending makes it

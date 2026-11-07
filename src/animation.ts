@@ -15,7 +15,7 @@ import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
 // loop counts: ImageScript (like GIF) counts repetitions (-1 forever, 0 play once), APNG and WebP count plays (0 forever)
-const toPlays = (loopCount: number): number => loopCount < 0 ? 0 : loopCount + 1;
+const toPlays = (loopCount: number): number => loopCount < 0 || loopCount === Infinity ? 0 : loopCount + 1;
 const fromPlays = (plays: number): number => plays === 0 ? -1 : plays - 1;
 
 // frames decoded fully composited, as full canvas frames
@@ -30,7 +30,10 @@ function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uin
 
 /** Options of {@link Animation} */
 export interface AnimationOptions {
-    /** How many times to repeat the animation (-1 = forever, 0 = play once). Default: `-1` */
+    /**
+     * How many times to repeat the animation (`Infinity` = forever, 0 = play once, 1 = play twice, ...). `-1` still
+     * means forever, it will be removed in 4.0. Default: forever
+     */
     loopCount?: number;
 }
 
@@ -98,7 +101,11 @@ export interface APNGEncodeOptions extends AnimationEncodeOptions {
  * plain arrays.
  */
 export class Animation extends Array<Frame> {
-    /** How many times to repeat the animation (-1 = forever, 0 = play once) */
+    /**
+     * How many times to repeat the animation (`Infinity` = forever, 0 = play once, 1 = play twice, ...). `-1` still
+     * means forever, it will be removed in 4.0, when `Infinity` is what animations that loop forever have (animations
+     * that loop forever have `-1` until then, also the decoded ones)
+     */
     loopCount: number;
 
     /**
@@ -110,7 +117,7 @@ export class Animation extends Array<Frame> {
     /**
      * Creates a new animation
      * @param frames The frames to create the animation from
-     * @param loopCount How many times to repeat the animation (-1 = forever, 0 = play once)
+     * @param loopCount How many times to repeat the animation (`Infinity` = forever, 0 = play once, 1 = play twice, ...)
      */
     constructor(frames: Frame[], loopCount?: number);
     constructor(frames: Frame[], loopCountOrOptions: number | AnimationOptions = -1) {
@@ -123,7 +130,7 @@ export class Animation extends Array<Frame> {
             if (!(this[i] instanceof Frame))
                 throw new TypeError(`Frame ${i} is not an instance of Frame`);
 
-        if (finite(loopCount, 'loop count') < -1 || !Number.isInteger(Number(loopCount)))
+        if (loopCount !== Infinity && (finite(loopCount, 'loop count') < -1 || !Number.isInteger(Number(loopCount))))
             throw new RangeError(`Invalid loop count: ${loopCount}`);
 
         this.loopCount = loopCount;

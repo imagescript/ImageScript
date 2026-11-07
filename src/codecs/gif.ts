@@ -99,7 +99,7 @@ export function header(width: number, height: number, loopCount: number, comment
         out.bytes(0x21, 0xff, 0x0b);
         out.string('NETSCAPE2.0');
         out.bytes(0x03, 0x01);
-        out.u16(loopCount === -1 ? 0 : loopCount);
+        out.u16(loopCount === -1 || loopCount === Infinity ? 0 : loopCount);
         out.bytes(0x00);
     }
 
