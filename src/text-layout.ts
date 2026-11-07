@@ -15,12 +15,14 @@ export interface TextLayoutOptions {
     wrapStyle?: WrapStyle;
     /**
      * Alignment of the lines relative to the widest line. Default: `'left'`
-     * (before 3.0 this was called verticalAlign, values are accepted under either name)
+     * (before 3.0 this was called verticalAlign, the values of the other axis (`'top'`, `'middle'`, `'bottom'`) are
+     * accepted for compatibility, which will be removed in 4.0)
      */
     horizontalAlign?: HorizontalAlign | VerticalAlign;
     /**
      * Which lines to keep when cutting off at `maxHeight`. Default: `'top'`
-     * (before 3.0 this was called horizontalAlign, values are accepted under either name)
+     * (before 3.0 this was called horizontalAlign, the values of the other axis (`'left'`, `'center'`, `'right'`) are
+     * accepted for compatibility, which will be removed in 4.0)
      */
     verticalAlign?: VerticalAlign | HorizontalAlign;
     /** Whether to break lines at newline characters. Default: `true` */

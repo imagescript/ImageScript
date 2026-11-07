@@ -15,6 +15,8 @@
   ratio, `resize({ width: 256, mode: 'bicubic' })`.
 - `image.coordinates()` yields `[x, y]` and `image.pixels()` yields `[x, y, color]` for every pixel, row by row.
 - `cropCircle({ size: 'contain' | 'cover' })`: `'contain'` (the default, as before) keeps the circle inside the image.
+- `Image.renderText(text, { font, size, color, layout, ...style })`: the text first, everything else in the options.
+  `layout` is `TextLayoutOptions` or a `TextLayout`: `Image.renderText('Hi', { font, size: 32, layout: { maxWidth: 400 } })`.
 
 ### Deprecated
 
@@ -22,6 +24,8 @@
   Removed in 4.0.
 - Iterating over an image (`for (const [x, y] of image)`) and `iterateWithColors()`: use `coordinates()` and
   `pixels()`. Removed in 4.0.
+- `Image.renderText(font, size, text, ...)`: use `renderText(text, { font, size, ... })`. Removed in 4.0, as is the
+  swapped use of `horizontalAlign` and `verticalAlign` values of `TextLayout`.
 - `encode()`: use `encodePNG()`, which takes the same arguments. Removed in 4.0.
 - `cropCircle(max, feathering)` and the `max` option: use `cropCircle({ size: 'contain' | 'cover' })`. Removed in 4.0.
 

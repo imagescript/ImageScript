@@ -432,4 +432,24 @@ const panic = message => {
             if (!(error instanceof RangeError)) panic(`variations ${JSON.stringify(variations)} should be rejected`);
         }
     }
+
+    // renderText(text, options) renders like the deprecated renderText(font, size, text, ...) (removed in 4.0)
+    {
+        const font = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
+        const text = 'Hello wrapped world';
+        const layout = new TextLayout({maxWidth: 90, horizontalAlign: 'center'});
+        const cases = [
+            [await Image.renderText(font, 32, text), await Image.renderText(text, {font, size: 32})],
+            [await Image.renderText(font, 24, text, 0xff8800ff, layout), await Image.renderText(text, {font, size: 24, color: 0xff8800ff, layout})],
+            [await Image.renderText(font, 24, text, 0xff8800ff, layout), await Image.renderText(text, {font, size: 24, color: 0xff8800ff, layout: {maxWidth: 90, horizontalAlign: 'center'}})],
+            [await Image.renderText(font, 24, text, {strokeWidth: 2, strokeColor: 0xff0000ff, features: {smcp: true}}), await Image.renderText(text, {font, size: 24, strokeWidth: 2, strokeColor: 0xff0000ff, features: {smcp: true}})],
+            [await Image.renderText([font, font], 20, text), await Image.renderText(text, {font: [font, font], size: 20})]
+        ];
+        cases.forEach(([old, now], i) => { if (old.width !== now.width || old.height !== now.height || !Buffer.from(old.bitmap).equals(Buffer.from(now.bitmap))) panic(`renderText(text, options) case ${i} differs from the old signature`); });
+        for (const options of [undefined, {size: 20}, {font}, {font, size: NaN}]) {
+            let error = null;
+            try { await Image.renderText(text, options); } catch (err) { error = err; }
+            if (!error) panic(`renderText(text, ${JSON.stringify(options && Object.keys(options))}) should be rejected`);
+        }
+    }
 })();
