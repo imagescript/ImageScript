@@ -480,6 +480,11 @@ export interface RotateOptions {
 /** Options of {@link Image.trim} */
 export interface TrimOptions {
     /**
+     * The border color, by default the color of the top left pixel. Fully transparent pixels count as the same color
+     * whatever their RGB values
+     */
+    color?: Color;
+    /**
      * How far (0-1) a pixel's channels may be from the color for it to be trimmed, e.g. for JPEG artifacts or
      * antialiasing. Default: `0`
      */
@@ -488,6 +493,8 @@ export interface TrimOptions {
 
 /** Options of {@link Image.colorToAlpha} */
 export interface ColorToAlphaOptions {
+    /** The color to remove, by default the color of the top left pixel (e.g. a background) */
+    color?: Color;
     /** Pixels at most this far from the color (0-1) become fully transparent. Default: 0 */
     transparencyThreshold?: number;
     /** Pixels at least this far from the color (0-1) stay fully opaque. Default: 1 */
@@ -928,6 +935,7 @@ export class Image {
      * Resizes the image by the given factor
      * @param factor The factor to resize the image with
      * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
+      * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
      */
     scale(factor: number, mode?: ResizeMode): this;
     scale(factor: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
@@ -963,6 +971,7 @@ export class Image {
      * @param height The new height
      * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
      * @returns The resized image
+      * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
      */
     resize(width: number, height: number, mode?: ResizeMode): this;
     /**
@@ -995,6 +1004,7 @@ export class Image {
      * @param height The height of the bounding box
      * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
      * @returns The resized image
+      * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
      */
     contain(width: number, height: number, mode?: ResizeMode): this;
     contain(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
@@ -1022,6 +1032,7 @@ export class Image {
      * @param height The height of the bounding box
      * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
      * @returns The resized image
+      * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
      */
     fit(width: number, height: number, mode?: ResizeMode): this;
     fit(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
@@ -1050,6 +1061,7 @@ export class Image {
      * @param height The height of the bounding box
      * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
      * @returns The resized image
+      * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
      */
     cover(width: number, height: number, mode?: ResizeMode): this;
     cover(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
@@ -1192,11 +1204,21 @@ export class Image {
      * Removes borders of one color, e.g. the empty space around rendered text or around a logo on a solid background.
      * Frames keep their position: their offsets move by the trimmed amount. An image that only has the color stays
      * unchanged
+     * @param options See {@link TrimOptions}
+     */
+    trim(options?: TrimOptions): this;
+    /**
+     * Removes borders of one color, e.g. the empty space around rendered text or around a logo on a solid background.
+     * Frames keep their position: their offsets move by the trimmed amount. An image that only has the color stays
+     * unchanged
      * @param color The border color, by default the color of the top left pixel. Fully transparent pixels count as the
      *     same color whatever their RGB values
      * @param options See {@link TrimOptions}
+      * @deprecated Pass {@link TrimOptions} instead, the positional arguments will be removed in 4.0
      */
-    trim(color?: Color, options: TrimOptions = {}): this {
+    trim(color?: Color, options?: TrimOptions): this;
+    trim(colorOrOptions?: Color | TrimOptions, optionsArgument: TrimOptions = {}): this {
+        const { color, ...options } = isOptions(colorOrOptions) ? colorOrOptions : { ...optionsArgument, color: colorOrOptions ?? optionsArgument.color };
         const bounds = this.__trim_bounds__(color, options);
         if (!bounds) return this;
         this.__crop_gain_map__(this, ...bounds);
@@ -1591,6 +1613,7 @@ export class Image {
      * @param [x=0] The x position to place the image at
      * @param [y=0] The y position to place the image at
      * @param options Opacity and blend mode, see {@link CompositeOptions}
+      * @deprecated Pass {@link CompositeOptions} instead, the positional arguments will be removed in 4.0
      */
     composite(source: Image, x?: number, y?: number, options?: CompositeOptions): this;
     composite(source: Image, xOrOptions: number | CompositeOptions = 0, yArgument = 0, optionsArgument: CompositeOptions = {}): this {
@@ -1877,6 +1900,7 @@ export class Image {
      * Sharpens the image with an unsharp mask: the difference to a blurred copy is amplified
      * @param [amount=1] How strongly to sharpen (0 does nothing)
      * @param [radius=1] The radius of the blur the image is compared with (larger values sharpen coarser details)
+      * @deprecated Pass {@link SharpenOptions} instead, the positional arguments will be removed in 4.0
      */
     sharpen(amount?: number, radius?: number): this;
     sharpen(amountOrOptions: number | SharpenOptions = 1, radiusArgument = 1): this {
@@ -1972,11 +1996,23 @@ export class Image {
      * semi-transparent instead of keeping a fringe of it.
      * The color is removed everywhere in the image, not only from a connected background: removing a white
      * background also makes white areas inside the subject (e.g. eyes in a logo) transparent
-     * @param color The color to remove, by default the color of the top left pixel (e.g. a background)
      * @param options See {@link ColorToAlphaOptions}
      */
-    colorToAlpha(color?: Color, options: ColorToAlphaOptions = {}): this {
-        const { transparencyThreshold = 0, opacityThreshold = 1 } = options;
+    colorToAlpha(options?: ColorToAlphaOptions): this;
+    /**
+     * Makes a color transparent, like GIMP's "Color to Alpha": the color is removed from every pixel and replaced by
+     * transparency, so pixels that are partly the color (e.g. antialiased edges against a background) become
+     * semi-transparent instead of keeping a fringe of it.
+     * The color is removed everywhere in the image, not only from a connected background: removing a white
+     * background also makes white areas inside the subject (e.g. eyes in a logo) transparent
+     * @param color The color to remove, by default the color of the top left pixel (e.g. a background)
+     * @param options See {@link ColorToAlphaOptions}
+      * @deprecated Pass {@link ColorToAlphaOptions} instead, the positional arguments will be removed in 4.0
+     */
+    colorToAlpha(color?: Color, options?: ColorToAlphaOptions): this;
+    colorToAlpha(colorOrOptions?: Color | ColorToAlphaOptions, optionsArgument: ColorToAlphaOptions = {}): this {
+        const { color: colorOption, transparencyThreshold = 0, opacityThreshold = 1 } = isOptions(colorOrOptions) ? colorOrOptions : { ...optionsArgument, color: colorOrOptions ?? optionsArgument.color };
+        let color = colorOption;
         if (!(transparencyThreshold >= 0 && opacityThreshold <= 1 && transparencyThreshold < opacityThreshold))
             throw new RangeError('Invalid thresholds, they have to satisfy 0 <= transparencyThreshold < opacityThreshold <= 1');
 
@@ -2055,6 +2091,7 @@ export class Image {
      * @param ignoreWhite Whether to ignore light colors (all channels above 255 minus the threshold). Default: `true`
      * @param bwThreshold The black/white threshold (0-64, in steps of 4 channel values). Default: `15`
      * @return The image's dominant color (fully opaque)
+      * @deprecated Pass {@link DominantColorOptions} instead, the positional arguments will be removed in 4.0
      */
     dominantColor(ignoreBlack?: boolean, ignoreWhite?: boolean, bwThreshold?: number): Color;
     dominantColor(ignoreBlackOrOptions: boolean | DominantColorOptions = true, ignoreWhiteArgument = true, thresholdArgument = 0xf): Color {
@@ -2080,6 +2117,7 @@ export class Image {
      * Rotates the image counterclockwise by the given amount of degrees
      * @param angle The angle to rotate the image for (in degrees)
      * @param resize Whether to resize the image so it fits all pixels or just ignore outlying pixels. Default: `true`
+      * @deprecated Pass {@link RotateOptions} instead, the positional arguments will be removed in 4.0
      */
     rotate(angle: number, resize?: boolean): this;
     rotate(angle: number, resizeOrOptions: boolean | RotateOptions = true): this {
@@ -2284,6 +2322,7 @@ export class Image {
     /**
      * Rounds the images corners, with antialiased edges
      * @param [radius=min(width,height)/4] The radius of the corners
+      * @deprecated Pass {@link RoundCornersOptions} instead, the positional arguments will be removed in 4.0
      */
     roundCorners(radius?: number): this;
     roundCorners(radiusOrOptions?: number | RoundCornersOptions): this {
@@ -2315,6 +2354,7 @@ export class Image {
     /**
      * Applies a fisheye (barrel distortion) effect
      * @param [strength=2] The distortion strength (exponent of the radial mapping), higher values bulge the center more
+      * @deprecated Pass {@link FisheyeOptions} instead, the positional arguments will be removed in 4.0
      */
     fisheye(strength?: number): this;
     fisheye(strengthOrOptions?: number | FisheyeOptions): this {
@@ -2368,12 +2408,14 @@ export class Image {
      * @param compression The compression level (0-9). Default: `4`
      * @param metadata Metadata to include, see {@link Metadata}
      * @return The encoded data
+      * @deprecated Pass {@link PNGEncodeOptions} instead, the positional arguments will be removed in 4.0
      */
     encodePNG(compression?: number, metadata?: Metadata): Promise<Uint8Array>;
     /**
      * Encodes the image into a PNG with compression level 4
      * @param metadata Metadata to include, see {@link Metadata}
      * @return The encoded data
+      * @deprecated Pass {@link PNGEncodeOptions} instead, the positional arguments will be removed in 4.0
      */
     encodePNG(metadata?: Metadata): Promise<Uint8Array>;
     async encodePNG(compressionOrOptions: number | PNGEncodeOptions | Metadata = 4, metadataArgument: Metadata = {}): Promise<Uint8Array> {
@@ -2424,6 +2466,7 @@ export class Image {
     /**
      * Encodes the image into a JPEG
      * @param [quality=90] The JPEG quality to use (1-100), chroma subsampling is disabled above 90
+      * @deprecated Pass {@link JPEGEncodeOptions} instead, the positional arguments will be removed in 4.0
      */
     encodeJPEG(quality?: number): Promise<Uint8Array>;
     async encodeJPEG(qualityOrOptions: number | JPEGEncodeOptions = 90): Promise<Uint8Array> {
@@ -2699,6 +2742,7 @@ export class Image {
      * @param size The size to use
      * @param mode The SVG resizing mode to use (one of {@link SVGScaleModes.SCALE}, {@link SVGScaleModes.WIDTH}, {@link SVGScaleModes.HEIGHT})
      * @return The rendered SVG graphic
+      * @deprecated Pass {@link SVGOptions} instead, the positional arguments will be removed in 4.0
      */
     static renderSVG(svg: string | BinaryData, size?: number, mode?: SVGScaleMode): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, sizeOrOptions: number | SVGOptions = 1, modeArgument: SVGScaleMode = SVGScaleModes.SCALE): Promise<Image> {

@@ -3,7 +3,10 @@ import { isOptions, finite } from './util/options.ts';
 
 /** Names of the frame disposal modes, see {@link Frame.disposalMode} */
 export type FrameDisposalModeName = 'any' | 'keep' | 'previous' | 'background';
-/** Ids of the frame disposal modes, as GIFs store them (0 any, 1 keep, 2 previous, 3 background) */
+/**
+ * Ids of the frame disposal modes, as GIFs store them (0 any, 1 keep, 2 previous, 3 background). Use the names
+ * ({@link FrameDisposalModeName}) instead: the ids will be removed in 4.0
+ */
 export type FrameDisposalModeId = 0 | 1 | 2 | 3;
 
 const DISPOSAL_MODES: readonly FrameDisposalModeName[] = ['any', 'keep', 'previous', 'background'];
@@ -108,6 +111,7 @@ export class Frame extends Image {
      * @param xOffset The frame's offset on the x-axis
      * @param yOffset The frame's offset on the y-axis
      * @param disposalMode The frame's disposal mode
+      * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
      */
     constructor(width: number, height: number, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId);
     constructor(width: number, height: number, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId) {
@@ -165,6 +169,7 @@ export class Frame extends Image {
      * @param xOffset The frame's offset on the x-axis
      * @param yOffset The frame's offset on the y-axis
      * @param disposalMode The frame's disposal mode
+      * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
      */
     static from(image: Image, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId): Frame;
     static from(image: Image, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId): Frame {
@@ -187,10 +192,18 @@ export class Frame extends Image {
 
     /**
      * Removes borders of one color, moving the frame's offsets so the remaining pixels stay in place
-     * @param color The border color, by default the color of the top left pixel
      * @param options See {@link TrimOptions}
      */
-    override trim(color?: Color, options: TrimOptions = {}): this {
+    override trim(options?: TrimOptions): this;
+    /**
+     * Removes borders of one color, moving the frame's offsets so the remaining pixels stay in place
+     * @param color The border color, by default the color of the top left pixel
+     * @param options See {@link TrimOptions}
+      * @deprecated Pass {@link TrimOptions} instead, the positional arguments will be removed in 4.0
+     */
+    override trim(color?: Color, options?: TrimOptions): this;
+    override trim(colorOrOptions?: Color | TrimOptions, optionsArgument: TrimOptions = {}): this {
+        const { color, ...options } = isOptions(colorOrOptions) ? colorOrOptions : { ...optionsArgument, color: colorOrOptions ?? optionsArgument.color };
         const bounds = this.__trim_bounds__(color, options);
         if (!bounds) return this;
         this.xOffset += bounds[0];
@@ -203,9 +216,17 @@ export class Frame extends Image {
      * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
      * @param width The new width
      * @param height The new height
-     * @param modeOrOptions The resizing mode (default: {@link ResizeModes.BILINEAR}) or {@link ResizeOptions}
+     * @param options See {@link ResizeOptions}
      */
-    override resize(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this;
+    override resize(width: number, height: number, options?: ResizeOptions): this;
+    /**
+     * Resizes the frame, scaling its offsets along with it.
+     * @param width The new width
+     * @param height The new height
+     * @param mode The resizing mode (default: {@link ResizeModes.BILINEAR})
+     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
+     */
+    override resize(width: number, height: number, mode?: ResizeMode): this;
     /**
      * Resizes the frame, scaling its offsets along with it: to the given width or height (the other side keeps the
      * aspect ratio), or to both

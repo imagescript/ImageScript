@@ -587,6 +587,26 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert((await Animation.decode(codestream, {toneMapping: 'clamp'})).length === plain.length, 'Animation.decode with toneMapping clamp');
     }
 
+    // trim, colorToAlpha and GainMap.encode take their values in options too (the positional color and quality are deprecated, removed in 4.0)
+    {
+        const {GainMap} = require('..');
+        const bordered = () => new Image(6, 5).fill(0x102030ff).setPixelAt(2, 2, 0xffffffff).setPixelAt(3, 2, 0x00000000);
+        const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
+        assert(same(bordered().trim({color: 0x102030ff}), bordered().trim(0x102030ff)), 'trim({color}) vs trim(color)');
+        assert(same(bordered().trim({color: 0x102030ff, tolerance: 0.1}), bordered().trim(0x102030ff, {tolerance: 0.1})), 'trim({color, tolerance})');
+        assert(same(bordered().trim({tolerance: 0.1}), bordered().trim(undefined, {tolerance: 0.1})), 'trim({tolerance}) keeps the top left color');
+        assert(same(bordered().trim(), bordered().trim(undefined)) && same(bordered().trim(), bordered().trim({})), 'trim() without arguments');
+        const frame = () => Frame.from(bordered(), 100, 3, 4);
+        assert(same(frame().trim({color: 0x102030ff}), frame().trim(0x102030ff)) && frame().trim({color: 0x102030ff}).xOffset === 5, 'Frame.trim({color}) moves the offsets');
+        assert(same(bordered().colorToAlpha({color: 0x102030ff}), bordered().colorToAlpha(0x102030ff)), 'colorToAlpha({color}) vs colorToAlpha(color)');
+        assert(same(bordered().colorToAlpha({transparencyThreshold: 0.2}), bordered().colorToAlpha(undefined, {transparencyThreshold: 0.2})), 'colorToAlpha({transparencyThreshold})');
+        assert(same(bordered().colorToAlpha(), bordered().colorToAlpha(undefined)) && same(bordered().colorToAlpha(), bordered().colorToAlpha({})), 'colorToAlpha() without arguments');
+        const map = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
+        const a = await map.encode({quality: 70}), b = await map.encode(70);
+        assert(Buffer.from(a).equals(Buffer.from(b)), 'GainMap.encode({quality}) vs encode(quality)');
+        assert(Buffer.from(await map.encode()).equals(Buffer.from(await map.encode({}))), 'GainMap.encode() without arguments');
+    }
+
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values
     {
         const { Colors } = require('..');

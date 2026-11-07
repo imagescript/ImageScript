@@ -2,7 +2,13 @@ import { Image } from './image.ts';
 import * as jpeg from './codecs/jpeg.ts';
 import * as codec from './codecs/gainmap.ts';
 import { BinaryData, view } from './util/mem.ts';
-import { finite, quality as checkQuality } from './util/options.ts';
+import { finite, isOptions, quality as checkQuality } from './util/options.ts';
+
+/** Options of {@link GainMap.encode} */
+export interface GainMapEncodeOptions {
+    /** The JPEG quality (1-100). Default: `90` */
+    quality?: number;
+}
 
 /** Options of the {@link GainMap} constructor: per channel values can be one number for all three or [r, g, b] */
 export interface GainMapOptions {
@@ -261,9 +267,18 @@ export class GainMap {
     /**
      * Encodes the gain map alone: a JPEG with its parameters (hdrgm XMP and ISO 21496-1), like the second image in an
      * Ultra HDR JPEG
-     * @param quality The JPEG quality (1-100). Default: `90`
+     * @param options See {@link GainMapEncodeOptions}
      */
-    async encode(quality?: number): Promise<Uint8Array> {
+    encode(options?: GainMapEncodeOptions): Promise<Uint8Array>;
+    /**
+     * Encodes the gain map alone: a JPEG with its parameters (hdrgm XMP and ISO 21496-1), like the second image in an
+     * Ultra HDR JPEG
+     * @param quality The JPEG quality (1-100). Default: `90`
+      * @deprecated Pass {@link GainMapEncodeOptions} instead, the positional arguments will be removed in 4.0
+     */
+    encode(quality?: number): Promise<Uint8Array>;
+    async encode(qualityOrOptions?: number | GainMapEncodeOptions): Promise<Uint8Array> {
+        let quality = isOptions(qualityOrOptions) ? qualityOrOptions.quality : qualityOrOptions;
         if (quality !== undefined) quality = Math.max(1, checkQuality(quality));
         return codec.mapWithMetadata(this.__body__(quality), this.__params__());
     }

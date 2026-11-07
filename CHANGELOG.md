@@ -27,9 +27,12 @@
   and the encoders'). Animations that loop forever still have `-1` as their `loopCount` (also the decoded ones).
 - `Animation.webpEncoder()`, `gifEncoder()` and `apngEncoder()` take the options of `encodeWebP()`, `encodeGIF()` and
   `encodeAPNG()`, plus `loopCount`: the options are documented once.
+- `trim({ color, tolerance })` and `colorToAlpha({ color, transparencyThreshold, opacityThreshold })`: the color goes into the options, like the other options. `GainMap.encode({ quality })` likewise.
 
 ### Deprecated
 
+- Positional optional arguments, the options take the same values: `trim(color, options)`, `colorToAlpha(color, options)`, `GainMap.encode(quality)`, `resize`/`scale`/`contain`/`fit`/`cover` with a `mode` argument (use `ResizeOptions`), `Frame` constructor and `Frame.from()` with duration and offsets (use `FrameOptions`), `Animation` constructor with `loopCount` (use `AnimationOptions`), `Animation.decode(input, onlyExtractFirstFrame)`, `Animation.resize(width, height, mode)`, `Animation.encodeGIF(quality)` and `encodeAPNG(compression)`, `encodePNG(compression, metadata)` and `encodePNG(metadata)`, `encodeJPEG(quality)`, `renderSVG(svg, size, mode)`, `composite(source, x, y, options)`, `rotate(angle, resize)`, `sharpen(amount, radius)`, `roundCorners(radius)`, `fisheye(strength)`, `dominantColor(ignoreBlack, ignoreWhite, threshold)`. All of them still work until 4.0.
+- The numeric frame disposal ids (`0`-`3`): use the names (`'any'`, `'keep'`, `'previous'`, `'background'`). Removed in 4.0.
 - `ResizeModes.AUTO` (and `Image.RESIZE_AUTO`, `Frame.RESIZE_AUTO`): pass only the width or the height instead.
   Removed in 4.0.
 - Iterating over an image (`for (const [x, y] of image)`) and `iterateWithColors()`: use `coordinates()` and
