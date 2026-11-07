@@ -453,6 +453,23 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         }
     }
 
+    // cropCircle({size}): 'contain' is the default, `max` (deprecated, removed in 4.0) maps to 'cover'
+    {
+        const wide = new Image(40, 20).fill(ColorHelpers.fromRGBA(200, 100, 50, 255));
+        const same = (a, b) => Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
+        assert(same(wide.clone().cropCircle(), wide.clone().cropCircle({size: 'contain'})), 'cropCircle() is contain');
+        assert(same(wide.clone().cropCircle(false), wide.clone().cropCircle({size: 'contain'})), 'cropCircle(false)');
+        assert(same(wide.clone().cropCircle({max: false}), wide.clone().cropCircle({size: 'contain'})), 'cropCircle({max: false})');
+        assert(same(wide.clone().cropCircle(true), wide.clone().cropCircle({size: 'cover'})), 'cropCircle(true)');
+        assert(same(wide.clone().cropCircle({max: true, feathering: .5}), wide.clone().cropCircle({size: 'cover', feathering: .5})), 'cropCircle({max: true, feathering})');
+        assert(same(wide.clone().cropCircle({max: true, size: 'contain'}), wide.clone().cropCircle({size: 'contain'})), 'size wins over max');
+        assert(!same(wide.clone().cropCircle({size: 'cover'}), wide.clone().cropCircle({size: 'contain'})), 'cover differs from contain');
+        assert(wide.clone().cropCircle({size: 'contain'}).getPixelAt(20, 1) >>> 0 !== 0 && (wide.clone().cropCircle({size: 'contain'}).getPixelAt(1, 10) & 0xff) === 0, 'contain: the circle fits the height');
+        let threw = false;
+        try { wide.clone().cropCircle({size: 'max'}); } catch (e) { threw = e instanceof TypeError; }
+        assert(threw, 'cropCircle({size}) validates');
+    }
+
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values
     {
         const { Colors } = require('..');

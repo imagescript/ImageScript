@@ -14,6 +14,7 @@
 - `resize({ width })` and `resize({ height })` on images, frames and animations: the missing side keeps the aspect
   ratio, `resize({ width: 256, mode: 'bicubic' })`.
 - `image.coordinates()` yields `[x, y]` and `image.pixels()` yields `[x, y, color]` for every pixel, row by row.
+- `cropCircle({ size: 'contain' | 'cover' })`: `'contain'` (the default, as before) keeps the circle inside the image.
 
 ### Deprecated
 
@@ -22,6 +23,7 @@
 - Iterating over an image (`for (const [x, y] of image)`) and `iterateWithColors()`: use `coordinates()` and
   `pixels()`. Removed in 4.0.
 - `encode()`: use `encodePNG()`, which takes the same arguments. Removed in 4.0.
+- `cropCircle(max, feathering)` and the `max` option: use `cropCircle({ size: 'contain' | 'cover' })`. Removed in 4.0.
 
 ## 3.17.0
 

@@ -422,7 +422,16 @@ export interface TextStyle {
 
 /** Options of {@link Image.cropCircle} */
 export interface CropCircleOptions {
-    /** Whether to use the larger dimension for the size. Default: `false` */
+    /**
+     * The circle's size: `'contain'` fits it inside the image (the smaller dimension is its diameter, no hard edges),
+     * `'cover'` covers the image (the larger dimension is its diameter, the corners of a rectangular image stay
+     * transparent on the shorter side). Default: `'contain'`
+     */
+    size?: 'contain' | 'cover';
+    /**
+     * Whether to use the larger dimension for the size. Default: `false`
+     * @deprecated Use `size: 'cover'` (`true`) or `size: 'contain'` (`false`), `max` will be removed in 4.0
+     */
     max?: boolean;
     /** Share of the radius (0..1) over which the edge fades out. Default: `0` */
     feathering?: number;
@@ -1350,13 +1359,16 @@ export class Image {
      * Crops the image into a circle with an antialiased edge
      * @param max Whether to use the larger dimension for the size. Default: `false`
      * @param feathering Share of the radius (0..1) over which the edge fades out. Default: `0`
+     * @deprecated Pass {@link CropCircleOptions} instead, `cropCircle({ size: 'cover' })`. The arguments will be
+     *     removed in 4.0
      */
     cropCircle(max?: boolean, feathering?: number): this;
     cropCircle(maxOrOptions: boolean | CropCircleOptions = false, featheringArgument = 0): this {
-        const { max = false, feathering = 0 } = typeof maxOrOptions === 'object' && maxOrOptions !== null
+        const { max = false, size = max ? 'cover' : 'contain', feathering = 0 } = typeof maxOrOptions === 'object' && maxOrOptions !== null
             ? maxOrOptions : { max: maxOrOptions, feathering: featheringArgument };
         finite(feathering, 'feathering');
-        const radius = (max ? Math.max : Math.min)(this.width, this.height) / 2;
+        if (size !== 'contain' && size !== 'cover') throw new TypeError(`Invalid circle size: ${String(size)}`);
+        const radius = (size === 'cover' ? Math.max : Math.min)(this.width, this.height) / 2;
         const cx = this.width / 2, cy = this.height / 2;
         // width of the soft edge, at least the one pixel of antialiasing
         const band = Math.min(1, Math.max(0, feathering)) * radius;
