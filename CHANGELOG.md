@@ -6,6 +6,8 @@
 
 - **`Image.recolor(color)`**: sets the RGB of every pixel to a color and keeps each pixel's alpha, for silhouettes
   and tints: `image.recolor(0xffffffff)` makes every pixel white, keeping its transparency.
+- **`AnimationEncoder.frameCount`**: how many frames were added. `AnimationEncoder.frames` is deprecated: it's a
+  number, unlike `Animation.frames`, which is an array. It will be removed in 4.0.
 - **`Colors`**: the color helpers moved out of `Image` into their own class, with the same results:
   `Colors.fromRGBA()`, `fromRGB()`, `fromHSLA()`, `fromHSL()`, `toRGBA()`, `toRGB()`, `toHSLA()` (new: a color as
   HSLA values) and `gradient()`.

@@ -82,6 +82,15 @@ export class AnimationEncoder {
     }
 
     /** How many frames were added */
+    get frameCount(): number {
+        return this.count;
+    }
+
+    /**
+     * How many frames were added
+     * @deprecated Use {@link AnimationEncoder.frameCount}, `frames` will be removed in 4.0
+     * @group Deprecated
+     */
     get frames(): number {
         return this.count;
     }
