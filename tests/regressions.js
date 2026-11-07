@@ -1,4 +1,5 @@
 const {Image, Frame, GIF, Animation, TextLayout} = require('..');
+const {ResizeModes, SVGScaleModes, FrameDisposalModes} = require('..');
 const zlib = require('zlib');
 
 const assert = (condition, message) => {
@@ -371,6 +372,30 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(frame.disposalMode === Frame.DISPOSAL_ANY, 'disposalMode set by id should read back as name');
         const decoded = await GIF.decode(await new GIF([new Frame(2, 2, 100, 0, 0, 'background'), new Frame(2, 2).fill(0xff0000ff)]).encode());
         assert(decoded.length === 2, 'gif with disposal modes should roundtrip');
+    }
+
+    // the constant classes hold the same values as the deprecated Image/Frame constants (removed in 4.0)
+    {
+        const pairs = [
+            [Image.RESIZE_NEAREST_NEIGHBOR, ResizeModes.NEAREST_NEIGHBOR, 'RESIZE_NEAREST_NEIGHBOR'],
+            [Image.RESIZE_BILINEAR, ResizeModes.BILINEAR, 'RESIZE_BILINEAR'],
+            [Image.RESIZE_BICUBIC, ResizeModes.BICUBIC, 'RESIZE_BICUBIC'],
+            [Image.RESIZE_AREA, ResizeModes.AREA, 'RESIZE_AREA'],
+            [Image.RESIZE_AUTO, ResizeModes.AUTO, -1],
+            [Frame.RESIZE_AUTO, ResizeModes.AUTO, -1],
+            [Image.SVG_MODE_SCALE, SVGScaleModes.SCALE, 1],
+            [Image.SVG_MODE_WIDTH, SVGScaleModes.WIDTH, 2],
+            [Image.SVG_MODE_HEIGHT, SVGScaleModes.HEIGHT, 3],
+            [Frame.DISPOSAL_ANY, FrameDisposalModes.ANY, 'any'],
+            [Frame.DISPOSAL_KEEP, FrameDisposalModes.KEEP, 'keep'],
+            [Frame.DISPOSAL_PREVIOUS, FrameDisposalModes.PREVIOUS, 'previous'],
+            [Frame.DISPOSAL_BACKGROUND, FrameDisposalModes.BACKGROUND, 'background']
+        ];
+        for (const [old, now, value] of pairs)
+            assert(old === value && now === value, `deprecated constant ${old} should equal ${now} (${value})`);
+        const scaled = await Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="5"/>', 20, Image.SVG_MODE_WIDTH);
+        assert(scaled.width === 20 && scaled.height === 10, 'renderSVG with a deprecated mode constant');
+        assert(new Image(8, 4).resize(4, Image.RESIZE_AUTO, Image.RESIZE_AREA).height === 2, 'resize with deprecated constants');
     }
 
     // options objects as alternatives to positional arguments

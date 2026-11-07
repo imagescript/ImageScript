@@ -8,6 +8,23 @@ export type FrameDisposalModeId = 0 | 1 | 2 | 3;
 
 const DISPOSAL_MODES: readonly FrameDisposalModeName[] = ['any', 'keep', 'previous', 'background'];
 
+/** What happens to a frame's area before the next frame is drawn, see {@link Frame.disposalMode} */
+export class FrameDisposalModes {
+    /** The decoder decides (in practice like {@link FrameDisposalModes.KEEP}) */
+    static readonly ANY = 'any';
+
+    /** The frame stays, the next one is drawn over it (the default) */
+    static readonly KEEP = 'keep';
+
+    /** The frame's area goes back to what it was before the frame */
+    static readonly PREVIOUS = 'previous';
+
+    /** The frame's area is cleared to transparent */
+    static readonly BACKGROUND = 'background';
+
+    private constructor() {}
+}
+
 /** Options of {@link Frame} and {@link Frame.from} */
 export interface FrameOptions {
     /** The frame's duration in milliseconds. Default: `100` */
@@ -40,25 +57,29 @@ export class Frame extends Image {
      */
     private __disposalMode__: FrameDisposalModeId = 1;
 
-    /** Frame disposal mode ANY: the decoder decides (in practice like KEEP). For use with {@link Frame} */
-    static get DISPOSAL_ANY(): 'any' {
-        return 'any';
-    }
+    /**
+     * @deprecated Use {@link FrameDisposalModes.ANY}, `Frame.DISPOSAL_*` will be removed in 4.0
+     * @group Deprecated
+     */
+    static readonly DISPOSAL_ANY: typeof FrameDisposalModes.ANY = FrameDisposalModes.ANY;
 
-    /** Frame disposal mode KEEP. For use with {@link Frame} */
-    static get DISPOSAL_KEEP(): 'keep' {
-        return 'keep';
-    }
+    /**
+     * @deprecated Use {@link FrameDisposalModes.KEEP}, `Frame.DISPOSAL_*` will be removed in 4.0
+     * @group Deprecated
+     */
+    static readonly DISPOSAL_KEEP: typeof FrameDisposalModes.KEEP = FrameDisposalModes.KEEP;
 
-    /** Frame disposal mode PREVIOUS. For use with {@link Frame} */
-    static get DISPOSAL_PREVIOUS(): 'previous' {
-        return 'previous';
-    }
+    /**
+     * @deprecated Use {@link FrameDisposalModes.PREVIOUS}, `Frame.DISPOSAL_*` will be removed in 4.0
+     * @group Deprecated
+     */
+    static readonly DISPOSAL_PREVIOUS: typeof FrameDisposalModes.PREVIOUS = FrameDisposalModes.PREVIOUS;
 
-    /** Frame disposal mode BACKGROUND. For use with {@link Frame} */
-    static get DISPOSAL_BACKGROUND(): 'background' {
-        return 'background';
-    }
+    /**
+     * @deprecated Use {@link FrameDisposalModes.BACKGROUND}, `Frame.DISPOSAL_*` will be removed in 4.0
+     * @group Deprecated
+     */
+    static readonly DISPOSAL_BACKGROUND: typeof FrameDisposalModes.BACKGROUND = FrameDisposalModes.BACKGROUND;
 
     /**
      * @internal
@@ -90,7 +111,7 @@ export class Frame extends Image {
      */
     constructor(width: number, height: number, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId);
     constructor(width: number, height: number, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId) {
-        const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = Frame.DISPOSAL_KEEP } =
+        const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = FrameDisposalModes.KEEP } =
             isOptions(durationOrOptions) ? durationOrOptions : { duration: durationOrOptions, xOffset, yOffset, disposalMode };
         if (finite(duration, 'frame duration') < 0)
             throw new RangeError('Invalid frame duration');
@@ -179,10 +200,10 @@ export class Frame extends Image {
 
     /**
      * Resizes the frame, scaling its offsets along with it.
-     * Use {@link Image.RESIZE_AUTO} as either width or height to automatically preserve the aspect ratio.
+     * Use {@link ResizeModes.AUTO} as either width or height to automatically preserve the aspect ratio.
      * @param width The new width
      * @param height The new height
-     * @param modeOrOptions The resizing mode (default: {@link Image.RESIZE_BILINEAR}) or {@link ResizeOptions}
+     * @param modeOrOptions The resizing mode (default: {@link ResizeModes.BILINEAR}) or {@link ResizeOptions}
      */
     override resize(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
         const originalWidth = this.width;

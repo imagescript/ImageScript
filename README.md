@@ -27,10 +27,10 @@ Without a bundler, import it from jsDelivr in the browser:
 
 ```html
 <script type="module">
-  import { Image } from 'https://cdn.jsdelivr.net/npm/imagescript@3/+esm';
+  import { Image, ResizeModes } from 'https://cdn.jsdelivr.net/npm/imagescript@3/+esm';
 
   const image = await Image.decode(await fetch('photo.jpg').then(r => r.arrayBuffer()));
-  image.resize(256, Image.RESIZE_AUTO);
+  image.resize(256, ResizeModes.AUTO);
   const url = URL.createObjectURL(new Blob([await image.encode()], { type: 'image/png' }));
   document.body.append(Object.assign(document.createElement('img'), { src: url }));
 </script>
@@ -41,11 +41,11 @@ Without a bundler, import it from jsDelivr in the browser:
 ### Example
 
 ```js
-import { Image } from 'imagescript';
+import { Image, ResizeModes } from 'imagescript';
 import { readFile, writeFile } from 'node:fs/promises';
 
 const image = await Image.decode(await readFile('input.jpg'));
-image.resize(256, Image.RESIZE_AUTO).roundCorners(16);
+image.resize(256, ResizeModes.AUTO).roundCorners(16);
 await writeFile('output.png', await image.encode());
 ```
 

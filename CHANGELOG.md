@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.17.0
+
+### New
+
+- **`ResizeModes`, `SVGScaleModes` and `FrameDisposalModes`**: the constants have classes of their own, with the same
+  values: `image.resize(256, ResizeModes.AUTO, ResizeModes.BICUBIC)`, `Image.renderSVG(svg, 512, SVGScaleModes.WIDTH)`,
+  `new Frame(w, h, {disposalMode: FrameDisposalModes.BACKGROUND})`.
+
+### Deprecated
+
+- **`Image.RESIZE_*`, `Image.SVG_MODE_*` and `Frame.DISPOSAL_*`**: use `ResizeModes.*`, `SVGScaleModes.*` and
+  `FrameDisposalModes.*` (`Image.RESIZE_AUTO` becomes `ResizeModes.AUTO`). The old names keep working and will be
+  removed in 4.0. They are plain read-only properties now instead of getters.
+
 ## 3.16.1
 
 ### Performance

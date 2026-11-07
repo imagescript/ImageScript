@@ -44,11 +44,59 @@ export type Color = number;
 /** Called with a pixel's (0-based) coordinates, returns its color */
 export type ColorFunction = (x: number, y: number) => Color;
 
-/** Resampling filters for {@link Image.resize} and the other scaling functions, see {@link Image.RESIZE_BILINEAR} etc. */
+/** Resampling filters for {@link Image.resize} and the other scaling functions, see {@link ResizeModes} */
 export type ResizeMode = 'RESIZE_NEAREST_NEIGHBOR' | 'RESIZE_BILINEAR' | 'RESIZE_BICUBIC' | 'RESIZE_AREA';
 
-/** How {@link Image.renderSVG} scales: {@link Image.SVG_MODE_SCALE}, {@link Image.SVG_MODE_WIDTH} or {@link Image.SVG_MODE_HEIGHT} */
+/** How {@link Image.renderSVG} scales, see {@link SVGScaleModes} */
 export type SVGScaleMode = 1 | 2 | 3;
+
+/**
+ * The resampling filters of {@link Image.resize} and the other scaling functions, and {@link ResizeModes.AUTO} for
+ * a width or height that keeps the aspect ratio: `image.resize(256, ResizeModes.AUTO, ResizeModes.BICUBIC)`
+ */
+export class ResizeModes {
+    /**
+     * Use {@link https://en.wikipedia.org/wiki/Image_scaling#Nearest-neighbor_interpolation Nearest-neighbor} resizing
+     */
+    static readonly NEAREST_NEIGHBOR = 'RESIZE_NEAREST_NEIGHBOR';
+
+    /**
+     * Bilinear resizing (the default). When shrinking, the filter widens with the scale factor, so every source pixel
+     * contributes
+     */
+    static readonly BILINEAR = 'RESIZE_BILINEAR';
+
+    /** Bicubic (Catmull-Rom) resizing, sharper than bilinear, especially when enlarging */
+    static readonly BICUBIC = 'RESIZE_BICUBIC';
+
+    /**
+     * Area averaging (box filter): every output pixel is the average of the source pixels it covers. Meant for
+     * shrinking
+     */
+    static readonly AREA = 'RESIZE_AREA';
+
+    /**
+     * Not a filter: passed as the width or the height, that side follows from the other one, keeping the image's
+     * aspect ratio
+     */
+    static readonly AUTO = -1;
+
+    private constructor() {}
+}
+
+/** How {@link Image.renderSVG} scales the SVG to the given size */
+export class SVGScaleModes {
+    /** The size is a factor of the SVG's own size */
+    static readonly SCALE = 1;
+
+    /** The size is the width in pixels, the height follows the SVG's aspect ratio */
+    static readonly WIDTH = 2;
+
+    /** The size is the height in pixels, the width follows the SVG's aspect ratio */
+    static readonly HEIGHT = 3;
+
+    private constructor() {}
+}
 
 /** Blend modes of {@link Image.composite}, named like CSS' mix-blend-mode values */
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn'
@@ -68,14 +116,14 @@ export interface CompositeOptions {
 
 /** Options of {@link Image.scale}, {@link Image.resize}, {@link Image.contain}, {@link Image.fit} and {@link Image.cover} */
 export interface ResizeOptions {
-    /** The resizing mode. Default: {@link Image.RESIZE_BILINEAR} */
+    /** The resizing mode. Default: {@link ResizeModes.BILINEAR} */
     mode?: ResizeMode;
     /**
      * Whether to round to 8 bits between the two passes, so two channels share the multiplications of both: about
      * 15-25% faster for opaque images, with 10-25% of the channel values a step off the precise result (instead of
      * about 1%, never more than 1). Transparent images are premultiplied to 8 bits like browsers do, which makes them
      * about twice as fast: what shows once they're composited differs by up to about 2 steps, pixels that are almost
-     * transparent keep less of their color. Only affects {@link Image.RESIZE_BILINEAR} and {@link Image.RESIZE_AREA},
+     * transparent keep less of their color. Only affects {@link ResizeModes.BILINEAR} and {@link ResizeModes.AREA},
      * down to about a third of the size. Default: `true`
      */
     fast?: boolean;
@@ -187,8 +235,8 @@ export interface SVGOptions {
     /** The scale, or the width or height in pixels, see `mode`. Default: `1` */
     size?: number;
     /**
-     * What `size` is: one of {@link Image.SVG_MODE_SCALE}, {@link Image.SVG_MODE_WIDTH}, {@link Image.SVG_MODE_HEIGHT}.
-     * Default: {@link Image.SVG_MODE_SCALE}
+     * What `size` is: one of {@link SVGScaleModes.SCALE}, {@link SVGScaleModes.WIDTH}, {@link SVGScaleModes.HEIGHT}.
+     * Default: {@link SVGScaleModes.SCALE}
      */
     mode?: SVGScaleMode;
     /**
@@ -808,39 +856,34 @@ export class Image {
     }
 
     /**
-     * Use {@link https://en.wikipedia.org/wiki/Image_scaling#Nearest-neighbor_interpolation Nearest-neighbor} resizing.
+     * @deprecated Use {@link ResizeModes.NEAREST_NEIGHBOR}, `Image.RESIZE_*` will be removed in 4.0
+     * @group Deprecated
      */
-    static get RESIZE_NEAREST_NEIGHBOR(): 'RESIZE_NEAREST_NEIGHBOR' {
-        return 'RESIZE_NEAREST_NEIGHBOR';
-    }
+    static readonly RESIZE_NEAREST_NEIGHBOR: typeof ResizeModes.NEAREST_NEIGHBOR = ResizeModes.NEAREST_NEIGHBOR;
 
     /**
-     * Bilinear resizing (the default). When shrinking, the filter widens with the scale factor, so every source pixel contributes
+     * @deprecated Use {@link ResizeModes.BILINEAR}, `Image.RESIZE_*` will be removed in 4.0
+     * @group Deprecated
      */
-    static get RESIZE_BILINEAR(): 'RESIZE_BILINEAR' {
-        return 'RESIZE_BILINEAR';
-    }
+    static readonly RESIZE_BILINEAR: typeof ResizeModes.BILINEAR = ResizeModes.BILINEAR;
 
     /**
-     * Bicubic (Catmull-Rom) resizing, sharper than bilinear, especially when enlarging
+     * @deprecated Use {@link ResizeModes.BICUBIC}, `Image.RESIZE_*` will be removed in 4.0
+     * @group Deprecated
      */
-    static get RESIZE_BICUBIC(): 'RESIZE_BICUBIC' {
-        return 'RESIZE_BICUBIC';
-    }
+    static readonly RESIZE_BICUBIC: typeof ResizeModes.BICUBIC = ResizeModes.BICUBIC;
 
     /**
-     * Area averaging (box filter): every output pixel is the average of the source pixels it covers. Meant for shrinking
+     * @deprecated Use {@link ResizeModes.AREA}, `Image.RESIZE_*` will be removed in 4.0
+     * @group Deprecated
      */
-    static get RESIZE_AREA(): 'RESIZE_AREA' {
-        return 'RESIZE_AREA';
-    }
+    static readonly RESIZE_AREA: typeof ResizeModes.AREA = ResizeModes.AREA;
 
     /**
-     * Used for automatically preserving an image's aspect ratio when resizing.
+     * @deprecated Use {@link ResizeModes.AUTO}, `Image.RESIZE_*` will be removed in 4.0
+     * @group Deprecated
      */
-    static get RESIZE_AUTO(): -1 {
-        return -1;
-    }
+    static readonly RESIZE_AUTO: typeof ResizeModes.AUTO = ResizeModes.AUTO;
 
     /**
      * Resizes the image by the given factor
@@ -851,7 +894,7 @@ export class Image {
     /**
      * Resizes the image by the given factor
      * @param factor The factor to resize the image with
-     * @param [mode=Image.RESIZE_BILINEAR] The resizing mode to use
+     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
      */
     scale(factor: number, mode?: ResizeMode): this;
     scale(factor: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
@@ -866,14 +909,14 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __scale__(factor: number, mode: ResizeMode = Image.RESIZE_BILINEAR, fast = true): Image {
+    protected __scale__(factor: number, mode: ResizeMode = ResizeModes.BILINEAR, fast = true): Image {
         if (factor === 1) return this;
         return this.__resize__(this.width * factor, this.height * factor, mode, fast);
     }
 
     /**
      * Resizes the image to the given dimensions.
-     * Use {@link Image.RESIZE_AUTO} as either width or height to automatically preserve the aspect ratio.
+     * Use {@link ResizeModes.AUTO} as either width or height to automatically preserve the aspect ratio.
      * @param width The new width
      * @param height The new height
      * @param options See {@link ResizeOptions}
@@ -882,10 +925,10 @@ export class Image {
     resize(width: number, height: number, options?: ResizeOptions): this;
     /**
      * Resizes the image to the given dimensions.
-     * Use {@link Image.RESIZE_AUTO} as either width or height to automatically preserve the aspect ratio.
+     * Use {@link ResizeModes.AUTO} as either width or height to automatically preserve the aspect ratio.
      * @param width The new width
      * @param height The new height
-     * @param [mode=Image.RESIZE_BILINEAR] The resizing mode to use
+     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
      * @returns The resized image
      */
     resize(width: number, height: number, mode?: ResizeMode): this;
@@ -910,7 +953,7 @@ export class Image {
      * Can return an image with one axis smaller than the given bounding box.
      * @param width The width of the bounding box
      * @param height The height of the bounding box
-     * @param [mode=Image.RESIZE_BILINEAR] The resizing mode to use
+     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
      * @returns The resized image
      */
     contain(width: number, height: number, mode?: ResizeMode): this;
@@ -937,7 +980,7 @@ export class Image {
      * Always returns the exact dimensions of the bounding box.
      * @param width The width of the bounding box
      * @param height The height of the bounding box
-     * @param [mode=Image.RESIZE_BILINEAR] The resizing mode to use
+     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
      * @returns The resized image
      */
     fit(width: number, height: number, mode?: ResizeMode): this;
@@ -965,7 +1008,7 @@ export class Image {
      * Always returns the exact dimensions of the bounding box.
      * @param width The width of the bounding box
      * @param height The height of the bounding box
-     * @param [mode=Image.RESIZE_BILINEAR] The resizing mode to use
+     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
      * @returns The resized image
      */
     cover(width: number, height: number, mode?: ResizeMode): this;
@@ -981,7 +1024,7 @@ export class Image {
         const scale = Math.max(width / this.width, height / this.height);
         const resizedWidth = Math.max(width, Math.round(this.width * scale)), resizedHeight = Math.max(height, Math.round(this.height * scale));
         // only the part the crop keeps is resampled (the same pixels as resizing the whole image, then cropping)
-        if (options.mode !== Image.RESIZE_NEAREST_NEIGHBOR && width >= 1 && height >= 1) {
+        if (options.mode !== ResizeModes.NEAREST_NEIGHBOR && width >= 1 && height >= 1) {
             const region = { x: ~~((resizedWidth - width) / 2), y: ~~((resizedHeight - height) / 2), width, height };
             this.__rescaled__?.(resizedWidth, resizedHeight);
             const fx = resizedWidth / this.width, fy = resizedHeight / this.height;
@@ -997,10 +1040,10 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __resize__(width: number, height: number, mode: ResizeMode = Image.RESIZE_BILINEAR, fast = true, region?: Region): Image {
-        if (width === Image.RESIZE_AUTO && height === Image.RESIZE_AUTO) throw new Error('RESIZE_AUTO can only be used for either width or height, not for both');
-        else if (width === Image.RESIZE_AUTO) width = Math.max(1, Math.round(this.width / this.height * Math.floor(height)));
-        else if (height === Image.RESIZE_AUTO) height = Math.max(1, Math.round(this.height / this.width * Math.floor(width)));
+    protected __resize__(width: number, height: number, mode: ResizeMode = ResizeModes.BILINEAR, fast = true, region?: Region): Image {
+        if (width === ResizeModes.AUTO && height === ResizeModes.AUTO) throw new Error('RESIZE_AUTO can only be used for either width or height, not for both');
+        else if (width === ResizeModes.AUTO) width = Math.max(1, Math.round(this.width / this.height * Math.floor(height)));
+        else if (height === ResizeModes.AUTO) height = Math.max(1, Math.round(this.height / this.width * Math.floor(width)));
 
         width = Math.floor(width);
         height = Math.floor(height);
@@ -1009,9 +1052,9 @@ export class Image {
         if (height < 1)
             throw new RangeError('Image has to be at least 1 pixel high');
 
-        if (mode === Image.RESIZE_NEAREST_NEIGHBOR) return this.__resize_nearest_neighbor__(width, height);
+        if (mode === ResizeModes.NEAREST_NEIGHBOR) return this.__resize_nearest_neighbor__(width, height);
 
-        const filter = mode === Image.RESIZE_BILINEAR ? TRIANGLE : mode === Image.RESIZE_BICUBIC ? CUBIC : mode === Image.RESIZE_AREA ? BOX : null;
+        const filter = mode === ResizeModes.BILINEAR ? TRIANGLE : mode === ResizeModes.BICUBIC ? CUBIC : mode === ResizeModes.AREA ? BOX : null;
         if (!filter) throw new Error('Invalid resize mode');
 
         const image = new Image(region?.width ?? width, region?.height ?? height);
@@ -2625,25 +2668,22 @@ export class Image {
     }
 
     /**
-     * Scale the SVG by the given amount. For use with {@link Image.renderSVG}
+     * @deprecated Use {@link SVGScaleModes.SCALE}, `Image.SVG_MODE_*` will be removed in 4.0
+     * @group Deprecated
      */
-    static get SVG_MODE_SCALE(): 1 {
-        return 1;
-    }
+    static readonly SVG_MODE_SCALE: typeof SVGScaleModes.SCALE = SVGScaleModes.SCALE;
 
     /**
-     * Scale the SVG to fit the given width. For use with {@link Image.renderSVG}
+     * @deprecated Use {@link SVGScaleModes.WIDTH}, `Image.SVG_MODE_*` will be removed in 4.0
+     * @group Deprecated
      */
-    static get SVG_MODE_WIDTH(): 2 {
-        return 2;
-    }
+    static readonly SVG_MODE_WIDTH: typeof SVGScaleModes.WIDTH = SVGScaleModes.WIDTH;
 
     /**
-     * Scale the SVG to fit the given height. For use with {@link Image.renderSVG}
+     * @deprecated Use {@link SVGScaleModes.HEIGHT}, `Image.SVG_MODE_*` will be removed in 4.0
+     * @group Deprecated
      */
-    static get SVG_MODE_HEIGHT(): 3 {
-        return 3;
-    }
+    static readonly SVG_MODE_HEIGHT: typeof SVGScaleModes.HEIGHT = SVGScaleModes.HEIGHT;
 
     /**
      * Creates a new image from the given SVG
@@ -2659,19 +2699,19 @@ export class Image {
      * Creates a new image from the given SVG
      * @param svg The SVG content
      * @param size The size to use
-     * @param mode The SVG resizing mode to use (one of {@link SVG_MODE_SCALE}, {@link SVG_MODE_WIDTH}, {@link SVG_MODE_HEIGHT})
+     * @param mode The SVG resizing mode to use (one of {@link SVGScaleModes.SCALE}, {@link SVGScaleModes.WIDTH}, {@link SVGScaleModes.HEIGHT})
      * @return The rendered SVG graphic
      */
     static renderSVG(svg: string | BinaryData, size?: number, mode?: SVGScaleMode): Promise<Image>;
-    static async renderSVG(svg: string | BinaryData, sizeOrOptions: number | SVGOptions = 1, modeArgument: SVGScaleMode = Image.SVG_MODE_SCALE): Promise<Image> {
-        const { size = 1, mode = Image.SVG_MODE_SCALE, fonts = [] } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
+    static async renderSVG(svg: string | BinaryData, sizeOrOptions: number | SVGOptions = 1, modeArgument: SVGScaleMode = SVGScaleModes.SCALE): Promise<Image> {
+        const { size = 1, mode = SVGScaleModes.SCALE, fonts = [] } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
         if (![1, 2, 3].includes(mode))
             throw new Error('Invalid SVG scaling mode');
 
         finite(size, 'SVG size');
-        if (mode === Image.SVG_MODE_SCALE && size <= 0)
+        if (mode === SVGScaleModes.SCALE && size <= 0)
             throw new RangeError('SVG scale must be > 0');
-        if (mode !== Image.SVG_MODE_SCALE && size < 1)
+        if (mode !== SVGScaleModes.SCALE && size < 1)
             throw new RangeError('SVG size must be >= 1');
 
         // the raster images it embeds are decoded first (decoding can be asynchronous), the SVG is rendered at once
@@ -2860,7 +2900,7 @@ function hue2rgb(p: number, q: number, t: number): number {
 // the resize mode of a positional argument or options object
 function resizeOptions(modeOrOptions?: ResizeMode | ResizeOptions): { mode: ResizeMode, fast: boolean } {
     const options = isOptions(modeOrOptions) ? modeOrOptions : { mode: modeOrOptions };
-    return { mode: options.mode ?? Image.RESIZE_BILINEAR, fast: options.fast ?? true };
+    return { mode: options.mode ?? ResizeModes.BILINEAR, fast: options.fast ?? true };
 }
 
 // separable blend functions of normalized channel values (W3C Compositing and Blending Level 1)

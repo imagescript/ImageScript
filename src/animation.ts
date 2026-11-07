@@ -5,8 +5,8 @@ import * as webp from './codecs/webp.ts';
 import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
-import { Image, ResizeMode, ResizeOptions } from './image.ts';
-import { Frame } from './frame.ts';
+import { Image, ResizeMode, ResizeModes, ResizeOptions } from './image.ts';
+import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
@@ -21,7 +21,7 @@ const fromPlays = (plays: number): number => plays === 0 ? -1 : plays - 1;
 // frames decoded fully composited, as full canvas frames
 function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uint8Array | Uint8ClampedArray, duration: number }>): Frame[] {
     return frames.map(({ pixels, duration }) => {
-        const frame = new Frame(width, height, duration, 0, 0, Frame.DISPOSAL_BACKGROUND);
+        const frame = new Frame(width, height, duration, 0, 0, FrameDisposalModes.BACKGROUND);
         // the composited frames are copies already, the frame can keep them
         frame.bitmap = pixels;
         return frame;
@@ -200,7 +200,7 @@ export class Animation extends Array<Frame> {
 
     /**
      * Resizes the animation to the given dimensions, scaling every frame and its offsets proportionally.
-     * Use {@link Image.RESIZE_AUTO} as either width or height to automatically preserve the aspect ratio.
+     * Use {@link ResizeModes.AUTO} as either width or height to automatically preserve the aspect ratio.
      * @param width The new width
      * @param height The new height
      * @param options See {@link ResizeOptions}
@@ -208,17 +208,17 @@ export class Animation extends Array<Frame> {
     resize(width: number, height: number, options?: ResizeOptions): this;
     /**
      * Resizes the animation to the given dimensions, scaling every frame and its offsets proportionally.
-     * Use {@link Image.RESIZE_AUTO} as either width or height to automatically preserve the aspect ratio.
+     * Use {@link ResizeModes.AUTO} as either width or height to automatically preserve the aspect ratio.
      * @param width The new width
      * @param height The new height
-     * @param mode The resizing mode to use. Default: {@link Image.RESIZE_BILINEAR}
+     * @param mode The resizing mode to use. Default: {@link ResizeModes.BILINEAR}
      */
     resize(width: number, height: number, mode?: ResizeMode): this;
     resize(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
         const originalWidth = this.width, originalHeight = this.height;
-        if (width === Image.RESIZE_AUTO && height === Image.RESIZE_AUTO) throw new Error('RESIZE_AUTO can only be used for either width or height, not for both');
-        if (width === Image.RESIZE_AUTO) width = originalWidth / originalHeight * height;
-        if (height === Image.RESIZE_AUTO) height = originalHeight / originalWidth * width;
+        if (width === ResizeModes.AUTO && height === ResizeModes.AUTO) throw new Error('RESIZE_AUTO can only be used for either width or height, not for both');
+        if (width === ResizeModes.AUTO) width = originalWidth / originalHeight * height;
+        if (height === ResizeModes.AUTO) height = originalHeight / originalWidth * width;
 
         const sx = width / originalWidth, sy = height / originalHeight;
         for (const frame of this) {
@@ -470,7 +470,7 @@ export class Animation extends Array<Frame> {
             const frames: Frame[] = [];
             let loopCount = -1, icc: Uint8Array | undefined, space: jxl.ColorSpace | undefined;
             for await (const decoded of jxl.frames(data, maxPixels, 'reinhard', threads)) {
-                const frame = new Frame(decoded.width, decoded.height, decoded.duration, 0, 0, Frame.DISPOSAL_BACKGROUND);
+                const frame = new Frame(decoded.width, decoded.height, decoded.duration, 0, 0, FrameDisposalModes.BACKGROUND);
                 frame.bitmap = decoded.pixels;
                 frames.push(frame.__orient__(decoded.orientation));
                 loopCount = fromPlays(decoded.loopCount);
