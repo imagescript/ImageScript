@@ -12,7 +12,7 @@ import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { isOptions, finite, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
-import { AnimationEncoder, WebPAnimationEncoderOptions, GIFAnimationEncoderOptions, APNGAnimationEncoderOptions } from './animation-encoder.ts';
+import { AnimationEncoder } from './animation-encoder.ts';
 
 // loop counts: ImageScript (like GIF) counts repetitions (-1 forever, 0 play once), APNG and WebP count plays (0 forever)
 const toPlays = (loopCount: number): number => loopCount < 0 ? 0 : loopCount + 1;
@@ -391,9 +391,9 @@ export class Animation extends Array<Frame> {
      * with `{ duration }`), then `await encoder.finish()` for the file
      * @param width The canvas width
      * @param height The canvas height
-     * @param options See {@link WebPAnimationEncoderOptions}
+     * @param options See {@link WebPAnimationEncodeOptions}, and {@link AnimationOptions.loopCount}
      */
-    static webpEncoder(width: number, height: number, options: WebPAnimationEncoderOptions = {}): AnimationEncoder {
+    static webpEncoder(width: number, height: number, options: WebPAnimationEncodeOptions & AnimationOptions = {}): AnimationEncoder {
         return AnimationEncoder.__webp__(width, height, options);
     }
 
@@ -402,9 +402,9 @@ export class Animation extends Array<Frame> {
      * without keeping the frames in memory: `await encoder.add(frame)` for each frame, then `await encoder.finish()`
      * @param width The canvas width
      * @param height The canvas height
-     * @param options See {@link GIFAnimationEncoderOptions}
+     * @param options See {@link GIFEncodeOptions}, and {@link AnimationOptions.loopCount}
      */
-    static gifEncoder(width: number, height: number, options: GIFAnimationEncoderOptions = {}): AnimationEncoder {
+    static gifEncoder(width: number, height: number, options: GIFEncodeOptions & AnimationOptions = {}): AnimationEncoder {
         return AnimationEncoder.__gif__(width, height, options);
     }
 
@@ -414,9 +414,9 @@ export class Animation extends Array<Frame> {
      * then `await encoder.finish()`
      * @param width The canvas width
      * @param height The canvas height
-     * @param options See {@link APNGAnimationEncoderOptions}
+     * @param options See {@link APNGEncodeOptions}, and {@link AnimationOptions.loopCount}
      */
-    static apngEncoder(width: number, height: number, options: APNGAnimationEncoderOptions = {}): AnimationEncoder {
+    static apngEncoder(width: number, height: number, options: APNGEncodeOptions & AnimationOptions = {}): AnimationEncoder {
         return AnimationEncoder.__apng__(width, height, options);
     }
 

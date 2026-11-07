@@ -17,6 +17,8 @@
 - `cropCircle({ size: 'contain' | 'cover' })`: `'contain'` (the default, as before) keeps the circle inside the image.
 - `Image.renderText(text, { font, size, color, layout, ...style })`: the text first, everything else in the options.
   `layout` is `TextLayoutOptions` or a `TextLayout`: `Image.renderText('Hi', { font, size: 32, layout: { maxWidth: 400 } })`.
+- `Animation.webpEncoder()`, `gifEncoder()` and `apngEncoder()` take the options of `encodeWebP()`, `encodeGIF()` and
+  `encodeAPNG()`, plus `loopCount`: the options are documented once.
 
 ### Deprecated
 
@@ -26,6 +28,9 @@
   `pixels()`. Removed in 4.0.
 - `Image.renderText(font, size, text, ...)`: use `renderText(text, { font, size, ... })`. Removed in 4.0, as is the
   swapped use of `horizontalAlign` and `verticalAlign` values of `TextLayout`.
+- `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and
+  `APNGAnimationEncoderOptions`: they are the same as `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`,
+  `GIFEncodeOptions` and `APNGEncodeOptions` with `loopCount`, which are all the types there are in 4.0.
 - `encode()`: use `encodePNG()`, which takes the same arguments. Removed in 4.0.
 - `cropCircle(max, feathering)` and the `max` option: use `cropCircle({ size: 'contain' | 'cover' })`. Removed in 4.0.
 

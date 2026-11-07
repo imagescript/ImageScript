@@ -470,6 +470,18 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(threw, 'cropCircle({size}) validates');
     }
 
+    // the encoders take the options of the encode functions (the *AnimationEncoderOptions types are deprecated aliases, removed in 4.0)
+    {
+        const {Animation} = require('..');
+        const frames = () => [Frame.from(new Image(6, 6).fill(0x336699ff), 100), Frame.from(new Image(6, 6).fill(0x996633ff), 100)];
+        for (const [format, options] of [['GIF', {quality: 80, optimize: false}], ['APNG', {compression: 9}], ['WebP', {quality: 70, effort: 1}]]) {
+            const animation = new Animation(frames(), {loopCount: 3});
+            const encoder = Animation[`${format.toLowerCase()}Encoder`](6, 6, {...options, loopCount: 3});
+            for (const frame of frames()) await encoder.add(frame);
+            assert(Buffer.from(await encoder.finish()).equals(Buffer.from(await animation[`encode${format}`](options))), `${format}: encoder vs encode${format} with options`);
+        }
+    }
+
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values
     {
         const { Colors } = require('..');

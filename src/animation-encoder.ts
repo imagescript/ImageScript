@@ -5,48 +5,42 @@ import { Image } from './image.ts';
 import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
-import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
+import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { finite, compressionLevel } from './util/options.ts';
+import type { AnimationOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // (ImageScript, like GIF, counts repetitions: -1 forever, 0 play once; APNG and WebP count plays, 0 forever)
 const toPlays = (loopCount: number): number => loopCount < 0 ? 0 : loopCount + 1;
 
-/** The options all animation encoders of {@link Animation.webpEncoder} and the others have */
-export interface AnimationEncoderOptions {
-    /** How many times to repeat the animation (-1 = forever, 0 = play once). Default: `-1` */
-    loopCount?: number;
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
-    /**
-     * Whether to store each frame as the area that changed since the frame before and merge identical frames, like
-     * {@link AnimationEncodeOptions.optimize}. Default: `true`
-     */
-    optimize?: boolean;
-}
+/**
+ * The options all animation encoders of {@link Animation.webpEncoder} and the others have
+ * @deprecated {@link Animation.webpEncoder} and the others take the options of {@link Animation.encodeWebP} and the
+ *     others ({@link AnimationEncodeOptions}) with the {@link AnimationOptions.loopCount}, this will be removed in 4.0
+ * @group Deprecated
+ */
+export type AnimationEncoderOptions = AnimationEncodeOptions & AnimationOptions;
 
-/** Options of {@link Animation.webpEncoder} */
-export interface WebPAnimationEncoderOptions extends AnimationEncoderOptions {
-    /** Lossy frames (0-100), see {@link WebPAnimationEncodeOptions.quality}. Without it the frames are lossless */
-    quality?: number;
-    /** How much effort the frames take (0-6, lossy and lossless), see {@link WebPEncodeOptions.effort}. Default: `2` */
-    effort?: number;
-    /** Lossy frames: libwebp's sharp YUV conversion, see {@link WebPEncodeOptions.sharpYuv}. Default: `false` */
-    sharpYuv?: boolean;
-    /** Lossy frames: the alpha planes' quality (0-100), see {@link WebPEncodeOptions.alphaQuality}. Default: `100` */
-    alphaQuality?: number;
-}
+/**
+ * Options of {@link Animation.webpEncoder}
+ * @deprecated Use {@link WebPAnimationEncodeOptions}, with {@link AnimationOptions.loopCount}: this will be removed
+ *     in 4.0
+ * @group Deprecated
+ */
+export type WebPAnimationEncoderOptions = WebPAnimationEncodeOptions & AnimationOptions;
 
-/** Options of {@link Animation.gifEncoder} */
-export interface GIFAnimationEncoderOptions extends AnimationEncoderOptions {
-    /** 1-100, scales the palette size from 8 colors (1) to 256 colors (90 and above). Default: `95` */
-    quality?: number;
-}
+/**
+ * Options of {@link Animation.gifEncoder}
+ * @deprecated Use {@link GIFEncodeOptions}, with {@link AnimationOptions.loopCount}: this will be removed in 4.0
+ * @group Deprecated
+ */
+export type GIFAnimationEncoderOptions = GIFEncodeOptions & AnimationOptions;
 
-/** Options of {@link Animation.apngEncoder} */
-export interface APNGAnimationEncoderOptions extends AnimationEncoderOptions {
-    /** The zlib compression level (0-9), higher is smaller but slower. Default: `4` */
-    compression?: number;
-}
+/**
+ * Options of {@link Animation.apngEncoder}
+ * @deprecated Use {@link APNGEncodeOptions}, with {@link AnimationOptions.loopCount}: this will be removed in 4.0
+ * @group Deprecated
+ */
+export type APNGAnimationEncoderOptions = APNGEncodeOptions & AnimationOptions;
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
 interface Format {
@@ -138,7 +132,7 @@ export class AnimationEncoder {
     }
 
     /** @internal */
-    static __webp__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncoderOptions): AnimationEncoder {
+    static __webp__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
         canvas(width, height, loopCount);
         if (width > 1 << 24 || height > 1 << 24) throw new RangeError('WebP: canvas too large');
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
@@ -167,7 +161,7 @@ export class AnimationEncoder {
     }
 
     /** @internal */
-    static __gif__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, quality: qualityOption = 95 }: GIFAnimationEncoderOptions): AnimationEncoder {
+    static __gif__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, quality: qualityOption = 95 }: GIFEncodeOptions & AnimationOptions): AnimationEncoder {
         const quality = finite(qualityOption, 'quality');
         canvas(width, height, loopCount);
         const comments = gifComments(resolveMetadata(metadata));
@@ -194,7 +188,7 @@ export class AnimationEncoder {
     }
 
     /** @internal */
-    static __apng__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, compression: compressionOption = 4 }: APNGAnimationEncoderOptions): AnimationEncoder {
+    static __apng__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, compression: compressionOption = 4 }: APNGEncodeOptions & AnimationOptions): AnimationEncoder {
         const compression = compressionLevel(compressionOption);
         canvas(width, height, loopCount);
         const text = pngText(resolveMetadata(metadata));
