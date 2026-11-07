@@ -69,8 +69,15 @@ export class AnimationEncoder {
     private count = 0;
     private finished = false;
 
+    /** The canvas width */
+    readonly width: number;
+    /** The canvas height */
+    readonly height: number;
+
     /** @internal */
-    constructor(readonly width: number, readonly height: number, private readonly format: Format, optimize: boolean) {
+    constructor(width: number, height: number, private readonly format: Format, optimize: boolean) {
+        this.width = width;
+        this.height = height;
         this.optimizer = optimize ? new Optimizer(width, height, format.optimize) : null;
     }
 

@@ -63,19 +63,28 @@ export class ImageType {
         return null;
     }
 
-    /** Whether the data starts like a PNG */
+    /**
+     * Whether the data starts like a PNG
+     * @param data The file's data
+     */
     static isPNG(data: BinaryData): boolean {
         const view = dataView(data);
         return view.byteLength >= 4 && view.getUint32(0, false) === MAGIC_NUMBERS.PNG;
     }
 
-    /** Whether the data starts like a JPEG */
+    /**
+     * Whether the data starts like a JPEG
+     * @param data The file's data
+     */
     static isJPEG(data: BinaryData): boolean {
         const view = dataView(data);
         return view.byteLength >= 4 && (view.getUint32(0, false) >>> 8) === MAGIC_NUMBERS.JPEG;
     }
 
-    /** Whether the data starts like a TIFF (or BigTIFF) */
+    /**
+     * Whether the data starts like a TIFF (or BigTIFF)
+     * @param data The file's data
+     */
     static isTIFF(data: BinaryData): boolean {
         const view = dataView(data);
         if (view.byteLength < 4) return false;
@@ -83,54 +92,84 @@ export class ImageType {
         return magic === MAGIC_NUMBERS.TIFF_LE || magic === MAGIC_NUMBERS.TIFF_BE || magic === MAGIC_NUMBERS.BIGTIFF_LE || magic === MAGIC_NUMBERS.BIGTIFF_BE;
     }
 
-    /** Whether the data starts like a GIF */
+    /**
+     * Whether the data starts like a GIF
+     * @param data The file's data
+     */
     static isGIF(data: BinaryData): boolean {
         const view = dataView(data);
         return view.byteLength >= 4 && (view.getUint32(0, false) >>> 8) === MAGIC_NUMBERS.GIF;
     }
 
-    /** Whether the data starts like a WebP */
+    /**
+     * Whether the data starts like a WebP
+     * @param data The file's data
+     */
     static isWebP(data: BinaryData): boolean {
         const view = dataView(data);
         return view.byteLength >= 12 && view.getUint32(0, false) === MAGIC_NUMBERS.RIFF && view.getUint32(8, false) === MAGIC_NUMBERS.WEBP;
     }
 
-    /** Whether the data starts like an AVIF (the avif or avis brand) */
+    /**
+     * Whether the data starts like an AVIF (the avif or avis brand)
+     * @param data The file's data
+     */
     static isAVIF(data: BinaryData): boolean {
         return isAVIF(u8(dataView(data)));
     }
 
-    /** Whether the data starts like a JPEG XL (a codestream or the container) */
+    /**
+     * Whether the data starts like a JPEG XL (a codestream or the container)
+     * @param data The file's data
+     */
     static isJXL(data: BinaryData): boolean {
         return isJXL(u8(dataView(data)));
     }
 
-    /** Whether the data starts like a BMP */
+    /**
+     * Whether the data starts like a BMP
+     * @param data The file's data
+     */
     static isBMP(data: BinaryData): boolean {
         return isBMP(u8(dataView(data)));
     }
 
-    /** Whether the data is a Windows icon or cursor (ICO or CUR) */
+    /**
+     * Whether the data is a Windows icon or cursor (ICO or CUR)
+     * @param data The file's data
+     */
     static isICO(data: BinaryData): boolean {
         return iconType(u8(dataView(data))) !== null;
     }
 
-    /** Whether the data starts like a QOI */
+    /**
+     * Whether the data starts like a QOI
+     * @param data The file's data
+     */
     static isQOI(data: BinaryData): boolean {
         return isQOI(u8(dataView(data)));
     }
 
-    /** Whether the data starts like a Netpbm image (PBM, PGM, PPM, PAM or PFM) */
+    /**
+     * Whether the data starts like a Netpbm image (PBM, PGM, PPM, PAM or PFM)
+     * @param data The file's data
+     */
     static isPNM(data: BinaryData): boolean {
         return isNetpbm(u8(dataView(data)));
     }
 
-    /** Whether the data starts like a Radiance HDR */
+    /**
+     * Whether the data starts like a Radiance HDR
+     * @param data The file's data
+     */
     static isHDR(data: BinaryData): boolean {
         return isHDR(u8(dataView(data)));
     }
 
-    /** Whether the data looks like a TGA (which has no magic number: its header has to be consistent) */
+    /**
+     * Whether the data looks like a TGA (which has no magic number: its header has to be consistent)
+     * @param data The file's data
+     */
     static isTGA(data: BinaryData): boolean {
         return isTGA(u8(dataView(data)));
     }

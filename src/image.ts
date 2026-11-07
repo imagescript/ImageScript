@@ -113,11 +113,15 @@ export interface JPEGEncodeOptions {
     /** Metadata to include, see {@link Metadata} */
     metadata?: Metadata;
     /**
-     * Whether to write the image's {@link Image.gainMap} (an Ultra HDR JPEG, brighter on HDR displays), or how:
-     * `quality` the map's JPEG quality (default: `90`), `scale` its size as a factor of the image's (0-1, default: the
-     * map's size). Default: `true` (written if there is one)
+     * Whether to write the image's {@link Image.gainMap} (an Ultra HDR JPEG, brighter on HDR displays), or how.
+     * Default: `true` (written if there is one)
      */
-    gainMap?: boolean | { quality?: number, scale?: number };
+    gainMap?: boolean | {
+        /** The map's JPEG quality (1-100). Default: `90` */
+        quality?: number,
+        /** The map's size as a factor of the image's (0-1). Default: the map's own size */
+        scale?: number
+    };
 }
 
 /** Options of {@link Image.encodeWebP} */
@@ -272,11 +276,15 @@ export interface JXLEncodeOptions {
     /** Metadata to include, see {@link Metadata} */
     metadata?: Metadata;
     /**
-     * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a jhgm box, like libjxl's), or how:
-     * `quality` (1-100 like `quality`, 100 lossless; default `90`) and `scale` (its size relative to the image, default
-     * its own). Default: `true`
+     * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a jhgm box, like libjxl's), or how.
+     * Default: `true` (written if there is one)
      */
-    gainMap?: boolean | { quality?: number, scale?: number };
+    gainMap?: boolean | {
+        /** The map's quality (1-100 like `quality`, 100 lossless). Default: `90` */
+        quality?: number,
+        /** The map's size as a factor of the image's (0-1). Default: the map's own size */
+        scale?: number
+    };
 }
 
 /** Options of {@link Image.encodeAVIF} */
@@ -300,10 +308,14 @@ export interface AVIFEncodeOptions {
     metadata?: Metadata;
     /**
      * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a tone mapped item, like libavif
-     * writes), or how: `quality` (1-100, default `90`) and `scale` (its size relative to the image, default its own).
-     * Default: `true`
+     * writes), or how. Default: `true` (written if there is one)
      */
-    gainMap?: boolean | { quality?: number, scale?: number };
+    gainMap?: boolean | {
+        /** The map's quality (1-100). Default: `90` */
+        quality?: number,
+        /** The map's size as a factor of the image's (0-1). Default: the map's own size */
+        scale?: number
+    };
 }
 
 /** Text style options of {@link Image.renderText} */
@@ -386,6 +398,7 @@ export interface ColorToAlphaOptions {
 /**
  * Text metadata written into PNGs
  * @deprecated Use {@link Metadata}, which all encoders take
+ * @group Deprecated
  */
 export type PNGMetadata = Metadata;
 
@@ -437,9 +450,9 @@ export class Image {
     protected __gain_map__: GainMap | null = null;
 
     /**
-     * Creates a new image with the given dimensions
-     * @param width
-     * @param height
+     * Creates a new image with the given dimensions, all pixels transparent black
+     * @param width The width in pixels
+     * @param height The height in pixels
      */
     constructor(width: number, height: number) {
         width = ~~width;
@@ -463,6 +476,10 @@ export class Image {
         return this.__gain_map__;
     }
 
+    /**
+     * Replaces the gain map
+     * @param gainMap The new gain map, or `null` to remove it
+     */
     set gainMap(gainMap: GainMap | null) {
         if (gainMap !== null && !(gainMap instanceof GainMap)) throw new TypeError('The gain map has to be a GainMap or null');
         this.__gain_map__ = gainMap;
@@ -476,7 +493,10 @@ export class Image {
         return this.__bitmap__;
     }
 
-    /** Replaces the pixel data, the array has to hold width * height * 4 bytes */
+    /**
+     * Replaces the pixel data
+     * @param bitmap The new RGBA data, width * height * 4 bytes (used as is, without copying)
+     */
     set bitmap(bitmap: Uint8ClampedArray | Uint8Array) {
         if (!(bitmap instanceof Uint8ClampedArray || bitmap instanceof Uint8Array))
             throw new TypeError('The bitmap has to be a Uint8ClampedArray or Uint8Array');
@@ -674,9 +694,9 @@ export class Image {
 
     /**
      * Gets the pixel color at the specified position (0-based)
-     * @param x
-     * @param y
-     * @returns The color value
+     * @param x The x coordinate
+     * @param y The y coordinate
+     * @returns The color value (`0xRRGGBBAA`)
      */
     getPixelAt(x: number, y: number): Color {
         x = ~~finite(x, 'x');
@@ -687,9 +707,9 @@ export class Image {
 
     /**
      * Gets a view of the RGBA components of the pixel at the specified position (0-based)
-     * @param x
-     * @param y
-     * @returns The RGBA value
+     * @param x The x coordinate
+     * @param y The y coordinate
+     * @returns The pixel's 4 bytes in {@link Image.bitmap}: writing to them changes the pixel
      */
     getRGBAAt(x: number, y: number): Uint8ClampedArray {
         x = ~~finite(x, 'x');
@@ -701,9 +721,9 @@ export class Image {
 
     /**
      * Sets the pixel color for the specified position (0-based)
-     * @param x
-     * @param y
-     * @param pixelColor
+     * @param x The x coordinate
+     * @param y The y coordinate
+     * @param pixelColor The new color (`0xRRGGBBAA`)
      */
     setPixelAt(x: number, y: number, pixelColor: Color): this {
         x = ~~finite(x, 'x');
@@ -714,12 +734,6 @@ export class Image {
     }
 
     /**
-     * @private
-     * @param x
-     * @param y
-     * @param pixelColor
-     */
-    /**
      * @internal
      * @ignore
      */
@@ -727,11 +741,6 @@ export class Image {
         this.__view__.setUint32((y * this.width + x) * 4, pixelColor, false);
     }
 
-    /**
-     * @private
-     * @param x
-     * @param y
-     */
     /**
      * @internal
      * @ignore
@@ -761,15 +770,8 @@ export class Image {
     }
 
     /**
-     * @callback colorFunction
-     * @param x 0-based x coordinate
-     * @param y 0-based y coordinate
-     * @returns pixel color
-     */
-
-    /**
      * Fills the image data with the supplied color
-     * @param color
+     * @param color The color, or a function returning the color of each pixel
      */
     fill(color: Color | ColorFunction): this {
         const view = new DataView(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
@@ -834,7 +836,7 @@ export class Image {
     }
 
     /**
-     * Used for automatically preserving an images aspect ratio when resizing.
+     * Used for automatically preserving an image's aspect ratio when resizing.
      */
     static get RESIZE_AUTO(): -1 {
         return -1;
@@ -1158,13 +1160,6 @@ export class Image {
     }
 
     /**
-     * @param x
-     * @param y
-     * @param width
-     * @param height
-     * @private
-     */
-    /**
      * @internal
      * @ignore
      */
@@ -1210,14 +1205,6 @@ export class Image {
         return this;
     }
 
-    /**
-     * @private
-     * @param x
-     * @param y
-     * @param width
-     * @param height
-     * @param color
-     */
     /**
      * @internal
      * @ignore
@@ -1429,12 +1416,6 @@ export class Image {
         return this;
     }
 
-    /**
-     * @private
-     * @param value
-     * @param absolute
-     * @param offset
-     */
     /**
      * @internal
      * @ignore
@@ -2116,10 +2097,6 @@ export class Image {
     }
 
     /**
-     * @private
-     * @param image
-     */
-    /**
      * @internal the bitmap as a plain byte view
      * @ignore
      */
@@ -2380,6 +2357,7 @@ export class Image {
 
     /**
      * Encodes the image into a PNG, an alias of {@link Image.encode}
+     * @param options See {@link PNGEncodeOptions}
      */
     encodePNG(options?: PNGEncodeOptions): Promise<Uint8Array>;
     /**

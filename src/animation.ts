@@ -145,7 +145,10 @@ export class Animation extends Array<Frame> {
         return this;
     }
 
-    /** Replaces the animation's frames */
+    /**
+     * Replaces the animation's frames
+     * @param frames The new frames (copied into the animation, the array itself isn't kept)
+     */
     set frames(frames: Frame[]) {
         frames = Array.from(frames);
         frames.forEach((frame, i) => {
@@ -184,8 +187,11 @@ export class Animation extends Array<Frame> {
     /**
      * Returns a new animation of the same class containing a range of this one's frames
      * (same semantics as Array.prototype.slice)
+     * @param start The index of the first frame (negative counts from the end). Default: `0`
+     * @param end The index after the last frame (negative counts from the end). Default: the frame count
      * @deprecated Use `new Animation(animation.frames.slice(start, end), animation.loopCount)`: in 4.0 animations
      *     aren't arrays anymore
+     * @group Deprecated
      */
     override slice(start?: number, end?: number): this {
         const Class = this.constructor as new (frames: Frame[], loopCount: number) => this;
@@ -195,11 +201,17 @@ export class Animation extends Array<Frame> {
     /**
      * Resizes the animation to the given dimensions, scaling every frame and its offsets proportionally.
      * Use {@link Image.RESIZE_AUTO} as either width or height to automatically preserve the aspect ratio.
+     * @param width The new width
+     * @param height The new height
+     * @param options See {@link ResizeOptions}
      */
     resize(width: number, height: number, options?: ResizeOptions): this;
     /**
      * Resizes the animation to the given dimensions, scaling every frame and its offsets proportionally.
      * Use {@link Image.RESIZE_AUTO} as either width or height to automatically preserve the aspect ratio.
+     * @param width The new width
+     * @param height The new height
+     * @param mode The resizing mode to use. Default: {@link Image.RESIZE_BILINEAR}
      */
     resize(width: number, height: number, mode?: ResizeMode): this;
     resize(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {

@@ -9,6 +9,7 @@ import { isOptions } from './util/options.ts';
  * Array methods like map and filter return plain arrays.
  * @deprecated Use {@link Animation}, which works the same and also handles APNG: `new Animation(frames, loopCount)`,
  *     {@link Animation.decode} and {@link Animation.encodeGIF}. `GIF` will be removed in 4.0
+ * @group Deprecated
  */
 export class GIF extends Animation {
     /**

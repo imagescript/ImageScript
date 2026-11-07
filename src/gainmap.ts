@@ -157,6 +157,10 @@ export class GainMap {
         return this.__pixels__ as Image;
     }
 
+    /**
+     * Replaces the map's pixels
+     * @param image The new map, at any resolution: it covers the whole image
+     */
     set image(image: Image) {
         if (!(image instanceof Image)) throw new TypeError('The gain map has to be an Image');
         this.__pixels__ = image;

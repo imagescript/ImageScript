@@ -21,7 +21,8 @@ export interface FrameOptions {
 }
 
 /**
- * Represents a frame of an {@link Animation}
+ * Represents a frame of an {@link Animation}: an {@link Image} with a duration, offsets and a disposal mode, so every
+ * method of {@link Image} works on it too
  */
 export class Frame extends Image {
     /**
@@ -73,11 +74,15 @@ export class Frame extends Image {
 
     /**
      * Creates a new, blank frame
+     * @param width The width in pixels
+     * @param height The height in pixels
      * @param options See {@link FrameOptions}
      */
     constructor(width: number, height: number, options?: FrameOptions);
     /**
      * Creates a new, blank frame
+     * @param width The width in pixels
+     * @param height The height in pixels
      * @param duration The frame's duration (in ms)
      * @param xOffset The frame's offset on the x-axis
      * @param yOffset The frame's offset on the y-axis
@@ -113,7 +118,10 @@ export class Frame extends Image {
         return this.__disposalMode__;
     }
 
-    /** Sets the disposal mode by name or id (0-3) */
+    /**
+     * Sets the disposal mode
+     * @param disposalMode The mode's name (`'any'`, `'keep'`, `'previous'`, `'background'`) or id (0-3)
+     */
     set disposalMode(disposalMode: FrameDisposalModeName | FrameDisposalModeId) {
         this.__disposalMode__ = Frame.__convert_disposal_mode__(disposalMode);
     }
@@ -170,7 +178,11 @@ export class Frame extends Image {
     }
 
     /**
-     * Resizes the frame, scaling its offsets along with it
+     * Resizes the frame, scaling its offsets along with it.
+     * Use {@link Image.RESIZE_AUTO} as either width or height to automatically preserve the aspect ratio.
+     * @param width The new width
+     * @param height The new height
+     * @param modeOrOptions The resizing mode (default: {@link Image.RESIZE_BILINEAR}) or {@link ResizeOptions}
      */
     override resize(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
         const originalWidth = this.width;
