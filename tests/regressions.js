@@ -410,6 +410,30 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(threw, 'resize modes are case sensitive');
     }
 
+    // resize({width}) / resize({height}) keep the aspect ratio like ResizeModes.AUTO (deprecated, removed in 4.0)
+    {
+        const {Animation} = require('..');
+        const photo = new Image(12, 8).fill((x, y) => ColorHelpers.fromRGBA(x * 20, y * 30, 90, 255));
+        const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
+        assert(same(photo.clone().resize({width: 6}), photo.clone().resize(6, Image.RESIZE_AUTO)), 'resize({width})');
+        assert(photo.clone().resize({width: 6}).height === 4, 'resize({width}) keeps the aspect ratio');
+        assert(same(photo.clone().resize({height: 4, mode: 'bicubic'}), photo.clone().resize(ResizeModes.AUTO, 4, Image.RESIZE_BICUBIC)), 'resize({height, mode})');
+        assert(same(photo.clone().resize({width: 5, height: 9, fast: false}), photo.clone().resize(5, 9, {fast: false})), 'resize({width, height, fast})');
+        let threw = false;
+        try { photo.clone().resize({}); } catch (e) { threw = e instanceof TypeError; }
+        assert(threw, 'resize({}) throws');
+
+        const frame = Frame.from(photo.clone(), 100, 4, 2);
+        frame.resize({width: 6});
+        assert(frame.width === 6 && frame.height === 4 && frame.xOffset === 2 && frame.yOffset === 1, `Frame.resize({width}): ${frame.width}x${frame.height}+${frame.xOffset}+${frame.yOffset}`);
+
+        const animation = new Animation([Frame.from(photo.clone(), 100), Frame.from(photo.clone().invert(), 100)]);
+        const other = new Animation([Frame.from(photo.clone(), 100), Frame.from(photo.clone().invert(), 100)]);
+        animation.resize({height: 4});
+        other.resize(Image.RESIZE_AUTO, 4);
+        assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f, other[i])), 'Animation.resize({height})');
+    }
+
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values
     {
         const { Colors } = require('..');

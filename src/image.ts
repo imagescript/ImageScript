@@ -60,8 +60,8 @@ export type ResizeMode = 'nearest-neighbor' | 'bilinear' | 'bicubic' | 'area'
 export type SVGScaleMode = 'scale' | 'width' | 'height' | 1 | 2 | 3;
 
 /**
- * The resampling filters of {@link Image.resize} and the other scaling functions, and {@link ResizeModes.AUTO} for
- * a width or height that keeps the aspect ratio: `image.resize(256, ResizeModes.AUTO, ResizeModes.BICUBIC)`
+ * The resampling filters of {@link Image.resize} and the other scaling functions:
+ * `image.resize({ width: 256, mode: ResizeModes.BICUBIC })`
  */
 export class ResizeModes {
     /**
@@ -87,6 +87,8 @@ export class ResizeModes {
     /**
      * Not a filter: passed as the width or the height, that side follows from the other one, keeping the image's
      * aspect ratio
+     * @deprecated Pass only the width or the height instead, `image.resize({ width: 256 })`. `AUTO` is removed in 4.0
+     * @group Deprecated
      */
     static readonly AUTO = -1;
 
@@ -121,6 +123,17 @@ export interface CompositeOptions {
     opacity?: number;
     /** How the colors are mixed. Default: `'normal'` */
     mode?: BlendMode;
+}
+
+/**
+ * The size for {@link Image.resize}, {@link Frame.resize} and {@link Animation.resize}, and how to resize: a side
+ * that is missing follows from the other one, keeping the aspect ratio
+ */
+export interface ResizeToOptions extends ResizeOptions {
+    /** The new width. Without it, it follows from the height */
+    width?: number;
+    /** The new height. Without it, it follows from the width */
+    height?: number;
 }
 
 /** Options of {@link Image.scale}, {@link Image.resize}, {@link Image.contain}, {@link Image.fit} and {@link Image.cover} */
@@ -853,7 +866,8 @@ export class Image {
     static readonly RESIZE_AREA = 'RESIZE_AREA';
 
     /**
-     * @deprecated Use {@link ResizeModes.AUTO}, `Image.RESIZE_*` will be removed in 4.0
+     * @deprecated Pass only the width or the height instead, `image.resize({ width: 256 })`. `Image.RESIZE_*` will
+     *     be removed in 4.0
      * @group Deprecated
      */
     static readonly RESIZE_AUTO: typeof ResizeModes.AUTO = ResizeModes.AUTO;
@@ -889,7 +903,7 @@ export class Image {
 
     /**
      * Resizes the image to the given dimensions.
-     * Use {@link ResizeModes.AUTO} as either width or height to automatically preserve the aspect ratio.
+     * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
      * @param width The new width
      * @param height The new height
      * @param options See {@link ResizeOptions}
@@ -898,14 +912,21 @@ export class Image {
     resize(width: number, height: number, options?: ResizeOptions): this;
     /**
      * Resizes the image to the given dimensions.
-     * Use {@link ResizeModes.AUTO} as either width or height to automatically preserve the aspect ratio.
+     * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
      * @param width The new width
      * @param height The new height
      * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
      * @returns The resized image
      */
     resize(width: number, height: number, mode?: ResizeMode): this;
-    resize(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
+    /**
+     * Resizes the image: to the given width or height (the other side keeps the aspect ratio), or to both
+     * @param options The size and how to resize, see {@link ResizeToOptions}
+     * @returns The resized image
+     */
+    resize(options: ResizeToOptions): this;
+    resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, modeArgument?: ResizeMode | ResizeOptions): this {
+        const [width, height, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
         const { mode, fast } = resizeOptions(modeOrOptions);
         const image = this.__resize__(width, height, mode, fast);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
@@ -2802,6 +2823,17 @@ interface HSLA {
 const LEGACY_RESIZE_MODES = new Map<unknown, ResizeMode>([
     ['RESIZE_NEAREST_NEIGHBOR', 'nearest-neighbor'], ['RESIZE_BILINEAR', 'bilinear'], ['RESIZE_BICUBIC', 'bicubic'], ['RESIZE_AREA', 'area']
 ]);
+
+/**
+ * The width, height and mode of resize()'s signatures, a side missing from the options as {@link ResizeModes.AUTO}
+ * @internal
+ */
+export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, modeOrOptions?: ResizeMode | ResizeOptions): [width: number, height: number, modeOrOptions: ResizeMode | ResizeOptions | undefined] {
+    if (!isOptions(widthOrOptions)) return [widthOrOptions, height as number, modeOrOptions];
+    const { width, height: optionsHeight, ...options } = widthOrOptions;
+    if (width === undefined && optionsHeight === undefined) throw new TypeError('resize() needs a width, a height or both');
+    return [width ?? ResizeModes.AUTO, optionsHeight ?? ResizeModes.AUTO, options];
+}
 
 function resizeOptions(modeOrOptions?: ResizeMode | ResizeOptions): { mode: ResizeMode, fast: boolean } {
     const options = isOptions(modeOrOptions) ? modeOrOptions : { mode: modeOrOptions };

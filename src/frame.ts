@@ -1,4 +1,4 @@
-import { Image, ResizeMode, ResizeOptions, Color, TrimOptions } from './image.ts';
+import { Image, ResizeMode, ResizeOptions, ResizeToOptions, Color, TrimOptions, resizeArguments } from './image.ts';
 import { isOptions, finite } from './util/options.ts';
 
 /** Names of the frame disposal modes, see {@link Frame.disposalMode} */
@@ -200,12 +200,20 @@ export class Frame extends Image {
 
     /**
      * Resizes the frame, scaling its offsets along with it.
-     * Use {@link ResizeModes.AUTO} as either width or height to automatically preserve the aspect ratio.
+     * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
      * @param width The new width
      * @param height The new height
      * @param modeOrOptions The resizing mode (default: {@link ResizeModes.BILINEAR}) or {@link ResizeOptions}
      */
-    override resize(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
+    override resize(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this;
+    /**
+     * Resizes the frame, scaling its offsets along with it: to the given width or height (the other side keeps the
+     * aspect ratio), or to both
+     * @param options The size and how to resize, see {@link ResizeToOptions}
+     */
+    override resize(options: ResizeToOptions): this;
+    override resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, modeArgument?: ResizeMode | ResizeOptions): this {
+        const [width, height, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
         const originalWidth = this.width;
         const originalHeight = this.height;
 

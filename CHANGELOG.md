@@ -9,6 +9,16 @@
   values). The old values (`'RESIZE_BILINEAR'`, `1`-`3`, still the values of the deprecated `Image.RESIZE_*` and
   `Image.SVG_MODE_*`) keep working until 4.0: `image.resize(256, 256, 'bicubic')`.
 
+### New
+
+- `resize({ width })` and `resize({ height })` on images, frames and animations: the missing side keeps the aspect
+  ratio, `resize({ width: 256, mode: 'bicubic' })`.
+
+### Deprecated
+
+- `ResizeModes.AUTO` (and `Image.RESIZE_AUTO`, `Frame.RESIZE_AUTO`): pass only the width or the height instead.
+  Removed in 4.0.
+
 ## 3.17.0
 
 ### New

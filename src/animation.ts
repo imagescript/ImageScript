@@ -5,7 +5,7 @@ import * as webp from './codecs/webp.ts';
 import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
-import { Image, ResizeMode, ResizeModes, ResizeOptions } from './image.ts';
+import { Image, ResizeMode, ResizeModes, ResizeOptions, ResizeToOptions, resizeArguments } from './image.ts';
 import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
@@ -200,7 +200,7 @@ export class Animation extends Array<Frame> {
 
     /**
      * Resizes the animation to the given dimensions, scaling every frame and its offsets proportionally.
-     * Use {@link ResizeModes.AUTO} as either width or height to automatically preserve the aspect ratio.
+     * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
      * @param width The new width
      * @param height The new height
      * @param options See {@link ResizeOptions}
@@ -208,13 +208,21 @@ export class Animation extends Array<Frame> {
     resize(width: number, height: number, options?: ResizeOptions): this;
     /**
      * Resizes the animation to the given dimensions, scaling every frame and its offsets proportionally.
-     * Use {@link ResizeModes.AUTO} as either width or height to automatically preserve the aspect ratio.
+     * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
      * @param width The new width
      * @param height The new height
      * @param mode The resizing mode to use. Default: {@link ResizeModes.BILINEAR}
      */
     resize(width: number, height: number, mode?: ResizeMode): this;
-    resize(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
+    /**
+     * Resizes the animation, scaling every frame and its offsets proportionally: to the given width or height (the
+     * other side keeps the aspect ratio), or to both
+     * @param options The size and how to resize, see {@link ResizeToOptions}
+     */
+    resize(options: ResizeToOptions): this;
+    resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, modeArgument?: ResizeMode | ResizeOptions): this {
+        // eslint-disable-next-line prefer-const
+        let [width, height, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
         const originalWidth = this.width, originalHeight = this.height;
         if (width === ResizeModes.AUTO && height === ResizeModes.AUTO) throw new Error('RESIZE_AUTO can only be used for either width or height, not for both');
         if (width === ResizeModes.AUTO) width = originalWidth / originalHeight * height;
@@ -225,7 +233,8 @@ export class Animation extends Array<Frame> {
             // scale both edges so adjacent frames stay aligned
             const left = Math.round(frame.xOffset * sx), top = Math.round(frame.yOffset * sy);
             const right = Math.round((frame.xOffset + frame.width) * sx), bottom = Math.round((frame.yOffset + frame.height) * sy);
-            Image.prototype.resize.call(frame, Math.max(1, right - left), Math.max(1, bottom - top), modeOrOptions as ResizeMode);
+            (Image.prototype.resize as (width: number, height: number, mode?: ResizeMode | ResizeOptions) => Image)
+                .call(frame, Math.max(1, right - left), Math.max(1, bottom - top), modeOrOptions);
             frame.xOffset = left;
             frame.yOffset = top;
         }
