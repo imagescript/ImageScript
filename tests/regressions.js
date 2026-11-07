@@ -434,6 +434,16 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f, other[i])), 'Animation.resize({height})');
     }
 
+    // coordinates() and pixels(), the iterator and iterateWithColors() (deprecated, removed in 4.0) yield the same
+    {
+        const image = new Image(3, 2).fill((x, y) => ColorHelpers.fromRGBA(x * 50, y * 100, 7, 255));
+        const coordinates = [...image.coordinates()], pixels = [...image.pixels()];
+        assert(coordinates.length === 6 && pixels.length === 6, 'coordinates()/pixels() count');
+        assert(JSON.stringify(coordinates) === JSON.stringify([...image]), 'coordinates() vs the iterator');
+        assert(JSON.stringify(pixels) === JSON.stringify([...image.iterateWithColors()]), 'pixels() vs iterateWithColors()');
+        assert(coordinates[4].join() === '1,1' && pixels[4][2] === ColorHelpers.fromRGBA(50, 100, 7, 255), 'coordinates() and pixels() are row by row');
+    }
+
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values
     {
         const { Colors } = require('..');

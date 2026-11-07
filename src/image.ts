@@ -612,25 +612,45 @@ export class Image {
     }
 
     /**
-     * Yields an [x, y] array for every pixel in the image (0-based)
+     * Yields an [x, y] array for every pixel in the image (0-based), row by row
      * @yields The coordinates of the pixel ([x, y])
      */
-    *[Symbol.iterator](): Generator<[x: number, y: number], void, undefined> {
+    *coordinates(): Generator<[x: number, y: number], void, undefined> {
         for (let y = 0; y < this.height; y++)
             for (let x = 0; x < this.width; x++)
                 yield [x, y];
     }
 
     /**
-     * Yields an [x, y, color] array for every pixel in the image (0-based)
+     * Yields an [x, y, color] array for every pixel in the image (0-based), row by row
      * @yields The coordinates and color of the pixel ([x, y, color])
      */
-    *iterateWithColors(): Generator<[x: number, y: number, color: Color], void, undefined> {
+    *pixels(): Generator<[x: number, y: number, color: Color], void, undefined> {
         const view = new DataView(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
         let offset = 0;
         for (let y = 0; y < this.height; y++)
             for (let x = 0; x < this.width; x++, offset += 4)
                 yield [x, y, view.getUint32(offset, false)];
+    }
+
+    /**
+     * Yields an [x, y] array for every pixel in the image (0-based)
+     * @yields The coordinates of the pixel ([x, y])
+     * @deprecated Use {@link Image.coordinates}, iterating over the image will be removed in 4.0
+     * @group Deprecated
+     */
+    *[Symbol.iterator](): Generator<[x: number, y: number], void, undefined> {
+        yield* this.coordinates();
+    }
+
+    /**
+     * Yields an [x, y, color] array for every pixel in the image (0-based)
+     * @yields The coordinates and color of the pixel ([x, y, color])
+     * @deprecated Use {@link Image.pixels}, `iterateWithColors()` will be removed in 4.0
+     * @group Deprecated
+     */
+    *iterateWithColors(): Generator<[x: number, y: number, color: Color], void, undefined> {
+        yield* this.pixels();
     }
 
     /**
