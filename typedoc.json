@@ -15,6 +15,29 @@
     "kind",
     "alphabetical"
   ],
+  "navigation": {
+    "includeGroups": true
+  },
+  "groupOrder": [
+    "Classes",
+    "Functions",
+    "Interfaces",
+    "Type Aliases",
+    "Constructors",
+    "Properties",
+    "Accessors",
+    "Methods",
+    "*",
+    "Deprecated"
+  ],
+  "visibilityFilters": {
+    "protected": false,
+    "private": false,
+    "inherited": false,
+    "external": false
+  },
+  "lightHighlightTheme": "github-light-default",
+  "darkHighlightTheme": "github-dark-default",
   "githubPages": true,
   "hostedBaseUrl": "https://imagescript.dev/",
   "gitRevision": "master",

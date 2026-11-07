@@ -1,21 +1,822 @@
-/* typedoc's custom CSS for imagescript.dev (assets/custom.css, next to assets/favicon.svg) */
+/* typedoc's custom CSS for imagescript.dev (assets/custom.css, loaded after typedoc's style.css). Colours come from the
+   logo (#141821 tile, #E85D8C / #4C7DF0 / #8E6CEF / #FFC857 squares), darkened or lightened where text needs contrast */
 
-/* the mark before the title in the toolbar */
-.tsd-page-toolbar .title {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5em;
+/* ---------- colours ---------- */
+
+:root {
+    --light-color-background: #ffffff;
+    --light-color-background-secondary: #f4f5f8;
+    --light-color-background-warning: #fff4d6;
+    --light-color-warning-text: #4a3500;
+    --light-color-accent: #e3e5eb;
+    --light-color-active-menu-item: #fbe9f0;
+    --light-color-text: #1b1f29;
+    --light-color-text-aside: #5d6474;
+    --light-color-link: #b62e5f;
+    --light-color-focus-outline: #4c7df0;
+    --light-color-icon-background: #ffffff;
+    --light-color-icon-text: #1b1f29;
+    --light-color-comment-tag: #1b1f29;
+    --light-color-comment-tag-text: #ffffff;
+    --light-color-ts-keyword: #7246d6;
+    --light-color-ts-project: #b62e5f;
+    --light-color-ts-module: #b62e5f;
+    --light-color-ts-namespace: #b62e5f;
+    --light-color-ts-enum: #9a5b00;
+    --light-color-ts-enum-member: #9a5b00;
+    --light-color-ts-variable: #2f5fd0;
+    --light-color-ts-function: #1b1f29;
+    --light-color-ts-class: #2f5fd0;
+    --light-color-ts-interface: #2f5fd0;
+    --light-color-ts-constructor: #1b1f29;
+    --light-color-ts-property: #9a5b00;
+    --light-color-ts-method: #1b1f29;
+    --light-color-ts-call-signature: #1b1f29;
+    --light-color-ts-index-signature: #1b1f29;
+    --light-color-ts-constructor-signature: #1b1f29;
+    --light-color-ts-parameter: #b62e5f;
+    --light-color-ts-type-parameter: #7246d6;
+    --light-color-ts-accessor: #9a5b00;
+    --light-color-ts-get-signature: #9a5b00;
+    --light-color-ts-set-signature: #9a5b00;
+    --light-color-ts-type-alias: #2f5fd0;
+    --light-color-document: #1b1f29;
+
+    --dark-color-background: #12151c;
+    --dark-color-background-secondary: #1a1e28;
+    --dark-color-background-warning: #3a2e10;
+    --dark-color-warning-text: #ffe2a3;
+    --dark-color-accent: #2a2f3c;
+    --dark-color-active-menu-item: #2c1d27;
+    --dark-color-text: #e7e9ef;
+    --dark-color-text-aside: #9aa1b1;
+    --dark-color-link: #f28db2;
+    --dark-color-focus-outline: #7a9df5;
+    --dark-color-icon-background: #12151c;
+    --dark-color-icon-text: #e7e9ef;
+    --dark-color-comment-tag: #e7e9ef;
+    --dark-color-comment-tag-text: #12151c;
+    --dark-color-ts-keyword: #b9a3ff;
+    --dark-color-ts-project: #f28db2;
+    --dark-color-ts-module: #f28db2;
+    --dark-color-ts-namespace: #f28db2;
+    --dark-color-ts-enum: #ffc857;
+    --dark-color-ts-enum-member: #ffc857;
+    --dark-color-ts-variable: #8fb0ff;
+    --dark-color-ts-function: #e7e9ef;
+    --dark-color-ts-class: #8fb0ff;
+    --dark-color-ts-interface: #8fb0ff;
+    --dark-color-ts-constructor: #e7e9ef;
+    --dark-color-ts-property: #ffc857;
+    --dark-color-ts-method: #e7e9ef;
+    --dark-color-ts-call-signature: #e7e9ef;
+    --dark-color-ts-index-signature: #e7e9ef;
+    --dark-color-ts-constructor-signature: #e7e9ef;
+    --dark-color-ts-parameter: #f28db2;
+    --dark-color-ts-type-parameter: #b9a3ff;
+    --dark-color-ts-accessor: #ffc857;
+    --dark-color-ts-get-signature: #ffc857;
+    --dark-color-ts-set-signature: #ffc857;
+    --dark-color-ts-type-alias: #8fb0ff;
+    --dark-color-document: #e7e9ef;
+
+    --font-text: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-code: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --radius: 8px;
+    --toolbar-height: 3.5rem;
 }
 
-.tsd-page-toolbar .title::before {
+/* ---------- base type ---------- */
+
+body {
+    font-family: var(--font-text);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+}
+
+a {
+    text-underline-offset: 0.18em;
+}
+
+code, pre {
+    font-family: var(--font-code);
+    font-size: 0.875em;
+}
+
+:not(pre) > code:not(.tsd-tag) {
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    background: var(--color-background-secondary);
+}
+
+pre {
+    padding: 1rem 1.15rem;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--color-background-secondary);
+    line-height: 1.55;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+pre code,
+pre code * {
+    background: none;
+}
+
+pre > button {
+    top: 0.6rem;
+    right: 0.6rem;
+    padding: 0.2rem 0.6rem;
+    border: none;
+    border-radius: 5px;
+    background: var(--color-background);
+    color: var(--color-text-aside);
+    font: 12px var(--font-text);
+    cursor: pointer;
+}
+
+::selection {
+    background: #e85d8c40;
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-focus-outline);
+    outline-offset: 2px;
+}
+
+/* ---------- toolbar ---------- */
+
+.tsd-page-toolbar {
+    background: var(--color-background);
+    border-bottom: 1px solid var(--color-accent);
+}
+
+.tsd-page-toolbar .tsd-toolbar-contents {
+    height: var(--toolbar-height);
+}
+
+.tsd-page-toolbar .table-cell {
+    line-height: var(--toolbar-height);
+}
+
+.tsd-page-toolbar .tsd-toolbar-icon {
+    padding: calc((var(--toolbar-height) - 16px) / 2) 0;
+}
+
+.tsd-page-toolbar .tsd-widget {
+    height: var(--toolbar-height);
+}
+
+.tsd-page-toolbar a.title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6em;
+    font-size: 1.05rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+}
+
+.tsd-page-toolbar a.title:hover {
+    text-decoration: none;
+}
+
+/* the mark before the title */
+.tsd-page-toolbar a.title::before {
     content: "";
     flex: none;
-    width: 1.5em;
-    height: 1.5em;
+    width: 1.6em;
+    height: 1.6em;
     background: url(favicon.svg) center / contain no-repeat;
 }
 
-/* the README's wordmark following typedoc's theme setting rather than the OS's (scripts/docs.js splits it in two) */
+/* scripts/docs.js wraps the version so it can be set apart from the name */
+.tsd-page-toolbar .title .version {
+    padding: 0.1em 0.5em;
+    border-radius: 999px;
+    background: var(--color-background-secondary);
+    color: var(--color-text-aside);
+    font: 500 0.75rem/1.6 var(--font-code);
+    letter-spacing: 0;
+}
+
+#tsd-toolbar-links a {
+    color: var(--color-text-aside);
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-left: 1.5rem;
+}
+
+#tsd-toolbar-links a:hover {
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+#tsd-search .field input {
+    font: inherit;
+}
+
+#tsd-search .results {
+    border-radius: 0 0 var(--radius) var(--radius);
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
+}
+
+#tsd-search .results li {
+    line-height: 1.4;
+}
+
+#tsd-search .results li:nth-child(even) {
+    background-color: var(--color-background);
+}
+
+#tsd-search .results li:nth-child(odd) {
+    background-color: var(--color-background-secondary);
+}
+
+#tsd-search .results li.current,
+#tsd-search .results li:hover {
+    background-color: var(--color-active-menu-item);
+}
+
+/* ---------- layout ---------- */
+
+.container {
+    max-width: 1520px;
+    padding: 0 1.5rem;
+}
+
+@media (min-width: 770px) {
+    .container-main {
+        grid-template-columns: 15.5rem minmax(0, 1fr);
+        column-gap: 2.5rem;
+        margin-top: 0;
+    }
+
+    .page-menu, .site-menu {
+        top: var(--toolbar-height);
+        max-height: calc(100vh - var(--toolbar-height));
+        padding-top: 1.75rem;
+        padding-bottom: 2rem;
+    }
+
+    .site-menu {
+        margin-top: 0;
+    }
+
+    .col-content {
+        padding: 2.25rem 0 4rem;
+    }
+}
+
+@media (max-width: 769px) {
+    .col-content {
+        padding: 1.25rem 0 3rem;
+    }
+}
+
+@media (min-width: 1200px) {
+    .container-main {
+        grid-template-columns: 15.5rem minmax(0, 1fr) 14rem;
+    }
+}
+
+/* long prose lines are hard to follow: keep comments at a readable measure, let signatures and code use the width */
+.tsd-typography > p,
+.tsd-typography > ul,
+.tsd-typography > ol,
+.tsd-comment > p,
+.tsd-description > p {
+    max-width: 46rem;
+}
+
+/* ---------- sidebar ---------- */
+
+.site-menu .tsd-navigation,
+.page-menu .tsd-page-navigation {
+    font-size: 0.875rem;
+    line-height: 1.35;
+}
+
+.tsd-navigation a,
+.tsd-navigation summary > span,
+.tsd-page-navigation a {
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+}
+
+.tsd-navigation a:hover,
+.tsd-page-navigation a:hover {
+    text-decoration: none;
+    background: var(--color-background-secondary);
+}
+
+.tsd-navigation a.current,
+.tsd-page-navigation a.current {
+    background: var(--color-active-menu-item);
+    color: var(--color-link);
+    font-weight: 600;
+}
+
+/* the sidebar is grouped by kind (Classes, Interfaces, ...), so the per-entry kind icons only add noise */
+.tsd-navigation .tsd-kind-icon,
+.tsd-page-navigation .tsd-kind-icon {
+    display: none;
+}
+
+/* group headings */
+.tsd-navigation .tsd-accordion-summary {
+    margin-top: 1rem;
+}
+
+.tsd-navigation .tsd-accordion-summary > span {
+    color: var(--color-text-aside);
+    font-weight: 600;
+}
+
+.tsd-navigation .tsd-accordion-summary svg,
+.tsd-page-navigation .tsd-accordion-summary svg {
+    width: 0.75rem;
+    height: 0.75rem;
+    margin-right: 0.15rem;
+    opacity: 0.6;
+}
+
+.tsd-navigation ul.tsd-nested-navigation {
+    margin-left: 0.6rem;
+    padding-left: 0.4rem;
+    border-left: 1px solid var(--color-accent);
+}
+
+.tsd-navigation > a.tsd-nav-link,
+.site-menu > .tsd-navigation:first-child > a {
+    font-weight: 600;
+}
+
+/* the settings accordion (theme, member visibility) and "On This Page" */
+.page-menu .tsd-accordion-summary h3 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-text-aside);
+    margin: 0;
+}
+
+.page-menu .tsd-accordion-summary > svg {
+    width: 0.7rem;
+    height: 0.7rem;
+    margin-right: 0.3rem;
+}
+
+.page-menu .tsd-page-navigation a {
+    color: var(--color-text-aside);
+}
+
+.page-menu .tsd-page-navigation a.current {
+    color: var(--color-link);
+    background: none;
+}
+
+.page-menu .tsd-page-navigation .tsd-accordion-summary > span,
+.page-menu .tsd-page-navigation details > summary {
+    font-weight: 600;
+}
+
+.page-menu .tsd-navigation.settings {
+    font-size: 0.85rem;
+}
+
+.tsd-theme-toggle select,
+.tsd-filter-item {
+    font: inherit;
+}
+
+.tsd-theme-toggle select {
+    padding: 0.2rem 0.4rem;
+    border: 1px solid var(--color-accent);
+    border-radius: 6px;
+    background: var(--color-background);
+    color: var(--color-text);
+}
+
+/* ---------- page title ---------- */
+
+.tsd-page-title {
+    margin-bottom: 1.5rem;
+}
+
+.tsd-breadcrumb {
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+}
+
+.tsd-page-title h1 {
+    margin: 0;
+    font-size: clamp(1.6rem, 6vw, 2.25rem);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    overflow-wrap: anywhere;
+}
+
+/* scripts/docs.js wraps "Class", "Interface", ... in front of the name */
+.tsd-page-title h1 .kind {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--color-text-aside);
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0;
+}
+
+/* the front page shows the README, whose own heading is the wordmark */
+.tsd-page-title:has(+ .tsd-panel.tsd-typography > h1:first-child img) {
+    display: none;
+}
+
+.tsd-panel.tsd-comment {
+    font-size: 1.05rem;
+}
+
+/* links in prose are one colour; typedoc colours them by the kind they point to (accessor, interface, ...) */
+.tsd-typography a,
+.tsd-typography a[class*="tsd-kind-"] {
+    color: var(--color-link);
+}
+
+/* the README's badges get no external-link arrow next to them */
+a.external[target="_blank"]:has(> img) {
+    background-image: none;
+    padding-right: 0;
+}
+
+.tsd-breadcrumb li:last-child::after {
+    content: none;
+}
+
+/* ---------- headings inside the README / comments ---------- */
+
+.tsd-typography h2 {
+    margin: 2.5rem 0 0.75rem;
+    padding: 0;
+    font-size: 1.5rem;
+}
+
+.tsd-typography h3 {
+    margin: 2rem 0 0.6rem;
+    padding: 0;
+    font-size: 1.2rem;
+}
+
+.tsd-typography hr {
+    margin: 2.5rem 0;
+    border: none;
+    border-top: 1px solid var(--color-accent);
+}
+
+.tsd-typography table {
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.tsd-typography table th,
+.tsd-typography table td {
+    padding: 0.45rem 0.8rem;
+    border: none;
+    border-bottom: 1px solid var(--color-accent);
+    text-align: left;
+}
+
+.tsd-typography table tr:nth-child(n) {
+    background: none;
+}
+
+.tsd-typography img {
+    max-width: 100%;
+}
+
+/* ---------- member groups (Constructors, Methods, ...) ---------- */
+
+.tsd-panel-group {
+    margin: 3rem 0;
+}
+
+.tsd-panel-group > .tsd-accordion-summary,
+.tsd-index-group .tsd-accordion-summary {
+    margin-bottom: 0.5rem;
+}
+
+.tsd-panel-group > .tsd-accordion-summary h2,
+.tsd-index-panel .tsd-accordion-summary h5,
+.tsd-index-panel h3 {
+    color: var(--color-text);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+}
+
+.tsd-accordion-summary > h2 > svg,
+.tsd-accordion-summary > h3 > svg,
+.tsd-accordion-summary > h5 > svg,
+.tsd-accordion-summary > svg {
+    width: 0.8em;
+    height: 0.8em;
+    opacity: 0.45;
+}
+
+/* ---------- index (the list of members at the top of a page) ---------- */
+
+.tsd-panel-group.tsd-index-group details {
+    margin: 1rem 0;
+}
+
+.tsd-index-panel .tsd-index-section {
+    margin-top: 1.25rem;
+}
+
+.tsd-index-panel .tsd-index-heading {
+    margin: 0 0 0.4rem;
+    color: var(--color-text-aside);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.tsd-index-panel .tsd-index-list {
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    column-gap: 1.5rem;
+}
+
+a.tsd-index-link {
+    overflow-wrap: anywhere;
+    font-family: var(--font-code);
+    font-size: 0.85rem;
+    color: var(--color-text);
+}
+
+a.tsd-index-link:hover {
+    color: var(--color-link);
+    text-decoration: none;
+}
+
+.tsd-index-link .tsd-kind-icon {
+    display: none;
+}
+
+/* ---------- members ---------- */
+
+.tsd-panel.tsd-member {
+    margin: 0;
+    padding: 2rem 0 2.25rem;
+    border-top: 1px solid var(--color-accent);
+}
+
+.tsd-member .tsd-anchor + h3 {
+    margin-bottom: 0.85rem;
+    font-family: var(--font-code);
+    font-size: 1.2rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+}
+
+.tsd-member .tsd-anchor + h3 code.tsd-tag {
+    font-family: var(--font-text);
+}
+
+.tsd-anchor-icon svg {
+    width: 1rem;
+    height: 1rem;
+    margin-left: 0.4rem;
+    color: var(--color-text-aside);
+}
+
+/* signatures */
+.tsd-signature,
+.tsd-signatures .tsd-signature,
+.tsd-description .tsd-signatures .tsd-signature,
+.tsd-signatures .tsd-index-signature .tsd-signature {
+    padding: 0.8rem 1rem;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--color-background-secondary);
+    font-family: var(--font-code);
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+.tsd-signatures > li + li {
+    margin-top: 1.5rem;
+}
+
+.tsd-signature-type {
+    font-style: normal;
+}
+
+.tsd-signature-symbol {
+    color: var(--color-text-aside);
+}
+
+.tsd-signature .tsd-kind-call-signature,
+.tsd-signature .tsd-kind-constructor-signature,
+.tsd-signature .tsd-kind-get-signature,
+.tsd-signature .tsd-kind-set-signature {
+    font-weight: 650;
+}
+
+a.tsd-signature-type,
+.tsd-signature a {
+    text-decoration: none;
+}
+
+a.tsd-signature-type:hover,
+.tsd-signature a:hover {
+    text-decoration: underline;
+}
+
+.tsd-description {
+    margin-top: 1rem;
+}
+
+.tsd-description > .tsd-comment > p:first-child {
+    margin-top: 0;
+}
+
+/* "Parameters", "Returns", "Type Parameters" */
+.tsd-parameters-title,
+.tsd-returns-title,
+.tsd-type-parameters-title,
+.tsd-description h4 {
+    margin: 1.5rem 0 0.5rem;
+    color: var(--color-text-aside);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.tsd-returns-title .tsd-signature-type,
+.tsd-returns-title a {
+    margin-left: 0.4rem;
+    color: var(--color-text);
+    font-family: var(--font-code);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.tsd-returns-title a.tsd-signature-type {
+    color: var(--color-ts-interface);
+}
+
+.tsd-returns-title + p {
+    margin-top: 0.25rem;
+}
+
+ul.tsd-parameter-list,
+ul.tsd-type-parameter-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+ul.tsd-parameter-list > li,
+ul.tsd-type-parameter-list > li {
+    padding: 0.6rem 0 0.6rem 0.9rem;
+    border-left: 2px solid var(--color-accent);
+}
+
+ul.tsd-parameter-list > li + li,
+ul.tsd-type-parameter-list > li + li {
+    margin-top: 0.25rem;
+}
+
+ul.tsd-parameter-list > li > span:first-child,
+ul.tsd-type-parameter-list > li > span:first-child {
+    font-family: var(--font-code);
+    font-size: 0.85rem;
+}
+
+ul.tsd-parameter-list > li > span:first-child > .tsd-kind-parameter,
+ul.tsd-type-parameter-list > li > span:first-child > .tsd-kind-type-parameter {
+    font-weight: 650;
+}
+
+ul.tsd-parameter-list .tsd-comment > p,
+ul.tsd-type-parameter-list .tsd-comment > p {
+    margin: 0.25rem 0 0;
+}
+
+ul.tsd-parameter-list h5 {
+    margin: 0.75rem 0 0.25rem;
+    font-size: 0.85rem;
+}
+
+/* empty comment wrappers typedoc emits after every description */
+.tsd-comment.tsd-typography:empty {
+    display: none;
+}
+
+/* tags (Static, Optional, Readonly, Deprecated) */
+code.tsd-tag {
+    padding: 0.15em 0.5em;
+    border: none;
+    border-radius: 999px;
+    background: var(--color-background-secondary);
+    color: var(--color-text-aside);
+    font-family: var(--font-text);
+    font-size: 0.7rem;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+h3 code.tsd-tag {
+    margin-right: 0.6rem;
+}
+
+/* @example and the other block tags */
+.tsd-tag-example h4,
+.tsd-comment-tag-group h4 {
+    color: var(--color-text-aside);
+    font-size: 0.8rem;
+}
+
+/* "Defined in src/image.ts:880" */
+.tsd-sources {
+    margin-top: 1.25rem;
+    color: var(--color-text-aside);
+    font-size: 0.8rem;
+}
+
+.tsd-sources a {
+    color: var(--color-text-aside);
+    text-decoration: none;
+    font-family: var(--font-code);
+    font-size: 0.95em;
+}
+
+.tsd-sources a:hover {
+    color: var(--color-link);
+    text-decoration: underline;
+}
+
+/* hierarchy */
+.tsd-panel.tsd-hierarchy h4 {
+    margin-bottom: 0.4rem;
+    color: var(--color-text-aside);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.tsd-panel.tsd-hierarchy h4 a {
+    font-weight: 500;
+}
+
+ul.tsd-hierarchy {
+    padding-left: 1.1rem;
+    list-style: none;
+    font-family: var(--font-code);
+    font-size: 0.85rem;
+}
+
+ul.tsd-hierarchy ul.tsd-hierarchy {
+    margin: 0.2rem 0 0;
+    padding-left: 1.1rem;
+}
+
+ul.tsd-hierarchy ul.tsd-hierarchy > li::before {
+    content: "\21B3\00A0";
+    color: var(--color-text-aside);
+}
+
+.tsd-panel.tsd-hierarchy {
+    margin-bottom: 1rem;
+}
+
+/* alerts (> [!NOTE] ...) */
+.tsd-typography .tsd-alert {
+    border-radius: 0 var(--radius) var(--radius) 0;
+    background: var(--color-background-secondary);
+}
+
+/* ---------- footer ---------- */
+
+footer {
+    border-top: 1px solid var(--color-accent);
+    color: var(--color-text-aside);
+    font-size: 0.8rem;
+}
+
+footer .tsd-generator {
+    padding: 1rem 0;
+}
+
+/* ---------- the README's wordmark follows typedoc's theme setting rather than the OS's ---------- */
+/* (scripts/docs.js splits the <picture> in two) */
+
 .wordmark-dark {
     display: none;
 }

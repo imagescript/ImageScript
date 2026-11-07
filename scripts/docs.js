@@ -40,6 +40,17 @@ for (const page of pages) {
         `<link rel="apple-touch-icon" href="/apple-touch-icon.png"/>`,
         '</head>'
     ].join(''));
+    // the version in the toolbar set apart from the name, and the kind ("Class", "Interface", ...) as a line of its own
+    // above the page title (docs.css)
+    html = html.replace(/(<a href="[^"]*" class="title">)([^<]+?) - (v[^<]+)<\/a>/, '$1$2 <span class="version">$3</span></a>');
+    html = html.replace(/(<div class="tsd-page-title">[\s\S]*?<h1>)(Class|Interface|Function|Type Alias|Variable|Enumeration|Namespace) /,
+        '$1<span class="kind">$2</span>');
+    // constants typed as their own literal (RESIZE_AREA: "RESIZE_AREA" = 'RESIZE_AREA') show the value once
+    html = html.replace(/(<span class="tsd-signature-type">(?:&quot;([^&<]*)&quot;|(-?[\d.]+))<\/span>)<span class="tsd-signature-symbol"> = (?:&#39;([^&<]*)&#39;|(-?[\d.]+))<\/span>/g,
+        (all, type, typeString, typeNumber, valueString, valueNumber) =>
+            (typeString ?? typeNumber) === (valueString ?? valueNumber) ? type : all);
+    // the sidebar's first entry repeats the toolbar title but leads to the list of every export
+    html = html.replace(/(<nav class="tsd-navigation"><a href="[^"]*modules\.html"[^>]*>)[^<]*<\/a>/, '$1All exports</a>');
     // (a <picture> follows the OS's color scheme, the docs have a theme setting of their own: two images, docs.css
     // shows the one for the theme)
     html = html.replace(/<picture>\s*<source media="\(prefers-color-scheme: dark\)" srcset="([^"]+)"\/?>\s*<img ([^>]*?)src="([^"]+)"([^>]*)>\s*<\/picture>/g,
