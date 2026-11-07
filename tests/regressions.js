@@ -444,6 +444,15 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(coordinates[4].join() === '1,1' && pixels[4][2] === ColorHelpers.fromRGBA(50, 100, 7, 255), 'coordinates() and pixels() are row by row');
     }
 
+    // encodePNG() is the implementation, encode() (deprecated, removed in 4.0) an alias of it
+    {
+        const image = new Image(5, 4).fill((x, y) => ColorHelpers.fromRGBA(x * 40, y * 60, 9, 200));
+        for (const args of [[], [9], [0, {title: 'x'}], [{compression: 1}], [{title: 'y'}]]) {
+            const a = await image.encodePNG(...args), b = await image.encode(...args);
+            assert(Buffer.from(a).equals(Buffer.from(b)), `encode(${JSON.stringify(args)}) vs encodePNG`);
+        }
+    }
+
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values
     {
         const { Colors } = require('..');

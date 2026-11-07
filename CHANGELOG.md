@@ -21,6 +21,7 @@
   Removed in 4.0.
 - Iterating over an image (`for (const [x, y] of image)`) and `iterateWithColors()`: use `coordinates()` and
   `pixels()`. Removed in 4.0.
+- `encode()`: use `encodePNG()`, which takes the same arguments. Removed in 4.0.
 
 ## 3.17.0
 

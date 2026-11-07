@@ -31,7 +31,7 @@ Without a bundler, import it from jsDelivr in the browser:
 
   const image = await Image.decode(await fetch('photo.jpg').then(r => r.arrayBuffer()));
   image.resize({ width: 256 });
-  const url = URL.createObjectURL(new Blob([await image.encode()], { type: 'image/png' }));
+  const url = URL.createObjectURL(new Blob([await image.encodePNG()], { type: 'image/png' }));
   document.body.append(Object.assign(document.createElement('img'), { src: url }));
 </script>
 ```
@@ -46,7 +46,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 const image = await Image.decode(await readFile('input.jpg'));
 image.resize({ width: 256 }).roundCorners(16);
-await writeFile('output.png', await image.encode());
+await writeFile('output.png', await image.encodePNG());
 ```
 
 <p align="center">

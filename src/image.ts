@@ -2333,21 +2333,21 @@ export class Image {
      * @param options See {@link PNGEncodeOptions}
      * @return The encoded data
      */
-    encode(options?: PNGEncodeOptions): Promise<Uint8Array>;
+    encodePNG(options?: PNGEncodeOptions): Promise<Uint8Array>;
     /**
      * Encodes the image into a PNG
      * @param compression The compression level (0-9). Default: `4`
      * @param metadata Metadata to include, see {@link Metadata}
      * @return The encoded data
      */
-    encode(compression?: number, metadata?: Metadata): Promise<Uint8Array>;
+    encodePNG(compression?: number, metadata?: Metadata): Promise<Uint8Array>;
     /**
      * Encodes the image into a PNG with compression level 4
      * @param metadata Metadata to include, see {@link Metadata}
      * @return The encoded data
      */
-    encode(metadata?: Metadata): Promise<Uint8Array>;
-    async encode(compressionOrOptions: number | PNGEncodeOptions | Metadata = 4, metadataArgument: Metadata = {}): Promise<Uint8Array> {
+    encodePNG(metadata?: Metadata): Promise<Uint8Array>;
+    async encodePNG(compressionOrOptions: number | PNGEncodeOptions | Metadata = 4, metadataArgument: Metadata = {}): Promise<Uint8Array> {
         let compression = 4, metadata = metadataArgument;
         if (!isOptions(compressionOrOptions)) compression = compressionOrOptions;
         // the options and the metadata have no key in common: an object with neither is empty, the same either way
@@ -2359,23 +2359,32 @@ export class Image {
     }
 
     /**
-     * Encodes the image into a PNG, an alias of {@link Image.encode}
+     * Encodes the image into a PNG
      * @param options See {@link PNGEncodeOptions}
+     * @return The encoded data
+     * @deprecated Use {@link Image.encodePNG}, `encode()` will be removed in 4.0
+     * @group Deprecated
      */
-    encodePNG(options?: PNGEncodeOptions): Promise<Uint8Array>;
+    encode(options?: PNGEncodeOptions): Promise<Uint8Array>;
     /**
-     * Encodes the image into a PNG, an alias of {@link Image.encode}
+     * Encodes the image into a PNG
      * @param compression The compression level (0-9). Default: `4`
      * @param metadata Metadata to include, see {@link Metadata}
+     * @return The encoded data
+     * @deprecated Use {@link Image.encodePNG}, `encode()` will be removed in 4.0
+     * @group Deprecated
      */
-    encodePNG(compression?: number, metadata?: Metadata): Promise<Uint8Array>;
+    encode(compression?: number, metadata?: Metadata): Promise<Uint8Array>;
     /**
-     * Encodes the image into a PNG, an alias of {@link Image.encode}
+     * Encodes the image into a PNG with compression level 4
      * @param metadata Metadata to include, see {@link Metadata}
+     * @return The encoded data
+     * @deprecated Use {@link Image.encodePNG}, `encode()` will be removed in 4.0
+     * @group Deprecated
      */
-    encodePNG(metadata?: Metadata): Promise<Uint8Array>;
-    encodePNG(compressionOrOptions?: number | PNGEncodeOptions | Metadata, metadata?: Metadata): Promise<Uint8Array> {
-        return this.encode(compressionOrOptions as number, metadata);
+    encode(metadata?: Metadata): Promise<Uint8Array>;
+    encode(compressionOrOptions?: number | PNGEncodeOptions | Metadata, metadata?: Metadata): Promise<Uint8Array> {
+        return this.encodePNG(compressionOrOptions as number, metadata);
     }
 
     /**
