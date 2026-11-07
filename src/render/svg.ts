@@ -159,7 +159,7 @@ const OFFSETS = Float64Array.from({ length: SAMPLES }, (_, s) => (s + 0.5) / SAM
  * @param {number} size
  * @return {{width: number, height: number, pixels: Uint8Array}}
  */
-export function render(source: string | Uint8Array, mode: number, size: number, images: Map<string, RasterImage> = new Map(), fonts: Uint8Array[] = []): { width: number, height: number, pixels: Uint8Array } {
+export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'height', size: number, images: Map<string, RasterImage> = new Map(), fonts: Uint8Array[] = []): { width: number, height: number, pixels: Uint8Array } {
     if (typeof source !== 'string') source = decodeUTF8(source);
 
     const root = parseXML(source).children.find(node => node.name === 'svg' && node.svg);
@@ -172,10 +172,10 @@ export function render(source: string | Uint8Array, mode: number, size: number, 
     if (!(width > 0) || !(height > 0)) throw new Error('SVG: invalid dimensions');
 
     let outWidth, outHeight;
-    if (mode === 2) {
+    if (mode === 'width') {
         outWidth = Math.round(size);
         outHeight = Math.round(height * size / width);
-    } else if (mode === 3) {
+    } else if (mode === 'height') {
         outHeight = Math.round(size);
         outWidth = Math.round(width * size / height);
     } else {

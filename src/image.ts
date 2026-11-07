@@ -45,11 +45,19 @@ export type Color = number;
 /** Called with a pixel's (0-based) coordinates, returns its color */
 export type ColorFunction = (x: number, y: number) => Color;
 
-/** Resampling filters for {@link Image.resize} and the other scaling functions, see {@link ResizeModes} */
-export type ResizeMode = 'RESIZE_NEAREST_NEIGHBOR' | 'RESIZE_BILINEAR' | 'RESIZE_BICUBIC' | 'RESIZE_AREA';
+/**
+ * Resampling filters for {@link Image.resize} and the other scaling functions, see {@link ResizeModes}.
+ * The upper case names (`'RESIZE_BILINEAR'`, the values of the deprecated `Image.RESIZE_*`) still work, they are
+ * removed in 4.0
+ */
+export type ResizeMode = 'nearest-neighbor' | 'bilinear' | 'bicubic' | 'area'
+    | 'RESIZE_NEAREST_NEIGHBOR' | 'RESIZE_BILINEAR' | 'RESIZE_BICUBIC' | 'RESIZE_AREA';
 
-/** How {@link Image.renderSVG} scales, see {@link SVGScaleModes} */
-export type SVGScaleMode = 1 | 2 | 3;
+/**
+ * How {@link Image.renderSVG} scales, see {@link SVGScaleModes}. The numbers 1-3 (the values of the deprecated
+ * `Image.SVG_MODE_*`) still work, they are removed in 4.0
+ */
+export type SVGScaleMode = 'scale' | 'width' | 'height' | 1 | 2 | 3;
 
 /**
  * The resampling filters of {@link Image.resize} and the other scaling functions, and {@link ResizeModes.AUTO} for
@@ -59,22 +67,22 @@ export class ResizeModes {
     /**
      * Use {@link https://en.wikipedia.org/wiki/Image_scaling#Nearest-neighbor_interpolation Nearest-neighbor} resizing
      */
-    static readonly NEAREST_NEIGHBOR = 'RESIZE_NEAREST_NEIGHBOR';
+    static readonly NEAREST_NEIGHBOR = 'nearest-neighbor';
 
     /**
      * Bilinear resizing (the default). When shrinking, the filter widens with the scale factor, so every source pixel
      * contributes
      */
-    static readonly BILINEAR = 'RESIZE_BILINEAR';
+    static readonly BILINEAR = 'bilinear';
 
     /** Bicubic (Catmull-Rom) resizing, sharper than bilinear, especially when enlarging */
-    static readonly BICUBIC = 'RESIZE_BICUBIC';
+    static readonly BICUBIC = 'bicubic';
 
     /**
      * Area averaging (box filter): every output pixel is the average of the source pixels it covers. Meant for
      * shrinking
      */
-    static readonly AREA = 'RESIZE_AREA';
+    static readonly AREA = 'area';
 
     /**
      * Not a filter: passed as the width or the height, that side follows from the other one, keeping the image's
@@ -88,13 +96,13 @@ export class ResizeModes {
 /** How {@link Image.renderSVG} scales the SVG to the given size */
 export class SVGScaleModes {
     /** The size is a factor of the SVG's own size */
-    static readonly SCALE = 1;
+    static readonly SCALE = 'scale';
 
     /** The size is the width in pixels, the height follows the SVG's aspect ratio */
-    static readonly WIDTH = 2;
+    static readonly WIDTH = 'width';
 
     /** The size is the height in pixels, the width follows the SVG's aspect ratio */
-    static readonly HEIGHT = 3;
+    static readonly HEIGHT = 'height';
 
     private constructor() {}
 }
@@ -824,25 +832,25 @@ export class Image {
      * @deprecated Use {@link ResizeModes.NEAREST_NEIGHBOR}, `Image.RESIZE_*` will be removed in 4.0
      * @group Deprecated
      */
-    static readonly RESIZE_NEAREST_NEIGHBOR: typeof ResizeModes.NEAREST_NEIGHBOR = ResizeModes.NEAREST_NEIGHBOR;
+    static readonly RESIZE_NEAREST_NEIGHBOR = 'RESIZE_NEAREST_NEIGHBOR';
 
     /**
      * @deprecated Use {@link ResizeModes.BILINEAR}, `Image.RESIZE_*` will be removed in 4.0
      * @group Deprecated
      */
-    static readonly RESIZE_BILINEAR: typeof ResizeModes.BILINEAR = ResizeModes.BILINEAR;
+    static readonly RESIZE_BILINEAR = 'RESIZE_BILINEAR';
 
     /**
      * @deprecated Use {@link ResizeModes.BICUBIC}, `Image.RESIZE_*` will be removed in 4.0
      * @group Deprecated
      */
-    static readonly RESIZE_BICUBIC: typeof ResizeModes.BICUBIC = ResizeModes.BICUBIC;
+    static readonly RESIZE_BICUBIC = 'RESIZE_BICUBIC';
 
     /**
      * @deprecated Use {@link ResizeModes.AREA}, `Image.RESIZE_*` will be removed in 4.0
      * @group Deprecated
      */
-    static readonly RESIZE_AREA: typeof ResizeModes.AREA = ResizeModes.AREA;
+    static readonly RESIZE_AREA = 'RESIZE_AREA';
 
     /**
      * @deprecated Use {@link ResizeModes.AUTO}, `Image.RESIZE_*` will be removed in 4.0
@@ -2582,19 +2590,19 @@ export class Image {
      * @deprecated Use {@link SVGScaleModes.SCALE}, `Image.SVG_MODE_*` will be removed in 4.0
      * @group Deprecated
      */
-    static readonly SVG_MODE_SCALE: typeof SVGScaleModes.SCALE = SVGScaleModes.SCALE;
+    static readonly SVG_MODE_SCALE = 1;
 
     /**
      * @deprecated Use {@link SVGScaleModes.WIDTH}, `Image.SVG_MODE_*` will be removed in 4.0
      * @group Deprecated
      */
-    static readonly SVG_MODE_WIDTH: typeof SVGScaleModes.WIDTH = SVGScaleModes.WIDTH;
+    static readonly SVG_MODE_WIDTH = 2;
 
     /**
      * @deprecated Use {@link SVGScaleModes.HEIGHT}, `Image.SVG_MODE_*` will be removed in 4.0
      * @group Deprecated
      */
-    static readonly SVG_MODE_HEIGHT: typeof SVGScaleModes.HEIGHT = SVGScaleModes.HEIGHT;
+    static readonly SVG_MODE_HEIGHT = 3;
 
     /**
      * Creates a new image from the given SVG
@@ -2615,8 +2623,9 @@ export class Image {
      */
     static renderSVG(svg: string | BinaryData, size?: number, mode?: SVGScaleMode): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, sizeOrOptions: number | SVGOptions = 1, modeArgument: SVGScaleMode = SVGScaleModes.SCALE): Promise<Image> {
-        const { size = 1, mode = SVGScaleModes.SCALE, fonts = [] } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
-        if (![1, 2, 3].includes(mode))
+        const { size = 1, mode: givenMode = SVGScaleModes.SCALE, fonts = [] } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
+        const mode = LEGACY_SVG_MODES.get(givenMode) ?? givenMode;
+        if (mode !== 'scale' && mode !== 'width' && mode !== 'height')
             throw new Error('Invalid SVG scaling mode');
 
         finite(size, 'SVG size');
@@ -2789,10 +2798,19 @@ interface HSLA {
     a: number;
 }
 
+// the deprecated upper case resize modes (Image.RESIZE_*) and the names they stand for
+const LEGACY_RESIZE_MODES = new Map<unknown, ResizeMode>([
+    ['RESIZE_NEAREST_NEIGHBOR', 'nearest-neighbor'], ['RESIZE_BILINEAR', 'bilinear'], ['RESIZE_BICUBIC', 'bicubic'], ['RESIZE_AREA', 'area']
+]);
+
 function resizeOptions(modeOrOptions?: ResizeMode | ResizeOptions): { mode: ResizeMode, fast: boolean } {
     const options = isOptions(modeOrOptions) ? modeOrOptions : { mode: modeOrOptions };
-    return { mode: options.mode ?? ResizeModes.BILINEAR, fast: options.fast ?? true };
+    const mode = options.mode ?? ResizeModes.BILINEAR;
+    return { mode: LEGACY_RESIZE_MODES.get(mode) ?? mode, fast: options.fast ?? true };
 }
+
+// the deprecated SVG scale mode numbers (Image.SVG_MODE_*) and the names they stand for
+const LEGACY_SVG_MODES = new Map<unknown, SVGScaleMode>([[1, 'scale'], [2, 'width'], [3, 'height']]);
 
 // separable blend functions of normalized channel values (W3C Compositing and Blending Level 1)
 const hardLight = (b: number, s: number): number => s <= 0.5 ? b * 2 * s : 1 - (1 - b) * (1 - (2 * s - 1));

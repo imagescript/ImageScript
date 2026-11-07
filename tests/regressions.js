@@ -1,5 +1,5 @@
 const {Image, Frame, GIF, Animation, TextLayout} = require('..');
-const {ResizeModes, SVGScaleModes, FrameDisposalModes} = require('..');
+const {ResizeModes, SVGScaleModes, FrameDisposalModes, Colors: ColorHelpers} = require('..');
 const zlib = require('zlib');
 
 const assert = (condition, message) => {
@@ -374,28 +374,40 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(decoded.length === 2, 'gif with disposal modes should roundtrip');
     }
 
-    // the constant classes hold the same values as the deprecated Image/Frame constants (removed in 4.0)
+    // the constant classes hold the new names, the deprecated Image/Frame constants (removed in 4.0) keep their values,
+    // and both work everywhere with the same results
     {
         const pairs = [
-            [Image.RESIZE_NEAREST_NEIGHBOR, ResizeModes.NEAREST_NEIGHBOR, 'RESIZE_NEAREST_NEIGHBOR'],
-            [Image.RESIZE_BILINEAR, ResizeModes.BILINEAR, 'RESIZE_BILINEAR'],
-            [Image.RESIZE_BICUBIC, ResizeModes.BICUBIC, 'RESIZE_BICUBIC'],
-            [Image.RESIZE_AREA, ResizeModes.AREA, 'RESIZE_AREA'],
-            [Image.RESIZE_AUTO, ResizeModes.AUTO, -1],
-            [Frame.RESIZE_AUTO, ResizeModes.AUTO, -1],
-            [Image.SVG_MODE_SCALE, SVGScaleModes.SCALE, 1],
-            [Image.SVG_MODE_WIDTH, SVGScaleModes.WIDTH, 2],
-            [Image.SVG_MODE_HEIGHT, SVGScaleModes.HEIGHT, 3],
-            [Frame.DISPOSAL_ANY, FrameDisposalModes.ANY, 'any'],
-            [Frame.DISPOSAL_KEEP, FrameDisposalModes.KEEP, 'keep'],
-            [Frame.DISPOSAL_PREVIOUS, FrameDisposalModes.PREVIOUS, 'previous'],
-            [Frame.DISPOSAL_BACKGROUND, FrameDisposalModes.BACKGROUND, 'background']
+            [Image.RESIZE_NEAREST_NEIGHBOR, 'RESIZE_NEAREST_NEIGHBOR', ResizeModes.NEAREST_NEIGHBOR, 'nearest-neighbor'],
+            [Image.RESIZE_BILINEAR, 'RESIZE_BILINEAR', ResizeModes.BILINEAR, 'bilinear'],
+            [Image.RESIZE_BICUBIC, 'RESIZE_BICUBIC', ResizeModes.BICUBIC, 'bicubic'],
+            [Image.RESIZE_AREA, 'RESIZE_AREA', ResizeModes.AREA, 'area'],
+            [Image.RESIZE_AUTO, -1, ResizeModes.AUTO, -1],
+            [Frame.RESIZE_AUTO, -1, ResizeModes.AUTO, -1],
+            [Image.SVG_MODE_SCALE, 1, SVGScaleModes.SCALE, 'scale'],
+            [Image.SVG_MODE_WIDTH, 2, SVGScaleModes.WIDTH, 'width'],
+            [Image.SVG_MODE_HEIGHT, 3, SVGScaleModes.HEIGHT, 'height'],
+            [Frame.DISPOSAL_ANY, 'any', FrameDisposalModes.ANY, 'any'],
+            [Frame.DISPOSAL_KEEP, 'keep', FrameDisposalModes.KEEP, 'keep'],
+            [Frame.DISPOSAL_PREVIOUS, 'previous', FrameDisposalModes.PREVIOUS, 'previous'],
+            [Frame.DISPOSAL_BACKGROUND, 'background', FrameDisposalModes.BACKGROUND, 'background']
         ];
-        for (const [old, now, value] of pairs)
-            assert(old === value && now === value, `deprecated constant ${old} should equal ${now} (${value})`);
-        const scaled = await Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="5"/>', 20, Image.SVG_MODE_WIDTH);
-        assert(scaled.width === 20 && scaled.height === 10, 'renderSVG with a deprecated mode constant');
+        for (const [old, oldValue, now, nowValue] of pairs)
+            assert(old === oldValue && now === nowValue, `constants: ${old} should be ${oldValue}, ${now} should be ${nowValue}`);
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="5"><rect width="7" height="3" fill="red"/></svg>';
+        for (const [old, now, size, width, height] of [[Image.SVG_MODE_SCALE, SVGScaleModes.SCALE, 2, 20, 10], [Image.SVG_MODE_WIDTH, SVGScaleModes.WIDTH, 20, 20, 10], [Image.SVG_MODE_HEIGHT, SVGScaleModes.HEIGHT, 20, 40, 20]]) {
+            const a = await Image.renderSVG(svg, size, old), b = await Image.renderSVG(svg, {size, mode: now});
+            assert(a.width === width && a.height === height, `renderSVG mode ${now}: ${a.width}x${a.height}`);
+            assert(b.width === width && b.height === height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap)), `renderSVG mode ${old} vs ${now}`);
+        }
+        const photo = new Image(9, 7).fill((x, y) => ColorHelpers.fromRGBA(x * 28, y * 36, (x ^ y) * 16, 255 - x * 10));
+        for (const [old, now] of pairs.slice(0, 4))
+            for (const method of ['resize', 'contain', 'fit', 'cover'])
+                assert(Buffer.from(photo.clone()[method](5, 4, old).bitmap).equals(Buffer.from(photo.clone()[method](5, 4, {mode: now}).bitmap)), `${method} ${old} vs ${now}`);
         assert(new Image(8, 4).resize(4, Image.RESIZE_AUTO, Image.RESIZE_AREA).height === 2, 'resize with deprecated constants');
+        let threw = false;
+        try { photo.clone().resize(4, 4, 'Area'); } catch { threw = true; }
+        assert(threw, 'resize modes are case sensitive');
     }
 
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values

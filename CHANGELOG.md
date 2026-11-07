@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.18.0
+
+### Changes
+
+- **Resize and SVG scale modes are lowercase names**: `'nearest-neighbor'`, `'bilinear'`, `'bicubic'`, `'area'` and
+  `'scale'`, `'width'`, `'height'`, also as the values of `ResizeModes` and `SVGScaleModes` (3.17.0 gave them the old
+  values). The old values (`'RESIZE_BILINEAR'`, `1`-`3`, still the values of the deprecated `Image.RESIZE_*` and
+  `Image.SVG_MODE_*`) keep working until 4.0: `image.resize(256, 256, 'bicubic')`.
+
 ## 3.17.0
 
 ### New
