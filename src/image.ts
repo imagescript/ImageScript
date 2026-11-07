@@ -614,6 +614,10 @@ export class Image {
 
     /**
      * Converts RGBA components to an RGBA value, values are rounded and clamped to 0..255
+     * @param r red (0..255)
+     * @param g green (0..255)
+     * @param b blue (0..255)
+     * @param a alpha (0..255)
      * @deprecated Use {@link Colors.fromRGBA}, `Image.rgbaToColor` will be removed in 4.0
      * @group Deprecated
      */
@@ -623,6 +627,9 @@ export class Image {
 
     /**
      * Converts RGB components to an RGBA value (assuming alpha = 255)
+     * @param r red (0..255)
+     * @param g green (0..255)
+     * @param b blue (0..255)
      * @deprecated Use {@link Colors.fromRGB}, `Image.rgbToColor` will be removed in 4.0
      * @group Deprecated
      */
@@ -632,6 +639,10 @@ export class Image {
 
     /**
      * Converts HSLA colors to RGBA colors
+     * @param h hue (0..1)
+     * @param s saturation (0..1)
+     * @param l lightness (0..1)
+     * @param a opacity (0..1)
      * @deprecated Use {@link Colors.fromHSLA}, `Image.hslaToColor` will be removed in 4.0
      * @group Deprecated
      */
@@ -641,6 +652,9 @@ export class Image {
 
     /**
      * Converts HSL colors to RGBA colors (assuming an opacity of 255)
+     * @param h hue (0..1)
+     * @param s saturation (0..1)
+     * @param l lightness (0..1)
      * @deprecated Use {@link Colors.fromHSL}, `Image.hslToColor` will be removed in 4.0
      * @group Deprecated
      */
@@ -650,6 +664,10 @@ export class Image {
 
     /**
      * Converts an RGBA value to an array of HSLA values
+     * @param r red (0..255)
+     * @param g green (0..255)
+     * @param b blue (0..255)
+     * @param a alpha (0..255)
      * @deprecated Use {@link Colors.toHSLA}, `Image.rgbaToHSLA` will be removed in 4.0
      * @group Deprecated
      */
@@ -659,6 +677,7 @@ export class Image {
 
     /**
      * Converts a color value to an array of RGBA values
+     * @param color The color value to convert
      * @deprecated Use {@link Colors.toRGBA}, `Image.colorToRGBA` will be removed in 4.0
      * @group Deprecated
      */
@@ -668,6 +687,7 @@ export class Image {
 
     /**
      * Converts a color value to an array of RGB values (ignoring the colors alpha)
+     * @param color The color value to convert
      * @deprecated Use {@link Colors.toRGB}, `Image.colorToRGB` will be removed in 4.0
      * @group Deprecated
      */
@@ -677,6 +697,7 @@ export class Image {
 
     /**
      * Creates a multi-point gradient generator
+     * @param colors The gradient points to use (e.g. `{0: 0xff0000ff, 1: 0x00ff00ff}`)
      * @deprecated Use {@link Colors.gradient}, `Image.gradient` will be removed in 4.0
      * @group Deprecated
      */

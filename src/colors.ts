@@ -86,6 +86,8 @@ function gradientBetween(startColor: Color, endColor: Color): (position: number)
  * and return, and gradients between colors
  */
 export class Colors {
+    private constructor() {}
+
     /**
      * Converts RGBA components to an RGBA value, values are rounded and clamped to 0..255
      * @param r red (0..255)
