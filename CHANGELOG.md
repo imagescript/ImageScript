@@ -26,6 +26,13 @@
 - **`Image.rgbaToColor()`, `rgbToColor()`, `hslaToColor()`, `hslToColor()`, `rgbaToHSLA()`, `colorToRGBA()`,
   `colorToRGB()` and `gradient()`**: use the `Colors` methods of the same role (`Colors.fromRGBA()` and so on).
 
+### Documentation
+
+- [imagescript.dev](https://imagescript.dev/) has a new look: the logo's colors, clearer type, signatures and
+  parameters that are easier to scan, and a sidebar grouped into classes, functions, interfaces and types. Inherited
+  members are hidden by default (Settings → Inherited shows them), deprecated APIs are tagged and grouped at the end.
+- Every parameter is described now.
+
 ## 3.16.1
 
 ### Performance
