@@ -5,6 +5,8 @@ import * as webp from './codecs/webp.ts';
 import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
+import { GainMap } from './gainmap.ts';
+import type { ToneMapping } from './codecs/hdr.ts';
 import { Image, ResizeMode, ResizeModes, ResizeOptions, ResizeToOptions, resizeArguments } from './image.ts';
 import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
@@ -51,6 +53,22 @@ export interface AnimationDecodeOptions {
     applyColorProfile?: boolean;
     /** At most this many worker threads decode in parallel, like `threads` of {@link Image.decode}. Default: the processors available, at most 8 */
     threads?: number;
+    /**
+     * Whether to rotate/mirror the frames as the orientation tag (Exif, JPEG XL's header, PNG's eXIf chunk or XMP)
+     * says, like `applyOrientation` of {@link Image.decode}: APNGs, animated WebPs and JPEG XLs. Default: `true`
+     */
+    applyOrientation?: boolean;
+    /**
+     * How HDR (PQ or HLG) JPEG XL animations, whose light can be brighter than (SDR) white, become 8 bit sRGB, like
+     * `toneMapping` of {@link Image.decode}: `'reinhard'` compresses the brightest parts, `'clamp'` clamps everything
+     * brighter than white. Default: `'reinhard'`
+     */
+    toneMapping?: ToneMapping;
+    /**
+     * Whether to read the gain map (jhgm box) of JPEG XL animations into {@link Image.gainMap} of every frame, like
+     * `gainMap` of {@link Image.decode}. Default: `true`
+     */
+    gainMap?: boolean;
 }
 
 /** The options all animation encoders have */
@@ -445,6 +463,8 @@ export class Animation extends Array<Frame> {
             const { maxPixels = MAX_PIXELS, threads = 1 } = onlyFirstFrameOrOptions;
             if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
             if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
+            const { toneMapping = 'reinhard' } = onlyFirstFrameOrOptions;
+            if (toneMapping !== 'reinhard' && toneMapping !== 'clamp') throw new TypeError(`toneMapping must be 'reinhard' or 'clamp', not ${String(toneMapping)}`);
         }
         return decoding(() => Animation.__decode__(input, onlyFirstFrameOrOptions));
     }
@@ -454,7 +474,11 @@ export class Animation extends Array<Frame> {
      * @ignore
      */
     private static async __decode__(input: BinaryData, onlyFirstFrameOrOptions: boolean | AnimationDecodeOptions): Promise<Animation> {
-        const { onlyFirstFrame: onlyExtractFirstFrame = false, maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)) } = isOptions(onlyFirstFrameOrOptions) ? onlyFirstFrameOrOptions : { onlyFirstFrame: onlyFirstFrameOrOptions };
+        const { onlyFirstFrame: onlyExtractFirstFrame = false, maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)), applyOrientation = true, toneMapping = 'reinhard', gainMap = true } = isOptions(onlyFirstFrameOrOptions) ? onlyFirstFrameOrOptions : { onlyFirstFrame: onlyFirstFrameOrOptions };
+        const orient = (frames: Frame[], orientation: number): Frame[] => {
+            if (applyOrientation && orientation > 1) for (const frame of frames) frame.__orient__(orientation);
+            return frames;
+        };
         const profile = (frames: Frame[], icc: Uint8Array | undefined, space?: jxl.ColorSpace): Frame[] => {
             const transform = !applyColorProfile ? null : icc ? profileTransform(icc) : space ? colorSpaceTransform(space.xy, space.curve) : null;
             if (transform) for (const frame of frames) transform(frame.bitmap);
@@ -467,37 +491,55 @@ export class Animation extends Array<Frame> {
 
         if (type === 'webp') {
             const decoded = webp.decodeAnimation(data, onlyExtractFirstFrame, maxPixels);
-            const frames = profile(canvasFrames(decoded.width, decoded.height, webp.composite(decoded)), decoded.icc);
+            const frames = orient(profile(canvasFrames(decoded.width, decoded.height, webp.composite(decoded)), decoded.icc), decoded.orientation);
             return new Animation(frames, fromPlays(decoded.loopCount));
         }
 
-        // (still PNGs decode like images, keeping their orientation as it is like before)
+        // (still PNGs decode like images)
         if (type === 'png' && !png.isAnimated(data)) {
-            const image = await Image.decode(data, { maxPixels, applyOrientation: false, applyColorProfile });
+            const image = await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile });
             return new Animation(canvasFrames(image.width, image.height, [{ pixels: image.bitmap, duration: 0 }]), -1);
         }
         if (type === 'png') {
             const decoded = await png.decodeAnimation(data, onlyExtractFirstFrame, maxPixels);
-            const frames = profile(canvasFrames(decoded.width, decoded.height, png.compositeAnimation(decoded)), decoded.icc);
+            const frames = orient(profile(canvasFrames(decoded.width, decoded.height, png.compositeAnimation(decoded)), decoded.icc), decoded.orientation);
             return new Animation(frames, decoded.frames.length > 1 ? fromPlays(decoded.plays) : -1);
         }
 
         if (type === 'jxl') {
             const frames: Frame[] = [];
             let loopCount = -1, icc: Uint8Array | undefined, space: jxl.ColorSpace | undefined;
-            for await (const decoded of jxl.frames(data, maxPixels, 'reinhard', threads)) {
+            let orientation = 1;
+            for await (const decoded of jxl.frames(data, maxPixels, toneMapping, threads)) {
                 const frame = new Frame(decoded.width, decoded.height, decoded.duration, 0, 0, FrameDisposalModes.BACKGROUND);
                 frame.bitmap = decoded.pixels;
-                frames.push(frame.__orient__(decoded.orientation));
+                frames.push(frame);
+                orientation = decoded.orientation;
                 loopCount = fromPlays(decoded.loopCount);
                 icc = decoded.icc;
                 space = decoded.colorSpace;
                 if (onlyExtractFirstFrame) break;
             }
-            return new Animation(profile(frames, icc, space), frames.length > 1 ? loopCount : -1);
+            // (a gain map that can't be read leaves the frames without one, it doesn't fail the decoding)
+            const map = gainMap && data[0] !== 0xff ? await jxl.decodeGainMap(data, maxPixels).catch(() => undefined) : undefined;
+            if (map) for (const frame of frames) {
+                const image = new Image(map.width, map.height);
+                image.bitmap = map.pixels.slice();
+                frame.gainMap = GainMap.__from_pixels__(image, map.params);
+            }
+            for (const frame of orient(profile(frames, icc, space), orientation)) {
+                const mapOfFrame = frame.gainMap;
+                if (!mapOfFrame || !applyOrientation || orientation <= 1) continue;
+                try {
+                    mapOfFrame.image = mapOfFrame.image.__orient__(orientation);
+                } catch {
+                    frame.gainMap = null;
+                }
+            }
+            return new Animation(frames, frames.length > 1 ? loopCount : -1);
         }
 
-        if (type) return new Animation([Frame.from(await Image.decode(data, { maxPixels, applyColorProfile }), 0)]);
+        if (type) return new Animation([Frame.from(await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile, toneMapping, gainMap, threads }), 0)]);
         throw new Error('Unsupported image type');
     }
 

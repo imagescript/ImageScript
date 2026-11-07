@@ -9,8 +9,14 @@
   values). The old values (`'RESIZE_BILINEAR'`, `1`-`3`, still the values of the deprecated `Image.RESIZE_*` and
   `Image.SVG_MODE_*`) keep working until 4.0: `image.resize(256, 256, 'bicubic')`.
 
+- **`Animation.decode()` applies the orientation of APNGs and animated WebPs** (their eXIf and EXIF chunks, and XMP
+  in PNGs), like `Image.decode()` does (it already did for JPEG XLs). `applyOrientation: false` keeps the stored
+  frames. Still PNGs decoded by `Animation.decode()` are rotated as well now.
+
 ### New
 
+- `Animation.decode()` takes `applyOrientation`, `toneMapping` and `gainMap` like `Image.decode()`: JPEG XL
+  animations can be tone mapped with `'clamp'`, and their `jhgm` gain map is read into the `gainMap` of every frame.
 - `resize({ width })` and `resize({ height })` on images, frames and animations: the missing side keeps the aspect
   ratio, `resize({ width: 256, mode: 'bicubic' })`.
 - `image.coordinates()` yields `[x, y]` and `image.pixels()` yields `[x, y, color]` for every pixel, row by row.

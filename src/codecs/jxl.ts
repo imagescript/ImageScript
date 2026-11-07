@@ -198,7 +198,7 @@ export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS, toneMappi
 
 // the jhgm box's gain map (libjxl's JxlGainMapReadBundle): version 0, the ISO 21496-1 metadata (its size, 16 bits),
 // the alternate image's color encoding and ICC profile (their sizes, 8 and 32 bits), the map's codestream
-async function decodeGainMap(data: Uint8Array, maxPixels: number): Promise<{ width: number, height: number, pixels: Uint8Array, params: Params } | undefined> {
+export async function decodeGainMap(data: Uint8Array, maxPixels: number): Promise<{ width: number, height: number, pixels: Uint8Array, params: Params } | undefined> {
     for (const { type, content: c } of boxesOf(data)) {
         if (type !== 'jhgm') continue;
         if (c.length < 3 || c[0] !== 0) return undefined;

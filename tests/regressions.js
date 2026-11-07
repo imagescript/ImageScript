@@ -507,6 +507,86 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         }
     }
 
+    // Animation.decode: orientation, tone mapping and gain maps like Image.decode
+    {
+        const {GainMap} = require('..');
+        const fs = require('fs');
+        const pixel = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
+        const tiff = orientation => Buffer.from([0x4d, 0x4d, 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, orientation, 0, 0, 0, 0, 0, 0, 0, 0]);
+        const source = () => [0, 1].map(i => Frame.from(new Image(3, 2).fill((x, y) => ColorHelpers.fromRGBA(x * 100, y * 100, i * 120, 255)), 100));
+
+        // APNG (eXIf) and animated WebP (EXIF): orientation 6 turns the top left into the top right
+        const png = Buffer.from(await new Animation(source(), 2).encodeAPNG({metadata: {software: ''}}));
+        const chunk = (type, body) => {
+            const out = Buffer.alloc(12 + body.length);
+            out.writeUInt32BE(body.length);
+            out.write(type, 4, 'latin1');
+            body.copy(out, 8);
+            out.writeUInt32BE(zlib.crc32(out.subarray(4, 8 + body.length)), 8 + body.length);
+            return out;
+        };
+        const withExif = Buffer.concat([png.subarray(0, png.length - 12), chunk('eXIf', tiff(6)), png.subarray(png.length - 12)]);
+        const webp = Buffer.from(await new Animation(source(), 2).encodeWebP({metadata: {software: ''}}));
+        const exifChunk = Buffer.concat([Buffer.from('EXIF'), Buffer.from(new Uint8Array(new Uint32Array([tiff(6).length]).buffer)), tiff(6)]);
+        // (the encoder's own EXIF chunk, with the creation time, becomes one decoders skip)
+        const own = webp.indexOf('EXIF', 12, 'latin1');
+        assert(own > 12, 'the animated WebP has an EXIF chunk of its own');
+        webp.write('JUNK', own, 'latin1');
+        const webpWithExif = Buffer.concat([webp, exifChunk]);
+        webpWithExif.writeUInt32LE(webpWithExif.length - 8, 4);
+        // (the VP8X flags: bit 3 is Exif)
+        webpWithExif[20] |= 0x08;
+
+        for (const [name, data] of [['APNG', withExif], ['WebP', webpWithExif]]) {
+            const stored = await Animation.decode(data, {applyOrientation: false});
+            assert(stored.width === 3 && stored.height === 2 && stored.length === 2, `${name}: applyOrientation false keeps the stored pixels`);
+            for (const options of [undefined, {}, {applyOrientation: true}]) {
+                const oriented = await Animation.decode(data, options);
+                assert(oriented.width === 2 && oriented.height === 3 && oriented.length === 2, `${name}: rotated (${JSON.stringify(options)})`);
+                for (let i = 0; i < 2; i++)
+                    assert(pixel(oriented[i], 1, 0).join() === pixel(stored[i], 0, 0).join() && pixel(oriented[i], 0, 2).join() === pixel(stored[i], 2, 1).join(), `${name}: frame ${i} not oriented like Image.decode`);
+            }
+        }
+        // (without an orientation tag nothing changes)
+        assert((await Animation.decode(png)).width === 3, 'APNG without orientation');
+
+        // JPEG XL: the gain map of a jhgm box on every frame, in a container around the animation's codestream
+        const boxes = data => {
+            const out = [];
+            for (let o = 0; o < data.length;) {
+                const size = data.readUInt32BE(o), type = data.toString('latin1', o + 4, o + 8);
+                out.push({type, box: data.subarray(o, o + size)});
+                o += size;
+            }
+            return out;
+        };
+        const box = (type, ...body) => {
+            const content = Buffer.concat(body);
+            const out = Buffer.alloc(8 + content.length);
+            out.writeUInt32BE(out.length);
+            out.write(type, 4, 'latin1');
+            content.copy(out, 8);
+            return out;
+        };
+        const mapped = new Image(8, 8).fill(0x808080ff);
+        mapped.gainMap = new GainMap(new Image(4, 4).fill(0xc0c0c0ff), {gainMapMin: 0, gainMapMax: 2});
+        const jhgm = boxes(Buffer.from(await mapped.encodeJXL())).find(b => b.type === 'jhgm').box;
+        const codestream = fs.readFileSync('./tests/jxl/animation.jxl');
+        const container = Buffer.concat([box('JXL ', Buffer.from([0x0d, 0x0a, 0x87, 0x0a])), box('ftyp', Buffer.from('jxl \0\0\0\0jxl ', 'latin1')), jhgm, box('jxlc', codestream)]);
+        const plain = await Animation.decode(container, {gainMap: false});
+        const withMap = await Animation.decode(container);
+        assert(plain.length > 1 && withMap.length === plain.length, 'JPEG XL animation with a jhgm box decodes');
+        assert(plain.every(f => f.gainMap === null) && (await Animation.decode(codestream)).every(f => f.gainMap === null), 'JPEG XL: gainMap false, or no jhgm box');
+        assert(withMap.every(f => f.gainMap && f.gainMap.width === 4 && f.gainMap.gainMapMax[0] === 2), 'JPEG XL: every frame has the gain map');
+        assert(withMap[0].gainMap !== withMap[1].gainMap && withMap.every((f, i) => Buffer.from(f.bitmap).equals(Buffer.from(plain[i].bitmap))), 'JPEG XL: the frames are the same with the map, with maps of their own');
+
+        // toneMapping is checked
+        let threw = false;
+        try { await Animation.decode(png, {toneMapping: 'linear'}); } catch (e) { threw = e instanceof TypeError; }
+        assert(threw, 'Animation.decode validates toneMapping');
+        assert((await Animation.decode(codestream, {toneMapping: 'clamp'})).length === plain.length, 'Animation.decode with toneMapping clamp');
+    }
+
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values
     {
         const { Colors } = require('..');

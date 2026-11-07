@@ -43,6 +43,8 @@ export interface WebPAnimation {
     frames: WebPFrame[];
     /** the embedded ICC profile */
     icc?: Uint8Array;
+    /** Exif orientation (1-8) */
+    orientation: number;
 }
 
 interface Chunk {
@@ -186,7 +188,7 @@ export function decodeAnimation(data: Uint8Array, onlyFirstFrame = false, maxPix
     const header = list[0];
     if (!header || header.type !== VP8X || !list.some(c => c.type === ANMF)) {
         const { width, height, pixels } = decodeBitstream(list, maxPixels);
-        return { width, height, loopCount: 0, background: 0, frames: [{ x: 0, y: 0, width, height, duration: 0, blend: false, dispose: false, pixels }], icc: list.find(c => c.type === ICCP)?.data };
+        return { width, height, loopCount: 0, background: 0, frames: [{ x: 0, y: 0, width, height, duration: 0, blend: false, dispose: false, pixels }], icc: list.find(c => c.type === ICCP)?.data, orientation: orientationOf(list) };
     }
 
     if (header.data.length < 10) throw new Error('WebP: invalid VP8X chunk');
@@ -221,7 +223,13 @@ export function decodeAnimation(data: Uint8Array, onlyFirstFrame = false, maxPix
     }
 
     if (!frames.length) throw new Error('WebP: animation without frames');
-    return { width, height, loopCount, background, frames, icc: list.find(c => c.type === ICCP)?.data };
+    return { width, height, loopCount, background, frames, icc: list.find(c => c.type === ICCP)?.data, orientation: orientationOf(list) };
+}
+
+// the Exif orientation of a WebP's chunks, 1 without one
+function orientationOf(list: Chunk[]): number {
+    const exif = list.find(c => c.type === EXIF);
+    return exif ? exifOrientation(exif.data) : 1;
 }
 
 /**
