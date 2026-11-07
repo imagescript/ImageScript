@@ -398,6 +398,24 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(new Image(8, 4).resize(4, Image.RESIZE_AUTO, Image.RESIZE_AREA).height === 2, 'resize with deprecated constants');
     }
 
+    // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values
+    {
+        const { Colors } = require('..');
+        assert(Colors.fromRGBA(10, 20, 30, 40) === Image.rgbaToColor(10, 20, 30, 40), 'Colors.fromRGBA');
+        assert(Colors.fromRGB(1, 2, 3) === Image.rgbToColor(1, 2, 3), 'Colors.fromRGB');
+        assert(Colors.fromHSLA(0.3, 0.5, 0.6, 0.7) === Image.hslaToColor(0.3, 0.5, 0.6, 0.7), 'Colors.fromHSLA');
+        assert(Colors.fromHSL(0.9, 1, 0.25) === Image.hslToColor(0.9, 1, 0.25), 'Colors.fromHSL');
+        assert(Colors.toRGBA(0x11223344).join() === Image.colorToRGBA(0x11223344).join(), 'Colors.toRGBA');
+        assert(Colors.toRGB(0x11223344).join() === '17,34,51', 'Colors.toRGB ignores alpha');
+        assert(Colors.toHSLA(0xff0000ff).join() === Image.rgbaToHSLA(255, 0, 0, 255).join() && Colors.toHSLA(0xff0000ff)[0] === 0, 'Colors.toHSLA');
+        const stops = {0: 0xff0000ff, 0.5: 0x00ff00ff, 1: 0x0000ffff};
+        assert(Colors.gradient(stops)(0.25) === Image.gradient(stops)(0.25) && Colors.gradient(stops)(0.75) === Image.gradient(stops)(0.75), 'Colors.gradient');
+        // HSLA round trip: each channel comes back within one step
+        const rgba = Colors.toRGBA(Colors.fromRGBA(200, 100, 50, 255)), [h, s2, l, a2] = Colors.toHSLA(Colors.fromRGBA(200, 100, 50, 255));
+        const back = Colors.toRGBA(Colors.fromHSLA(h, s2, l, a2));
+        assert(back.every((c, i) => Math.abs(c - rgba[i]) <= 1), 'HSLA round trip: ' + back + ' vs ' + rgba);
+    }
+
     // options objects as alternatives to positional arguments
     {
         const base = new Image(20, 20).fill(0xff0000ff);

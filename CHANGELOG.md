@@ -4,6 +4,9 @@
 
 ### New
 
+- **`Colors`**: the color helpers moved out of `Image` into their own class, with the same results:
+  `Colors.fromRGBA()`, `fromRGB()`, `fromHSLA()`, `fromHSL()`, `toRGBA()`, `toRGB()`, `toHSLA()` (new: a color as
+  HSLA values) and `gradient()`.
 - **`ResizeModes`, `SVGScaleModes` and `FrameDisposalModes`**: the constants have classes of their own, with the same
   values: `image.resize(256, ResizeModes.AUTO, ResizeModes.BICUBIC)`, `Image.renderSVG(svg, 512, SVGScaleModes.WIDTH)`,
   `new Frame(w, h, {disposalMode: FrameDisposalModes.BACKGROUND})`.
@@ -13,6 +16,8 @@
 - **`Image.RESIZE_*`, `Image.SVG_MODE_*` and `Frame.DISPOSAL_*`**: use `ResizeModes.*`, `SVGScaleModes.*` and
   `FrameDisposalModes.*` (`Image.RESIZE_AUTO` becomes `ResizeModes.AUTO`). The old names keep working and will be
   removed in 4.0. They are plain read-only properties now instead of getters.
+- **`Image.rgbaToColor()`, `rgbToColor()`, `hslaToColor()`, `hslToColor()`, `rgbaToHSLA()`, `colorToRGBA()`,
+  `colorToRGB()` and `gradient()`**: use the `Colors` methods of the same role (`Colors.fromRGBA()` and so on).
 
 ## 3.16.1
 

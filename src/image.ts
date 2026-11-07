@@ -32,6 +32,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { rotateBilinear } from './util/rotate.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
+import { Colors, wrapHue, hue2rgb, rgbaToHSLA } from './colors.ts';
 import { isOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
@@ -610,134 +611,74 @@ export class Image {
 
     /**
      * Converts RGBA components to an RGBA value, values are rounded and clamped to 0..255
-     * @param r red (0..255)
-     * @param g green (0..255)
-     * @param b blue (0..255)
-     * @param a alpha (0..255)
-     * @returns RGBA value
+     * @deprecated Use {@link Colors.fromRGBA}, `Image.rgbaToColor` will be removed in 4.0
+     * @group Deprecated
      */
     static rgbaToColor(r: number, g: number, b: number, a: number): Color {
-        r = finite(r, 'red');
-        g = finite(g, 'green');
-        b = finite(b, 'blue');
-        a = finite(a, 'alpha');
-        return (channel(r) << 24 | channel(g) << 16 | channel(b) << 8 | channel(a)) >>> 0;
+        return Colors.fromRGBA(r, g, b, a);
     }
 
     /**
      * Converts RGB components to an RGBA value (assuming alpha = 255)
-     * @param r red (0..255)
-     * @param g green (0..255)
-     * @param b blue (0..255)
-     * @returns RGBA value
+     * @deprecated Use {@link Colors.fromRGB}, `Image.rgbToColor` will be removed in 4.0
+     * @group Deprecated
      */
     static rgbToColor(r: number, g: number, b: number): Color {
-        return Image.rgbaToColor(r, g, b, 0xff);
+        return Colors.fromRGB(r, g, b);
     }
 
     /**
      * Converts HSLA colors to RGBA colors
-     * @param h hue (0..1)
-     * @param s saturation (0..1)
-     * @param l lightness (0..1)
-     * @param a opacity (0..1)
-     * @returns color
+     * @deprecated Use {@link Colors.fromHSLA}, `Image.hslaToColor` will be removed in 4.0
+     * @group Deprecated
      */
     static hslaToColor(h: number, s: number, l: number, a: number): Color {
-        h = wrapHue(finite(h, 'hue'));
-        s = finite(s, 'saturation');
-        l = finite(l, 'lightness');
-        a = finite(a, 'alpha');
-        s = Math.min(1, Math.max(0, s));
-        l = Math.min(1, Math.max(0, l));
-        a = Math.min(1, Math.max(0, a));
-
-        let r: number, g: number, b: number;
-
-        if (s === 0) {
-            r = g = b = l;
-        } else {
-            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-            const p = 2 * l - q;
-
-            r = hue2rgb(p, q, h + 1 / 3);
-            g = hue2rgb(p, q, h);
-            b = hue2rgb(p, q, h - 1 / 3);
-        }
-
-        return Image.rgbaToColor(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255), Math.round(a * 255));
+        return Colors.fromHSLA(h, s, l, a);
     }
 
     /**
      * Converts HSL colors to RGBA colors (assuming an opacity of 255)
-     * @param h hue (0..1)
-     * @param s saturation (0..1)
-     * @param l lightness (0..1)
-     * @returns color
+     * @deprecated Use {@link Colors.fromHSL}, `Image.hslToColor` will be removed in 4.0
+     * @group Deprecated
      */
     static hslToColor(h: number, s: number, l: number): Color {
-        return Image.hslaToColor(h, s, l, 1);
+        return Colors.fromHSL(h, s, l);
     }
 
     /**
      * Converts an RGBA value to an array of HSLA values
-     * @param r {number} (0..255)
-     * @param g {number} (0..255)
-     * @param b {number} (0..255)
-     * @param a {number} (0..255)
-     * @returns The HSLA values ([H, S, L, A])
+     * @deprecated Use {@link Colors.toHSLA}, `Image.rgbaToHSLA` will be removed in 4.0
+     * @group Deprecated
      */
     static rgbaToHSLA(r: number, g: number, b: number, a: number): [h: number, s: number, l: number, a: number] {
-        r = finite(r, 'red') / 255;
-        g = finite(g, 'green') / 255;
-        b = finite(b, 'blue') / 255;
-        a = finite(a, 'alpha');
-
-        const max = Math.max(r, g, b), min = Math.min(r, g, b);
-        let h = 0, s: number;
-        const l = (max + min) / 2;
-
-        if (max === min) {
-            h = s = 0;
-        } else {
-            const d = max - min;
-            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-            switch (max) {
-                case r:
-                    h = (g - b) / d + (g < b ? 6 : 0);
-                    break;
-                case g:
-                    h = (b - r) / d + 2;
-                    break;
-                case b:
-                    h = (r - g) / d + 4;
-                    break;
-            }
-
-            h /= 6;
-        }
-
-        return [h, s, l, a / 255];
+        return rgbaToHSLA(r, g, b, a);
     }
 
     /**
      * Converts a color value to an array of RGBA values
-     * @param color The color value to convert
-     * @returns The RGBA values ([R, G, B, A])
+     * @deprecated Use {@link Colors.toRGBA}, `Image.colorToRGBA` will be removed in 4.0
+     * @group Deprecated
      */
     static colorToRGBA(color: Color): [r: number, g: number, b: number, a: number] {
-        color = checkColor(color);
-        return [(color >> 24) & 0xff, (color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff];
+        return Colors.toRGBA(color);
     }
 
     /**
      * Converts a color value to an array of RGB values (ignoring the colors alpha)
-     * @param color The color value to convert
-     * @returns The RGB values ([R, G, B])
+     * @deprecated Use {@link Colors.toRGB}, `Image.colorToRGB` will be removed in 4.0
+     * @group Deprecated
      */
     static colorToRGB(color: Color): [r: number, g: number, b: number] {
-        const [r, g, b] = Image.colorToRGBA(color);
-        return [r, g, b];
+        return Colors.toRGB(color);
+    }
+
+    /**
+     * Creates a multi-point gradient generator
+     * @deprecated Use {@link Colors.gradient}, `Image.gradient` will be removed in 4.0
+     * @group Deprecated
+     */
+    static gradient(colors: Record<number, Color>): (position: number) => Color {
+        return Colors.gradient(colors);
     }
 
     /**
@@ -1719,7 +1660,7 @@ export class Image {
 
     /**
      * Converts every pixel to HSLA, lets `map` adjust the components in place and converts back
-     * (the same math as {@link Image.rgbaToHSLA} and {@link Image.hslaToColor}, without allocating per pixel)
+     * (the same math as {@link Colors.toHSLA} and {@link Colors.fromHSLA}, without allocating per pixel)
      * @internal
      * @ignore
      */
@@ -1970,8 +1911,8 @@ export class Image {
             weight += a;
         }
 
-        if (!weight) return Image.rgbaToColor(0, 0, 0, 0xff);
-        return Image.rgbaToColor(Math.round(r / weight), Math.round(g / weight), Math.round(b / weight), 0xff);
+        if (!weight) return Colors.fromRGBA(0, 0, 0, 0xff);
+        return Colors.fromRGBA(Math.round(r / weight), Math.round(g / weight), Math.round(b / weight), 0xff);
     }
 
     /**
@@ -2000,7 +1941,7 @@ export class Image {
             !(ignoreBlack && Math.max(r, g, b) < threshold) && !(ignoreWhite && Math.min(r, g, b) > 255 - threshold))
             || quantize.dominantColor(pixels, () => true);
 
-        return color ? Image.rgbToColor(...color) : Image.rgbaToColor(0, 0, 0, 0xff);
+        return color ? Colors.fromRGB(...color) : Colors.fromRGBA(0, 0, 0, 0xff);
     }
 
     /**
@@ -2210,58 +2151,6 @@ export class Image {
     }
 
     /**
-     * Creates a multi-point gradient generator
-     * @param colors The gradient points to use (e.g. `{0: 0xff0000ff, 1: 0x00ff00ff}`)
-     * @return The gradient generator. The function argument is the position in the gradient (0..1).
-     */
-    static gradient(colors: Record<number, Color>): (position: number) => Color {
-        const entries = Object.entries(colors).sort((a, b) => Number(a[0]) - Number(b[0]));
-        const positions = entries.map(e => finite(parseFloat(e[0]), 'gradient position'));
-        const values = entries.map(e => checkColor(e[1]));
-
-        if (positions.length === 0) throw new RangeError('Invalid gradient point count');
-        else if (positions.length === 1) {
-            return () => values[0];
-        } else if (positions.length === 2) {
-            const gradient = this.__gradient__(values[0], values[1]);
-            return position => {
-                if (position <= positions[0]) return values[0];
-                if (position >= positions[1]) return values[1];
-                return gradient((position - positions[0]) / (positions[1] - positions[0]));
-            };
-        }
-
-        const minDef = Math.min(...positions);
-        const maxDef = Math.max(...positions);
-        const gradients: Array<{ min: number, max: number, gradient: (position: number) => Color }> = [];
-
-        for (let i = 0; i < positions.length; i++) {
-            const minPos = positions[i - 1];
-            if (minPos === undefined) continue;
-
-            const maxPos = positions[i];
-
-            let minVal = values[i - 1];
-            if (minVal === undefined) minVal = values[i];
-
-            const maxVal = values[i];
-            const gradient = this.__gradient__(minVal, maxVal);
-
-            gradients.push({min: minPos, max: maxPos, gradient});
-        }
-
-        return position => {
-            if (position <= minDef) return gradients[0].gradient(0);
-            if (position >= maxDef) return gradients[gradients.length - 1].gradient(1);
-
-            for (const gradient of gradients)
-                if (position >= gradient.min && position <= gradient.max)
-                    return gradient.gradient((position - gradient.min) / (gradient.max - gradient.min));
-            throw new RangeError(`Invalid gradient position: ${position}`);
-        };
-    }
-
-    /**
      * Rounds the images corners, with antialiased edges
      * @param options See {@link RoundCornersOptions}
      */
@@ -2290,32 +2179,6 @@ export class Image {
         }
 
         return this;
-    }
-
-    /**
-     * @private
-     */
-    /**
-     * @internal
-     * @ignore
-     */
-    protected static __gradient__(startColor: Color, endColor: Color): (position: number) => Color {
-        const sr = startColor >>> 24;
-        const sg = startColor >> 16 & 0xff;
-        const sb = startColor >> 8 & 0xff;
-        const sa = startColor & 0xff;
-        const er = (endColor >>> 24) - sr;
-        const eg = (endColor >> 16 & 0xff) - sg;
-        const eb = (endColor >> 8 & 0xff) - sb;
-        const ea = (endColor & 0xff) - sa;
-
-        return position => {
-            const r = sr + position * er;
-            const g = sg + position * eg;
-            const b = sb + position * eb;
-            const a = sa + position * ea;
-            return (((r & 0xff) << 24) | ((g & 0xff) << 16) | ((b & 0xff) << 8) | (a & 0xff)) >>> 0;
-        };
     }
 
     /**
@@ -2780,7 +2643,7 @@ export class Image {
         const fonts = Array.isArray(font) ? font : [font];
         if (!fonts.length) throw new RangeError('No font given');
 
-        const [r, g, b, a] = Image.colorToRGBA(color);
+        const [r, g, b, a] = Colors.toRGBA(color);
         // color glyph layers in the text color take it without its alpha, which applies to the whole color glyph
         const rendered = await textRenderer.render(fonts.map(view), size, text, layout, hinting, (r << 24 | g << 16 | b << 8 | 255) >>> 0, featureList(features), axes);
 
@@ -2816,7 +2679,7 @@ export class Image {
             for (let i = 0; i < shape.length; i++) shape[i] = Math.max(shape[i], colored[i * 4 + 3]);
         }
         const stroke = strokeWidth ? outline(shape, width, height, strokeWidth) : null;
-        const [sr, sg, sb, sa] = Image.colorToRGBA(strokeColor);
+        const [sr, sg, sb, sa] = Colors.toRGBA(strokeColor);
 
         // color glyphs over the text (premultiplied, with the text's alpha), both within their outline
         for (let i = 0; i < coverage.length; i++) {
@@ -2871,10 +2734,6 @@ function circleCoverage(px: number, py: number, cx: number, cy: number, radius: 
 }
 
 // rounds and clamps a channel value to 0..255 (NaN becomes 0)
-function channel(value: number): number {
-    return value > 255 ? 255 : value > 0 ? Math.round(value) : 0;
-}
-
 interface HSLA {
     h: number;
     s: number;
@@ -2882,22 +2741,6 @@ interface HSLA {
     a: number;
 }
 
-// wraps a hue into 0..1 (negative hues included), exactly like (h % 1 + 1) % 1 but without the slow float modulo
-function wrapHue(h: number): number {
-    const t = h - Math.trunc(h) + 1;
-    return t < 1 ? t : t < 2 ? t - 1 : 0;
-}
-
-function hue2rgb(p: number, q: number, t: number): number {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-}
-
-// the resize mode of a positional argument or options object
 function resizeOptions(modeOrOptions?: ResizeMode | ResizeOptions): { mode: ResizeMode, fast: boolean } {
     const options = isOptions(modeOrOptions) ? modeOrOptions : { mode: modeOrOptions };
     return { mode: options.mode ?? ResizeModes.BILINEAR, fast: options.fast ?? true };

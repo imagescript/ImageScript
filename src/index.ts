@@ -8,6 +8,7 @@ import { view } from './util/mem.ts';
 import { ImageType } from './image-type.ts';
 
 export { Image, ResizeModes, SVGScaleModes } from './image.ts';
+export { Colors } from './colors.ts';
 export type { Color, ColorFunction, ResizeMode, SVGScaleMode, PNGMetadata, TextStyle, DecodeOptions, CompositeOptions, BlendMode, CropCircleOptions, DominantColorOptions, RotateOptions, ColorToAlphaOptions, ResizeOptions, AdjustOptions, SharpenOptions, PNGEncodeOptions, JPEGEncodeOptions, WebPEncodeOptions, AVIFEncodeOptions, JXLEncodeOptions, EncodeOptions, SVGOptions, TextOptions, RoundCornersOptions, FisheyeOptions, TrimOptions } from './image.ts';
 export { Frame, FrameDisposalModes } from './frame.ts';
 export type { FrameDisposalModeName, FrameDisposalModeId, FrameOptions } from './frame.ts';
