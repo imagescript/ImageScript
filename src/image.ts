@@ -135,7 +135,10 @@ export interface ResizeOptions {
  * and {@link Image.saturation}
  */
 export interface AdjustOptions {
-    /** Whether to set the value (true) or scale the current one (false). Default: `false` */
+    /**
+     * Whether to set the value (true) or scale the current one (false). Default: `false`
+     * @deprecated Removed in 4.0: scale with a factor, or use {@link Image.recolor} for a fixed color
+     */
     absolute?: boolean;
 }
 
@@ -1306,15 +1309,34 @@ export class Image {
     }
 
     /**
-     * Sets the images opacity
-     * @param opacity The opacity to apply (0..1)
+     * Sets the RGB of every pixel to the given color, keeping each pixel's own alpha. Turns an image into a silhouette
+     * or tints it: `image.recolor(0xffffffff)` makes every pixel white, keeping its transparency
+     * @param color The color to use, its alpha is ignored
+     */
+    recolor(color: Color): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.recolor(color));
+        color = checkColor(color);
+        const r = color >>> 24, g = color >> 16 & 0xff, b = color >> 8 & 0xff;
+        for (let i = 0; i < this.bitmap.length; i += 4) {
+            this.bitmap[i] = r;
+            this.bitmap[i + 1] = g;
+            this.bitmap[i + 2] = b;
+        }
+
+        return this;
+    }
+
+    /**
+     * Scales the opacity of the image
+     * @param opacity The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
      * @param options See {@link AdjustOptions}
      */
     opacity(opacity: number, options?: AdjustOptions): this;
     /**
-     * Sets the images opacity
-     * @param opacity The opacity to apply (0..1)
-     * @param absolute Whether to scale the current opacity (false) or just set the new opacity (true)
+     * Scales the opacity of the image
+     * @param opacity The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
+     * @param absolute Whether to set the opacity (true) instead of scaling it (false)
+     * @deprecated Use {@link Image.opacity} to scale; for a fixed alpha, `absolute` is removed in 4.0
      */
     opacity(opacity: number, absolute?: boolean): this;
     opacity(opacity: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
@@ -1329,15 +1351,16 @@ export class Image {
     }
 
     /**
-     * Scales or sets the red channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped), or the value (0..1) to set it to
+     * Scales the red channel
+     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
      * @param options See {@link AdjustOptions}
      */
     red(factor: number, options?: AdjustOptions): this;
     /**
-     * Scales or sets the red channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped), or the value (0..1) to set it to
-     * @param absolute Whether to scale the current value (false) or set every pixel's red channel to `factor` * 255 (true)
+     * Scales the red channel
+     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
+     * @param absolute Whether to set every pixel's red channel to `factor` * 255 (true) instead of scaling it (false)
+     * @deprecated Use {@link Image.recolor} to set a fixed color; `absolute` is removed in 4.0
      */
     red(factor: number, absolute?: boolean): this;
     red(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
@@ -1353,15 +1376,16 @@ export class Image {
     }
 
     /**
-     * Scales or sets the green channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped), or the value (0..1) to set it to
+     * Scales the green channel
+     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
      * @param options See {@link AdjustOptions}
      */
     green(factor: number, options?: AdjustOptions): this;
     /**
-     * Scales or sets the green channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped), or the value (0..1) to set it to
-     * @param absolute Whether to scale the current value (false) or set every pixel's green channel to `factor` * 255 (true)
+     * Scales the green channel
+     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
+     * @param absolute Whether to set every pixel's green channel to `factor` * 255 (true) instead of scaling it (false)
+     * @deprecated Use {@link Image.recolor} to set a fixed color; `absolute` is removed in 4.0
      */
     green(factor: number, absolute?: boolean): this;
     green(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
@@ -1377,15 +1401,16 @@ export class Image {
     }
 
     /**
-     * Scales or sets the blue channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped), or the value (0..1) to set it to
+     * Scales the blue channel
+     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
      * @param options See {@link AdjustOptions}
      */
     blue(factor: number, options?: AdjustOptions): this;
     /**
-     * Scales or sets the blue channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped), or the value (0..1) to set it to
-     * @param absolute Whether to scale the current value (false) or set every pixel's blue channel to `factor` * 255 (true)
+     * Scales the blue channel
+     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
+     * @param absolute Whether to set every pixel's blue channel to `factor` * 255 (true) instead of scaling it (false)
+     * @deprecated Use {@link Image.recolor} to set a fixed color; `absolute` is removed in 4.0
      */
     blue(factor: number, absolute?: boolean): this;
     blue(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
@@ -1410,15 +1435,16 @@ export class Image {
     }
 
     /**
-     * Sets the brightness of the image
-     * @param value The lightness to apply (0..1)
+     * Scales the lightness of the image (HSL), keeping its hue and saturation
+     * @param value The factor to multiply the lightness with (>= 0, results are clamped)
      * @param options See {@link AdjustOptions}
      */
     lightness(value: number, options?: AdjustOptions): this;
     /**
-     * Sets the brightness of the image
-     * @param value The lightness to apply (0..1)
-     * @param absolute Whether to scale the current lightness (false) or just set the new lightness (true)
+     * Scales the lightness of the image (HSL), keeping its hue and saturation
+     * @param value The factor to multiply the lightness with (>= 0, results are clamped)
+     * @param absolute Whether to set the lightness (true) instead of scaling it (false)
+     * @deprecated `absolute` is removed in 4.0: scale with a factor, or use {@link Image.recolor} for a fixed color
      */
     lightness(value: number, absolute?: boolean): this;
     lightness(value: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
@@ -1432,15 +1458,16 @@ export class Image {
     }
 
     /**
-     * Sets the saturation of the image
-     * @param value The saturation to apply (0..1)
+     * Scales the saturation of the image (HSL), keeping its hue and lightness. 0 makes it greyscale
+     * @param value The factor to multiply the saturation with (>= 0, results are clamped)
      * @param options See {@link AdjustOptions}
      */
     saturation(value: number, options?: AdjustOptions): this;
     /**
-     * Sets the saturation of the image
-     * @param value The saturation to apply (0..1)
-     * @param absolute Whether to scale the current saturation (false) or just set the new saturation (true)
+     * Scales the saturation of the image (HSL), keeping its hue and lightness. 0 makes it greyscale
+     * @param value The factor to multiply the saturation with (>= 0, results are clamped)
+     * @param absolute Whether to set the saturation (true) instead of scaling it (false)
+     * @deprecated `absolute` is removed in 4.0: scale with a factor, or use {@link Image.recolor} for a fixed color
      */
     saturation(value: number, absolute?: boolean): this;
     saturation(value: number, absoluteOrOptions: boolean | AdjustOptions = false): this {

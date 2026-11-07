@@ -416,6 +416,17 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(back.every((c, i) => Math.abs(c - rgba[i]) <= 1), 'HSLA round trip: ' + back + ' vs ' + rgba);
     }
 
+    // recolor: every pixel takes the color's RGB and keeps its own alpha (the color's alpha is ignored)
+    {
+        const image = new Image(2, 1);
+        image.setPixelAt(0, 0, 0x102030ff);
+        image.setPixelAt(1, 0, 0x40506080);
+        assert(image.clone().recolor(0xffffffff).getPixelAt(0, 0) === 0xffffffff, 'recolor opaque pixel');
+        const tinted = image.clone().recolor(0xaabbcc00);
+        assert(tinted.getPixelAt(0, 0) === 0xaabbccff && tinted.getPixelAt(1, 0) === 0xaabbcc80, 'recolor keeps alpha: ' + tinted.getPixelAt(1, 0).toString(16));
+        assert(image.clone().recolor(0xaabbccff).bitmap.length === 8, 'recolor size');
+    }
+
     // options objects as alternatives to positional arguments
     {
         const base = new Image(20, 20).fill(0xff0000ff);

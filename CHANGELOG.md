@@ -4,6 +4,8 @@
 
 ### New
 
+- **`Image.recolor(color)`**: sets the RGB of every pixel to a color and keeps each pixel's alpha, for silhouettes
+  and tints: `image.recolor(0xffffffff)` makes every pixel white, keeping its transparency.
 - **`Colors`**: the color helpers moved out of `Image` into their own class, with the same results:
   `Colors.fromRGBA()`, `fromRGB()`, `fromHSLA()`, `fromHSL()`, `toRGBA()`, `toRGB()`, `toHSLA()` (new: a color as
   HSLA values) and `gradient()`.
@@ -16,6 +18,9 @@
 - **`Image.RESIZE_*`, `Image.SVG_MODE_*` and `Frame.DISPOSAL_*`**: use `ResizeModes.*`, `SVGScaleModes.*` and
   `FrameDisposalModes.*` (`Image.RESIZE_AUTO` becomes `ResizeModes.AUTO`). The old names keep working and will be
   removed in 4.0. They are plain read-only properties now instead of getters.
+- **The `absolute` argument** of `opacity()`, `red()`, `green()`, `blue()`, `lightness()`, `saturation()` (and the
+  `absolute` option of `AdjustOptions`): these methods scale by default; setting a fixed value is removed in 4.0.
+  For a fixed color, use `recolor()`.
 - **`Image.rgbaToColor()`, `rgbToColor()`, `hslaToColor()`, `hslToColor()`, `rgbaToHSLA()`, `colorToRGBA()`,
   `colorToRGB()` and `gradient()`**: use the `Colors` methods of the same role (`Colors.fromRGBA()` and so on).
 
