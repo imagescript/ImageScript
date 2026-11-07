@@ -802,6 +802,22 @@ ul.tsd-hierarchy ul.tsd-hierarchy > li::before {
     background: var(--color-background-secondary);
 }
 
+/* deprecated members: a tag before the name, in the warning colours (the name itself is struck through by typedoc) */
+.tsd-member h3:has(> .deprecated)::before {
+    content: "Deprecated";
+    align-self: center;
+    margin-right: 0.6rem;
+    padding: 0.15em 0.5em;
+    border-radius: 999px;
+    background: var(--color-background-warning);
+    color: var(--color-warning-text);
+    font-family: var(--font-text);
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
 /* ---------- footer ---------- */
 
 footer {
