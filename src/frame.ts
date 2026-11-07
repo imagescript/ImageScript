@@ -4,10 +4,14 @@ import { isOptions, finite } from './util/options.ts';
 /** Names of the frame disposal modes, see {@link Frame.disposalMode} */
 export type FrameDisposalModeName = 'any' | 'keep' | 'previous' | 'background';
 /**
- * Ids of the frame disposal modes, as GIFs store them (0 any, 1 keep, 2 previous, 3 background). Use the names
- * ({@link FrameDisposalModeName}) instead: the ids will be removed in 4.0
+ * Ids of the frame disposal modes, as GIFs store them (0 any, 1 keep, 2 previous, 3 background)
+ * @deprecated Use the names ({@link FrameDisposalModeName}: `'any'`, `'keep'`, `'previous'`, `'background'`), the ids will
+ *     be removed in 4.0
  */
 export type FrameDisposalModeId = 0 | 1 | 2 | 3;
+
+// (the ids inside the library, without the deprecation shown to its own code)
+type DisposalId = 0 | 1 | 2 | 3;
 
 const DISPOSAL_MODES: readonly FrameDisposalModeName[] = ['any', 'keep', 'previous', 'background'];
 
@@ -58,7 +62,7 @@ export class Frame extends Image {
      * @internal
      * @ignore
      */
-    private __disposalMode__: FrameDisposalModeId = 1;
+    private __disposalMode__: DisposalId = 1;
 
     /**
      * @deprecated Use {@link FrameDisposalModes.ANY}, `Frame.DISPOSAL_*` will be removed in 4.0
@@ -88,12 +92,12 @@ export class Frame extends Image {
      * @internal
      * @ignore
      */
-    static __convert_disposal_mode__(mode: FrameDisposalModeName | FrameDisposalModeId): FrameDisposalModeId {
+    static __convert_disposal_mode__(mode: FrameDisposalModeName | FrameDisposalModeId): DisposalId {
         const id = typeof mode === 'string' ? DISPOSAL_MODES.indexOf(mode) : mode;
         if (!(id >= 0 && id <= 3))
             throw new RangeError('Invalid disposal mode');
 
-        return id as FrameDisposalModeId;
+        return id as DisposalId;
     }
 
     /**
@@ -129,7 +133,10 @@ export class Frame extends Image {
         this.disposalMode = disposal;
     }
 
-    /** The frame's disposal mode (`'any'`, `'keep'`, `'previous'` or `'background'`); also settable by id (0-3) */
+    /**
+     * The frame's disposal mode (`'any'`, `'keep'`, `'previous'` or `'background'`). Setting it by id (0-3) is deprecated,
+     * the ids will be removed in 4.0
+     */
     get disposalMode(): FrameDisposalModeName {
         return DISPOSAL_MODES[this.__disposalMode__];
     }
@@ -139,13 +146,13 @@ export class Frame extends Image {
      * @internal
      * @ignore
      */
-    get __disposal_id__(): FrameDisposalModeId {
+    get __disposal_id__(): DisposalId {
         return this.__disposalMode__;
     }
 
     /**
      * Sets the disposal mode
-     * @param disposalMode The mode's name (`'any'`, `'keep'`, `'previous'`, `'background'`) or id (0-3)
+     * @param disposalMode The mode's name (`'any'`, `'keep'`, `'previous'`, `'background'`) or, deprecated, its id (0-3)
      */
     set disposalMode(disposalMode: FrameDisposalModeName | FrameDisposalModeId) {
         this.__disposalMode__ = Frame.__convert_disposal_mode__(disposalMode);
