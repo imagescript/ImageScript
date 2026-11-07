@@ -1,7 +1,7 @@
 {
   "ImageScript": {
-    "package": "imagescript@3.16.1",
-    "bytes": 2487370,
+    "package": "imagescript@3.17.0",
+    "bytes": 2499840,
     "packages": 1
   },
   "Jimp": {
