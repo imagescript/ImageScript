@@ -144,4 +144,87 @@ const throwsA = async (fn, type, label) => {
     const oneImage = await decode(oneApng);
     if (oneImage instanceof Animation || !(oneImage instanceof Image)) panic('one-frame APNG with acTL: decode() should give an Image');
     if (sha256(oneImage.bitmap) !== sha256(oneAnimation.frames[0].bitmap)) panic('one-frame APNG with acTL: decode() pixels differ from Animation.decode');
+
+    // Image.decode of an animation is its first frame, an Image composed like Animation.decode's first frame: frames that
+    // differ, with offsets and disposal modes, from our encoders (GIF, APNG, animated WebP, lossless and lossy)
+    const moving = new Animation([
+        new Frame(12, 8, {duration: 50}).fill((x, y) => Colors.fromRGBA(x * 20, y * 30, 90, 255)),
+        new Frame(5, 4, {duration: 70, xOffset: 3, yOffset: 2, disposalMode: 'background'}).fill((x, y) => Colors.fromRGBA(255, x * 50, y * 60, 128)),
+        new Frame(6, 3, {duration: 40, xOffset: 1, yOffset: 4, disposalMode: 'previous'}).fill(0x00ff00ff),
+        new Frame(4, 4, {duration: 60, xOffset: 8, yOffset: 4}).fill((x, y) => Colors.fromRGBA(y * 90, 0, 200, 255 - x * 60))
+    ]);
+    const movingFiles = {
+        GIF: await moving.encodeGIF(),
+        'GIF without optimization': await moving.encodeGIF({optimize: false}),
+        APNG: await moving.encodeAPNG(),
+        'APNG without optimization': await moving.encodeAPNG({optimize: false}),
+        'animated WebP': await moving.encodeWebP(),
+        'lossy animated WebP': await moving.encodeWebP({quality: 80})
+    };
+    for (const [name, bytes] of Object.entries(movingFiles)) {
+        const image = await Image.decode(bytes);
+        if (image.constructor !== Image) panic(`${name}: Image.decode gives ${image.constructor.name}, not an Image`);
+        const frames = (await Animation.decode(bytes)).frames;
+        if (frames.length !== 4) panic(`${name}: ${frames.length} frames instead of 4`);
+        const reference = frames[0];
+        if (image.width !== reference.width || image.height !== reference.height) panic(`${name}: ${image.width}x${image.height} instead of ${reference.width}x${reference.height}`);
+        if (sha256(image.bitmap) !== sha256(reference.bitmap)) panic(`${name}: Image.decode is not the first frame of Animation.decode`);
+        if (sha256(image.bitmap) === sha256(frames[1].bitmap)) panic(`${name}: the frames should differ`);
+    }
+    // options apply to the first frame: maxPixels counts the canvas
+    await throwsA(() => Image.decode(movingFiles.GIF, {maxPixels: 10}), RangeError, 'Image.decode maxPixels of an animated GIF');
+    if ((await Image.decode(movingFiles.GIF, {maxPixels: 96})).width !== 12) panic('Image.decode: a GIF whose canvas fits maxPixels should decode');
+
+    // an APNG whose default image (IDAT) isn't part of the animation: Image.decode gives that image, what viewers without
+    // APNG support show, and Animation.decode only the frames of the animation
+    const pngList = bytes => {
+        const list = [], view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        for (let at = 8; at < bytes.length;) {
+            const length = view.getUint32(at);
+            list.push({type: String.fromCharCode(...bytes.subarray(at + 4, at + 8)), data: bytes.subarray(at + 8, at + 8 + length)});
+            at += 12 + length;
+        }
+        return list;
+    };
+    // (more colors than a palette holds, so both are truecolor PNGs without a PLTE chunk to copy)
+    const defaultPNG = new Uint8Array(await new Image(32, 32).fill((x, y) => Colors.fromRGBA(x * 7, y * 7, (x * y) & 255, 255)).encodePNG());
+    const framePNG = new Uint8Array(await new Image(32, 32).fill((x, y) => Colors.fromRGBA(0, x * 7, y * 7, 255)).encodePNG());
+    const ihdr = pngList(defaultPNG).find(c => c.type === 'IHDR').data;
+    const defaultIDAT = pngList(defaultPNG).find(c => c.type === 'IDAT').data;
+    const frameIDAT = pngList(framePNG).find(c => c.type === 'IDAT').data;
+    const actl = new Uint8Array(8);
+    new DataView(actl.buffer).setUint32(0, 1); // one frame in the animation, which the IDAT isn't part of
+    const fcTL = new Uint8Array(26), fcView = new DataView(fcTL.buffer);
+    fcView.setUint32(0, 0); // sequence number
+    fcView.setUint32(4, 32); // width
+    fcView.setUint32(8, 32); // height
+    fcView.setUint16(20, 100); // delay: 100/1000 s
+    fcView.setUint16(22, 1000);
+    const fdAT = new Uint8Array(4 + frameIDAT.length);
+    new DataView(fdAT.buffer).setUint32(0, 1); // sequence number
+    fdAT.set(frameIDAT, 4);
+    const separate = Buffer.concat([
+        defaultPNG.subarray(0, 8), pngChunk('IHDR', ihdr), pngChunk('acTL', actl), pngChunk('IDAT', defaultIDAT),
+        pngChunk('fcTL', fcTL), pngChunk('fdAT', fdAT), pngChunk('IEND', new Uint8Array(0))
+    ]);
+    const shown = await Image.decode(separate);
+    if (shown.constructor !== Image || sha256(shown.bitmap) !== sha256((await Image.decode(defaultPNG)).bitmap)) panic('APNG with a separate default image: Image.decode should give the default image');
+    const animated = await Animation.decode(separate);
+    if (animated.length !== 1 || sha256(animated.frames[0].bitmap) !== sha256((await Image.decode(framePNG)).bitmap)) panic('APNG with a separate default image: Animation.decode should give only the animation\'s frame');
+
+    // a large animation: Image.decode stops after its first frame, so it takes a fraction of the time of all 50 frames
+    const many = new Animation(Array.from({length: 50}, (_, i) => new Frame(480, 360, {duration: 40}).fill((x, y) => Colors.fromRGBA((x * 7 + i * 13) & 255, (y * 5 + x * i) & 255, (x ^ y) & 255, 255))));
+    const large = await many.encodeGIF();
+    const median = async fn => {
+        const times = [];
+        for (let i = 0; i < 3; i++) {
+            const start = process.hrtime.bigint();
+            await fn();
+            times.push(Number(process.hrtime.bigint() - start) / 1e6);
+        }
+        return times.sort((a, b) => a - b)[1];
+    };
+    const firstMs = await median(() => Image.decode(large));
+    const allMs = await median(() => Animation.decode(large));
+    if (firstMs * 3 > allMs) panic(`Image.decode of 50 frames took ${firstMs.toFixed(1)} ms, Animation.decode ${allMs.toFixed(1)} ms: not a third`);
 })().catch(error => panic(error.stack || String(error)));

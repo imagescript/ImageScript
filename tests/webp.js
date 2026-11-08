@@ -36,14 +36,11 @@ const animated = [
         if (sha256(image.bitmap) !== hash) panic(`${name}: decoded pixels don't match libwebp`);
     }
 
-    // animated WebPs: Image.decode refuses them, Animation.decode composites the frames
+    // animated WebPs: Image.decode gives the first frame as libwebp composites it, Animation.decode all of them
     const data = await fs.readFile('./tests/webp/animated.webp');
-    try {
-        await Image.decode(data);
-        panic('Image.decode should reject animated WebPs');
-    } catch (err) {
-        if (!/Animation\.decode/.test(err.message)) panic(`unexpected error ${err.message}`);
-    }
+    const firstFrame = await Image.decode(data);
+    if (firstFrame.constructor !== Image || firstFrame.width !== 96 || firstFrame.height !== 72) panic('animated WebP: Image.decode should give an Image of the canvas');
+    if (sha256(firstFrame.bitmap) !== animated[0]) panic('animated WebP: Image.decode is not the first frame libwebp composites');
     const animation = await Animation.decode(data);
     if (!(await decode(data) instanceof Animation)) panic('decode() should return an Animation for animated WebPs');
     if (animation.length !== 4 || animation.loopCount !== Infinity) panic('animated WebP: wrong frame or loop count');

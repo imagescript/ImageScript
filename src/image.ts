@@ -2726,9 +2726,10 @@ export class Image {
 
     /**
      * Decodes an image (PNG, JPEG, TIFF, WebP, BMP, ICO, CUR, QOI, PBM, PGM, PPM, PAM, PFM, Radiance HDR, TGA, AVIF or
-     * JPEG XL). For APNGs this is the default image; animated WebPs and GIFs have no single image, decode those with
-     * {@link Animation.decode}; for icons and cursors it's their largest image, for AVIF image sequences and JPEG XL
-     * animations their first frame
+     * JPEG XL). For animations (GIFs, animated WebPs, AVIF image sequences, JPEG XL animations) this is the first frame,
+     * composed onto the canvas as {@link Animation.decode} has it, and decoding stops after it: use
+     * {@link Animation.decode} for all frames. For APNGs this is the default image, which is what viewers without APNG
+     * support show; for icons and cursors it's their largest image
      * @param input The binary data to decode
      * @param options See {@link DecodeOptions}. JPEGs, TIFFs and PNGs are rotated/mirrored as their orientation tag
      *     (Exif, for PNGs also XMP) says by default: photos taken with a rotated camera are stored sideways
@@ -2748,8 +2749,10 @@ export class Image {
             if (ImageType.isJPEG(dataView)) return jpeg.decode(data, { maxPixels });
             if (ImageType.isTIFF(dataView)) return tiff.decode(data, maxPixels);
             if (ImageType.isWebP(dataView)) {
-                if (webp.isAnimated(data)) throw new Error('Animated WebPs have to be decoded with Animation.decode()');
-                return webp.decode(data, maxPixels);
+                if (!webp.isAnimated(data)) return webp.decode(data, maxPixels);
+                // the first frame only: the rest of the file isn't decoded
+                const animation = webp.decodeAnimation(data, true, maxPixels);
+                return { width: animation.width, height: animation.height, pixels: webp.composite(animation)[0].pixels, orientation: animation.orientation, icc: animation.icc };
             }
             // bitmaps can hold a JPEG or PNG, icons PNGs
             const bitmap = async (decoded: bmp.Decoded): Promise<{ width: number, height: number, pixels: Uint8Array }> => {
@@ -2766,7 +2769,13 @@ export class Image {
             if (ImageType.isPNM(dataView)) return netpbm.decode(data, maxPixels, toneMapping);
             if (ImageType.isHDR(dataView)) return hdr.decode(data, maxPixels, toneMapping);
             if (ImageType.isTGA(dataView)) return tga.decode(data, maxPixels);
-            if (ImageType.isGIF(dataView)) throw new Error('GIFs have to be decoded with Animation.decode() (or decode(), which returns an image or an animation)');
+            if (ImageType.isGIF(dataView)) {
+                // the first frame only: the rest of the file isn't decoded
+                const gifData = gif.decode(data, true, maxPixels);
+                const [first] = gif.composite(gifData);
+                if (!first) throw new Error('GIF: no frames');
+                return { width: gifData.width, height: gifData.height, pixels: first.pixels };
+            }
             throw new Error('Unsupported image type');
         });
 

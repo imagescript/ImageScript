@@ -41,8 +41,13 @@ if (decoded instanceof Animation) {
 }
 ```
 
-With `onlyFirstFrame` on `decode()`, the file isn't read past its first frame, so the frame count is not known. The
-first frame comes back as an `Image`.
+`Image.decode()` returns the first frame of an animated GIF or WebP, which threw in 3.x. The frame is an `Image` composed
+onto the canvas like the first frame of `Animation.decode()`, and decoding stops after it, so it is fast for a long
+animation. Use `Animation.decode()` for all the frames. An APNG still gives its default image, as before.
+
+```ts
+const first = await Image.decode(data); // the first frame of an animated GIF or WebP
+```
 
 Search your code for: `decode(` where the result is used for `encode`, `.length`, indexing or `instanceof GIF`, and
 `onlyFirstFrame`.
