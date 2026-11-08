@@ -43,15 +43,12 @@ export interface FrameOptions {
  * method of {@link Image} works on it too
  */
 export class Frame extends Image {
-    /**
-     * Milliseconds. GIFs store hundredths of a second, so this is rounded to 10 ms when encoding a GIF;
-     * note that browsers play frames shorter than 20 ms with 100 ms
-     */
-    duration: number;
-    /** The frame's horizontal offset in the animation */
-    xOffset: number;
-    /** The frame's vertical offset in the animation */
-    yOffset: number;
+    /** @internal @ignore */
+    private __duration__ = 100;
+    /** @internal @ignore */
+    private __x__ = 0;
+    /** @internal @ignore */
+    private __y__ = 0;
     /**
      * @internal
      * @ignore
@@ -90,6 +87,51 @@ export class Frame extends Image {
         this.xOffset = x;
         this.yOffset = y;
         this.disposalMode = disposal;
+    }
+
+    /**
+     * The frame's duration in milliseconds (a finite number from 0, else it throws a RangeError). GIFs store
+     * hundredths of a second, so this is rounded to 10 ms when encoding a GIF; note that browsers play frames shorter
+     * than 20 ms with 100 ms
+     */
+    get duration(): number {
+        return this.__duration__;
+    }
+
+    /**
+     * Sets the duration
+     * @param duration Milliseconds, a finite number from 0
+     */
+    set duration(duration: number) {
+        const value = finite(duration, 'frame duration');
+        if (value < 0) throw new RangeError('Invalid frame duration');
+        this.__duration__ = value;
+    }
+
+    /** The frame's horizontal offset in the animation (a finite number, else it throws a RangeError) */
+    get xOffset(): number {
+        return this.__x__;
+    }
+
+    /**
+     * Sets the horizontal offset
+     * @param x The offset in pixels
+     */
+    set xOffset(x: number) {
+        this.__x__ = finite(x, 'x offset');
+    }
+
+    /** The frame's vertical offset in the animation (a finite number, else it throws a RangeError) */
+    get yOffset(): number {
+        return this.__y__;
+    }
+
+    /**
+     * Sets the vertical offset
+     * @param y The offset in pixels
+     */
+    set yOffset(y: number) {
+        this.__y__ = finite(y, 'y offset');
     }
 
     /** The frame's disposal mode (`'any'`, `'keep'`, `'previous'` or `'background'`) */
