@@ -8,7 +8,7 @@ Node.js 22.13 or newer is required, as it was for 3.x (`engines` in `package.jso
 
 The recommended path:
 
-1. Upgrade to 3.20.1, the last 3.x release. Everything still works. Editors show the deprecated APIs with a
+1. Upgrade to the latest 3.x release. Everything still works. Editors show the deprecated APIs with a
    strikethrough, and the deprecation text names the replacement. `tsc` doesn't fail on them, so use the editor's
    problems list, or a lint rule for deprecated APIs (typescript-eslint has `no-deprecated`), to get the full list.
 2. Fix every deprecation hint, using the tables below.
@@ -120,6 +120,7 @@ are documented on their own pages: {@link ResizeModes}, {@link SVGScaleModes}, {
 | `Image.RESIZE_AREA` | `ResizeModes.AREA` (`'area'`) |
 | `Image.RESIZE_AUTO`, `ResizeModes.AUTO` | Pass only the width or the height: `image.resize({ width: 256 })` |
 | The upper-case mode strings, `'RESIZE_BILINEAR'` and the others | The lower-case names, `'bilinear'` and the others |
+| The `ResizeMode` and `SVGScaleMode` types, with the upper-case strings or the numbers 1-3 | Narrowed to the lower-case names: `ResizeMode` is `'nearest-neighbor'`, `'bilinear'`, `'bicubic'` or `'area'`, `SVGScaleMode` is `'scale'`, `'width'` or `'height'` |
 | `Image.SVG_MODE_SCALE` (or `1`) | `SVGScaleModes.SCALE` (`'scale'`) |
 | `Image.SVG_MODE_WIDTH` (or `2`) | `SVGScaleModes.WIDTH` (`'width'`) |
 | `Image.SVG_MODE_HEIGHT` (or `3`) | `SVGScaleModes.HEIGHT` (`'height'`) |
@@ -158,11 +159,12 @@ removed, and so is the `AdjustOptions` type. A second argument throws a `TypeErr
 | --- | --- |
 | `image.opacity(0.5)`, `image.red(0.5)` (scale) | Unchanged |
 | `image.red(0.5, true)`, `image.opacity(0.5, true)`, `image.lightness(0.5, true)` | See below |
+| `AdjustOptions` (type) | Removed with `absolute`: the channel methods take the factor only |
 | `image.red(0.5, { absolute: true })` | See below |
 
-The extra argument is not an error at runtime, so `image.red(0.5, true)` in JavaScript now scales the channel and
-does not fail: on a pixel with red 0, the result stays 0, where 3.x set it to 128. `tsc` reports the call
-(`Expected 1 arguments, but got 2`), so the risk is in JavaScript and in untyped code.
+The extra argument throws a `TypeError` in 4.0, so `image.red(0.5, true)` fails at the call, in JavaScript and in untyped
+code, before the image is touched. (Had it been ignored, it would have scaled the channel: on a pixel with red 0 the
+result stays 0, where 3.x's `absolute` set it to 128.) `tsc` reports the call as `Expected 1 arguments, but got 2`.
 
 For a fixed color, use `image.recolor(color)`. It sets the RGB of every pixel and keeps each pixel's alpha. The 3.x
 `absolute` calls set one channel of every pixel to a value, and `recolor()` has no equivalent for a single channel. Set
