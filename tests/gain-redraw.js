@@ -6,7 +6,7 @@ const panic = message => {
 	process.exit(1);
 };
 // the map's log2 gain at a map pixel (red channel)
-const gain = (map, x, y) => map.gainMapMin[0] + (map.gainMapMax[0] - map.gainMapMin[0]) * (map.image.bitmap[4 * (y * map.width + x)] / 255) ** (1 / map.gamma[0]);
+const gain = (map, x, y) => map.min[0] + (map.max[0] - map.min[0]) * (map.image.bitmap[4 * (y * map.width + x)] / 255) ** (1 / map.gamma[0]);
 const mapBytes = image => Buffer.from(image.gainMap.image.bitmap);
 
 (async () => {
@@ -15,11 +15,11 @@ const mapBytes = image => Buffer.from(image.gainMap.image.bitmap);
 	// drawing in a small area only changes the map where it was drawn: the rest of the map keeps its stored values,
 	// and the range stays
 	{
-		const image = await Image.decode(file), before = mapBytes(image), range = [image.gainMap.gainMapMin.slice(), image.gainMap.gainMapMax.slice()];
+		const image = await Image.decode(file), before = mapBytes(image), range = [image.gainMap.min.slice(), image.gainMap.max.slice()];
 		const map = image.gainMap, sx = map.width / image.width, sy = map.height / image.height;
 		const box = {x: 100, y: 80, width: 60, height: 40};
-		image.drawBox(box.x, box.y, box.width, box.height, 0x000000ff);
-		if (JSON.stringify([map.gainMapMin, map.gainMapMax]) !== JSON.stringify(range)) panic('drawBox: the range of the map changed');
+		image.composite(new Image(box.width, box.height).fill(0x000000ff), {x: box.x, y: box.y});
+		if (JSON.stringify([map.min, map.max]) !== JSON.stringify(range)) panic('composite: the range of the map changed');
 		const after = mapBytes(image);
 		let changed = 0;
 		for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) {
@@ -49,14 +49,14 @@ const mapBytes = image => Buffer.from(image.gainMap.image.bitmap);
 	{
 		const image = await Image.decode(file), map = image.gainMap;
 		const before = Array.from({length: 20}, (_, i) => gain(map, i * 7 % map.width, i * 11 % map.height));
-		const max = map.gainMapMax[0];
+		const max = map.max[0];
 		// an HDR source with a stronger map, composited over a part of the image
 		const source = new Image(80, 80).fill(0xffffffff);
 		source.gainMap = (await Image.decode(file)).gainMap.clone();
-		source.gainMap.gainMapMax = [max + 2, max + 2, max + 2];
+		source.gainMap.max = [max + 2, max + 2, max + 2];
 		source.gainMap.image.fill(0xffffffff);
 		image.composite(source, {x: 10, y: 10});
-		if (!(map.gainMapMax[0] > max)) panic(`composite: the range should have grown beyond ${max}, it is ${map.gainMapMax[0]}`);
+		if (!(map.max[0] > max)) panic(`composite: the range should have grown beyond ${max}, it is ${map.max[0]}`);
 		for (let i = 0; i < 20; i++) {
 			const x = i * 7 % map.width, y = i * 11 % map.height;
 			// (not where the source went: the map pixels of the image's 10 to 90)

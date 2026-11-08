@@ -80,7 +80,7 @@ const sameImage = (image, reference, label) => {
 
 	// the encoders take their values in the options object only; the metadata goes in { metadata }
 	const makeAnimation = () => new Animation([new Frame(4, 4)]);
-	const gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
+	const gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {min: 0, max: 2});
 	for (const [label, call] of Object.entries({
 		'encodePNG(1)': () => photo.encodePNG(1),
 		'encodePNG(1, { author })': () => photo.encodePNG(1, {author: 'me'}),

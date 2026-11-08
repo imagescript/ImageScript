@@ -8,7 +8,7 @@ const panic = message => {
 const close = (a, b, epsilon = 1e-4) => a.every((v, i) => Math.abs(v - b[i]) <= epsilon);
 const same = (a, b) => Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
 // the map's value for a gain (log2), channel 0
-const stored = (map, gain) => 255 * Math.min(1, Math.max(0, (gain - map.gainMapMin[0]) / (map.gainMapMax[0] - map.gainMapMin[0]))) ** map.gamma[0];
+const stored = (map, gain) => 255 * Math.min(1, Math.max(0, (gain - map.min[0]) / (map.max[0] - map.min[0]))) ** map.gamma[0];
 // the mean of the map's red channel over an area of the image
 const meanValue = (image, left, top, right, bottom) => {
 	const map = image.gainMap.image, sx = map.width / image.width, sy = map.height / image.height;
@@ -32,11 +32,11 @@ const meanValue = (image, left, top, right, bottom) => {
 		const map = image.gainMap;
 		if (!(map instanceof GainMap)) panic(`${name}: no gain map`);
 		if (map.channels !== channels || map.width !== 512 || map.height !== 384) panic(`${name}: ${map.channels} channels, ${map.width}x${map.height}`);
-		if (Math.abs(map.gainMapMax[0] - 2.1814) > 1e-3 || Math.abs(map.hdrCapacityMax - 2.3) > 1e-3 || map.hdrCapacityMin !== 0 || map.gamma[0] !== 1 || map.useBaseColorSpace)
-			panic(`${name}: parameters ${map.gainMapMax} ${map.hdrCapacityMax} ${map.gamma} ${map.useBaseColorSpace}`);
+		if (Math.abs(map.max[0] - 2.1814) > 1e-3 || Math.abs(map.hdrCapacityMax - 2.3) > 1e-3 || map.hdrCapacityMin !== 0 || map.gamma[0] !== 1 || map.useBaseColorSpace)
+			panic(`${name}: parameters ${map.max} ${map.hdrCapacityMax} ${map.gamma} ${map.useBaseColorSpace}`);
 		if (!same(image, await Image.decode(files[name], {gainMap: false}))) panic(`${name}: the base differs with the gain map`);
 	}
-	if (single.gainMap.gainMapMin[0] > -0.47 || single.gainMap.gainMapMin[0] < -0.49) panic(`single-channel: gainMapMin ${single.gainMap.gainMapMin[0]}`);
+	if (single.gainMap.min[0] > -0.47 || single.gainMap.min[0] < -0.49) panic(`single-channel: min ${single.gainMap.min[0]}`);
 	if ((await Image.decode(files['single-channel'], {gainMap: false})).gainMap !== null) panic('gainMap: false still read the map');
 
 	// a cut off map (the MPF index pointing past the end) and a broken ISO block: no map, the base decodes
@@ -52,7 +52,7 @@ const meanValue = (image, left, top, right, bottom) => {
 		const encoded = await image.encodeJPEG({quality: 90});
 		const plain = await image.encodeJPEG({quality: 90, gainMap: false});
 		const back = await Image.decode(encoded);
-		if (!back.gainMap || !close(back.gainMap.gainMapMax, image.gainMap.gainMapMax) || !close(back.gainMap.gainMapMin, image.gainMap.gainMapMin) || back.gainMap.hdrCapacityMax !== image.gainMap.hdrCapacityMax)
+		if (!back.gainMap || !close(back.gainMap.max, image.gainMap.max) || !close(back.gainMap.min, image.gainMap.min) || back.gainMap.hdrCapacityMax !== image.gainMap.hdrCapacityMax)
 			panic(`${name}: the written map's parameters differ`);
 		{
 			let sum = 0;
@@ -83,19 +83,19 @@ const meanValue = (image, left, top, right, bottom) => {
 		const xmpOnly = Buffer.concat([alone.subarray(0, start), alone.subarray(start + 2 + length)]);
 		if (xmpOnly.includes('urn:iso:std:iso:ts:21496:-1') || !xmpOnly.includes('hdrgm:GainMapMax')) panic('XMP only map: test file wrong');
 		const map = await GainMap.decode(xmpOnly);
-		if (!close(map.gainMapMax, single.gainMap.gainMapMax) || !close(map.gainMapMin, single.gainMap.gainMapMin) || Math.abs(map.hdrCapacityMax - single.gainMap.hdrCapacityMax) > 1e-5)
-			panic(`XMP only map: ${map.gainMapMin} ${map.gainMapMax} ${map.hdrCapacityMax} vs ${single.gainMap.gainMapMin} ${single.gainMap.gainMapMax}`);
+		if (!close(map.max, single.gainMap.max) || !close(map.min, single.gainMap.min) || Math.abs(map.hdrCapacityMax - single.gainMap.hdrCapacityMax) > 1e-5)
+			panic(`XMP only map: ${map.min} ${map.max} ${map.hdrCapacityMax} vs ${single.gainMap.min} ${single.gainMap.max}`);
 	}
 
 	// made by hand: parameters checked, written and read back; per channel values
 	{
 		const image = new Image(64, 48).fill(0x808080ff);
-		image.gainMap = new GainMap(new Image(16, 12).fill((x, y) => Colors.fromRGBA(x * 16, y * 20, 255 - x * 16, 255)), {gainMapMax: [2, 3, 4], gainMapMin: -1, gamma: 2});
+		image.gainMap = new GainMap(new Image(16, 12).fill((x, y) => Colors.fromRGBA(x * 16, y * 20, 255 - x * 16, 255)), {max: [2, 3, 4], min: -1, gamma: 2});
 		const back = await Image.decode(await image.encodeJPEG({quality: 95}));
 		const map = back.gainMap;
-		if (!map || map.channels !== 3 || !close(map.gainMapMax, [2, 3, 4]) || !close(map.gainMapMin, [-1, -1, -1]) || !close(map.gamma, [2, 2, 2]) || map.hdrCapacityMax !== 4 || map.width !== 16)
-			panic(`hand made map: ${map ? [map.channels, map.gainMapMin, map.gainMapMax, map.gamma, map.hdrCapacityMax, map.width] : 'none'}`);
-		for (const [options, error] of [[{gamma: 0}, RangeError], [{gainMapMax: -2}, RangeError], [{gainMapMax: [1, 2]}, RangeError], [{gainMapMax: NaN}, RangeError], [{hdrCapacityMin: 3, hdrCapacityMax: 2}, RangeError]])
+		if (!map || map.channels !== 3 || !close(map.max, [2, 3, 4]) || !close(map.min, [-1, -1, -1]) || !close(map.gamma, [2, 2, 2]) || map.hdrCapacityMax !== 4 || map.width !== 16)
+			panic(`hand made map: ${map ? [map.channels, map.min, map.max, map.gamma, map.hdrCapacityMax, map.width] : 'none'}`);
+		for (const [options, error] of [[{gamma: 0}, RangeError], [{max: -2}, RangeError], [{max: [1, 2]}, RangeError], [{max: NaN}, RangeError], [{hdrCapacityMin: 3, hdrCapacityMax: 2}, RangeError]])
 			try {
 				new GainMap(new Image(4, 4), options);
 				panic(`GainMap ${JSON.stringify(options)} didn't throw`);
@@ -152,7 +152,7 @@ const meanValue = (image, left, top, right, bottom) => {
 		const neutral = stored(image.gainMap, 0);
 		if (Math.abs(meanValue(image, 204, 104, 296, 196) - neutral) > 1.5) panic(`composite: ${meanValue(image, 204, 104, 296, 196)} under the box, no boost is ${neutral}`);
 		// (the range can grow: compared as gains)
-		const gainAt = (img, value) => img.gainMap.gainMapMin[0] + (img.gainMap.gainMapMax[0] - img.gainMap.gainMapMin[0]) * (value / 255) ** (1 / img.gainMap.gamma[0]);
+		const gainAt = (img, value) => img.gainMap.min[0] + (img.gainMap.max[0] - img.gainMap.min[0]) * (value / 255) ** (1 / img.gainMap.gamma[0]);
 		const outside = gainAt(image, meanValue(image, 0, 0, 512, 90)), before = gainAt(single, meanValue(single, 0, 0, 512, 90));
 		if (Math.abs(outside - before) > 0.02) panic(`composite: changed outside the box (${outside} vs ${before})`);
 		const boxed = single.clone().drawBox(0, 0, 64, 64, 0xffffffff);
@@ -217,18 +217,18 @@ const meanValue = (image, left, top, right, bottom) => {
 		for (const [name, file, headroom] of [['XMP headroom', await appleFile('4', null), 4], ['maker note headroom', await appleFile(null, exif), 2 ** 1.8]]) {
 			const image = await Image.decode(file);
 			const map = image.gainMap;
-			if (!map || Math.abs(map.gainMapMax[0] - Math.log2(headroom)) > 1e-4 || map.gainMapMin[0] !== 0 || map.hdrCapacityMax !== map.gainMapMax[0]) panic(`Apple, ${name}: ${map ? map.gainMapMax : 'no map'}`);
+			if (!map || Math.abs(map.max[0] - Math.log2(headroom)) > 1e-4 || map.min[0] !== 0 || map.hdrCapacityMax !== map.max[0]) panic(`Apple, ${name}: ${map ? map.max : 'no map'}`);
 			// the ramp's values as Apple applies them
 			const px = map.image.bitmap;
 			for (let x = 0; x < 64; x += 9) {
 				const stored = Math.min(255, x * 4) / 255;
 				const want = Math.log2(1 + (headroom - 1) * stored ** 1.961);
-				const got = map.gainMapMax[0] * px[4 * x] / 255;
+				const got = map.max[0] * px[4 * x] / 255;
 				if (Math.abs(want - got) > 0.03) panic(`Apple, ${name}: value ${x * 4} gives ${got} stops, not ${want}`);
 			}
 			// written as an Ultra HDR JPEG (ISO 21496-1 and hdrgm), the same boosts
 			const back = (await Image.decode(await image.encodeJPEG({quality: 90}))).gainMap;
-			if (!back || !close(back.gainMapMax, map.gainMapMax)) panic(`Apple, ${name}: not written back`);
+			if (!back || !close(back.max, map.max)) panic(`Apple, ${name}: not written back`);
 		}
 	}
 
@@ -237,8 +237,8 @@ const meanValue = (image, left, top, right, bottom) => {
 		const avif = await image.encodeAVIF({quality: 80});
 		const back = await Image.decode(avif);
 		const map = back.gainMap;
-		if (!map || map.channels !== image.gainMap.channels || map.width !== image.gainMap.width || !close(map.gainMapMax, image.gainMap.gainMapMax) || !close(map.gainMapMin, image.gainMap.gainMapMin) || Math.abs(map.hdrCapacityMax - image.gainMap.hdrCapacityMax) > 1e-6)
-			panic(`AVIF ${name}: ${map ? `${map.channels} channels, ${map.width}, ${map.gainMapMax}` : 'no gain map'}`);
+		if (!map || map.channels !== image.gainMap.channels || map.width !== image.gainMap.width || !close(map.max, image.gainMap.max) || !close(map.min, image.gainMap.min) || Math.abs(map.hdrCapacityMax - image.gainMap.hdrCapacityMax) > 1e-6)
+			panic(`AVIF ${name}: ${map ? `${map.channels} channels, ${map.width}, ${map.max}` : 'no gain map'}`);
 		let sum = 0;
 		const a = map.image.bitmap, b = image.gainMap.image.bitmap;
 		for (let i = 0; i < a.length; i += 4) sum += Math.abs(a[i] - b[i]);
@@ -256,8 +256,8 @@ const meanValue = (image, left, top, right, bottom) => {
 			const jxl = await image.encodeJXL(options);
 			const back = await Image.decode(jxl);
 			const map = back.gainMap;
-			if (!map || map.channels !== image.gainMap.channels || map.width !== image.gainMap.width || !close(map.gainMapMax, image.gainMap.gainMapMax) || !close(map.gainMapMin, image.gainMap.gainMapMin) || Math.abs(map.hdrCapacityMax - image.gainMap.hdrCapacityMax) > 1e-6)
-				panic(`JXL ${name} ${JSON.stringify(options)}: ${map ? `${map.channels} channels, ${map.width}, ${map.gainMapMax}` : 'no gain map'}`);
+			if (!map || map.channels !== image.gainMap.channels || map.width !== image.gainMap.width || !close(map.max, image.gainMap.max) || !close(map.min, image.gainMap.min) || Math.abs(map.hdrCapacityMax - image.gainMap.hdrCapacityMax) > 1e-6)
+				panic(`JXL ${name} ${JSON.stringify(options)}: ${map ? `${map.channels} channels, ${map.width}, ${map.max}` : 'no gain map'}`);
 			let sum = 0;
 			const a = map.image.bitmap, b = image.gainMap.image.bitmap;
 			for (let i = 0; i < a.length; i += 4) sum += Math.abs(a[i] - b[i]);
@@ -284,17 +284,17 @@ const meanValue = (image, left, top, right, bottom) => {
 	{
 		const gainsOf = map => {
 			const px = map.image.bitmap, out = [];
-			for (let i = 0; i < px.length; i += 4) out.push(map.gainMapMin[0] + (map.gainMapMax[0] - map.gainMapMin[0]) * (px[i] / 255) ** (1 / map.gamma[0]));
+			for (let i = 0; i < px.length; i += 4) out.push(map.min[0] + (map.max[0] - map.min[0]) * (px[i] / 255) ** (1 / map.gamma[0]));
 			return out;
 		};
 		const bright = new Image(64, 64).fill((x, y) => ((y * 4) * 0x1010100 | 255) >>> 0);
-		bright.gainMap = new GainMap(new Image(64, 64).fill(x => ((x * 4) * 0x1010100 | 255) >>> 0), {gainMapMin: 0, gainMapMax: 2, offsetSDR: 0, offsetHDR: 0});
+		bright.gainMap = new GainMap(new Image(64, 64).fill(x => ((x * 4) * 0x1010100 | 255) >>> 0), {min: 0, max: 2, offsetSDR: 0, offsetHDR: 0});
 		for (const [name, edit] of [['contrast 1.4', i => i.contrast(1.4)], ['contrast 0.6', i => i.contrast(0.6)], ['brightness 1.3', i => i.brightness(1.3)], ['gamma 1.5', i => i.gamma(1.5)], ['lightness 1.2', i => i.lightness(1.2)]]) {
 			const out = edit(bright.clone());
 			const lowest = Math.min(...gainsOf(out.gainMap));
 			if (lowest < -0.05) panic(`${name}: the HDR rendition got darker than SDR (gain ${lowest})`);
 		}
-		if (!(Math.max(...bright.clone().contrast(1.4).gainMap.gainMapMax) > 2)) panic('contrast 1.4: the highlights didn\'t stretch');
+		if (!(Math.max(...bright.clone().contrast(1.4).gainMap.max) > 2)) panic('contrast 1.4: the highlights didn\'t stretch');
 		const inverted = bright.clone().invert().gainMap;
 		if (gainsOf(inverted).some(g => Math.abs(g) > 0.02)) panic('invert: the map still boosts');
 	}

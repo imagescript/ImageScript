@@ -56,7 +56,7 @@ const IDENTITY = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
         check(frame instanceof Frame && frame.duration === 40 && frame.xOffset === 2 && frame.yOffset === 3 && same(frame, photo(4, 4).sepia()), 'colorMatrix on a frame');
 
         const hdr = photo(8, 8);
-        hdr.gainMap = new GainMap(new Image(4, 4).fill(0xc0c0c0ff), {gainMapMin: 0, gainMapMax: 2});
+        hdr.gainMap = new GainMap(new Image(4, 4).fill(0xc0c0c0ff), {min: 0, max: 2});
         hdr.colorMatrix(sepia);
         check(hdr.gainMap && hdr.gainMap.width === 4 && hdr.gainMap.height === 4, 'colorMatrix with a gain map keeps it');
         check((await Image.decode(await hdr.encodeJPEG())).gainMap, 'colorMatrix: the gain map is still encoded');

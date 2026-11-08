@@ -114,7 +114,7 @@ const photo = (width, height) => new Image(width, height).fill((x, y) => Colors.
 
         // gain maps move with the image
         const hdr = photo(20, 10);
-        hdr.gainMap = new GainMap(new Image(10, 5).fill((x) => x < 5 ? 0x000000ff : 0xffffffff), {gainMapMin: 0, gainMapMax: 2});
+        hdr.gainMap = new GainMap(new Image(10, 5).fill((x) => x < 5 ? 0x000000ff : 0xffffffff), {min: 0, max: 2});
         const flipped = hdr.clone().transform([-1, 0, 0, 1, 0, 0]);
         check(flipped.gainMap && flipped.gainMap.width === 10 && flipped.gainMap.height === 5, 'transform keeps the gain map');
         check(px(flipped.gainMap.image, 0, 2)[0] > 200 && px(flipped.gainMap.image, 9, 2)[0] < 60, 'transform: the gain map is flipped with the image');

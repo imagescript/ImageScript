@@ -1619,7 +1619,7 @@ export class Image {
                 }
                 out[c] = share * Hs + (1 - share) * Hd;
             }
-        }, map.channels === 1 && (!sourceMap || sourceMap.channels === 1), Math.max(0, ...(sourceMap?.gainMapMax ?? [0])));
+        }, map.channels === 1 && (!sourceMap || sourceMap.channels === 1), Math.max(0, ...(sourceMap?.__max__ ?? [0])));
         return this;
     }
 

@@ -151,7 +151,7 @@ const blockError = (original, result) => {
     // an image with a gain map keeps a valid one
     {
         const hdr = new Image(8, 8).fill((x, y) => Colors.fromRGBA(x * 30, y * 30, 200, 255));
-        hdr.gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
+        hdr.gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {min: 0, max: 2});
         hdr.quantize({colors: 4, dither: 'floyd-steinberg'});
         if (!(hdr.gainMap instanceof GainMap)) panic('gain map removed by quantize');
         if (colorsOf(hdr).size > 4) panic('quantize with a gain map');

@@ -544,7 +544,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             return out;
         };
         const mapped = new Image(8, 8).fill(0x808080ff);
-        mapped.gainMap = new GainMap(new Image(4, 4).fill(0xc0c0c0ff), {gainMapMin: 0, gainMapMax: 2});
+        mapped.gainMap = new GainMap(new Image(4, 4).fill(0xc0c0c0ff), {min: 0, max: 2});
         const jhgm = boxes(Buffer.from(await mapped.encodeJXL())).find(b => b.type === 'jhgm').box;
         const codestream = fs.readFileSync('./tests/jxl/animation.jxl');
         const container = Buffer.concat([box('JXL ', Buffer.from([0x0d, 0x0a, 0x87, 0x0a])), box('ftyp', Buffer.from('jxl \0\0\0\0jxl ', 'latin1')), jhgm, box('jxlc', codestream)]);
@@ -552,7 +552,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const withMap = await Animation.decode(container);
         assert(plain.length > 1 && withMap.length === plain.length, 'JPEG XL animation with a jhgm box decodes');
         assert(plain.frames.every(f => f.gainMap === null) && (await Animation.decode(codestream)).frames.every(f => f.gainMap === null), 'JPEG XL: gainMap false, or no jhgm box');
-        assert(withMap.frames.every(f => f.gainMap && f.gainMap.width === 4 && f.gainMap.gainMapMax[0] === 2), 'JPEG XL: every frame has the gain map');
+        assert(withMap.frames.every(f => f.gainMap && f.gainMap.width === 4 && f.gainMap.max[0] === 2), 'JPEG XL: every frame has the gain map');
         assert(withMap.frames[0].gainMap !== withMap.frames[1].gainMap && withMap.frames.every((f, i) => Buffer.from(f.bitmap).equals(Buffer.from(plain.frames[i].bitmap))), 'JPEG XL: the frames are the same with the map, with maps of their own');
 
         // toneMapping is checked
@@ -571,7 +571,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const frame = () => Frame.from(bordered(), {duration: 100, xOffset: 3, yOffset: 4});
         assert(frame().trim({color: 0x102030ff}).xOffset === 5, 'Frame.trim({color}) moves the offsets');
         assert(same(bordered().colorToAlpha(), bordered().colorToAlpha(undefined)) && same(bordered().colorToAlpha(), bordered().colorToAlpha({})), 'colorToAlpha() without arguments');
-        const map = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
+        const map = new GainMap(new Image(4, 4).fill(0x808080ff), {min: 0, max: 2});
         assert(Buffer.from(await map.encode()).equals(Buffer.from(await map.encode({}))), 'GainMap.encode() without arguments');
     }
 
@@ -634,7 +634,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         throws(() => shape.clone().recolor(new Image(3, 1)), RangeError, 'recolor(image) with another size');
         assert(shape.clone().recolor(0x336699ff).bitmap[0] === 0x33, 'recolor(color) still works');
         const mapped = new Image(8, 8).fill(0xffffffff);
-        mapped.gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
+        mapped.gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {min: 0, max: 2});
         mapped.recolor(Image.linearGradient(8, 8, {stops: [0xff0000ff, 0x0000ffff], angle: 90}));
         assert(px(mapped, 0, 0)[0] > 200 && px(mapped, 7, 0)[2] > 200 && mapped.gainMap && mapped.gainMap.width === 4, 'recolor(image) keeps the gain map');
 
@@ -675,7 +675,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
         // gain maps grow with the image
         const hdr = square();
-        hdr.gainMap = new GainMap(new Image(5, 5).fill(0xc0c0c0ff), {gainMapMin: 0, gainMapMax: 2});
+        hdr.gainMap = new GainMap(new Image(5, 5).fill(0xc0c0c0ff), {min: 0, max: 2});
         const hdrShadow = hdr.clone().dropShadow({x: 5, y: 0, blur: 1});
         assert(hdrShadow.gainMap && Math.abs(hdrShadow.gainMap.width / hdrShadow.width - 0.5) < 0.1 && Math.abs(hdrShadow.gainMap.height / hdrShadow.height - 0.5) < 0.1, 'dropShadow keeps the gain map at its scale');
 
