@@ -46,10 +46,6 @@ const same = (name, a, b) => {
     const svg = await fs.readFile('./tests/svgs/crown.svg');
     same('renderSVG', await Image.renderSVG(svg, 40, SVGScaleModes.WIDTH), await Image.renderSVG(svg, {size: 40, mode: SVGScaleModes.WIDTH}));
 
-    const font = await fs.readFile('./tests/fonts/opensans bold.ttf');
-    same('renderText', await Image.renderText(font, 24, 'Options', 0x3366ffff, undefined, {strokeWidth: 2, strokeColor: 0xffffffff}),
-        await Image.renderText(font, 24, 'Options', {color: 0x3366ffff, strokeWidth: 2, strokeColor: 0xffffffff}));
-
     // frames and animations
     const a = new Frame(8, 6, 40, 2, 3, 'background'), b = new Frame(8, 6, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
     const c = Frame.from(logo, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});

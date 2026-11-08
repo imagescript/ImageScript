@@ -383,14 +383,6 @@ export interface SVGOptions {
     images?: Record<string, BinaryData | Image>;
 }
 
-/** Options of {@link Image.renderText}: the text color and layout, and its style (see {@link TextStyle}) */
-export interface TextOptions extends TextStyle {
-    /** The text color. Default: `0xffffffff` */
-    color?: Color;
-    /** The text layout. Default: `new TextLayout()` */
-    layout?: TextLayout;
-}
-
 /** Options of {@link Image.renderText}: the font and size, the text color and layout, and its style (see {@link TextStyle}) */
 export interface RenderTextOptions extends TextStyle {
     /**
@@ -3038,56 +3030,11 @@ export class Image {
      *     outline width on every side
      * @return The rendered text
      */
-    static renderText(text: string, options: RenderTextOptions): Promise<Image>;
-    /**
-     * Creates a new image containing the rendered text.
-     * @param font TrueType (ttf/ttc), OpenType (otf) or WOFF font buffer to use, or several by priority: every
-     *     character comes from the first font that has it (e.g. `[text, emoji]`), the first one sets the line height.
-     *     Color glyphs (COLR layers and paints, CBDT and sbix bitmaps, as in emoji fonts) keep their colors. Text in any
-     *     script is shaped like browsers do (right to left and bidirectional text, Arabic joining, Indic conjuncts,
-     *     marks)
-     * @param size Font size in pixels (per em)
-     * @param text Text to render
-     * @param options Color, layout and style, see {@link TextOptions}; the image grows by the outline width on every
-     *     side
-     * @return The rendered text
-     * @deprecated Pass the text first and everything else as options, `Image.renderText(text, { font, size })`.
-     *     This signature will be removed in 4.0
-     */
-    static renderText(font: BinaryData | BinaryData[], size: number, text: string, options?: TextOptions): Promise<Image>;
-    /**
-     * Creates a new image containing the rendered text.
-     * @param font TrueType (ttf/ttc), OpenType (otf) or WOFF font buffer to use, or several by priority: every
-     *     character comes from the first font that has it (e.g. `[text, emoji]`), the first one sets the line height.
-     *     Color glyphs (COLR layers and paints, CBDT and sbix bitmaps, as in emoji fonts) keep their colors. Text in any
-     *     script is shaped like browsers do (right to left and bidirectional text, Arabic joining, Indic conjuncts,
-     *     marks)
-     * @param size Font size in pixels (per em)
-     * @param text Text to render
-     * @param [color=0xffffffff] Text color to use
-     * @param [layout] The text layout to use
-     * @param style Outline, see {@link TextStyle}; the image grows by the outline width on every side
-     * @return The rendered text
-     * @deprecated Pass the text first and everything else as options, `Image.renderText(text, { font, size })`.
-     *     This signature will be removed in 4.0
-     */
-    static renderText(font: BinaryData | BinaryData[], size: number, text: string, color?: Color, layout?: TextLayout, style?: TextStyle): Promise<Image>;
-    static async renderText(fontOrText: BinaryData | BinaryData[] | string, sizeOrOptions: number | RenderTextOptions, textArgument?: string, colorOrOptions: Color | TextOptions = 0xffffffff, layoutArgument?: TextLayout, styleArgument: TextStyle = {}): Promise<Image> {
-        let font: BinaryData | BinaryData[], size: number, text: string, options: Omit<RenderTextOptions, 'font' | 'size' | 'layout'> & { layout?: TextLayoutOptions | TextLayout };
-        if (typeof fontOrText === 'string') {
-            if (!isOptions(sizeOrOptions) || sizeOrOptions.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
-            ({ font, size, ...options } = sizeOrOptions);
-            text = fontOrText;
-        } else {
-            font = fontOrText;
-            size = sizeOrOptions as number;
-            text = textArgument as string;
-            options = isOptions(colorOrOptions) ? colorOrOptions : { ...styleArgument, color: colorOrOptions, layout: layoutArgument };
-        }
-        const { color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {} } = options;
+    static async renderText(text: string, options: RenderTextOptions): Promise<Image> {
+        const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {} } = options;
         const layout = options.layout instanceof TextLayout ? options.layout : new TextLayout(options.layout);
         const axes = textRenderer.axisValues(variations);
-        size = finite(size, 'font size');
+        const size = finite(options.size, 'font size');
         if (size < 0) throw new RangeError(`Invalid font size: ${size}`);
         if (finite(strokeWidth, 'stroke width') < 0)
             throw new RangeError('Invalid stroke width');

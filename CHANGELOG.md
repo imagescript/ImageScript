@@ -18,6 +18,8 @@
 
 - **The `max` argument of `cropCircle()` is removed**: `cropCircle(true, feathering)` and `cropCircle({ max: true })` are now `cropCircle({ size: 'cover', feathering })`, and `cropCircle(false)` is `cropCircle()`, the default `size: 'contain'`.
 
+- **The positional forms of `Image.renderText()` are removed**: `Image.renderText(font, size, text, color?, layout?, style?)` and `Image.renderText(font, size, text, options?)` are now `Image.renderText(text, { font, size, color, layout, ...style })`, which takes the same options. A `TextLayout` instance goes to `layout`.
+
 ## 3.20.1
 
 ### Performance

@@ -18,7 +18,7 @@ const samePixels = require('./util/pixels');
 
     const image = new Image(5 * 128, 4 * 128 + 80).fill(0x404040ff);
     tiles.forEach((t, i) => image.composite(t, (i % 5) * 128, (i / 5 | 0) * 128));
-    image.composite(await Image.renderText(font, 56, 'Outlined', 0xffffffff, undefined, {strokeWidth: 5}), 8, 4 * 128 + 4);
+    image.composite(await Image.renderText('Outlined', { font, size: 56, color: 0xffffffff, strokeWidth: 5 }), 8, 4 * 128 + 4);
 
     const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
 

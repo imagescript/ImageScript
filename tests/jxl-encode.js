@@ -168,7 +168,7 @@ const codestream = jxl => {
     // patches (effort 2): repeated glyphs of text on a flat background are found, stored in a reference frame and
     // added back
     {
-        const text = await Image.renderText(await fs.readFile('./tests/fonts/opensans bold.ttf'), 18, 'abba cabbage\nbeach bag cab\nabba cabbage', 0x202020ff);
+        const text = await Image.renderText('abba cabbage\nbeach bag cab\nabba cabbage', { font: await fs.readFile('./tests/fonts/opensans bold.ttf'), size: 18, color: 0x202020ff });
         const page = new Image(text.width + 16, text.height + 16).fill(0xf4f4f4ff).composite(text, 8, 8);
         const {findPatches} = await import('../dist/codecs/jxl/patches-enc.js');
         const w = page.width, h = page.height, planes = [0, 1, 2].map(c => Float32Array.from({length: w * h}, (_, i) => page.bitmap[i * 4 + c] / 255));

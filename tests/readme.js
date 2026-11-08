@@ -37,7 +37,7 @@ const font = name => fs.readFileSync('./tests/fonts/' + name);
     image.composite(glass, card.x, card.y);
 
     const text = async (fonts, size, string, color, x, y) => {
-        const rendered = await Image.renderText(fonts, size, string, {color});
+        const rendered = await Image.renderText(string, { font: fonts, size, color });
         image.composite(rendered, x, y);
         return rendered;
     };
@@ -68,13 +68,13 @@ const font = name => fs.readFileSync('./tests/fonts/' + name);
         image.composite(track, cx - 7, chart.top);
         const bar = new Image(14, y1 - y0).fill((x, y) => gradient((chart.max - (y0 + y - chart.top) / chart.height * (chart.max - chart.min) - chart.min) / (chart.max - chart.min)));
         image.composite(bar.roundCorners(7), cx - 7, y0);
-        const label = await Image.renderText(regular, 20, day, {color: 0xffffffc0});
+        const label = await Image.renderText(day, { font: regular, size: 20, color: 0xffffffc0 });
         image.composite(label, cx - label.width / 2, chart.top + chart.height + 10);
     }
 
     // a divider, then greetings in a few scripts
     image.drawBox(left, card.y + 446, card.width - 80, 1, 0xffffff40);
-    const greeting = await Image.renderText(scripts, 26, 'Bom dia · مرحبا · नमस्ते 😀', {color: 0xffffffe0});
+    const greeting = await Image.renderText('Bom dia · مرحبا · नमस्ते 😀', { font: scripts, size: 26, color: 0xffffffe0 });
     image.composite(greeting, left, card.y + 446 + (card.height - 446 - greeting.height) / 2);
 
     image.roundCorners(24);

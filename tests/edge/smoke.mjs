@@ -37,7 +37,7 @@ export async function smoke() {
         });
     }
     await step('text', async () => {
-        const text = await Image.renderText(font, 24, 'Edge äöü fi', 0x000000ff);
+        const text = await Image.renderText('Edge äöü fi', { font, size: 24, color: 0x000000ff });
         return `${text.width}x${text.height}`;
     });
     await step('svg', async () => {

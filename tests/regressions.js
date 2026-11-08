@@ -810,8 +810,8 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // outlined text grows by the stroke width and puts the stroke color around the glyphs
     {
         const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
-        const plain = await Image.renderText(font, 40, 'Hi');
-        const outlined = await Image.renderText(font, 40, 'Hi', 0xffffffff, undefined, {strokeWidth: 3, strokeColor: 0xff0000ff});
+        const plain = await Image.renderText('Hi', { font, size: 40 });
+        const outlined = await Image.renderText('Hi', { font, size: 40, color: 0xffffffff, strokeWidth: 3, strokeColor: 0xff0000ff });
         assert(outlined.width === plain.width + 6 && outlined.height === plain.height + 6, 'stroke should grow the image');
         let red = 0, white = 0;
         for (const [, , color] of outlined.pixels()) {
@@ -821,8 +821,8 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(red > 100 && white > 100, `outlined text should contain both colors (${red} red, ${white} white)`);
 
         // the stroke goes around translucent text, it doesn't show through it
-        const translucent = await Image.renderText(font, 40, 'Hi', 0x0000ff80, undefined, {strokeWidth: 3, strokeColor: 0xff0000ff});
-        const fill = await Image.renderText(font, 40, 'Hi', 0x0000ff80);
+        const translucent = await Image.renderText('Hi', { font, size: 40, color: 0x0000ff80, strokeWidth: 3, strokeColor: 0xff0000ff });
+        const fill = await Image.renderText('Hi', { font, size: 40, color: 0x0000ff80 });
         let inside = 0, tinted = 0;
         // pixels the glyphs cover fully (the stroked image is 3 pixels larger on every side)
         for (const [x, y, color] of fill.pixels()) {
@@ -922,7 +922,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const random = () => (seed = Math.imul(seed, 1103515245) + 12345 >>> 0) / 2 ** 32;
         // (a damaged copy of the Noto-COLRv1 subset with 3329 contours of decreasing end points in a glyph ran out of memory)
         const start = Date.now();
-        await Image.renderText(fs.readFileSync('./tests/fonts/damaged noto colrv1 subset.ttf'), 40, '😀🔥👍❤️').catch(err => assert(/^Font: /.test(err.message), err.message));
+        await Image.renderText('😀🔥👍❤️', { font: fs.readFileSync('./tests/fonts/damaged noto colrv1 subset.ttf'), size: 40 }).catch(err => assert(/^Font: /.test(err.message), err.message));
         assert(Date.now() - start < 3000, 'the damaged Noto-COLRv1 subset took too long');
         for (const file of ['sourcesans3 regular.otf', 'opensans bold.ttf', 'noto colrv1 subset.ttf', 'noto color emoji subset.ttf']) {
             const original = fs.readFileSync(`./tests/fonts/${file}`);
@@ -934,7 +934,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
                 }
                 const start = Date.now();
                 try {
-                    await Image.renderText(data, 40, 'Hi office 😀🔥 👍🏽 🇩🇪 1️⃣ e\u0301');
+                    await Image.renderText('Hi office 😀🔥 👍🏽 🇩🇪 1️⃣ e\u0301', { font: data, size: 40 });
                 } catch (err) {
                     assert(/^Font: /.test(err.message), `${file} #${k}: unexpected error for a damaged font: ${err.message}`);
                 }
@@ -1063,7 +1063,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
                 if (!(error instanceof RangeError)) panic(`${name}(${value}) should throw a RangeError, got ${error}`);
             }
         const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
-        for (const [name, call] of Object.entries({size: v => Image.renderText(font, v, 'a'), color: v => Image.renderText(font, 12, 'a', v),
+        for (const [name, call] of Object.entries({size: v => Image.renderText('a', { font, size: v }), color: v => Image.renderText('a', { font, size: 12, color: v }),
             maxWidth: v => new TextLayout({maxWidth: v})}))
             if (!await Promise.resolve().then(() => call(NaN)).then(() => false, e => e instanceof RangeError)) panic(`renderText: a NaN ${name} should throw a RangeError`);
         // (no limit is a valid layout)
