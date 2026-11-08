@@ -31,3 +31,17 @@ export const compressionLevel = (value: number): number => Math.min(9, Math.max(
 
 /** A color argument: a finite number (as RGBA, 0xrrggbbaa) */
 export const color = (value: number, name = 'color'): number => finite(value, name);
+
+// the largest finite loop count each format stores: GIF 16 bits of repeats, WebP 16 bits of plays (count + 1), APNG 31
+// bits of plays
+const LOOP_LIMITS = { GIF: 65535, WebP: 65534, APNG: 2 ** 31 - 2 };
+
+/**
+ * Checks that a finite loop count fits the format's field (a larger one used to wrap around, e.g. to 0, which plays
+ * forever): throws a RangeError naming the format's largest count. Forever (-1 or Infinity) always fits
+ */
+export function fitLoops(loopCount: number, format: keyof typeof LOOP_LIMITS): number {
+    if (loopCount !== Infinity && loopCount > LOOP_LIMITS[format])
+        throw new RangeError(`${format} stores loop counts up to ${LOOP_LIMITS[format]} (or Infinity to loop forever), not ${loopCount}`);
+    return loopCount;
+}

@@ -12,7 +12,7 @@ import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { isOptions, finite, compressionLevel } from './util/options.ts';
+import { isOptions, finite, compressionLevel, fitLoops } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
@@ -297,6 +297,7 @@ export class Animation extends Array<Frame> {
     encodeGIF(quality?: number): Promise<Uint8Array>;
     async encodeGIF(qualityOrOptions: number | GIFEncodeOptions = 95): Promise<Uint8Array> {
         const { quality = 95, metadata = {}, optimize = true } = isOptions(qualityOrOptions) ? qualityOrOptions : { quality: qualityOrOptions };
+        fitLoops(this.loopCount, 'GIF');
         this.__validate__();
         const frames = optimize
             ? this.__optimized__({ replace: false, even: false, alpha: 'frame', palette: 256, cover: true }).map(f => ({ ...f, dispose: f.dispose ? 3 : 1 }))
@@ -334,6 +335,7 @@ export class Animation extends Array<Frame> {
     encodeAPNG(compression?: number): Promise<Uint8Array>;
     async encodeAPNG(compressionOrOptions: number | APNGEncodeOptions = 4): Promise<Uint8Array> {
         const { compression = 4, metadata = {}, optimize = true } = isOptions(compressionOrOptions) ? compressionOrOptions : { compression: compressionOrOptions };
+        fitLoops(this.loopCount, 'APNG');
         this.__validate__();
         if (!this.length) throw new Error('An animation needs at least one frame');
 
@@ -350,6 +352,7 @@ export class Animation extends Array<Frame> {
      * @param options See {@link WebPAnimationEncodeOptions}
      */
     async encodeWebP({ metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncodeOptions = {}): Promise<Uint8Array> {
+        fitLoops(this.loopCount, 'WebP');
         this.__validate__();
         if (!this.length) throw new Error('An animation needs at least one frame');
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);

@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.20.2
+
+### Fixes
+
+- Loop counts that don't fit the file format are refused with a `RangeError` naming the format's largest count, instead of wrapping around: a GIF with `loopCount: 65536` was written with 0, which plays forever (GIF and animated WebP store up to 65535 and 65534, APNG up to 2147483646). This applies to `encodeGIF()`, `encodeWebP()` and `encodeAPNG()` of animations and to the streaming encoders.
+
 ## 3.20.1
 
 ### Performance
