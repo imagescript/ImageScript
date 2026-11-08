@@ -9,32 +9,6 @@ const panic = message => {
 
 (async () => {
     {
-        const image = new Image(512, 512);
-        image.drawCircle(256, 256, 128, 0xffffffff);
-
-        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
-
-        if (process.env.OVERWRITE_TEST)
-            await fs.writeFile('./tests/targets/circle.png', encoded);
-
-        const target = await fs.readFile('./tests/targets/circle.png');
-        if (!await samePixels(target, encoded)) panic('drawCircle 128 failed');
-    }
-
-    {
-        const image = new Image(512, 512);
-        image.drawCircle(256, 256, 320, 0x000000ff);
-
-        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
-
-        if (process.env.OVERWRITE_TEST)
-            await fs.writeFile('./tests/targets/circle2.png', encoded);
-
-        const target = await fs.readFile('./tests/targets/circle2.png');
-        if (!await samePixels(target, encoded)) panic('drawCircle 320 failed');
-    }
-
-    {
         const image = new Image(256, 512);
         image.fill(0x000000ff);
         image.cropCircle();

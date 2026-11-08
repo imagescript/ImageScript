@@ -25,24 +25,24 @@ const mapBytes = image => Buffer.from(image.gainMap.image.bitmap);
 		for (let y = 0; y < map.height; y++) for (let x = 0; x < map.width; x++) {
 			const i = 4 * (y * map.width + x), inside = x >= Math.floor(box.x * sx) && x < Math.ceil((box.x + box.width) * sx) && y >= Math.floor(box.y * sy) && y < Math.ceil((box.y + box.height) * sy);
 			const differs = before[i] !== after[i] || before[i + 1] !== after[i + 1] || before[i + 2] !== after[i + 2];
-			if (differs && !inside) panic(`drawBox: the map changed outside the box at ${x},${y}`);
+			if (differs && !inside) panic(`composite: the map changed outside the box at ${x},${y}`);
 			if (differs) changed++;
 		}
-		if (changed === 0) panic('drawBox: black over highlights should change the map');
+		if (changed === 0) panic('composite: black over highlights should change the map');
 		// black has no highlight: no boost where it covers the map pixel completely
 		const cx = Math.floor((box.x + box.width / 2) * sx), cy = Math.floor((box.y + box.height / 2) * sy);
-		if (Math.abs(gain(map, cx, cy)) > 0.02) panic(`drawBox: the gain under black is ${gain(map, cx, cy)}`);
+		if (Math.abs(gain(map, cx, cy)) > 0.02) panic(`composite: the gain under black is ${gain(map, cx, cy)}`);
 	}
 
-	// many thin boxes: the same map as drawing them one by one on a copy without a shortcut (the order doesn't matter)
+	// many thin translucent white lines (translucent black wouldn't change the gain: it dims the SDR and HDR light alike): the same map as drawing them one by one on a copy without a shortcut (the order doesn't matter)
 	{
 		const a = await Image.decode(file), b = await Image.decode(file);
-		for (let y = 0; y < a.height; y += 8) a.drawBox(0, y, a.width, 1, 0x00000055);
-		for (let y = a.height - (a.height % 8 || 8); y >= 0; y -= 8) b.drawBox(0, y, b.width, 1, 0x00000055);
+		for (let y = 0; y < a.height; y += 8) a.composite(new Image(a.width, 1).fill(0xffffff55), {x: 0, y: y});
+		for (let y = a.height - (a.height % 8 || 8); y >= 0; y -= 8) b.composite(new Image(b.width, 1).fill(0xffffff55), {x: 0, y: y});
 		let worst = 0;
 		for (let y = 0; y < a.gainMap.height; y += 7) for (let x = 0; x < a.gainMap.width; x += 7) worst = Math.max(worst, Math.abs(gain(a.gainMap, x, y) - gain(b.gainMap, x, y)));
-		if (worst > 0.05) panic(`drawBox: scanlines in a different order give different maps (${worst})`);
-		if (mapBytes(a).equals(mapBytes(await Image.decode(file)))) panic('drawBox: scanlines should change the map');
+		if (worst > 0.05) panic(`composite: scanlines in a different order give different maps (${worst})`);
+		if (mapBytes(a).equals(mapBytes(await Image.decode(file)))) panic('composite: scanlines should change the map');
 	}
 
 	// a drawing brighter than the map's range grows it, and the pixels the drawing didn't touch keep their gain

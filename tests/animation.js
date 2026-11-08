@@ -13,7 +13,9 @@ function expected(animation) {
         const previous = canvas.clone();
         canvas.composite(frame, {x: frame.xOffset, y: frame.yOffset});
         const shown = canvas.clone();
-        if (frame.disposalMode === 'background') canvas.drawBox(frame.xOffset, frame.yOffset, frame.width, frame.height, 0);
+        if (frame.disposalMode === 'background')
+            for (let y = Math.max(0, frame.yOffset); y < Math.min(height, frame.yOffset + frame.height); y++)
+                for (let x = Math.max(0, frame.xOffset); x < Math.min(width, frame.xOffset + frame.width); x++) canvas.setPixelAt(x, y, 0);
         else if (frame.disposalMode === 'previous') canvas = previous;
         return shown;
     });

@@ -71,7 +71,7 @@ const sameImage = (image, reference, label) => {
 		await rejects(() => frame.trim(0xffffffff), 'Frame.trim(0xffffffff)');
 		if (frame.xOffset !== 4 || frame.yOffset !== 5 || frame.width !== 20) panic('Frame.trim(0xffffffff): the frame should be unchanged');
 	}
-	const solid = new Image(6, 6).fill(0xffffffff).drawBox(2, 2, 2, 2, 0x000000ff);
+	const solid = new Image(6, 6).fill(0xffffffff).composite(new Image(2, 2).fill(0x000000ff), {x: 2, y: 2});
 	if (solid.clone().trim({color: 0xffffffff}).width !== 2) panic('trim({ color }) should trim the color');
 	if (solid.clone().composite(patch, {x: 1, y: 1}).getPixelAt(1, 1) !== 0xff0000ff) panic('composite(patch, { x, y }) should place the patch');
 	if (solid.clone().sharpen({amount: 0}).getPixelAt(2, 2) !== 0x000000ff) panic('sharpen({ amount: 0 }) should not change the pixels');

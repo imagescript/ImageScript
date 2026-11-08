@@ -29,7 +29,7 @@ const font = name => fs.readFileSync('./tests/fonts/' + name);
 
     // a frosted glass card: the background behind it, blurred and lightened, with a soft shadow
     const card = {x: 40, y: 40, width: 520, height: 520, radius: 28};
-    const shadow = new Image(card.width + 80, card.height + 80).drawBox(40, 48, card.width, card.height, 0x00000060).blur(16);
+    const shadow = new Image(card.width + 80, card.height + 80).composite(new Image(card.width, card.height).fill(0x00000060), {x: 40, y: 48}).blur(16);
     image.composite(shadow, {x: card.x - 40, y: card.y - 40});
     const glass = image.region(card.x, card.y, card.width, card.height).blur(24)
         .composite(new Image(card.width, card.height).fill(0xffffffff), {opacity: 0.18})
@@ -73,7 +73,7 @@ const font = name => fs.readFileSync('./tests/fonts/' + name);
     }
 
     // a divider, then greetings in a few scripts
-    image.drawBox(left, card.y + 446, card.width - 80, 1, 0xffffff40);
+    image.composite(new Image(card.width - 80, 1).fill(0xffffff40), {x: left, y: card.y + 446});
     const greeting = await Image.renderText('Bom dia · مرحبا · नमस्ते 😀', { font: scripts, size: 26, color: 0xffffffe0 });
     image.composite(greeting, {x: left, y: card.y + 446 + (card.height - 446 - greeting.height) / 2});
 

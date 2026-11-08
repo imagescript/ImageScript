@@ -134,16 +134,6 @@ if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
     }
 }
 
-{
-    const image = new Image(1, 1);
-    image.drawBox(0, 0, 1, 1, 0xff8000ff);
-    if (image.getPixelAt(0, 0) !== 0xff8000ff)
-        panic('static drawBox failed');
-
-    image.drawBox(0, 0, 1, 1, () => 0x00ff00ff);
-    if (image.getPixelAt(0, 0) !== 0x00ff00ff)
-        panic('fn drawBox failed');
-}
 
 {
     const image = new Image(1, 1);

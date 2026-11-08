@@ -155,8 +155,8 @@ const meanValue = (image, left, top, right, bottom) => {
 		const gainAt = (img, value) => img.gainMap.min[0] + (img.gainMap.max[0] - img.gainMap.min[0]) * (value / 255) ** (1 / img.gainMap.gamma[0]);
 		const outside = gainAt(image, meanValue(image, 0, 0, 512, 90)), before = gainAt(single, meanValue(single, 0, 0, 512, 90));
 		if (Math.abs(outside - before) > 0.02) panic(`composite: changed outside the box (${outside} vs ${before})`);
-		const boxed = single.clone().drawBox(0, 0, 64, 64, 0xffffffff);
-		if (Math.abs(meanValue(boxed, 0, 0, 60, 60) - stored(boxed.gainMap, 0)) > 1.5) panic('drawBox: boost left under the box');
+		const boxed = single.clone().composite(new Image(64, 64).fill(0xffffffff), {x: 0, y: 0});
+		if (Math.abs(meanValue(boxed, 0, 0, 60, 60) - stored(boxed.gainMap, 0)) > 1.5) panic('composite: boost left under the box');
 		// (an image with a map composited onto one without: the canvas gets one, its own part as the source's)
 		const canvas = new Image(600, 500).fill(0x000000ff).composite(single, {x: 40, y: 60});
 		if (!canvas.gainMap || Math.abs(meanValue(canvas, 50, 70, 540, 150) - meanValue(single, 10, 10, 500, 90)) > 6) panic('composite onto a canvas: the map');

@@ -139,7 +139,7 @@ const alphaReferences = {
     // lossy animations
     const frames = [0xff0000ff, 0x00ff00ff, 0x0000ff80].map((color, i) => {
         const frame = new Image(40, 30).fill(color);
-        frame.drawBox(i * 10, 5, 10, 10, 0xffffffff);
+        frame.composite(new Image(10, 10).fill(0xffffffff), {x: i * 10, y: 5});
         return frame;
     });
     const animation = new Animation(frames.map(f => Frame.from(f, {duration: 100})), {loopCount: 0});

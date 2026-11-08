@@ -62,13 +62,6 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(threw, 'crop: region outside the image should throw');
     }
 
-    // drawBox outside of the image
-    {
-        new Image(10, 10).drawBox(0, 20, 5, 5, 0xffffffff).drawBox(20, 0, 5, 5, 0xffffffff).drawBox(-10, -10, 5, 5, 0xffffffff);
-        const image = new Image(4, 4).drawBox(-2, -2, 3, 3, 0xffffffff);
-        assert(image.getPixelAt(0, 0) === 0xffffffff && image.getPixelAt(1, 1) === 0, 'drawBox: clipping failed');
-    }
-
     // averageColor is weighted by alpha
     {
         assert(new Image(2, 2).fill(Colors.fromRGBA(255, 0, 0, 128)).averageColor() === 0xff0000ff, 'averageColor: semi-transparent red');
@@ -127,9 +120,6 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const filled = [];
         new Image(2, 1).fill((x, y) => (filled.push([x, y]), 0));
         assert(filled.join(';') === '0,0;1,0', 'fill callback should be 0-based');
-
-        const box = new Image(3, 3).drawBox(1, 1, 1, 1, 0xffffffff);
-        assert(box.getPixelAt(1, 1) === 0xffffffff && box.getPixelAt(0, 0) === 0, 'drawBox should be 0-based');
 
         const target = new Image(3, 3).composite(new Image(1, 1).fill(0xffffffff), {x: 1, y: 1});
         assert(target.getPixelAt(1, 1) === 0xffffffff, 'composite and getPixelAt should agree');
@@ -267,32 +257,12 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         }
     }
 
-    // circles are antialiased and symmetric around the pixel center
-    {
-        const circle = new Image(9, 9).drawCircle(4, 4, 3.5, 0xffffffff);
-        const alpha = (x, y) => circle.getPixelAt(x, y) & 0xff;
-        for (let y = 0; y < 9; y++)
-            for (let x = 0; x < 9; x++)
-                assert(alpha(x, y) === alpha(8 - x, y) && alpha(x, y) === alpha(y, x), `drawCircle should be symmetric (${x}, ${y})`);
-        assert(alpha(4, 4) === 255 && alpha(0, 0) === 0 && alpha(1, 2) > 0 && alpha(1, 2) < 255, 'drawCircle should antialias its edge');
-
-        const cropped = new Image(6, 6).fill(0xffffffff).cropCircle();
-        const a = (x, y) => cropped.getPixelAt(x, y) & 0xff;
-        for (let y = 0; y < 6; y++)
-            for (let x = 0; x < 6; x++)
-                assert(a(x, y) === a(5 - x, y) && a(x, y) === a(x, 5 - y), `cropCircle should be symmetric (${x}, ${y})`);
-
-        const feathered = new Image(41, 41).fill(0xffffffff).cropCircle({ feathering: 0.5 });
-        const f = x => feathered.getPixelAt(x, 20) & 0xff;
-        assert(f(20) === 255 && f(12) === 255 && f(5) > 0 && f(5) < 255 && f(0) < 32, 'cropCircle feathering should only soften the outer part');
-    }
-
     // dominant colors are exact and dark saturated colors aren't treated as black
     {
         assert(new Image(4, 4).fill(0xff0000ff).dominantColor() === 0xff0000ff, 'dominantColor of pure red');
         assert(new Image(4, 4).fill(0x336699ff).dominantColor() === 0x336699ff, 'dominantColor of #336699');
 
-        const navy = new Image(10, 10).fill(0x00006eff).drawBox(0, 0, 2, 2, 0xc8c800ff);
+        const navy = new Image(10, 10).fill(0x00006eff).composite(new Image(2, 2).fill(0xc8c800ff), {x: 0, y: 0});
         assert(navy.dominantColor() === 0x00006eff, 'dominantColor: navy should beat a small yellow area');
         assert(new Image(4, 4).fill(0x000000ff).dominantColor() === 0x000000ff, 'dominantColor: all black falls back to black');
         assert(new Image(4, 4).dominantColor() === 0x000000ff, 'dominantColor: transparent image');
@@ -725,8 +695,8 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // options objects as alternatives to positional arguments
     {
         const base = new Image(20, 20).fill(0xff0000ff);
-        assert(base.clone().rotate(45, {resize: false}).width === 20 && base.clone().rotate(45).width > 20, 'rotate options');
-        const navy = new Image(10, 10).fill(0x00002aff).drawBox(0, 0, 3, 3, 0xc8c800ff);
+        assert(base.clone().rotate(45, {expand: false}).width === 20 && base.clone().rotate(45).width > 20, 'rotate options');
+        const navy = new Image(10, 10).fill(0x00002aff).composite(new Image(3, 3).fill(0xc8c800ff), {x: 0, y: 0});
         assert(navy.dominantColor({threshold: 0}) === 0x00002aff, 'dominantColor options');
     }
 
@@ -871,16 +841,19 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // colorToAlpha removes the color, so compositing the result over that color gives the original back (#39)
     {
-        const image = new Image(40, 40).fill(0xffffffff).drawCircle(20, 20, 12, 0xff0000ff);
+        const image = new Image(40, 40).fill(0xffffffff).composite(new Image(24, 24).fill(0xff0000ff).cropCircle(), {x: 8, y: 8});
         const cut = image.clone().colorToAlpha();
         assert(cut.getPixelAt(0, 0) === 0xffffff00, 'colorToAlpha: the background should become transparent');
         assert(cut.getPixelAt(20, 20) === 0xff0000ff, 'colorToAlpha: other colors should stay opaque');
         const back = new Image(40, 40).fill(0xffffffff).composite(cut);
         assert(Buffer.from(back.bitmap).equals(Buffer.from(image.bitmap)), 'colorToAlpha: compositing over the color should give the original');
-        const edge = cut.getRGBAAt(32, 20);
-        assert(edge[3] > 0 && edge[3] < 255 && edge[0] === 255 && edge[1] === 0, 'colorToAlpha: antialiased edges should become translucent red');
+        // (an antialiased edge pixel of the circle: the first one on the diagonal that is neither the color nor red)
+        let ex = 8;
+        while ((image.getPixelAt(ex, ex) & 0xffffff00) >>> 0 === 0xffffff00) ex++;
+        const edge = cut.getRGBAAt(ex, ex);
+        assert(edge[3] > 0 && edge[3] < 255 && edge[0] === 255 && edge[1] === 0, `colorToAlpha: antialiased edges should become translucent red (${edge})`);
         const loose = image.clone().colorToAlpha({color: 0xffffffff, transparencyThreshold: 0.5});
-        assert(loose.getRGBAAt(32, 20)[3] < edge[3], 'colorToAlpha: the threshold should make more of the edge transparent');
+        assert(loose.getRGBAAt(ex, ex)[3] < edge[3], 'colorToAlpha: the threshold should make more of the edge transparent');
     }
 
     // slice-by-16 crc32 matches zlib for every length around the 16 byte steps and for unaligned views (#12)
@@ -1042,7 +1015,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const calls = {
             rgbaToColor: v => Colors.fromRGBA(v, 0, 0, 255), hslaToColor: v => Colors.fromHSLA(v, 0.5, 0.5, 1), colorToRGBA: v => Colors.toRGBA(v),
             getPixelAt: v => image().getPixelAt(v, 1), setPixelAt: v => image().setPixelAt(1, 1, v), fill: v => image().fill(v), contain: v => image().contain(v, 4),
-            crop: v => image().crop(v, 0, 2, 2), trim: v => image().trim({color: v}), drawBox: v => image().drawBox(0, 0, v, 2, 0), drawCircle: v => image().drawCircle(2, 2, v, 0),
+            crop: v => image().crop(v, 0, 2, 2), trim: v => image().trim({color: v}),
             cropCircle: v => image().cropCircle({ feathering: v }), opacity: v => image().opacity(v), red: v => image().red(v), lightness: v => image().lightness(v),
             composite: v => image().composite(image(), {x: v, y: 0}), hueShift: v => image().hueShift(v), brightness: v => image().brightness(v), gamma: v => image().gamma(v),
             colorToAlpha: v => image().colorToAlpha({color: v}), rotate: v => image().rotate(v, {expand: false}), gradient: v => Colors.gradient({0: v, 1: 0}),

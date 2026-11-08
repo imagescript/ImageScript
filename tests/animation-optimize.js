@@ -75,7 +75,7 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
 
     // fading out: pixels get more transparent
     await check('fade out', new Animation(Array.from({length: 6}, (_, i) =>
-        Frame.from(new Image(20, 20).drawBox(4, 4, 12, 12, 0x3366ff00 | 255 - i * 50), {duration: 100}))));
+        Frame.from(new Image(20, 20).composite(new Image(12, 12).fill(0x3366ff00 | 255 - i * 50), {x: 4, y: 4}), {duration: 100}))));
 
     // frames with offsets and disposal modes, odd offsets (WebP stores them halved)
     await check('offsets and disposal', new Animation([
@@ -89,9 +89,9 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
 
     // a frame that only clears: GIF can't blend pixels to transparent, the frame before clears its area instead
     await check('cleared frame', new Animation([
-        Frame.from(new Image(12, 12).drawBox(2, 2, 6, 6, 0xff0000ff), {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'background'}),
+        Frame.from(new Image(12, 12).composite(new Image(6, 6).fill(0xff0000ff), {x: 2, y: 2}), {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'background'}),
         new Frame(12, 12, {duration: 100}),
-        Frame.from(new Image(12, 12).drawBox(4, 4, 6, 6, 0x00ff00ff), {duration: 100})
+        Frame.from(new Image(12, 12).composite(new Image(6, 6).fill(0x00ff00ff), {x: 4, y: 4}), {duration: 100})
     ]));
 
     // an empty first frame, and identical frames, which become one with their durations added up (the empty last
@@ -109,8 +109,8 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
     {
         const background = new Image(40, 20).fill((x, y) => Colors.fromRGBA(y * 6, 100, 200 - y * 4, 255));
         const animation = new Animation(Array.from({length: 6}, (_, i) => Frame.from(background.clone()
-            .drawBox(1, 1, 6, 6, Colors.fromRGBA(255, i * 40, 0, 255))
-            .drawBox(32, 13, 6, 6, Colors.fromRGBA(0, 255, i * 40, 255)), {duration: 100})));
+            .composite(new Image(6, 6).fill(Colors.fromRGBA(255, i * 40, 0, 255)), {x: 1, y: 1})
+            .composite(new Image(6, 6).fill(Colors.fromRGBA(0, 255, i * 40, 255)), {x: 32, y: 13}), {duration: 100})));
         await check('opaque animation', animation);
         // with transparency for free, the frames are sparse; with an alpha channel that costs as much as RGBA instead of RGB
         // (APNG), they're filled in
@@ -153,7 +153,7 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
     {
         const background = new Image(160, 120).fill((x, y) => Colors.fromRGBA(x * 7 ^ y * 13, x * y, y * 5, 255));
         const animation = new Animation(Array.from({length: 20}, (_, i) =>
-            Frame.from(background.clone().drawBox(10 + i * 6, 50, 8, 8, 0xffffffff), {duration: 50})));
+            Frame.from(background.clone().composite(new Image(8, 8).fill(0xffffffff), {x: 10 + i * 6, y: 50}), {duration: 50})));
         await check('screen recording', animation);
         const still = (await background.encodePNG()).length;
         for (const format of ['APNG', 'WebP', 'GIF']) {
@@ -175,8 +175,8 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
         });
         const animation = new Animation(Array.from({length: 8}, (_, i) => {
             const layer = new Image(100, 60).fill(x => x < 80 ? Colors.fromRGBA(i % 4, 180 + i * 7 % 5, 250 + i * 3 % 4, 150) : 0);
-            return Frame.from(map.clone().composite(layer).drawBox(5 + i * 10, 20, 12, 12, 0xff0000ff)
-                .drawBox(90, 50, 6, 6, Colors.fromRGBA(0, i * 30, 0, 255)), {duration: 50});
+            return Frame.from(map.clone().composite(layer).composite(new Image(12, 12).fill(0xff0000ff), {x: 5 + i * 10, y: 20})
+                .composite(new Image(6, 6).fill(Colors.fromRGBA(0, i * 30, 0, 255)), {x: 90, y: 50}), {duration: 50});
         }));
 
         const tolerance = 3;
