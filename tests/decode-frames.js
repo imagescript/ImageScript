@@ -73,4 +73,75 @@ const throwsA = async (fn, type, label) => {
     const jpeg = await fs.readFile('./tests/targets/external.jpg');
     await throwsA(() => decode(jpeg, {maxPixels: 100}), RangeError, 'maxPixels on a JPEG');
     if ((await decode(gif, {threads: 2})).length !== 30) panic('threads: frames changed');
+
+    // Animation.decode returns an Animation for every format, single frames included: only decode() unwraps them
+    const alwaysAnimation = async (name, bytes) => {
+        const animation = await Animation.decode(bytes);
+        if (!(animation instanceof Animation) || animation.length !== 1) panic(`${name}: Animation.decode gives ${animation.constructor.name} with ${animation.length} frames, not an Animation of 1`);
+    };
+    const stillFiles = {
+        PNG: await photo.encodePNG(),
+        JPEG: await photo.encodeJPEG(),
+        'WebP still': await photo.encodeWebP(),
+        AVIF: await photo.encodeAVIF({effort: 0}),
+        'JPEG XL': await photo.encodeJXL(),
+        TGA: await photo.encodeTGA()
+    };
+    for (const [name, bytes] of Object.entries(stillFiles)) {
+        await alwaysAnimation(name, bytes);
+        const image = await decode(bytes);
+        if (image instanceof Animation || !(image instanceof Image)) panic(`${name}: decode() should give an Image`);
+    }
+    const oneFrameFiles = {GIF: await single.encodeGIF(), APNG: await single.encodeAPNG(), 'WebP animation': await single.encodeWebP({quality: 90})};
+    for (const [name, bytes] of Object.entries(oneFrameFiles)) await alwaysAnimation(name, bytes);
+
+    // a one-frame APNG that keeps its acTL chunk (the encoder writes none for one frame): the two-frame file cut before
+    // its second frame, num_frames patched to 1, every chunk's CRC recomputed
+    const crcTable = Array.from({length: 256}, (_, n) => {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        return c >>> 0;
+    });
+    const crc32 = bytes => {
+        let c = 0xffffffff;
+        for (const b of bytes) c = crcTable[(c ^ b) & 255] ^ (c >>> 8);
+        return (c ^ 0xffffffff) >>> 0;
+    };
+    const pngChunk = (type, data) => {
+        const out = new Uint8Array(12 + data.length), view = new DataView(out.buffer);
+        view.setUint32(0, data.length);
+        for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+        out.set(data, 8);
+        view.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+        return out;
+    };
+    const apngBytes = new Uint8Array(apng);
+    const apngView = new DataView(apngBytes.buffer, apngBytes.byteOffset, apngBytes.byteLength);
+    const chunks = [];
+    for (let at = 8; at < apngBytes.length;) {
+        const length = apngView.getUint32(at);
+        chunks.push({type: String.fromCharCode(...apngBytes.subarray(at + 4, at + 8)), data: apngBytes.subarray(at + 8, at + 8 + length)});
+        at += 12 + length;
+    }
+    let fcTLs = 0;
+    const second = chunks.findIndex(c => c.type === 'fcTL' && ++fcTLs === 2);
+    if (second < 0) panic('the two-frame APNG has no second fcTL');
+    const parts = [apngBytes.subarray(0, 8)];
+    for (const c of chunks.slice(0, second)) {
+        if (c.type !== 'acTL') { parts.push(pngChunk(c.type, c.data)); continue; }
+        const actl = new Uint8Array(c.data);
+        new DataView(actl.buffer).setUint32(0, 1);
+        parts.push(pngChunk('acTL', actl));
+    }
+    parts.push(pngChunk('IEND', new Uint8Array(0)));
+    const oneApng = new Uint8Array(parts.reduce((n, part) => n + part.length, 0));
+    for (let at = 0, i = 0; i < parts.length; i++) { oneApng.set(parts[i], at); at += parts[i].length; }
+    if (!chunks.some(c => c.type === 'acTL')) panic('the two-frame APNG has no acTL');
+
+    const oneAnimation = await Animation.decode(oneApng);
+    if (!(oneAnimation instanceof Animation) || oneAnimation.length !== 1) panic(`one-frame APNG with acTL: Animation.decode gives ${oneAnimation.constructor.name} with ${oneAnimation.length} frames`);
+    if (sha256(oneAnimation.frames[0].bitmap) !== sha256((await Animation.decode(apng)).frames[0].bitmap)) panic('one-frame APNG with acTL: the frame differs from the first frame of the two-frame file');
+    const oneImage = await decode(oneApng);
+    if (oneImage instanceof Animation || !(oneImage instanceof Image)) panic('one-frame APNG with acTL: decode() should give an Image');
+    if (sha256(oneImage.bitmap) !== sha256(oneAnimation.frames[0].bitmap)) panic('one-frame APNG with acTL: decode() pixels differ from Animation.decode');
 })().catch(error => panic(error.stack || String(error)));
