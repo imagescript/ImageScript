@@ -1,3 +1,5 @@
+import { checkOptions } from './util/options.ts';
+
 /** Where lines are wrapped: between words or at any character */
 export type WrapStyle = 'word' | 'char';
 /** Alignment of the lines relative to the widest line */
@@ -54,6 +56,7 @@ export class TextLayout {
      * @param options See {@link TextLayoutOptions}
      */
     constructor(options: TextLayoutOptions = {}) {
+        checkOptions(options, 'new TextLayout({ maxWidth: 300 })');
         const { maxWidth, maxHeight, wrapStyle, verticalAlign, horizontalAlign, wrapHardBreaks } = options;
 
         // (undefined and 0 mean no limit, NaN is invalid)

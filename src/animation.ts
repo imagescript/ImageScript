@@ -317,7 +317,9 @@ export class Animation extends Array<Frame> {
      * shows the same animation, but doesn't necessarily decode to the same frames
      * @param options See {@link WebPAnimationEncodeOptions}
      */
-    async encodeWebP({ metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeWebP(options: WebPAnimationEncodeOptions = {}): Promise<Uint8Array> {
+        checkOptions(options, 'animation.encodeWebP({ quality: 80 })');
+        const { metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 } = options;
         this.__validate__();
         if (!this.length) throw new Error('An animation needs at least one frame');
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
@@ -391,6 +393,7 @@ export class Animation extends Array<Frame> {
      * @param options See {@link WebPAnimationEncodeOptions}, and {@link AnimationOptions.loopCount}
      */
     static webpEncoder(width: number, height: number, options: WebPAnimationEncodeOptions & AnimationOptions = {}): AnimationEncoder {
+        checkOptions(options, 'Animation.webpEncoder(width, height, { quality: 80 })');
         return AnimationEncoder.__webp__(width, height, options);
     }
 
@@ -402,6 +405,7 @@ export class Animation extends Array<Frame> {
      * @param options See {@link GIFEncodeOptions}, and {@link AnimationOptions.loopCount}
      */
     static gifEncoder(width: number, height: number, options: GIFEncodeOptions & AnimationOptions = {}): AnimationEncoder {
+        checkOptions(options, 'Animation.gifEncoder(width, height, { quality: 80 })');
         return AnimationEncoder.__gif__(width, height, options);
     }
 

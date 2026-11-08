@@ -762,6 +762,7 @@ export class Image {
      * @returns The new image
      */
     static linearGradient(width: number, height: number, options: LinearGradientOptions): Image {
+        checkOptions(options, 'Image.linearGradient(100, 50, { stops, angle: 90 })');
         const { stops, angle = 180 } = options;
         const color = gradientFunction(stops);
         finite(angle, 'angle');
@@ -785,6 +786,7 @@ export class Image {
      * @returns The new image
      */
     static radialGradient(width: number, height: number, options: RadialGradientOptions): Image {
+        checkOptions(options, 'Image.radialGradient(100, 50, { stops })');
         const { stops, x: cx = width / 2, y: cy = height / 2, radius = Math.hypot(Math.max(cx, width - cx), Math.max(cy, height - cy)) } = options;
         const color = gradientFunction(stops);
         finite(cx, 'x');
@@ -1810,6 +1812,7 @@ export class Image {
      * @param options See {@link QuantizeOptions}
      */
     quantize(options: QuantizeOptions = {}): this {
+        checkOptions(options, 'image.quantize({ colors: 16 })');
         if (typeof options !== 'object' || options === null) throw new TypeError('quantize takes an options object');
         const { colors, palette, dither = 'none', ditherStrength = 1 } = options;
 
@@ -1901,6 +1904,7 @@ export class Image {
      * @param options See {@link TransformOptions}
      */
     transform(matrix: ArrayLike<number>, options: TransformOptions = {}): this {
+        checkOptions(options, 'image.transform([1, 0, 0, 1, 0, 0], { expand: false })');
         if (matrix === null || typeof matrix !== 'object' || matrix.length !== 6) throw new RangeError('A transform has 6 values: [a, b, c, d, e, f]');
         // (numbers only: a string is a mistake in data like this)
         const values = Array.from({ length: 6 }, (_, i) => finite(typeof matrix[i] === 'number' ? matrix[i] : NaN, 'transform value'));
@@ -1966,6 +1970,7 @@ export class Image {
      * @param options See {@link ShadowOptions}
      */
     dropShadow(options: ShadowOptions = {}): this {
+        checkOptions(options, 'image.dropShadow({ blur: 8 })');
         const { x = 0, y = 0, blur = 0, spread = 0, color = 0x00000080, expand = true } = options;
         finite(x, 'x');
         finite(y, 'y');
@@ -2014,6 +2019,7 @@ export class Image {
      * @param options See {@link OutlineOptions}
      */
     outline(options: OutlineOptions = {}): this {
+        checkOptions(options, 'image.outline({ width: 4 })');
         const { width = 1, color = 0x000000ff, expand = true } = options;
         if (finite(width, 'outline width') < 0) throw new RangeError('Invalid outline width');
         const [r, g, b, a] = Colors.toRGBA(checkColor(color));
@@ -2609,7 +2615,9 @@ export class Image {
      * quality
      * @param options See {@link WebPEncodeOptions}
      */
-    async encodeWebP({ quality, effort = 2, sharpYuv = false, alphaQuality = 100, threads = defaultThreads(), metadata = {} }: WebPEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeWebP(options: WebPEncodeOptions = {}): Promise<Uint8Array> {
+        checkOptions(options, 'image.encodeWebP({ quality: 80 })');
+        const { quality, effort = 2, sharpYuv = false, alphaQuality = 100, threads = defaultThreads(), metadata = {} } = options;
         checkThreads(threads);
         const exif = exifData(resolveMetadata(metadata));
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
@@ -2621,7 +2629,9 @@ export class Image {
      * Encodes the image as run length encoded TGA (32 bit, or 24 bit if the image is opaque)
      * @param options See {@link EncodeOptions}
      */
-    async encodeTGA({ metadata = {} }: EncodeOptions = {}): Promise<Uint8Array> {
+    async encodeTGA(options: EncodeOptions = {}): Promise<Uint8Array> {
+        checkOptions(options, 'image.encodeTGA({ metadata })');
+        const { metadata = {} } = options;
         const { author, comment, creationTime: time, software } = resolveMetadata(metadata);
         return tga.encode(this.__bytes__(), this.width, this.height, { author, comment, time, software });
     }
@@ -2645,7 +2655,9 @@ export class Image {
      * Encodes the image as AVIF (AV1, with an alpha image if the image has transparency)
      * @param options See {@link AVIFEncodeOptions}
      */
-    async encodeAVIF({ quality = 60, alphaQuality = 100, subsampling = '4:4:4', effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true }: AVIFEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeAVIF(options: AVIFEncodeOptions = {}): Promise<Uint8Array> {
+        checkOptions(options, 'image.encodeAVIF({ quality: 60 })');
+        const { quality = 60, alphaQuality = 100, subsampling = '4:4:4', effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true } = options;
         checkEffort(effort, 2);
         checkThreads(threads);
         if (subsampling !== '4:4:4' && subsampling !== '4:2:0') throw new TypeError(`subsampling must be '4:4:4' or '4:2:0', not ${String(subsampling)}`);
@@ -2686,7 +2698,9 @@ export class Image {
      * container, with the metadata as Exif
      * @param options See {@link JXLEncodeOptions}
      */
-    async encodeJXL({ quality, effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true }: JXLEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeJXL(options: JXLEncodeOptions = {}): Promise<Uint8Array> {
+        checkOptions(options, 'image.encodeJXL({ quality: 90 })');
+        const { quality, effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true } = options;
         checkEffort(effort, 2);
         checkThreads(threads);
         // (cjxl's distance of a quality)
@@ -2715,6 +2729,7 @@ export class Image {
      * @return The decoded image
      */
     static async decode(input: BinaryData, options: DecodeOptions = {}): Promise<Image> {
+        checkOptions(options, 'Image.decode(data, { maxPixels: 1e8 })');
         const { applyOrientation = true, applyColorProfile = true, maxPixels = MAX_PIXELS, toneMapping = 'reinhard', threads = defaultThreads(), gainMap = true } = options;
         checkThreads(threads);
         if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);

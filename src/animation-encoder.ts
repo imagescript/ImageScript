@@ -6,7 +6,7 @@ import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { finite, compressionLevel } from './util/options.ts';
+import { checkOptions, finite, compressionLevel } from './util/options.ts';
 import type { AnimationOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // (ImageScript, like GIF, counts repetitions: -1 forever, 0 play once; APNG and WebP count plays, 0 forever)
@@ -57,6 +57,7 @@ export class AnimationEncoder {
      * @param options See {@link FrameOptions}
      */
     add(frame: Frame | Image, options: FrameOptions = {}): Promise<void> {
+        checkOptions(options, 'encoder.add(frame, { duration: 40 })');
         if (this.finished) throw new Error('The animation encoder is finished');
         if (!(frame instanceof Image)) throw new TypeError('Invalid frame passed');
         const own = frame instanceof Frame ? frame : null;

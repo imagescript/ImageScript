@@ -74,6 +74,7 @@ export class GainMap {
      * @param options See {@link GainMapOptions}
      */
     constructor(image: Image, options: GainMapOptions = {}) {
+        checkOptions(options, 'new GainMap(image, { gainMapMax: 2 })');
         if (!(image instanceof Image)) throw new TypeError('The gain map has to be an Image');
         const { gainMapMin = 0, gainMapMax = 2, gamma = 1, offsetSDR = 1 / 64, offsetHDR = 1 / 64, hdrCapacityMin = 0, useBaseColorSpace = true } = options;
         this.gainMapMin = perChannel(gainMapMin, 'gainMapMin');
