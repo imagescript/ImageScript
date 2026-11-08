@@ -383,13 +383,15 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // the constant classes hold the names of the modes (the deprecated Image/Frame constants were removed in 4.0)
     {
         assert(ResizeModes.NEAREST_NEIGHBOR === 'nearest-neighbor' && ResizeModes.BILINEAR === 'bilinear' && ResizeModes.BICUBIC === 'bicubic' && ResizeModes.AREA === 'area', 'ResizeModes values');
-        assert(SVGScaleModes.SCALE === 'scale' && SVGScaleModes.WIDTH === 'width' && SVGScaleModes.HEIGHT === 'height', 'SVGScaleModes values');
         assert(FrameDisposalModes.ANY === 'any' && FrameDisposalModes.KEEP === 'keep' && FrameDisposalModes.PREVIOUS === 'previous' && FrameDisposalModes.BACKGROUND === 'background', 'FrameDisposalModes values');
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="5"><rect width="7" height="3" fill="red"/></svg>';
-        for (const [mode, size, width, height] of [[SVGScaleModes.SCALE, 2, 20, 10], [SVGScaleModes.WIDTH, 20, 20, 10], [SVGScaleModes.HEIGHT, 20, 40, 20]]) {
-            const rendered = await Image.renderSVG(svg, {size, mode});
-            assert(rendered.width === width && rendered.height === height, `renderSVG mode ${mode}: ${rendered.width}x${rendered.height}`);
+        for (const [size, width, height] of [[{scale: 2}, 20, 10], [{width: 20}, 20, 10], [{height: 20}, 40, 20], [{}, 10, 5]]) {
+            const rendered = await Image.renderSVG(svg, size);
+            assert(rendered.width === width && rendered.height === height, `renderSVG ${JSON.stringify(size)}: ${rendered.width}x${rendered.height}`);
         }
+        let twoSizes = null;
+        try { await Image.renderSVG(svg, {width: 20, height: 20}); } catch (e) { twoSizes = e; }
+        assert(twoSizes instanceof TypeError, 'renderSVG: width and height together should throw a TypeError');
         assert(new Image(8, 4).resize({width: 4, mode: ResizeModes.AREA}).height === 2, 'resize({width}) with a mode keeps the aspect ratio');
         const photo = new Image(9, 7).fill((x, y) => Colors.fromRGBA(x * 28, y * 36, (x ^ y) * 16, 255 - x * 10));
         let threw = false;
@@ -1021,14 +1023,14 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         let defs = '<g id="l0"><rect width="1" height="1"/></g>';
         for (let i = 1; i <= 9; i++) defs += `<g id="l${i}">${`<use href="#l${i - 1}"/>`.repeat(10)}</g>`;
         let start = Date.now(), error = null;
-        try { await Image.renderSVG(`<svg ${NS} width="100" height="100"><defs>${defs}</defs><use href="#l9"/></svg>`, {size: 100, mode: SVGScaleModes.WIDTH}); } catch (err) { error = err; }
+        try { await Image.renderSVG(`<svg ${NS} width="100" height="100"><defs>${defs}</defs><use href="#l9"/></svg>`, {width: 100}); } catch (err) { error = err; }
         assert(error && /<use> references/.test(error.message) && Date.now() - start < 3000, `billion laughs should throw quickly (${error && error.message}, ${Date.now() - start} ms)`);
 
         start = Date.now();
-        const dashed = await Image.renderSVG(`<svg ${NS} width="100" height="100"><path d="M0 50 L100000000 50" stroke="black" stroke-width="4" stroke-dasharray="0.0001"/></svg>`, {size: 100, mode: SVGScaleModes.WIDTH});
+        const dashed = await Image.renderSVG(`<svg ${NS} width="100" height="100"><path d="M0 50 L100000000 50" stroke="black" stroke-width="4" stroke-dasharray="0.0001"/></svg>`, {width: 100});
         assert(Date.now() - start < 3000 && dashed.getRGBAAt(50, 50)[3] === 255, 'a dash pattern too fine to dash should stroke solid, quickly');
 
-        const nested = await Image.renderSVG(`<svg ${NS} width="100" height="100">${'<g>'.repeat(100000)}<rect width="10" height="10"/>${'</g>'.repeat(100000)}</svg>`, {size: 100, mode: SVGScaleModes.WIDTH});
+        const nested = await Image.renderSVG(`<svg ${NS} width="100" height="100">${'<g>'.repeat(100000)}<rect width="10" height="10"/>${'</g>'.repeat(100000)}</svg>`, {width: 100});
         assert(nested.width === 100, 'deeply nested elements should render');
     }
     {
@@ -1083,7 +1085,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         };
         for (const [name, content] of Object.entries(svgs)) {
             const start = Date.now();
-            await Image.renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4">${content}</svg>`, {size: 1}).catch(() => {});
+            await Image.renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4">${content}</svg>`, {scale: 1}).catch(() => {});
             if (Date.now() - start > 1000) panic(`SVG ${name}: took ${Date.now() - start} ms`);
         }
     }

@@ -64,8 +64,8 @@ const crc32 = bytes => {
     // the same, with preserveAspectRatio and scaling
     for (const aspect of ['none', 'xMidYMid meet', 'xMinYMin slice']) {
         const element = (href) => `<image href="${href}" x="1" y="0" width="6" height="6" preserveAspectRatio="${aspect}"/>`;
-        const viaURI = await Image.renderSVG(svg(element(dataURI('image/png', png)), 8, 6), {size: 2});
-        const viaMap = await Image.renderSVG(svg(element('logo.png'), 8, 6), {size: 2, images: {'logo.png': png}});
+        const viaURI = await Image.renderSVG(svg(element(dataURI('image/png', png)), 8, 6), {scale: 2});
+        const viaMap = await Image.renderSVG(svg(element('logo.png'), 8, 6), {scale: 2, images: {'logo.png': png}});
         if (!same(viaURI, viaMap)) panic(`preserveAspectRatio="${aspect}" differs between data URIs and given images`);
     }
 

@@ -1,4 +1,4 @@
-const {Image, SVGScaleModes, Colors} = require('..');
+const {Image, Colors} = require('..');
 const fs = require('fs').promises;
 const samePixels = require('./util/pixels');
 
@@ -10,7 +10,7 @@ const panic = message => {
 (async () => {
     {
         const svg = await fs.readFile('./tests/svgs/potato.svg');
-        const image = await Image.renderSVG(svg.toString(), {size: 256 / 36, mode: SVGScaleModes.SCALE});
+        const image = await Image.renderSVG(svg.toString(), {scale: 256 / 36});
         const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
@@ -23,7 +23,7 @@ const panic = message => {
     {
         // gradients, clip paths, masks, style sheets, symbols, strokes and fill rules
         const svg = await fs.readFile('./tests/svgs/features.svg');
-        const image = await Image.renderSVG(svg, {size: 480, mode: SVGScaleModes.WIDTH});
+        const image = await Image.renderSVG(svg, {width: 480});
         if (image.width !== 480 || image.height !== 320) panic('features: unexpected size');
 
         const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});

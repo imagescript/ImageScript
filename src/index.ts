@@ -8,9 +8,9 @@ import * as webp from './codecs/webp.ts';
 import { view } from './util/mem.ts';
 import { ImageType } from './image-type.ts';
 
-export { Image, ResizeModes, SVGScaleModes } from './image.ts';
+export { Image, ResizeModes } from './image.ts';
 export { Colors } from './colors.ts';
-export type { Color, ColorFunction, ResizeMode, SVGScaleMode, TextStyle, DecodeOptions, CompositeOptions, BlendMode, CropCircleOptions, DominantColorOptions, RotateOptions, ColorToAlphaOptions, ResizeOptions, ResizeToOptions, SharpenOptions, PNGEncodeOptions, JPEGEncodeOptions, WebPEncodeOptions, AVIFEncodeOptions, JXLEncodeOptions, EncodeOptions, SVGOptions, RenderTextOptions, ShadowOptions, OutlineOptions, QuantizeOptions, TransformOptions, TransformMode, GradientOptions, LinearGradientOptions, RadialGradientOptions, RoundCornersOptions, FisheyeOptions, TrimOptions } from './image.ts';
+export type { Color, ColorFunction, ResizeMode, TextStyle, DecodeOptions, CompositeOptions, BlendMode, CropCircleOptions, DominantColorOptions, RotateOptions, ColorToAlphaOptions, ResizeOptions, ResizeToOptions, ContainOptions, SharpenOptions, PNGEncodeOptions, JPEGEncodeOptions, WebPEncodeOptions, AVIFEncodeOptions, JXLEncodeOptions, EncodeOptions, TGAEncodeOptions, GainMapEmbedOptions, SVGOptions, RenderTextOptions, ShadowOptions, OutlineOptions, QuantizeOptions, TransformOptions, TransformMode, GradientOptions, LinearGradientOptions, RadialGradientOptions, RoundCornersOptions, FisheyeOptions, TrimOptions } from './image.ts';
 export { Frame, FrameDisposalModes } from './frame.ts';
 export type { FrameDisposalModeName, FrameOptions } from './frame.ts';
 export { GainMap } from './gainmap.ts';

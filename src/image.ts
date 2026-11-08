@@ -50,9 +50,6 @@ export type ColorFunction = (x: number, y: number) => Color;
 /** Resampling filters for {@link Image.resize} and the other scaling functions, see {@link ResizeModes} */
 export type ResizeMode = 'nearest-neighbor' | 'bilinear' | 'bicubic' | 'area';
 
-/** How {@link Image.renderSVG} scales, see {@link SVGScaleModes} */
-export type SVGScaleMode = 'scale' | 'width' | 'height';
-
 /**
  * The resampling filters of {@link Image.resize} and the other scaling functions:
  * `image.resize({ width: 256, mode: ResizeModes.BICUBIC })`
@@ -77,20 +74,6 @@ export class ResizeModes {
      * shrinking
      */
     static readonly AREA = 'area';
-
-    private constructor() {}
-}
-
-/** How {@link Image.renderSVG} scales the SVG to the given size */
-export class SVGScaleModes {
-    /** The size is a factor of the SVG's own size */
-    static readonly SCALE = 'scale';
-
-    /** The size is the width in pixels, the height follows the SVG's aspect ratio */
-    static readonly WIDTH = 'width';
-
-    /** The size is the height in pixels, the width follows the SVG's aspect ratio */
-    static readonly HEIGHT = 'height';
 
     private constructor() {}
 }
@@ -366,13 +349,18 @@ export interface FisheyeOptions {
 
 /** Options of {@link Image.renderSVG} */
 export interface SVGOptions {
-    /** The scale, or the width or height in pixels, see `mode`. Default: `1` */
-    size?: number;
     /**
-     * What `size` is: one of {@link SVGScaleModes.SCALE}, {@link SVGScaleModes.WIDTH}, {@link SVGScaleModes.HEIGHT}.
-     * Default: {@link SVGScaleModes.SCALE}
+     * The width in pixels, the height follows the SVG's aspect ratio. Give one of `width`, `height` and `scale`.
+     * Default: the SVG's own width
      */
-    mode?: SVGScaleMode;
+    width?: number;
+    /** The height in pixels, the width follows the SVG's aspect ratio. Give one of `width`, `height` and `scale` */
+    height?: number;
+    /**
+     * A factor of the SVG's own size (`2` renders it twice as large). Give one of `width`, `height` and `scale`.
+     * Default: `1`
+     */
+    scale?: number;
     /**
      * Fonts for `<text>` (TrueType, OpenType): each text gets the face its `font-family`, `font-weight`, `font-style`
      * and `font-stretch` match best among them, by the names, weights and styles in the fonts (like browsers match
@@ -2873,16 +2861,16 @@ export class Image {
      */
     static renderSVG(svg: string | BinaryData, options?: SVGOptions): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, options: SVGOptions = {}): Promise<Image> {
-        checkOptions(options, 'renderSVG(svg, { size: 2, mode: \'width\' })');
-        const { size = 1, mode = SVGScaleModes.SCALE, fonts = [], images: givenImages = {} } = options;
-        if (mode !== 'scale' && mode !== 'width' && mode !== 'height')
-            throw new Error('Invalid SVG scaling mode');
-
-        finite(size, 'SVG size');
-        if (mode === SVGScaleModes.SCALE && size <= 0)
+        checkOptions(options, 'renderSVG(svg, { width: 512 })');
+        const { width: givenWidth, height: givenHeight, scale, fonts = [], images: givenImages = {} } = options;
+        const sizes = [givenWidth, givenHeight, scale].filter(value => value !== undefined).length;
+        if (sizes > 1) throw new TypeError('renderSVG() takes one of width, height and scale');
+        const mode = givenWidth !== undefined ? 'width' : givenHeight !== undefined ? 'height' : 'scale';
+        const size = finite(givenWidth ?? givenHeight ?? scale ?? 1, `SVG ${mode}`);
+        if (mode === 'scale' && size <= 0)
             throw new RangeError('SVG scale must be > 0');
-        if (mode !== SVGScaleModes.SCALE && size < 1)
-            throw new RangeError('SVG size must be >= 1');
+        if (mode !== 'scale' && size < 1)
+            throw new RangeError(`SVG ${mode} must be >= 1`);
 
         // the images given by href, checked before anything is decoded
         if (typeof givenImages !== 'object' || givenImages === null || Array.isArray(givenImages) || givenImages instanceof Map)

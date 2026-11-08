@@ -107,9 +107,9 @@ const sameImage = (image, reference, label) => {
 		const error = await rejects(call, label);
 		if (!/renderSVG\(svg, \{/.test(error.message)) panic(`${label}: the message should show the options form, got ${error.message}`);
 	}
-	if ((await Image.renderSVG(svgSource, {size: 2})).width !== 20) panic('renderSVG(svg, { size }) should scale');
-	const byWidth = await Image.renderSVG(svgSource, {size: 30, mode: 'width'});
-	if (byWidth.width !== 30 || byWidth.height !== 30) panic(`renderSVG(svg, { size, mode: 'width' }): ${byWidth.width}x${byWidth.height}`);
+	if ((await Image.renderSVG(svgSource, {scale: 2})).width !== 20) panic('renderSVG(svg, { scale }) should scale');
+	const byWidth = await Image.renderSVG(svgSource, {width: 30});
+	if (byWidth.width !== 30 || byWidth.height !== 30) panic(`renderSVG(svg, { width }): ${byWidth.width}x${byWidth.height}`);
 
 	// frames and animations take their duration, offsets, disposal mode and loop count in the options object only
 	const frame = new Frame(4, 4, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
