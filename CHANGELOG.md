@@ -46,6 +46,10 @@
 - `encode()`: use `encodePNG()`, which takes the same arguments. Removed in 4.0.
 - `cropCircle(max, feathering)` and the `max` option: use `cropCircle({ size: 'contain' | 'cover' })`. Removed in 4.0.
 
+### Documentation
+
+- Deprecated overloads are tagged in the reference as well: a *Deprecated* label sits in front of each one, with the replacement named below it, also for methods that have other overloads that aren't deprecated.
+
 ## 3.17.0
 
 ### New
