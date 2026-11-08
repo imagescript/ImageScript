@@ -1,7 +1,7 @@
 {
   "ImageScript": {
-    "package": "imagescript@3.17.0",
-    "bytes": 2499840,
+    "package": "imagescript@3.18.0",
+    "bytes": 2515991,
     "packages": 1
   },
   "Jimp": {
@@ -11,8 +11,8 @@
   },
   "image-js": {
     "package": "image-js@1.7.1",
-    "bytes": 47818613,
-    "packages": 55
+    "bytes": 16999043,
+    "packages": 46
   },
   "PureJsImage": {
     "package": "purejsimage@0.17.0",
