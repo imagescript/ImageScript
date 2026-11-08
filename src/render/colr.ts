@@ -4,9 +4,7 @@
 
 import { Font, PathCommand } from './font.ts';
 import { parsePalette } from './color.ts';
-
-/** an affine transform [a, b, c, d, e, f]: x' = a x + c y + e, y' = b x + d y + f */
-type Matrix = [number, number, number, number, number, number];
+import { Matrix, multiply, invert } from '../util/matrix.ts';
 
 /** bounds as [xMin, yMin, xMax, yMax] */
 type Box = [number, number, number, number];
@@ -48,18 +46,6 @@ const MAX_DEPTH = 64;
 // samples per pixel axis, fewer where the canvas would get larger than MAX_PIXELS (16 MB per layer)
 const SAMPLES = 4;
 const MAX_PIXELS = 1 << 20;
-
-const multiply = (m: Matrix, n: Matrix): Matrix => [
-    m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
-    m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
-    m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]
-];
-
-const invert = (m: Matrix): Matrix | null => {
-    const det = m[0] * m[3] - m[1] * m[2];
-    if (!det) return null;
-    return [m[3] / det, -m[1] / det, -m[2] / det, m[0] / det, (m[2] * m[5] - m[3] * m[4]) / det, (m[1] * m[4] - m[0] * m[5]) / det];
-};
 
 const around = (cx: number, cy: number, m: Matrix): Matrix => multiply(multiply([1, 0, 0, 1, cx, cy], m), [1, 0, 0, 1, -cx, -cy]);
 

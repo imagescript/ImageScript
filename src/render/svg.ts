@@ -16,6 +16,7 @@ import { Font, PathCommand } from './font.ts';
 import { base64 } from '../util/bytes.ts';
 import { gunzip } from '../codecs/zlib.ts';
 import { applyFilter, Filter, Primitive, Kind, Input, Transfer, ColorMatrix, Pixmap, Light } from './filter.ts';
+import { Matrix, multiply, invert } from '../util/matrix.ts';
 import { BLEND_MODES, blendPixel } from './blend.ts';
 import { FontFace, FontStyle, fontFace, layOutText, parseFontFamilies, parseVariationSettings, pathLength, placeOutline, colorTablesOf, TextInput, ChunkInput, SpanInput, TextOutput, SpanOutput, Baseline } from './svg-text.ts';
 import { rasterizeGlyph } from './text.ts';
@@ -64,7 +65,6 @@ interface XNode {
 }
 
 type Style = Record<string, string | undefined>;
-type Matrix = number[];
 type Color = number[];
 
 interface Viewport {
@@ -3545,19 +3545,6 @@ function strokePolygons(subpaths: Subpath[], halfWidth: number, cap: string | un
 // values
 // ---------------------------------------------------------------------------
 
-function multiply(a: Matrix, b: Matrix): Matrix {
-    return [
-        a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1],
-        a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3],
-        a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]
-    ];
-}
-
-function invert(m: Matrix): Matrix | null {
-    const det = m[0] * m[3] - m[1] * m[2];
-    if (!det || !isFinite(det)) return null;
-    return [m[3] / det, -m[1] / det, -m[2] / det, m[0] / det, (m[2] * m[5] - m[3] * m[4]) / det, (m[1] * m[4] - m[0] * m[5]) / det];
-}
 
 function parseTransform(value: string): Matrix {
     let matrix = [1, 0, 0, 1, 0, 0];

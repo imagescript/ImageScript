@@ -15,8 +15,7 @@ import { graphemeBoundaries, scripts } from './segment.ts';
 import { loadFont } from './text.ts';
 import { parseColorLayers, parseBitmaps, ColorLayer, BitmapGlyph } from './color.ts';
 import { parsePaintGlyphs, PaintGlyphs } from './colr.ts';
-
-export type Matrix = number[];
+import { Matrix, multiply } from '../util/matrix.ts';
 
 export interface BBox {
     x: number;
@@ -436,14 +435,6 @@ interface Cluster {
 }
 
 const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
-
-function multiply(m: Matrix, n: Matrix): Matrix {
-    return [
-        m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
-        m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
-        m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5],
-    ];
-}
 
 const translate = (m: Matrix, x: number, y: number): Matrix => multiply(m, [1, 0, 0, 1, x, y]);
 const scale = (m: Matrix, x: number, y: number): Matrix => multiply(m, [x, 0, 0, y, 0, 0]);
