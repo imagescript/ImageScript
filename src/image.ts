@@ -171,6 +171,38 @@ export interface SharpenOptions {
     radius?: number;
 }
 
+// the dithering methods of Image.quantize()
+const DITHER_METHODS = ['none', 'floyd-steinberg', 'atkinson', 'ordered'] as const;
+
+/** Options of {@link Image.quantize}: either `colors` or `palette`, and the dithering */
+export interface QuantizeOptions {
+    /**
+     * The number of colors to reduce the image to, an integer from 2 to 256. The palette is the image's own colors when
+     * it has no more distinct ones than this, else colors chosen by median cut (the common colors get their own). Those
+     * are averages of groups of similar colors, so e.g. pure black and white are only in it if the image has them in
+     * quantity: give `palette` for exact colors. Default: `256`. Give `colors` or `palette`, not both
+     */
+    colors?: number;
+    /**
+     * A fixed palette (1 to 256 colors, e.g. a Game Boy's four greens) that every pixel is mapped to, the nearest color
+     * by its RGB. The alpha of the palette's colors is ignored. Give `palette` or `colors`, not both
+     */
+    palette?: Color[];
+    /**
+     * How the rounding error of each pixel is handled, which makes gradients look smooth with few colors:
+     * `'none'` (each pixel takes its nearest color), `'floyd-steinberg'` (the error goes to the next pixels, 7/16, 3/16,
+     * 5/16 and 1/16), `'atkinson'` (the error goes to six neighbours, 1/8 each: lighter, more contrast), `'ordered'` (a
+     * regular 4x4 pattern of thresholds, no error spreading). Rows alternate direction for the error diffusions.
+     * Default: `'none'`
+     */
+    dither?: 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered';
+    /**
+     * How strongly to dither, from `0` (no spreading or threshold, the same as `'none'`) to `1` (the full error or
+     * threshold). Default: `1`
+     */
+    ditherStrength?: number;
+}
+
 /** Options of {@link Image.dropShadow} */
 export interface ShadowOptions {
     /** How far to move the shadow to the right (negative values: to the left), in pixels. Default: `0` */
@@ -2016,6 +2048,52 @@ export class Image {
         const pixels = premultiply(this.bitmap);
         gaussianBlur(pixels, this.width, this.height, radius);
         unpremultiply(pixels, this.bitmap);
+        return this;
+    }
+
+    /**
+     * Reduces the image to a palette of at most 256 colors (or a fixed one), in place, optionally dithered, e.g.
+     * `image.quantize({ colors: 16, dither: 'floyd-steinberg' })` or `image.quantize({ palette: [0x0f380fff, 0x306230ff,
+     * 0x8bac0fff, 0x9bbc0fff] })` for a Game Boy look. Transparent pixels (alpha 0) keep their color and don't count
+     * towards the palette; the other pixels keep their alpha and only their RGB is reduced. The result is deterministic.
+     * With a gain map (an HDR image), the HDR highlights are dropped, like {@link Image.invert} does: the map is neutral
+     * afterwards. Frames quantize their own pixels
+     * @param options See {@link QuantizeOptions}
+     */
+    quantize(options: QuantizeOptions = {}): this {
+        if (typeof options !== 'object' || options === null) throw new TypeError('quantize takes an options object');
+        const { colors, palette, dither = 'none', ditherStrength = 1 } = options;
+
+        // everything is checked before the image changes
+        if (colors !== undefined && palette !== undefined) throw new TypeError('quantize takes colors or palette, not both');
+        let fixed: Uint8Array | null = null, count = 256;
+        if (palette !== undefined) {
+            if (!Array.isArray(palette)) throw new TypeError('palette has to be an array of colors');
+            if (palette.length < 1 || palette.length > 256) throw new RangeError(`palette needs 1 to 256 colors, not ${palette.length}`);
+            const packed = new Uint8Array(palette.length * 3);
+            palette.forEach((color, i) => {
+                const value = checkColor(color, 'palette color');
+                if (!Number.isInteger(value) || value < 0 || value > 0xffffffff) throw new RangeError(`Invalid palette color: ${color}`);
+                packed[i * 3] = value >>> 24;
+                packed[i * 3 + 1] = value >>> 16 & 255;
+                packed[i * 3 + 2] = value >>> 8 & 255;
+            });
+            fixed = packed;
+        } else if (colors !== undefined) {
+            count = finite(colors, 'colors');
+            if (!Number.isInteger(count) || count < 2 || count > 256) throw new RangeError(`colors must be an integer from 2 to 256, not ${colors}`);
+        }
+        if (!(DITHER_METHODS as readonly unknown[]).includes(dither)) throw new TypeError(`dither must be one of ${DITHER_METHODS.map(name => `'${name}'`).join(', ')}, not ${String(dither)}`);
+        const strength = finite(ditherStrength, 'ditherStrength');
+        if (strength < 0 || strength > 1) throw new RangeError(`ditherStrength must be 0-1, not ${ditherStrength}`);
+
+        const reduce = (image: Image): void => {
+            const bytes = image.__bytes__();
+            const table = fixed ?? quantize.buildPalette(bytes, count, 1);
+            quantize.applyPalette(bytes, image.width, image.height, table, dither, strength);
+        };
+        if (this.__gain_map__) return this.__unboost__(reduce);
+        reduce(this);
         return this;
     }
 

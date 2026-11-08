@@ -123,15 +123,115 @@ function exactPalette(pixels: Uint8Array, limit: number): { palette: Uint8Array,
     return { palette: Uint8Array.from(palette), indices };
 }
 
+/**
+ * A palette of at most `colors` entries (packed RGB) for the pixels with an alpha of at least `minAlpha`: the colors
+ * themselves when there are no more distinct ones than that, else a median cut with k-means refinement
+ */
+export function buildPalette(pixels: Uint8Array, colors: number, minAlpha: number): Uint8Array {
+    const seen = new Set<number>();
+    let exact = true;
+    for (let i = 0; i < pixels.length && exact; i += 4) {
+        if (pixels[i + 3] < minAlpha) continue;
+        const key = pixels[i] << 16 | pixels[i + 1] << 8 | pixels[i + 2];
+        if (seen.has(key)) continue;
+        if (seen.size === colors) exact = false;
+        else seen.add(key);
+    }
+
+    if (exact) {
+        const palette = new Uint8Array(seen.size * 3);
+        let p = 0;
+        for (const key of seen) {
+            palette[p++] = key >> 16;
+            palette[p++] = key >> 8 & 255;
+            palette[p++] = key & 255;
+        }
+        return palette;
+    }
+
+    return Uint8Array.from(medianCut(pixels, colors, 4, undefined, minAlpha).palette, Math.round);
+}
+
+// the 4x4 Bayer matrix, thresholds 0-15 in row order
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+// error diffusion patterns: [x offset (mirrored on right-to-left rows), row offset, weight]
+const FLOYD_STEINBERG = [[1, 0, 7 / 16], [-1, 1, 3 / 16], [0, 1, 5 / 16], [1, 1, 1 / 16]];
+const ATKINSON = [[1, 0, 1 / 8], [2, 0, 1 / 8], [-1, 1, 1 / 8], [0, 1, 1 / 8], [1, 1, 1 / 8], [0, 2, 1 / 8]];
+
+/**
+ * Replaces the RGB of every pixel with an alpha above 0 by its nearest palette entry (packed RGB), in place. Pixels
+ * with alpha 0 are left alone. Dithering: `'floyd-steinberg'` and `'atkinson'` spread each pixel's rounding error to
+ * the neighbours that come after it (serpentine: rows alternate direction), `'ordered'` offsets each pixel by a 4x4
+ * Bayer threshold. `strength` (0-1) scales the spread error and the threshold offset; 0 changes nothing but rounding
+ */
+export function applyPalette(pixels: Uint8Array, width: number, height: number, palette: Uint8Array, dither: 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered', strength: number): void {
+    const entries = palette.length / 3;
+    if (!entries) return;
+    const nearest = nearestSearch(palette, entries);
+    const clampFloat = (v: number): number => v < 0 ? 0 : v > 255 ? 255 : v;
+
+    if (dither === 'none' || dither === 'ordered') {
+        // the offsets span about one step between the palette's levels per channel
+        const spread = dither === 'ordered' ? strength * 255 / Math.cbrt(entries) : 0;
+        for (let y = 0, p = 0; y < height; y++) {
+            for (let x = 0; x < width; x++, p++) {
+                if (!pixels[p * 4 + 3]) continue;
+                const offset = spread ? ((BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16 - 0.5) * spread : 0;
+                const index = nearest(clampFloat(pixels[p * 4] + offset), clampFloat(pixels[p * 4 + 1] + offset), clampFloat(pixels[p * 4 + 2] + offset));
+                pixels[p * 4] = palette[index * 3];
+                pixels[p * 4 + 1] = palette[index * 3 + 1];
+                pixels[p * 4 + 2] = palette[index * 3 + 2];
+            }
+        }
+        return;
+    }
+
+    // the accumulated errors of the rows still to come, three rows in a ring (Atkinson reaches two rows down)
+    const pattern = dither === 'atkinson' ? ATKINSON : FLOYD_STEINBERG;
+    const rows = [new Float32Array(width * 3), new Float32Array(width * 3), new Float32Array(width * 3)];
+
+    for (let y = 0; y < height; y++) {
+        const direction = y & 1 ? -1 : 1;
+        const current = rows[y % 3];
+
+        for (let step = 0; step < width; step++) {
+            const x = direction === 1 ? step : width - 1 - step;
+            const p = y * width + x;
+            if (!pixels[p * 4 + 3]) continue;
+
+            const e = x * 3;
+            const r = clampFloat(pixels[p * 4] + current[e]);
+            const g = clampFloat(pixels[p * 4 + 1] + current[e + 1]);
+            const b = clampFloat(pixels[p * 4 + 2] + current[e + 2]);
+
+            const index = nearest(r, g, b);
+            const errors = [r - palette[index * 3], g - palette[index * 3 + 1], b - palette[index * 3 + 2]];
+            pixels[p * 4] = palette[index * 3];
+            pixels[p * 4 + 1] = palette[index * 3 + 1];
+            pixels[p * 4 + 2] = palette[index * 3 + 2];
+
+            for (const [dx, dy, weight] of pattern) {
+                const tx = x + dx * direction, ty = y + dy;
+                if (tx < 0 || tx >= width || ty >= height) continue;
+                const target = rows[ty % 3], t = tx * 3;
+                for (let c = 0; c < 3; c++) target[t + c] += errors[c] * weight * strength;
+            }
+        }
+
+        current.fill(0);
+    }
+}
+
 // weighted median cut on a 15-bit histogram, followed by k-means refinement
-function medianCut(pixels: Uint8Array, colors: number, iterations: number, include?: (r: number, g: number, b: number) => boolean): Clusters {
+function medianCut(pixels: Uint8Array, colors: number, iterations: number, include?: (r: number, g: number, b: number) => boolean, minAlpha = 128): Clusters {
     const count = new Float64Array(32768);
     const sumR = new Float64Array(32768);
     const sumG = new Float64Array(32768);
     const sumB = new Float64Array(32768);
 
     for (let i = 0; i < pixels.length; i += 4) {
-        if (pixels[i + 3] < 128) continue;
+        if (pixels[i + 3] < minAlpha) continue;
         const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
         if (include && !include(r, g, b)) continue;
         const bin = (r >> 3) << 10 | (g >> 3) << 5 | b >> 3;

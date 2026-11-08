@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.20.0
+
+### New
+
+- **`image.quantize({ colors, palette, dither, ditherStrength })`**: reduces the image to a palette, in place: `image.quantize({ colors: 16 })` for the 16 colors that best represent it, or a fixed one: `image.quantize({ palette: [0x0f380fff, 0x306230ff, 0x8bac0fff, 0x9bbc0fff] })` for a Game Boy look. `dither: 'floyd-steinberg'` (or `'atkinson'`, or `'ordered'` for a regular pattern) makes gradients look smooth with few colors. Transparent pixels keep their color and don't count towards the palette.
+
 ## 3.19.0
 
 ### New
