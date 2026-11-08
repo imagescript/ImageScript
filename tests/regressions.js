@@ -1,6 +1,12 @@
 const {Image, Frame, GIF, Animation, TextLayout} = require('..');
 const {ResizeModes, SVGScaleModes, FrameDisposalModes, Colors: ColorHelpers} = require('..');
 const zlib = require('zlib');
+// (encoders stamp the current time into the metadata: tests that compare two encodes freeze it, or they differ when a second ends in between)
+const withFrozenTime = async run => {
+    const now = Date.now;
+    Date.now = () => 1.7e12;
+    try { await run(); } finally { Date.now = now; }
+};
 
 const assert = (condition, message) => {
     if (condition) return;
@@ -445,13 +451,13 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
     }
 
     // encodePNG() is the implementation, encode() (deprecated, removed in 4.0) an alias of it
-    {
+    await withFrozenTime(async () => {
         const image = new Image(5, 4).fill((x, y) => ColorHelpers.fromRGBA(x * 40, y * 60, 9, 200));
         for (const args of [[], [9], [0, {title: 'x'}], [{compression: 1}], [{title: 'y'}]]) {
             const a = await image.encodePNG(...args), b = await image.encode(...args);
             assert(Buffer.from(a).equals(Buffer.from(b)), `encode(${JSON.stringify(args)}) vs encodePNG`);
         }
-    }
+    });
 
     // cropCircle({size}): 'contain' is the default, `max` (deprecated, removed in 4.0) maps to 'cover'
     {
@@ -471,7 +477,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
     }
 
     // the encoders take the options of the encode functions (the *AnimationEncoderOptions types are deprecated aliases, removed in 4.0)
-    {
+    await withFrozenTime(async () => {
         const {Animation} = require('..');
         const frames = () => [Frame.from(new Image(6, 6).fill(0x336699ff), 100), Frame.from(new Image(6, 6).fill(0x996633ff), 100)];
         for (const [format, options] of [['GIF', {quality: 80, optimize: false}], ['APNG', {compression: 9}], ['WebP', {quality: 70, effort: 1}]]) {
@@ -480,10 +486,10 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
             for (const frame of frames()) await encoder.add(frame);
             assert(Buffer.from(await encoder.finish()).equals(Buffer.from(await animation[`encode${format}`](options))), `${format}: encoder vs encode${format} with options`);
         }
-    }
+    });
 
     // Infinity is a loop count for ever (like -1, which is removed in 4.0), the encoders take the options of the encode functions
-    {
+    await withFrozenTime(async () => {
         const {Animation} = require('..');
         const still = new Image(6, 6).fill(0x336699ff);
         const frames = () => [Frame.from(still.clone(), 100), Frame.from(still.clone().invert(), 100)];
@@ -505,7 +511,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
             try { Animation.gifEncoder(6, 6, {loopCount}); } catch (e) { threw = e instanceof RangeError; }
             assert(threw, `encoder loopCount ${loopCount} is rejected`);
         }
-    }
+    });
 
     // Animation.decode: orientation, tone mapping and gain maps like Image.decode
     {
