@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Frame, GIF} = require('..');
+const {Frame, FrameDisposalModes, GIF} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -59,9 +59,9 @@ const panic = message => {
 
         const background = new Frame(4, 4, 100);
         background.fill(black);
-        const dot = new Frame(1, 1, 100, 1, 1, Frame.DISPOSAL_PREVIOUS);
+        const dot = new Frame(1, 1, 100, 1, 1, FrameDisposalModes.PREVIOUS);
         dot.fill(white);
-        const hole = new Frame(2, 2, 100, 2, 2, Frame.DISPOSAL_BACKGROUND);
+        const hole = new Frame(2, 2, 100, 2, 2, FrameDisposalModes.BACKGROUND);
         hole.fill((x, y) => x === y ? white : 0);
         const last = new Frame(1, 1, 100, 0, 0);
         last.fill(white);

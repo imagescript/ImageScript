@@ -12,7 +12,7 @@ export async function smoke() {
             results[name] = `FAIL ${e && e.stack || e}`;
         }
     };
-    const photo = (await Image.decode(png)).resize(256, Image.RESIZE_AUTO), alpha = photo.clone();
+    const photo = (await Image.decode(png)).resize({width: 256}), alpha = photo.clone();
     for (let i = 3; i < alpha.bitmap.length; i += 4) alpha.bitmap[i] = (i >> 2) % 256;
     // (decoded back, the same size)
     const back = async data => {

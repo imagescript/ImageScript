@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.0
+
+### Breaking changes
+
+- **The deprecated resize, SVG and frame disposal constants are removed**: `Image.RESIZE_NEAREST_NEIGHBOR`, `Image.RESIZE_BILINEAR`, `Image.RESIZE_BICUBIC`, `Image.RESIZE_AREA`, `Image.SVG_MODE_SCALE`, `Image.SVG_MODE_WIDTH`, `Image.SVG_MODE_HEIGHT` and `Frame.DISPOSAL_*` are gone: use `ResizeModes`, `SVGScaleModes` and `FrameDisposalModes` instead. `ResizeModes.AUTO` (and `Image.RESIZE_AUTO`) is removed too: pass only the width or the height, `image.resize({ width: 256 })`. The old values are no longer accepted either: `'RESIZE_BILINEAR'`, the numbers 1-3 for SVG scale modes and the numeric disposal ids 0-3.
+
 ## 3.20.1
 
 ### Performance

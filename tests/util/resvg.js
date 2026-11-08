@@ -1,4 +1,4 @@
-const {Image} = require('../..');
+const {Image, SVGScaleModes} = require('../..');
 const fs = require('fs').promises;
 
 // resvg's test fonts (tests/fonts/resvg, subsets with the characters of the test cases): its default family (serif)
@@ -12,7 +12,7 @@ const fonts = async () => {
 // test cases of resvg (tests/svgs/resvg, see its LICENSE) next to resvg's renderings, of the directories some returns
 // true for. Antialiasing differs a little: at most 0.5% of the pixels may differ by more than 24 (premultiplied)
 module.exports = async (some, panic) => {
-    const root = './tests/svgs/resvg', options = {mode: Image.SVG_MODE_WIDTH, fonts: await fonts()};
+    const root = './tests/svgs/resvg', options = {mode: SVGScaleModes.WIDTH, fonts: await fonts()};
     const files = (await fs.readdir(root, {recursive: true})).filter(f => f.endsWith('.svg') && some(f.replace(/\\/g, '/')));
     for (const file of files) {
         const reference = await Image.decode(await fs.readFile(`${root}/${file.replace(/\.svg$/, '.png')}`));

@@ -132,11 +132,6 @@ if (Image.hslaToColor(0, 0, 1, 0xff) !== 0xffffffff)
         panic('resize with invalid mode failed');
     } catch {
     }
-    try {
-        image.resize(Image.RESIZE_AUTO, Image.RESIZE_AUTO);
-        panic('resize with RESIZE_AUTO for both x and y failed');
-    } catch {
-    }
 }
 
 {

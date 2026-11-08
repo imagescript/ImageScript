@@ -7,7 +7,7 @@ import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
 import type { ToneMapping } from './codecs/hdr.ts';
-import { Image, ResizeMode, ResizeModes, ResizeOptions, ResizeToOptions, resizeArguments } from './image.ts';
+import { Image, ResizeMode, ResizeOptions, ResizeToOptions, resizeArguments } from './image.ts';
 import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
@@ -248,12 +248,11 @@ export class Animation extends Array<Frame> {
      */
     resize(options: ResizeToOptions): this;
     resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, modeArgument?: ResizeMode | ResizeOptions): this {
-        // eslint-disable-next-line prefer-const
-        let [width, height, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
+        const [givenWidth, givenHeight, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
         const originalWidth = this.width, originalHeight = this.height;
-        if (width === ResizeModes.AUTO && height === ResizeModes.AUTO) throw new Error('RESIZE_AUTO can only be used for either width or height, not for both');
-        if (width === ResizeModes.AUTO) width = originalWidth / originalHeight * height;
-        if (height === ResizeModes.AUTO) height = originalHeight / originalWidth * width;
+        // a side left out follows the other one, keeping the aspect ratio
+        const width = givenWidth ?? originalWidth / originalHeight * (givenHeight as number);
+        const height = givenHeight ?? originalHeight / originalWidth * width;
 
         const sx = width / originalWidth, sy = height / originalHeight;
         for (const frame of this) {

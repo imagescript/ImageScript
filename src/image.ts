@@ -47,19 +47,11 @@ export type Color = number;
 /** Called with a pixel's (0-based) coordinates, returns its color */
 export type ColorFunction = (x: number, y: number) => Color;
 
-/**
- * Resampling filters for {@link Image.resize} and the other scaling functions, see {@link ResizeModes}.
- * The upper case names (`'RESIZE_BILINEAR'`, the values of the deprecated `Image.RESIZE_*`) still work, they are
- * removed in 4.0
- */
-export type ResizeMode = 'nearest-neighbor' | 'bilinear' | 'bicubic' | 'area'
-    | 'RESIZE_NEAREST_NEIGHBOR' | 'RESIZE_BILINEAR' | 'RESIZE_BICUBIC' | 'RESIZE_AREA';
+/** Resampling filters for {@link Image.resize} and the other scaling functions, see {@link ResizeModes} */
+export type ResizeMode = 'nearest-neighbor' | 'bilinear' | 'bicubic' | 'area';
 
-/**
- * How {@link Image.renderSVG} scales, see {@link SVGScaleModes}. The numbers 1-3 (the values of the deprecated
- * `Image.SVG_MODE_*`) still work, they are removed in 4.0
- */
-export type SVGScaleMode = 'scale' | 'width' | 'height' | 1 | 2 | 3;
+/** How {@link Image.renderSVG} scales, see {@link SVGScaleModes} */
+export type SVGScaleMode = 'scale' | 'width' | 'height';
 
 /**
  * The resampling filters of {@link Image.resize} and the other scaling functions:
@@ -85,14 +77,6 @@ export class ResizeModes {
      * shrinking
      */
     static readonly AREA = 'area';
-
-    /**
-     * Not a filter: passed as the width or the height, that side follows from the other one, keeping the image's
-     * aspect ratio
-     * @deprecated Pass only the width or the height instead, `image.resize({ width: 256 })`. `AUTO` is removed in 4.0
-     * @group Deprecated
-     */
-    static readonly AUTO = -1;
 
     private constructor() {}
 }
@@ -1075,37 +1059,6 @@ export class Image {
     }
 
     /**
-     * @deprecated Use {@link ResizeModes.NEAREST_NEIGHBOR}, `Image.RESIZE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly RESIZE_NEAREST_NEIGHBOR = 'RESIZE_NEAREST_NEIGHBOR';
-
-    /**
-     * @deprecated Use {@link ResizeModes.BILINEAR}, `Image.RESIZE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly RESIZE_BILINEAR = 'RESIZE_BILINEAR';
-
-    /**
-     * @deprecated Use {@link ResizeModes.BICUBIC}, `Image.RESIZE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly RESIZE_BICUBIC = 'RESIZE_BICUBIC';
-
-    /**
-     * @deprecated Use {@link ResizeModes.AREA}, `Image.RESIZE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly RESIZE_AREA = 'RESIZE_AREA';
-
-    /**
-     * @deprecated Pass only the width or the height instead, `image.resize({ width: 256 })`. `Image.RESIZE_*` will
-     *     be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly RESIZE_AUTO: typeof ResizeModes.AUTO = ResizeModes.AUTO;
-
-    /**
      * Resizes the image by the given factor
      * @param factor The factor to resize the image with
      * @param options See {@link ResizeOptions}
@@ -1163,7 +1116,7 @@ export class Image {
     resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, modeArgument?: ResizeMode | ResizeOptions): this {
         const [width, height, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
         const { mode, fast } = resizeOptions(modeOrOptions);
-        const image = this.__resize__(width, height, mode, fast);
+        const image = this.__resize__(...this.__resized_size__(width, height), mode, fast);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         return this.__apply__(image);
     }
@@ -1272,11 +1225,19 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __resize__(width: number, height: number, mode: ResizeMode = ResizeModes.BILINEAR, fast = true, region?: Region): Image {
-        if (width === ResizeModes.AUTO && height === ResizeModes.AUTO) throw new Error('RESIZE_AUTO can only be used for either width or height, not for both');
-        else if (width === ResizeModes.AUTO) width = Math.max(1, Math.round(this.width / this.height * Math.floor(height)));
-        else if (height === ResizeModes.AUTO) height = Math.max(1, Math.round(this.height / this.width * Math.floor(width)));
+    protected __resized_size__(width: number | undefined, height: number | undefined): [width: number, height: number] {
+        // a side left out follows the other one, keeping the aspect ratio
+        if (width === undefined) return [Math.max(1, Math.round(this.width / this.height * Math.floor(height as number))), height as number];
+        if (height === undefined) return [width, Math.max(1, Math.round(this.height / this.width * Math.floor(width)))];
+        return [width, height];
+    }
 
+    /** @private */
+    /**
+     * @internal
+     * @ignore
+     */
+    protected __resize__(width: number, height: number, mode: ResizeMode = ResizeModes.BILINEAR, fast = true, region?: Region): Image {
         width = Math.floor(width);
         height = Math.floor(height);
         if (width < 1)
@@ -3228,24 +3189,6 @@ export class Image {
     }
 
     /**
-     * @deprecated Use {@link SVGScaleModes.SCALE}, `Image.SVG_MODE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly SVG_MODE_SCALE = 1;
-
-    /**
-     * @deprecated Use {@link SVGScaleModes.WIDTH}, `Image.SVG_MODE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly SVG_MODE_WIDTH = 2;
-
-    /**
-     * @deprecated Use {@link SVGScaleModes.HEIGHT}, `Image.SVG_MODE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly SVG_MODE_HEIGHT = 3;
-
-    /**
      * Creates a new image from the given SVG
      * Supports shapes, paths, transforms, use/symbol, CSS styles, gradients, patterns, strokes, markers, clip paths,
      * masks, opacity, blend modes, filters (all primitives and the filter functions) and images embedded as data URIs
@@ -3273,8 +3216,7 @@ export class Image {
      */
     static renderSVG(svg: string | BinaryData, size?: number, mode?: SVGScaleMode): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, sizeOrOptions: number | SVGOptions = 1, modeArgument: SVGScaleMode = SVGScaleModes.SCALE): Promise<Image> {
-        const { size = 1, mode: givenMode = SVGScaleModes.SCALE, fonts = [], images: givenImages = {} } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
-        const mode = LEGACY_SVG_MODES.get(givenMode) ?? givenMode;
+        const { size = 1, mode = SVGScaleModes.SCALE, fonts = [], images: givenImages = {} } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
         if (mode !== 'scale' && mode !== 'width' && mode !== 'height')
             throw new Error('Invalid SVG scaling mode');
 
@@ -3486,30 +3428,22 @@ interface HSLA {
     a: number;
 }
 
-// the deprecated upper case resize modes (Image.RESIZE_*) and the names they stand for
-const LEGACY_RESIZE_MODES = new Map<unknown, ResizeMode>([
-    ['RESIZE_NEAREST_NEIGHBOR', 'nearest-neighbor'], ['RESIZE_BILINEAR', 'bilinear'], ['RESIZE_BICUBIC', 'bicubic'], ['RESIZE_AREA', 'area']
-]);
-
 /**
- * The width, height and mode of resize()'s signatures, a side missing from the options as {@link ResizeModes.AUTO}
+ * The width, height and mode of resize()'s signatures: a side left out of the options is `undefined`
  * @internal
  */
-export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, modeOrOptions?: ResizeMode | ResizeOptions): [width: number, height: number, modeOrOptions: ResizeMode | ResizeOptions | undefined] {
-    if (!isOptions(widthOrOptions)) return [widthOrOptions, height as number, modeOrOptions];
+export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, modeOrOptions?: ResizeMode | ResizeOptions): [width: number | undefined, height: number | undefined, modeOrOptions: ResizeMode | ResizeOptions | undefined] {
+    if (!isOptions(widthOrOptions)) return [widthOrOptions, height, modeOrOptions];
     const { width, height: optionsHeight, ...options } = widthOrOptions;
     if (width === undefined && optionsHeight === undefined) throw new TypeError('resize() needs a width, a height or both');
-    return [width ?? ResizeModes.AUTO, optionsHeight ?? ResizeModes.AUTO, options];
+    return [width, optionsHeight, options];
 }
 
 function resizeOptions(modeOrOptions?: ResizeMode | ResizeOptions): { mode: ResizeMode, fast: boolean } {
     const options = isOptions(modeOrOptions) ? modeOrOptions : { mode: modeOrOptions };
     const mode = options.mode ?? ResizeModes.BILINEAR;
-    return { mode: LEGACY_RESIZE_MODES.get(mode) ?? mode, fast: options.fast ?? true };
+    return { mode, fast: options.fast ?? true };
 }
-
-// the deprecated SVG scale mode numbers (Image.SVG_MODE_*) and the names they stand for
-const LEGACY_SVG_MODES = new Map<unknown, SVGScaleMode>([[1, 'scale'], [2, 'width'], [3, 'height']]);
 
 // separable blend functions of normalized channel values (W3C Compositing and Blending Level 1)
 const hardLight = (b: number, s: number): number => s <= 0.5 ? b * 2 * s : 1 - (1 - b) * (1 - (2 * s - 1));

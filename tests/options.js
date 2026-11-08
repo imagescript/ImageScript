@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image, Frame, Animation, GIF, decode} = require('..');
+const {Image, Frame, Animation, GIF, decode, ResizeModes, SVGScaleModes} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -17,9 +17,9 @@ const same = (name, a, b) => {
     const tile = () => photo.clone().resize(64, 48);
     const logo = new Image(16, 16).fill(0xff000080);
 
-    same('scale', tile().scale(0.5, Image.RESIZE_NEAREST_NEIGHBOR), tile().scale(0.5, {mode: Image.RESIZE_NEAREST_NEIGHBOR}));
+    same('scale', tile().scale(0.5, ResizeModes.NEAREST_NEIGHBOR), tile().scale(0.5, {mode: ResizeModes.NEAREST_NEIGHBOR}));
     for (const method of ['resize', 'contain', 'fit', 'cover'])
-        same(method, tile()[method](30, 40, Image.RESIZE_BICUBIC), tile()[method](30, 40, {mode: Image.RESIZE_BICUBIC}));
+        same(method, tile()[method](30, 40, ResizeModes.BICUBIC), tile()[method](30, 40, {mode: ResizeModes.BICUBIC}));
     // the default mode
     same('resize default', tile().resize(30, 40), tile().resize(30, 40, {}));
 
@@ -49,7 +49,7 @@ const same = (name, a, b) => {
         if (!Buffer.from(await tile()[method]({metadata: {author}})).includes(author)) panic(`${method}: metadata missing`);
 
     const svg = await fs.readFile('./tests/svgs/crown.svg');
-    same('renderSVG', await Image.renderSVG(svg, 40, Image.SVG_MODE_WIDTH), await Image.renderSVG(svg, {size: 40, mode: Image.SVG_MODE_WIDTH}));
+    same('renderSVG', await Image.renderSVG(svg, 40, SVGScaleModes.WIDTH), await Image.renderSVG(svg, {size: 40, mode: SVGScaleModes.WIDTH}));
 
     const font = await fs.readFile('./tests/fonts/opensans bold.ttf');
     same('renderText', await Image.renderText(font, 24, 'Options', 0x3366ffff, undefined, {strokeWidth: 2, strokeColor: 0xffffffff}),
@@ -77,8 +77,8 @@ const same = (name, a, b) => {
     for (const method of ['encodeGIF', 'encodeAPNG', 'encodeWebP'])
         if (!Buffer.from(await animation[method]({metadata: {author, comment: author}})).includes(author)) panic(`${method}: metadata missing`);
 
-    same('Animation.resize', (await Animation.decode(await animation.encodeAPNG())).resize(20, 10, Image.RESIZE_NEAREST_NEIGHBOR)[1],
-        (await Animation.decode(await animation.encodeAPNG())).resize(20, 10, {mode: Image.RESIZE_NEAREST_NEIGHBOR})[1]);
+    same('Animation.resize', (await Animation.decode(await animation.encodeAPNG())).resize(20, 10, ResizeModes.NEAREST_NEIGHBOR)[1],
+        (await Animation.decode(await animation.encodeAPNG())).resize(20, 10, {mode: ResizeModes.NEAREST_NEIGHBOR})[1]);
 
     const gif = await animation.encodeGIF();
     for (const decoded of [await Animation.decode(gif, {onlyFirstFrame: true}), await GIF.decode(gif, {onlyFirstFrame: true}), await decode(gif, {onlyFirstFrame: true})])

@@ -3,14 +3,8 @@ import { isOptions, finite } from './util/options.ts';
 
 /** Names of the frame disposal modes, see {@link Frame.disposalMode} */
 export type FrameDisposalModeName = 'any' | 'keep' | 'previous' | 'background';
-/**
- * Ids of the frame disposal modes, as GIFs store them (0 any, 1 keep, 2 previous, 3 background)
- * @deprecated Use the names ({@link FrameDisposalModeName}: `'any'`, `'keep'`, `'previous'`, `'background'`), the ids will
- *     be removed in 4.0
- */
-export type FrameDisposalModeId = 0 | 1 | 2 | 3;
 
-// (the ids inside the library, without the deprecation shown to its own code)
+// the ids the library stores the modes as (0 any, 1 keep, 2 previous, 3 background, like GIFs)
 type DisposalId = 0 | 1 | 2 | 3;
 
 const DISPOSAL_MODES: readonly FrameDisposalModeName[] = ['any', 'keep', 'previous', 'background'];
@@ -41,7 +35,7 @@ export interface FrameOptions {
     /** The frame's offset on the y-axis. Default: `0` */
     yOffset?: number;
     /** The frame's disposal mode, see {@link Frame.disposalMode}. Default: `'keep'` */
-    disposalMode?: FrameDisposalModeName | FrameDisposalModeId;
+    disposalMode?: FrameDisposalModeName;
 }
 
 /**
@@ -65,36 +59,12 @@ export class Frame extends Image {
     private __disposalMode__: DisposalId = 1;
 
     /**
-     * @deprecated Use {@link FrameDisposalModes.ANY}, `Frame.DISPOSAL_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly DISPOSAL_ANY: typeof FrameDisposalModes.ANY = FrameDisposalModes.ANY;
-
-    /**
-     * @deprecated Use {@link FrameDisposalModes.KEEP}, `Frame.DISPOSAL_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly DISPOSAL_KEEP: typeof FrameDisposalModes.KEEP = FrameDisposalModes.KEEP;
-
-    /**
-     * @deprecated Use {@link FrameDisposalModes.PREVIOUS}, `Frame.DISPOSAL_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly DISPOSAL_PREVIOUS: typeof FrameDisposalModes.PREVIOUS = FrameDisposalModes.PREVIOUS;
-
-    /**
-     * @deprecated Use {@link FrameDisposalModes.BACKGROUND}, `Frame.DISPOSAL_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly DISPOSAL_BACKGROUND: typeof FrameDisposalModes.BACKGROUND = FrameDisposalModes.BACKGROUND;
-
-    /**
      * @internal
      * @ignore
      */
-    static __convert_disposal_mode__(mode: FrameDisposalModeName | FrameDisposalModeId): DisposalId {
-        const id = typeof mode === 'string' ? DISPOSAL_MODES.indexOf(mode) : mode;
-        if (!(id >= 0 && id <= 3))
+    static __convert_disposal_mode__(mode: FrameDisposalModeName): DisposalId {
+        const id = DISPOSAL_MODES.indexOf(mode);
+        if (id < 0)
             throw new RangeError('Invalid disposal mode');
 
         return id as DisposalId;
@@ -117,8 +87,8 @@ export class Frame extends Image {
      * @param disposalMode The frame's disposal mode
      * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
      */
-    constructor(width: number, height: number, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId);
-    constructor(width: number, height: number, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId) {
+    constructor(width: number, height: number, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName);
+    constructor(width: number, height: number, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName) {
         const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = FrameDisposalModes.KEEP } =
             isOptions(durationOrOptions) ? durationOrOptions : { duration: durationOrOptions, xOffset, yOffset, disposalMode };
         if (finite(duration, 'frame duration') < 0)
@@ -133,10 +103,7 @@ export class Frame extends Image {
         this.disposalMode = disposal;
     }
 
-    /**
-     * The frame's disposal mode (`'any'`, `'keep'`, `'previous'` or `'background'`). Setting it by id (0-3) is deprecated,
-     * the ids will be removed in 4.0
-     */
+    /** The frame's disposal mode (`'any'`, `'keep'`, `'previous'` or `'background'`) */
     get disposalMode(): FrameDisposalModeName {
         return DISPOSAL_MODES[this.__disposalMode__];
     }
@@ -152,9 +119,9 @@ export class Frame extends Image {
 
     /**
      * Sets the disposal mode
-     * @param disposalMode The mode's name (`'any'`, `'keep'`, `'previous'`, `'background'`) or, deprecated, its id (0-3)
+     * @param disposalMode The mode's name (`'any'`, `'keep'`, `'previous'`, `'background'`)
      */
-    set disposalMode(disposalMode: FrameDisposalModeName | FrameDisposalModeId) {
+    set disposalMode(disposalMode: FrameDisposalModeName) {
         this.__disposalMode__ = Frame.__convert_disposal_mode__(disposalMode);
     }
 
@@ -178,8 +145,8 @@ export class Frame extends Image {
      * @param disposalMode The frame's disposal mode
      * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
      */
-    static from(image: Image, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId): Frame;
-    static from(image: Image, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId): Frame {
+    static from(image: Image, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName): Frame;
+    static from(image: Image, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName): Frame {
         if (!(image instanceof Image))
             throw new TypeError('Invalid image passed');
 
@@ -262,7 +229,7 @@ export class Frame extends Image {
         const originalWidth = this.width;
         const originalHeight = this.height;
 
-        super.resize(width, height, modeOrOptions as ResizeMode);
+        super.resize(...this.__resized_size__(width, height), modeOrOptions as ResizeMode);
 
         this.xOffset = Math.round(this.xOffset * this.width / originalWidth);
         this.yOffset = Math.round(this.yOffset * this.height / originalHeight);

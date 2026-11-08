@@ -45,7 +45,7 @@ for (const page of pages) {
     html = html.replace(/(<a href="[^"]*" class="title">)([^<]+?) - (v[^<]+)<\/a>/, '$1$2 <span class="version">$3</span></a>');
     html = html.replace(/(<div class="tsd-page-title">[\s\S]*?<h1>)(Class|Interface|Function|Type Alias|Variable|Enumeration|Namespace) /,
         '$1<span class="kind">$2</span>');
-    // constants typed as their own literal (RESIZE_AREA: "RESIZE_AREA" = 'RESIZE_AREA') show the value once
+    // constants typed as their own literal (ResizeModes.AREA: "area" = 'area') show the value once
     html = html.replace(/(<span class="tsd-signature-type">(?:&quot;([^&<]*)&quot;|(-?[\d.]+))<\/span>)<span class="tsd-signature-symbol"> = (?:&#39;([^&<]*)&#39;|(-?[\d.]+))<\/span>/g,
         (all, type, typeString, typeNumber, valueString, valueNumber) =>
             (typeString ?? typeNumber) === (valueString ?? valueNumber) ? type : all);

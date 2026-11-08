@@ -89,7 +89,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
 
     // frames keep their metadata
     {
-        const frame = new Frame(10, 10, 500, 2, 4, Frame.DISPOSAL_BACKGROUND);
+        const frame = new Frame(10, 10, 500, 2, 4, FrameDisposalModes.BACKGROUND);
         const clone = frame.clone();
         assert(clone instanceof Frame && clone.duration === 500 && clone.xOffset === 2 && clone.disposalMode === 'background', 'Frame.clone lost metadata');
 
@@ -241,7 +241,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
     // resizing filters average instead of skipping pixels, in premultiplied alpha
     {
         const checker = new Image(64, 64).fill((x, y) => (x + y) & 1 ? 0xffffffff : 0x000000ff);
-        for (const mode of [Image.RESIZE_BILINEAR, Image.RESIZE_BICUBIC, Image.RESIZE_AREA]) {
+        for (const mode of [ResizeModes.BILINEAR, ResizeModes.BICUBIC, ResizeModes.AREA]) {
             const small = checker.clone().resize(8, 8, mode);
             for (const [x, y, color] of small.iterateWithColors())
                 assert(Math.abs((color >>> 24) - 128) <= 2, `${mode}: checkerboard should average to grey at ${x},${y}, got ${color >>> 24}`);
@@ -251,12 +251,15 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         const half = new Image(4, 1).fill((x) => x < 2 ? 0xff000000 : 0x0000ffff).resize(2, 1);
         assert(rgba(half, 0, 0).slice(0, 3).join() === '0,0,255', 'resize: transparent pixels bled into the result: ' + rgba(half, 0, 0));
 
-        const nearest = new Image(4, 1).fill((x) => Image.rgbToColor(x, 0, 0)).resize(2, 1, Image.RESIZE_NEAREST_NEIGHBOR);
+        const nearest = new Image(4, 1).fill((x) => Image.rgbToColor(x, 0, 0)).resize(2, 1, ResizeModes.NEAREST_NEIGHBOR);
         assert(rgba(nearest, 0, 0)[0] === 1 && rgba(nearest, 1, 0)[0] === 3, 'nearest neighbor should sample pixel centers');
 
-        let threw = false;
-        try { checker.clone().resize(8, 8, 'RESIZE_FOO'); } catch { threw = true; }
-        assert(threw, 'resize should reject unknown modes');
+        // (the upper case names of the removed Image.RESIZE_* constants are unknown modes too)
+        for (const unknown of ['RESIZE_FOO', 'RESIZE_BILINEAR', 'RESIZE_AREA']) {
+            let threw = false;
+            try { checker.clone().resize(8, 8, unknown); } catch { threw = true; }
+            assert(threw, `resize should reject unknown mode ${unknown}`);
+        }
     }
 
     // circles are antialiased and symmetric around the pixel center
@@ -372,58 +375,41 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
 
     // disposal modes read back as the names they are set with
     {
-        const frame = new Frame(1, 1, 100, 0, 0, Frame.DISPOSAL_PREVIOUS);
+        const frame = new Frame(1, 1, 100, 0, 0, FrameDisposalModes.PREVIOUS);
         assert(frame.disposalMode === 'previous', 'disposalMode should be a name, got ' + frame.disposalMode);
-        frame.disposalMode = 0;
-        assert(frame.disposalMode === Frame.DISPOSAL_ANY, 'disposalMode set by id should read back as name');
+        // the numeric ids (0-3) are not accepted any more, the names are
+        let threw = false;
+        try { frame.disposalMode = 0; } catch (e) { threw = e instanceof RangeError; }
+        assert(threw && frame.disposalMode === 'previous', 'disposalMode should only take names');
         const decoded = await GIF.decode(await new GIF([new Frame(2, 2, 100, 0, 0, 'background'), new Frame(2, 2).fill(0xff0000ff)]).encode());
         assert(decoded.length === 2, 'gif with disposal modes should roundtrip');
     }
 
-    // the constant classes hold the new names, the deprecated Image/Frame constants (removed in 4.0) keep their values,
-    // and both work everywhere with the same results
+    // the constant classes hold the names of the modes (the deprecated Image/Frame constants were removed in 4.0)
     {
-        const pairs = [
-            [Image.RESIZE_NEAREST_NEIGHBOR, 'RESIZE_NEAREST_NEIGHBOR', ResizeModes.NEAREST_NEIGHBOR, 'nearest-neighbor'],
-            [Image.RESIZE_BILINEAR, 'RESIZE_BILINEAR', ResizeModes.BILINEAR, 'bilinear'],
-            [Image.RESIZE_BICUBIC, 'RESIZE_BICUBIC', ResizeModes.BICUBIC, 'bicubic'],
-            [Image.RESIZE_AREA, 'RESIZE_AREA', ResizeModes.AREA, 'area'],
-            [Image.RESIZE_AUTO, -1, ResizeModes.AUTO, -1],
-            [Frame.RESIZE_AUTO, -1, ResizeModes.AUTO, -1],
-            [Image.SVG_MODE_SCALE, 1, SVGScaleModes.SCALE, 'scale'],
-            [Image.SVG_MODE_WIDTH, 2, SVGScaleModes.WIDTH, 'width'],
-            [Image.SVG_MODE_HEIGHT, 3, SVGScaleModes.HEIGHT, 'height'],
-            [Frame.DISPOSAL_ANY, 'any', FrameDisposalModes.ANY, 'any'],
-            [Frame.DISPOSAL_KEEP, 'keep', FrameDisposalModes.KEEP, 'keep'],
-            [Frame.DISPOSAL_PREVIOUS, 'previous', FrameDisposalModes.PREVIOUS, 'previous'],
-            [Frame.DISPOSAL_BACKGROUND, 'background', FrameDisposalModes.BACKGROUND, 'background']
-        ];
-        for (const [old, oldValue, now, nowValue] of pairs)
-            assert(old === oldValue && now === nowValue, `constants: ${old} should be ${oldValue}, ${now} should be ${nowValue}`);
+        assert(ResizeModes.NEAREST_NEIGHBOR === 'nearest-neighbor' && ResizeModes.BILINEAR === 'bilinear' && ResizeModes.BICUBIC === 'bicubic' && ResizeModes.AREA === 'area', 'ResizeModes values');
+        assert(SVGScaleModes.SCALE === 'scale' && SVGScaleModes.WIDTH === 'width' && SVGScaleModes.HEIGHT === 'height', 'SVGScaleModes values');
+        assert(FrameDisposalModes.ANY === 'any' && FrameDisposalModes.KEEP === 'keep' && FrameDisposalModes.PREVIOUS === 'previous' && FrameDisposalModes.BACKGROUND === 'background', 'FrameDisposalModes values');
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="5"><rect width="7" height="3" fill="red"/></svg>';
-        for (const [old, now, size, width, height] of [[Image.SVG_MODE_SCALE, SVGScaleModes.SCALE, 2, 20, 10], [Image.SVG_MODE_WIDTH, SVGScaleModes.WIDTH, 20, 20, 10], [Image.SVG_MODE_HEIGHT, SVGScaleModes.HEIGHT, 20, 40, 20]]) {
-            const a = await Image.renderSVG(svg, size, old), b = await Image.renderSVG(svg, {size, mode: now});
-            assert(a.width === width && a.height === height, `renderSVG mode ${now}: ${a.width}x${a.height}`);
-            assert(b.width === width && b.height === height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap)), `renderSVG mode ${old} vs ${now}`);
+        for (const [mode, size, width, height] of [[SVGScaleModes.SCALE, 2, 20, 10], [SVGScaleModes.WIDTH, 20, 20, 10], [SVGScaleModes.HEIGHT, 20, 40, 20]]) {
+            const rendered = await Image.renderSVG(svg, {size, mode});
+            assert(rendered.width === width && rendered.height === height, `renderSVG mode ${mode}: ${rendered.width}x${rendered.height}`);
         }
+        assert(new Image(8, 4).resize({width: 4, mode: ResizeModes.AREA}).height === 2, 'resize({width}) with a mode keeps the aspect ratio');
         const photo = new Image(9, 7).fill((x, y) => ColorHelpers.fromRGBA(x * 28, y * 36, (x ^ y) * 16, 255 - x * 10));
-        for (const [old, now] of pairs.slice(0, 4))
-            for (const method of ['resize', 'contain', 'fit', 'cover'])
-                assert(Buffer.from(photo.clone()[method](5, 4, old).bitmap).equals(Buffer.from(photo.clone()[method](5, 4, {mode: now}).bitmap)), `${method} ${old} vs ${now}`);
-        assert(new Image(8, 4).resize(4, Image.RESIZE_AUTO, Image.RESIZE_AREA).height === 2, 'resize with deprecated constants');
         let threw = false;
         try { photo.clone().resize(4, 4, 'Area'); } catch { threw = true; }
         assert(threw, 'resize modes are case sensitive');
     }
 
-    // resize({width}) / resize({height}) keep the aspect ratio like ResizeModes.AUTO (deprecated, removed in 4.0)
+    // resize({width}) / resize({height}) keep the aspect ratio
     {
         const {Animation} = require('..');
         const photo = new Image(12, 8).fill((x, y) => ColorHelpers.fromRGBA(x * 20, y * 30, 90, 255));
         const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
-        assert(same(photo.clone().resize({width: 6}), photo.clone().resize(6, Image.RESIZE_AUTO)), 'resize({width})');
+        assert(same(photo.clone().resize({width: 6}), photo.clone().resize(6, 4)), 'resize({width})');
         assert(photo.clone().resize({width: 6}).height === 4, 'resize({width}) keeps the aspect ratio');
-        assert(same(photo.clone().resize({height: 4, mode: 'bicubic'}), photo.clone().resize(ResizeModes.AUTO, 4, Image.RESIZE_BICUBIC)), 'resize({height, mode})');
+        assert(same(photo.clone().resize({height: 4, mode: 'bicubic'}), photo.clone().resize(6, 4, {mode: ResizeModes.BICUBIC})), 'resize({height, mode})');
         assert(same(photo.clone().resize({width: 5, height: 9, fast: false}), photo.clone().resize(5, 9, {fast: false})), 'resize({width, height, fast})');
         let threw = false;
         try { photo.clone().resize({}); } catch (e) { threw = e instanceof TypeError; }
@@ -436,7 +422,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         const animation = new Animation([Frame.from(photo.clone(), 100), Frame.from(photo.clone().invert(), 100)]);
         const other = new Animation([Frame.from(photo.clone(), 100), Frame.from(photo.clone().invert(), 100)]);
         animation.resize({height: 4});
-        other.resize(Image.RESIZE_AUTO, 4);
+        other.resize(6, 4);
         assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f, other[i])), 'Animation.resize({height})');
     }
 
@@ -1071,14 +1057,14 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         let defs = '<g id="l0"><rect width="1" height="1"/></g>';
         for (let i = 1; i <= 9; i++) defs += `<g id="l${i}">${`<use href="#l${i - 1}"/>`.repeat(10)}</g>`;
         let start = Date.now(), error = null;
-        try { await Image.renderSVG(`<svg ${NS} width="100" height="100"><defs>${defs}</defs><use href="#l9"/></svg>`, {size: 100, mode: Image.SVG_MODE_WIDTH}); } catch (err) { error = err; }
+        try { await Image.renderSVG(`<svg ${NS} width="100" height="100"><defs>${defs}</defs><use href="#l9"/></svg>`, {size: 100, mode: SVGScaleModes.WIDTH}); } catch (err) { error = err; }
         assert(error && /<use> references/.test(error.message) && Date.now() - start < 3000, `billion laughs should throw quickly (${error && error.message}, ${Date.now() - start} ms)`);
 
         start = Date.now();
-        const dashed = await Image.renderSVG(`<svg ${NS} width="100" height="100"><path d="M0 50 L100000000 50" stroke="black" stroke-width="4" stroke-dasharray="0.0001"/></svg>`, {size: 100, mode: Image.SVG_MODE_WIDTH});
+        const dashed = await Image.renderSVG(`<svg ${NS} width="100" height="100"><path d="M0 50 L100000000 50" stroke="black" stroke-width="4" stroke-dasharray="0.0001"/></svg>`, {size: 100, mode: SVGScaleModes.WIDTH});
         assert(Date.now() - start < 3000 && dashed.getRGBAAt(50, 50)[3] === 255, 'a dash pattern too fine to dash should stroke solid, quickly');
 
-        const nested = await Image.renderSVG(`<svg ${NS} width="100" height="100">${'<g>'.repeat(100000)}<rect width="10" height="10"/>${'</g>'.repeat(100000)}</svg>`, {size: 100, mode: Image.SVG_MODE_WIDTH});
+        const nested = await Image.renderSVG(`<svg ${NS} width="100" height="100">${'<g>'.repeat(100000)}<rect width="10" height="10"/>${'</g>'.repeat(100000)}</svg>`, {size: 100, mode: SVGScaleModes.WIDTH});
         assert(nested.width === 100, 'deeply nested elements should render');
     }
     {

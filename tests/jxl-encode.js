@@ -156,7 +156,7 @@ const codestream = jxl => {
     // threads (XYB, the quantization field, the varblock search, the coefficients and their tokens in parallel): the
     // same files as without; at effort 0 from 1024x1024 pixels on, with alpha
     {
-        const big = photo.clone().resize(640, Image.RESIZE_AUTO), large = photo.clone().resize(1024, 1032);
+        const big = photo.clone().resize({width: 640}), large = photo.clone().resize(1024, 1032);
         for (let i = 3; i < large.bitmap.length; i += 4) large.bitmap[i] = (i >> 2) % large.width & 255;
         for (const [image, effort] of [[big, 1], [big, 2], [large, 0]]) {
             const one = await image.encodeJXL({quality: 85, effort, threads: 1, metadata: {creationTime: 0}});
