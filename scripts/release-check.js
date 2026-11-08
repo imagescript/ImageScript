@@ -53,8 +53,10 @@ async function main() {
             : `the GitHub release is marked as prerelease, but ${version} has no prerelease suffix (like -beta.1)`);
 
     const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
-    if (!changelog.split('\n').some(line => /^##\s/.test(line) && line.replace(/^##\s+v?/, '').trim().split(/\s/)[0] === version))
-        fail(`CHANGELOG.md has no "## ${version}" section`);
+    // (a prerelease may use the section of its release, so 4.0.0-alpha.1 and later prereleases share "## 4.0.0")
+    const release = version.replace(/-.*$/, '');
+    if (!changelog.split('\n').some(line => /^##\s/.test(line) && [version, release].includes(line.replace(/^##\s+v?/, '').trim().split(/\s/)[0])))
+        fail(`CHANGELOG.md has no "## ${version}" or "## ${release}" section`);
 
     // what JSR refuses when publishing, after npm has published (deno publish --dry-run doesn't check it): declaring
     // global types
