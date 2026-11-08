@@ -1,4 +1,4 @@
-import { Image, ResizeOptions, ResizeToOptions, TrimOptions, resizeArguments } from './image.ts';
+import { Image, ResizeOptions, ResizeToOptions, TrimOptions, ContainOptions, RotateOptions, TransformOptions, ShadowOptions, OutlineOptions } from './image.ts';
 import { checkOptions, finite } from './util/options.ts';
 
 /**
@@ -29,8 +29,10 @@ export interface FrameOptions {
 
 /**
  * A frame of an {@link Animation}: an {@link Image} ({@link Frame.image}) with a duration, offsets and a disposal mode.
- * The frame's own methods (resize, scale, crop, trim) keep its pixels where they are in the animation by moving the
- * offsets along; every other change goes to the image (`frame.image.blur(2)`), which leaves the offsets as they are
+ * The frame has the methods that change the image's size (resize, scale, contain, cover, crop, trim, rotate, transform,
+ * dropShadow, outline), which move the offsets along so the frame stays in place in the animation; every other change
+ * goes to the image (`frame.image.blur(2)`). The image's own size-changing methods leave the offsets as they are.
+ * Offsets can become negative: the parts of a frame outside the animation's canvas aren't encoded
  */
 export class Frame {
     /** @internal @ignore */
@@ -178,6 +180,25 @@ export class Frame {
     }
 
     /**
+     * Runs a change of the image, moving the offsets the way the image reports its pixels moved
+     * @internal
+     * @ignore
+     */
+    private __tracked__(change: (image: Image) => unknown): this {
+        const image = this.__image__;
+        image.__moved__ = (scaleX, scaleY, x, y) => {
+            this.xOffset = Math.round(this.xOffset * scaleX + x);
+            this.yOffset = Math.round(this.yOffset * scaleY + y);
+        };
+        try {
+            change(image);
+        } finally {
+            delete image.__moved__;
+        }
+        return this;
+    }
+
+    /**
      * Resizes the frame, scaling its offsets along with it (as if the whole animation was resized by the same factor)
      * @param width The new width
      * @param height The new height
@@ -191,15 +212,9 @@ export class Frame {
      */
     resize(options: ResizeToOptions): this;
     resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
-        const originalWidth = this.width, originalHeight = this.height;
-        if (typeof widthOrOptions === 'number') this.__image__.resize(widthOrOptions, heightArgument as number, optionsArgument);
-        else {
-            resizeArguments(widthOrOptions, heightArgument, optionsArgument);
-            this.__image__.resize(widthOrOptions);
-        }
-        this.xOffset = Math.round(this.xOffset * this.width / originalWidth);
-        this.yOffset = Math.round(this.yOffset * this.height / originalHeight);
-        return this;
+        return this.__tracked__(image => typeof widthOrOptions === 'number'
+            ? image.resize(widthOrOptions, heightArgument as number, optionsArgument)
+            : image.resize(widthOrOptions));
     }
 
     /**
@@ -208,11 +223,30 @@ export class Frame {
      * @param options See {@link ResizeOptions}
      */
     scale(factor: number, options?: ResizeOptions): this {
-        const originalWidth = this.width, originalHeight = this.height;
-        this.__image__.scale(factor, options);
-        this.xOffset = Math.round(this.xOffset * this.width / originalWidth);
-        this.yOffset = Math.round(this.yOffset * this.height / originalHeight);
-        return this;
+        return this.__tracked__(image => image.scale(factor, options));
+    }
+
+    /**
+     * Resizes the frame to fit inside the given box and pads it to exactly that size, like {@link Image.contain}. The
+     * offsets scale with the image and then move by the padding, so the image stays where the scaled frame would be
+     * @param width The width of the box
+     * @param height The height of the box
+     * @param options The background and how to resize, see {@link ContainOptions}
+     */
+    contain(width: number, height: number, options?: ContainOptions): this {
+        return this.__tracked__(image => image.contain(width, height, options));
+    }
+
+    /**
+     * Resizes the frame to cover the given box and crops the overflowing edges, like {@link Image.cover}. The offsets
+     * scale with the image and then move by the cropped amount, so the remaining pixels stay where the scaled frame
+     * had them
+     * @param width The width of the box
+     * @param height The height of the box
+     * @param options See {@link ResizeOptions}
+     */
+    cover(width: number, height: number, options?: ResizeOptions): this {
+        return this.__tracked__(image => image.cover(width, height, options));
     }
 
     /**
@@ -224,26 +258,52 @@ export class Frame {
      * @param height The new height
      */
     crop(x: number, y: number, width: number, height: number): this {
-        const left = Math.max(0, Math.floor(finite(x, 'x'))), top = Math.max(0, Math.floor(finite(y, 'y')));
-        this.__image__.crop(x, y, width, height);
-        this.xOffset += left;
-        this.yOffset += top;
-        return this;
+        return this.__tracked__(image => image.crop(x, y, width, height));
     }
 
     /**
      * Removes borders of one color, moving the offsets so the remaining pixels stay where they are in the animation
      * @param options See {@link TrimOptions}
      */
-    trim(options?: TrimOptions): this;
-    trim(options: TrimOptions = {}): this {
-        checkOptions(options, 'trim({ tolerance: 0.1 })');
-        const { color, ...rest } = options;
-        const bounds = this.__image__.__trim_bounds__(color, rest);
-        if (!bounds) return this;
-        this.__image__.crop(...bounds);
-        this.xOffset += bounds[0];
-        this.yOffset += bounds[1];
-        return this;
+    trim(options?: TrimOptions): this {
+        return this.__tracked__(image => image.trim(options));
+    }
+
+    /**
+     * Rotates the frame clockwise around its middle, like {@link Image.rotate}: when it grows (or shrinks), the
+     * offsets move so its middle stays where it is in the animation
+     * @param angle The angle in degrees, clockwise
+     * @param options See {@link RotateOptions}
+     */
+    rotate(angle: number, options?: RotateOptions): this {
+        return this.__tracked__(image => image.rotate(angle, options));
+    }
+
+    /**
+     * Transforms the frame with an affine transform, like {@link Image.transform}: when it grows, the offsets move
+     * so the transform's origin stays where it is in the animation
+     * @param matrix The six values [a, b, c, d, e, f]
+     * @param options See {@link TransformOptions}
+     */
+    transform(matrix: ArrayLike<number>, options?: TransformOptions): this {
+        return this.__tracked__(image => image.transform(matrix, options));
+    }
+
+    /**
+     * Adds a shadow behind the frame's image, like {@link Image.dropShadow}: when it grows up or left, the offsets
+     * move so the image stays where it is in the animation
+     * @param options See {@link ShadowOptions}
+     */
+    dropShadow(options?: ShadowOptions): this {
+        return this.__tracked__(image => image.dropShadow(options));
+    }
+
+    /**
+     * Draws an outline around the frame's shape, like {@link Image.outline}: when it grows up or left, the offsets
+     * move so the image stays where it is in the animation
+     * @param options See {@link OutlineOptions}
+     */
+    outline(options?: OutlineOptions): this {
+        return this.__tracked__(image => image.outline(options));
     }
 }

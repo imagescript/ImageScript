@@ -237,6 +237,62 @@ const throws = (call, type, message) => {
         assert(decoded.length === 2 && decoded.frames[0].duration === 40, 'encoder.add takes frames and images');
     }
 
+    // every size-changing method of a frame moves its offsets, so the frame stays in place
+    {
+        const square = () => new Image(10, 10).fill((x, y) => x === 3 && y === 4 ? 0x00ff00ff : 0xff8040ff);
+        // the green pixel's position in the animation
+        const green = frame => {
+            for (const [x, y, c] of frame.image.pixels()) if (c === 0x00ff00ff) return `${frame.xOffset + x},${frame.yOffset + y}`;
+            return 'gone';
+        };
+        const shadowed = new Frame(square(), {xOffset: 2, yOffset: 5}).dropShadow({blur: 2});
+        assert(shadowed.width > 10 && shadowed.xOffset < 2 && green(shadowed) === '5,9', `Frame.dropShadow: offsets ${shadowed.xOffset},${shadowed.yOffset}, green at ${green(shadowed)}`);
+        const outlined = new Frame(square(), {xOffset: 1, yOffset: 4}).outline({width: 3});
+        assert(outlined.width === 16 && outlined.xOffset === -2 && outlined.yOffset === 1 && green(outlined) === '4,8', `Frame.outline: ${outlined.xOffset},${outlined.yOffset}`);
+        const sheared = new Frame(new Image(20, 20).fill(0xffffffff), {xOffset: 100, yOffset: 100}).transform([1, 0, 0.5, 1, 0, 0]);
+        assert(sheared.width === 30 && sheared.xOffset === 95 && sheared.yOffset === 100, `Frame.transform: ${sheared.width} at ${sheared.xOffset},${sheared.yOffset}`);
+        const turned = new Frame(new Image(20, 10), {xOffset: 10, yOffset: 10}).rotate(90);
+        assert(turned.width === 10 && turned.height === 20 && turned.xOffset === 15 && turned.yOffset === 5, `Frame.rotate(90) keeps its middle: ${turned.xOffset},${turned.yOffset}`);
+        const tilted = new Frame(new Image(20, 20), {xOffset: 50, yOffset: 50}).rotate(45);
+        assert(Math.abs(tilted.xOffset + tilted.width / 2 - 60) <= 0.5 && Math.abs(tilted.yOffset + tilted.height / 2 - 60) <= 0.5, 'Frame.rotate(45) keeps its middle');
+        const contained = new Frame(new Image(20, 10), {xOffset: 10, yOffset: 6}).contain(40, 40);
+        assert(contained.width === 40 && contained.height === 40 && contained.xOffset === 20 && contained.yOffset === 2, `Frame.contain: ${contained.xOffset},${contained.yOffset}`);
+        const covered = new Frame(new Image(20, 10), {xOffset: 10, yOffset: 6}).cover(10, 10);
+        assert(covered.width === 10 && covered.xOffset === 15 && covered.yOffset === 6, `Frame.cover: ${covered.xOffset},${covered.yOffset}`);
+        const viaImage = new Frame(square(), {xOffset: 2, yOffset: 5});
+        viaImage.image.dropShadow({blur: 2});
+        assert(viaImage.xOffset === 2 && viaImage.yOffset === 5, 'frame.image.dropShadow leaves the offsets');
+        assert(viaImage.image.__moved__ === undefined && !Object.keys(viaImage.image).includes('__moved__'), 'the offset tracking is removed afterwards');
+        let error = null;
+        try { new Frame(square(), {xOffset: 2}).rotate(10, {mode: 'area'}); } catch (e) { error = e; }
+        assert(error instanceof TypeError, 'Frame.rotate checks its options');
+    }
+
+    // the same on animations: scale and trim keep the frames, the others work on the composited animation
+    {
+        const animation = () => new Animation([
+            new Frame(new Image(30, 20).fill((x, y) => x === 0 && y === 0 ? 0x00ff00ff : 0xff0000ff), {duration: 40}),
+            new Frame(new Image(6, 4).fill(0x0000ffff), {xOffset: 10, yOffset: 8, duration: 60})
+        ]);
+        const scaled = animation().scale(2);
+        assert(scaled.width === 60 && scaled.height === 40 && scaled.frames[1].xOffset === 20 && scaled.frames[1].width === 12, 'Animation.scale');
+        const sparse = new Animation([new Frame(new Image(4, 3).fill(0xffffffff), {xOffset: 5, yOffset: 6}), new Frame(new Image(2, 2).fill(0xff0000ff), {xOffset: 12, yOffset: 7})], {width: 20, height: 20});
+        sparse.trim();
+        assert(sparse.width === 9 && sparse.height === 3 && sparse.frames[0].xOffset === 0 && sparse.frames[1].xOffset === 7 && sparse.frames[1].yOffset === 1, `Animation.trim: ${sparse.width}x${sparse.height}`);
+        const turned = animation().rotate(90);
+        assert(turned.width === 20 && turned.height === 30 && turned.length === 2 && turned.frames.every(f => f.width === 20 && f.height === 30 && f.xOffset === 0), 'Animation.rotate(90): full canvas frames');
+        assert(turned.frames[0].image.getPixelAt(19, 0) === 0x00ff00ff && turned.frames.map(f => f.duration).join() === '40,60', 'Animation.rotate turns clockwise, keeps the durations');
+        assert(turned.frames[1].image.getPixelAt(20 - 1 - 9, 11) === 0x0000ffff, 'Animation.rotate: the second frame composited over the first');
+        const shadowed = animation().dropShadow({blur: 2});
+        const outlined = animation().outline({width: 2});
+        const skewed = animation().transform([1, 0, 0.5, 1, 0, 0]);
+        assert(shadowed.width > 30 && outlined.width === 34 && outlined.height === 24 && skewed.width === 40 && skewed.frames.every(f => f.width === skewed.width), 'Animation.dropShadow, outline and transform grow the canvas');
+        const kept = animation(), first = kept.frames[0];
+        let error = null;
+        try { kept.rotate(10, {mode: 'area'}); } catch (e) { error = e; }
+        assert(error instanceof TypeError && kept.frames[0] === first && kept.width === 30, 'Animation.rotate: nothing changes when it throws');
+    }
+
     // renamed parameters and the American spelling
     {
         const gray = new Image(1, 1).fill(0xff0000ff).grayscale();

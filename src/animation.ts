@@ -6,7 +6,7 @@ import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
-import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ContainOptions, ResizeOptions, ResizeToOptions, resizeArguments, insideSize } from './image.ts';
+import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ContainOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize } from './image.ts';
 import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
@@ -283,13 +283,117 @@ export class Animation {
         }
         this.__canvas__ = [boxWidth, boxHeight];
         if (backgroundColor !== 0) {
-            const composited = png.compositeAnimation({ width: boxWidth, height: boxHeight, frames: this.__apngFrames__() });
-            this.frames = composited.map(({ pixels, duration }) => {
-                const content = new Image(boxWidth, boxHeight);
-                content.bitmap = pixels;
-                return new Frame(new Image(boxWidth, boxHeight).fill(backgroundColor).composite(content), { duration, disposalMode: 'background' });
+            this.frames = this.__flattened__().map(frame => {
+                frame.image = new Image(boxWidth, boxHeight).fill(backgroundColor).composite(frame.image);
+                return frame;
             });
         }
+        return this;
+    }
+
+    /**
+     * Scales the animation by a factor: every frame and its offsets, and the canvas
+     * @param factor The factor
+     * @param options See {@link ResizeOptions}
+     */
+    scale(factor: number, options?: ResizeOptions): this {
+        if (!(finite(factor, 'factor') > 0)) throw new RangeError(`Invalid scale factor: ${factor}`);
+        return this.resize(this.width * factor, this.height * factor, options);
+    }
+
+    /**
+     * Trims the canvas: removes the borders of one color around what any frame shows (in the composited animation),
+     * like {@link Image.trim}. The frames keep their pixels, the canvas is cropped like {@link Animation.crop}
+     * @param options The color (by default the top left pixel of the first frame) and the tolerance, see
+     *     {@link TrimOptions}
+     */
+    trim(options: TrimOptions = {}): this {
+        checkOptions(options, 'trim({ tolerance: 0.1 })');
+        const frames = this.__flattened__();
+        if (!frames.length) return this;
+        const { color = frames[0].image.getPixelAt(0, 0), ...rest } = options;
+        let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+        for (const { image } of frames) {
+            const bounds = image.__trim_bounds__(color, rest);
+            if (!bounds) continue;
+            left = Math.min(left, bounds[0]);
+            top = Math.min(top, bounds[1]);
+            right = Math.max(right, bounds[0] + bounds[2]);
+            bottom = Math.max(bottom, bounds[1] + bounds[3]);
+        }
+        if (left === Infinity) return this;
+        return this.crop(left, top, right - left, bottom - top);
+    }
+
+    /**
+     * Rotates the animation clockwise, like {@link Image.rotate}: the frames become full canvas frames of the
+     * composited animation (a partial frame turned by any angle wouldn't cover a rectangle anymore), each one rotated,
+     * and the canvas takes their size
+     * @param angle The angle in degrees, clockwise
+     * @param options See {@link RotateOptions}
+     */
+    rotate(angle: number, options?: RotateOptions): this {
+        return this.__each__(image => image.rotate(angle, options));
+    }
+
+    /**
+     * Transforms the animation with an affine transform, like {@link Image.transform}: the frames become full canvas
+     * frames of the composited animation, each one transformed (by default around the canvas' middle), and the canvas
+     * takes their size
+     * @param matrix The six values [a, b, c, d, e, f]
+     * @param options See {@link TransformOptions}
+     */
+    transform(matrix: ArrayLike<number>, options?: TransformOptions): this {
+        return this.__each__(image => image.transform(matrix, options));
+    }
+
+    /**
+     * Adds a shadow behind what the animation shows, like {@link Image.dropShadow}: the frames become full canvas
+     * frames of the composited animation, each one with its shadow, and the canvas grows with them
+     * @param options See {@link ShadowOptions}
+     */
+    dropShadow(options?: ShadowOptions): this {
+        return this.__each__(image => image.dropShadow(options));
+    }
+
+    /**
+     * Draws an outline around what the animation shows, like {@link Image.outline}: the frames become full canvas
+     * frames of the composited animation, each one outlined, and the canvas grows with them
+     * @param options See {@link OutlineOptions}
+     */
+    outline(options?: OutlineOptions): this {
+        return this.__each__(image => image.outline(options));
+    }
+
+    /**
+     * The composited animation: one full canvas frame per frame, with its duration (gain maps are dropped)
+     * @internal
+     * @ignore
+     */
+    __flattened__(): Frame[] {
+        const { width, height } = this;
+        if (!this.length) return [];
+        return png.compositeAnimation({ width, height, frames: this.__apngFrames__() }).map(({ pixels, duration }) => {
+            const image = new Image(width, height);
+            image.bitmap = pixels;
+            return new Frame(image, { duration, disposalMode: 'background' });
+        });
+    }
+
+    /**
+     * Applies a change to every frame of the composited animation; the canvas takes the frames' new size. Nothing
+     * changes if the change throws
+     * @internal
+     * @ignore
+     */
+    private __each__(change: (image: Image) => unknown): this {
+        const { width, height } = this;
+        if (!width || !height) throw new RangeError('An animation without frames or canvas can\'t be changed');
+        const frames = this.__flattened__();
+        const probe = frames[0]?.image ?? new Image(width, height);
+        for (const frame of frames.length ? frames : [new Frame(probe)]) change(frame.image);
+        this.frames = frames;
+        this.__canvas__ = [probe.width, probe.height];
         return this;
     }
 

@@ -907,6 +907,15 @@ export class Image {
     }
 
     /**
+     * Set by {@link Frame} while one of its methods runs: the methods that change the image's size call it with where
+     * the pixels went, so the frame can move its offsets. The new image's top left corner is where the point (x, y)
+     * of the old image was, after the old image was scaled by (scaleX, scaleY)
+     * @internal
+     * @ignore
+     */
+    declare __moved__?: (scaleX: number, scaleY: number, x: number, y: number) => void;
+
+    /**
      * Resizes the image by the given factor
      * @param factor The factor to resize the image with
      * @param options See {@link ResizeOptions}
@@ -917,6 +926,7 @@ export class Image {
         const { mode, fast } = resizeOptions(options);
         const image = this.__scale__(factor, mode, fast);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
+        this.__moved__?.(image.width / this.width, image.height / this.height, 0, 0);
         return this.__apply__(image);
     }
 
@@ -950,6 +960,7 @@ export class Image {
         const { mode, fast } = resizeOptions(options);
         const image = this.__resize__(...this.__resized_size__(width, height, fit), mode, fast);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
+        this.__moved__?.(image.width / this.width, image.height / this.height, 0, 0);
         return this.__apply__(image);
     }
 
@@ -980,6 +991,7 @@ export class Image {
         const x = (width - this.width) / 2 | 0, y = (height - this.height) / 2 | 0;
         result.composite(this, { x, y });
         this.__gain_map__?.__transform__(this.width, this.height, result.width, result.height, (X, Y) => [X - x, Y - y]);
+        this.__moved__?.(1, 1, -x, -y);
         return this.__apply__(result);
     }
 
@@ -1009,6 +1021,7 @@ export class Image {
             const region = { x: ~~((resizedWidth - width) / 2), y: ~~((resizedHeight - height) / 2), width, height };
             const fx = resizedWidth / this.width, fy = resizedHeight / this.height;
             this.__gain_map__?.__transform__(this.width, this.height, width, height, (X, Y) => [(X + region.x) / fx, (Y + region.y) / fy], Math.min(fx, fy));
+            this.__moved__?.(fx, fy, region.x, region.y);
             return this.__apply__(this.__resize__(resizedWidth, resizedHeight, resizeOpts.mode, resizeOpts.fast, region));
         }
         this.resize(resizedWidth, resizedHeight, resizeOpts);
@@ -1086,6 +1099,7 @@ export class Image {
     crop(x: number, y: number, width: number, height: number): this {
         const bounds = this.__crop_bounds__(x, y, width, height);
         this.__crop_gain_map__(this, ...bounds);
+        this.__moved__?.(1, 1, bounds[0], bounds[1]);
         return this.__apply__(this.__crop__(...bounds));
     }
 
@@ -1149,6 +1163,7 @@ export class Image {
         const bounds = this.__trim_bounds__(color, rest);
         if (!bounds) return this;
         this.__crop_gain_map__(this, ...bounds);
+        this.__moved__?.(1, 1, bounds[0], bounds[1]);
         return this.__apply__(this.__crop__(...bounds));
     }
 
@@ -1818,6 +1833,7 @@ export class Image {
             const x = X + left, y = Y + top;
             return [inverse[0] * x + inverse[2] * y + inverse[4], inverse[1] * x + inverse[3] * y + inverse[5]];
         }, scale);
+        this.__moved__?.(1, 1, left, top);
         return this.__apply__(out);
     }
 
@@ -1933,8 +1949,8 @@ export class Image {
             this.__gain_map__ = map;
         }
         map?.__transform__(this.width, this.height, width, height, (X, Y) => [X - left, Y - top]);
-        this.__apply__(result);
-        return this;
+        this.__moved__?.(1, 1, -left, -top);
+        return this.__apply__(result);
     }
 
     /**
@@ -2170,6 +2186,7 @@ export class Image {
                 }
 
             rotateGainMap(out.width, out.height);
+            this.__moved__?.(1, 1, (width - out.width) / 2, (height - out.height) / 2);
             return this.__apply__(out);
         }
 
@@ -2183,6 +2200,7 @@ export class Image {
         const inverse: [number, number, number, number, number, number] = [cos, sin, -sin, cos,
             width / 2 - cos * outWidth / 2 + sin * outHeight / 2, height / 2 - sin * outWidth / 2 - cos * outHeight / 2];
         sampleAffine(this.bitmap, width, height, out.bitmap, outWidth, outHeight, inverse, 0, 0, mode);
+        this.__moved__?.(1, 1, (width - outWidth) / 2, (height - outHeight) / 2);
         return this.__apply__(out);
     }
 
