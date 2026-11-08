@@ -1,6 +1,6 @@
 {
   "name": "@matmen/imagescript",
-  "version": "3.19.0",
+  "version": "3.20.0",
   "license": "MIT",
   "exports": "./src/index.ts",
   "publish": {
