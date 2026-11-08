@@ -47,6 +47,8 @@ Upgrading from 3.x? Upgrade to 3.20.1 first, fix the deprecation hints, then swi
 
 - **`decode()` takes options only**: `decode(data, true)` is `decode(data, { onlyFirstFrame: true })`, and a boolean throws a `TypeError` that names the options form.
 
+- **`opacity()`, `red()`, `green()`, `blue()`, `lightness()` and `saturation()` reject a second argument**: 3.x's `absolute` call like `image.red(0.5, true)` would silently scale by 0.5 now, so it throws a `TypeError` before the image is touched. Use `image.red(0.5)` to scale and `image.recolor()` for a fixed color.
+
 ## 3.20.1
 
 ### Performance

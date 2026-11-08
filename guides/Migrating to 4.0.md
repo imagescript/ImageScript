@@ -146,7 +146,8 @@ The color helpers take the same arguments and return the same values, so `Image.
 ### Channel methods and `absolute`
 
 `opacity()`, `red()`, `green()`, `blue()`, `lightness()` and `saturation()` only scale now. The `absolute` argument is
-removed, and so is the `AdjustOptions` type.
+removed, and so is the `AdjustOptions` type. A second argument throws a `TypeError` before the image is touched, so
+`image.red(0.5, true)` fails loudly instead of scaling.
 
 | 3.x | 4.0 |
 | --- | --- |

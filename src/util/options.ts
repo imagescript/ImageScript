@@ -13,6 +13,14 @@ export function checkOptions(value: unknown, usage: string): void {
 }
 
 /**
+ * The channel methods take a factor only: 3.x's `absolute` argument, a second one, would be a silent scale now, so more
+ * than one argument throws (before the image is touched). `method` is the name of the method
+ */
+export function checkFactorOnly(method: string, count: number): void {
+    if (count > 1) throw new TypeError(`channel methods reject the removed absolute argument: use ${method}(factor) to scale, or recolor() for a fixed color`);
+}
+
+/**
  * A number argument, converted like arithmetic does (numeric strings keep working); NaN and the infinities throw
  * a RangeError naming the argument
  */

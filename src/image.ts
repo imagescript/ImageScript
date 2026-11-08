@@ -33,7 +33,7 @@ import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts'
 import { rotateBilinear } from './util/rotate.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, checkFactorOnly, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -1410,6 +1410,7 @@ export class Image {
      * @param opacity The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
      */
     opacity(opacity: number): this {
+        checkFactorOnly('opacity', arguments.length);
         opacity = finite(opacity, 'opacity value');
         if (opacity < 0)
             throw new RangeError('Invalid opacity value');
@@ -1424,6 +1425,7 @@ export class Image {
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
      */
     red(factor: number): this {
+        checkFactorOnly('red', arguments.length);
         if (this.__gain_map__) return this.__recolor__(image => image.red(factor));
         factor = finite(factor, 'red factor');
         if (factor < 0)
@@ -1439,6 +1441,7 @@ export class Image {
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
      */
     green(factor: number): this {
+        checkFactorOnly('green', arguments.length);
         if (this.__gain_map__) return this.__recolor__(image => image.green(factor));
         factor = finite(factor, 'green factor');
         if (factor < 0)
@@ -1454,6 +1457,7 @@ export class Image {
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
      */
     blue(factor: number): this {
+        checkFactorOnly('blue', arguments.length);
         if (this.__gain_map__) return this.__recolor__(image => image.blue(factor));
         factor = finite(factor, 'blue factor');
         if (factor < 0)
@@ -1478,6 +1482,7 @@ export class Image {
      * @param value The factor to multiply the lightness with (>= 0, results are clamped)
      */
     lightness(value: number): this {
+        checkFactorOnly('lightness', arguments.length);
         if (this.__gain_map__) return this.__recolor__(image => image.lightness(value));
         value = finite(value, 'lightness value');
         if (value < 0)
@@ -1491,6 +1496,7 @@ export class Image {
      * @param value The factor to multiply the saturation with (>= 0, results are clamped)
      */
     saturation(value: number): this {
+        checkFactorOnly('saturation', arguments.length);
         if (this.__gain_map__) return this.__recolor__(image => image.saturation(value), true);
         value = finite(value, 'saturation value');
         if (value < 0)

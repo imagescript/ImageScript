@@ -134,6 +134,18 @@ const sameImage = (image, reference, label) => {
 		if (!/takes an options object/.test(error.message)) panic(`${label}: the message should name the options form, got ${error.message}`);
 	}
 
+	// the channel methods take a factor only: a second argument (3.x's absolute) throws before the image is touched
+	for (const method of ['opacity', 'red', 'green', 'blue', 'lightness', 'saturation']) {
+		for (const second of [true, {absolute: true}]) {
+			const image = photo.clone();
+			const before = Buffer.from(image.bitmap);
+			const error = await rejects(() => image[method](0.5, second), `${method}(0.5, ${JSON.stringify(second)})`);
+			if (!/channel methods reject the removed absolute argument/.test(error.message)) panic(`${method}: the message should name the replacement, got ${error.message}`);
+			if (!Buffer.from(image.bitmap).equals(before)) panic(`${method}(0.5, ${JSON.stringify(second)}) changed the image before throwing`);
+		}
+	}
+	if (new Image(1, 1).fill(0xc80000ff).red(0.5).getPixelAt(0, 0) !== 0x640000ff) panic('red(0.5) should scale the red channel');
+
 	// the options form still resizes; undefined stays fine
 	if (photo.clone().resize(10, 6, {mode: ResizeModes.AREA}).width !== 10) panic('resize(10, 6, { mode })');
 	if (photo.clone().resize(10, 6).height !== 6) panic('resize(10, 6)');
