@@ -132,14 +132,14 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(alpha(0, 0) < 64 && alpha(3, 0) === 255 && alpha(0, 1) > 0 && alpha(0, 1) < 255, 'roundCorners should antialias the arc');
     }
 
-    // text alignments only take the values of their own axis
+    // text alignments only take the values of their own axis (the message names them)
     {
         const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
         await Image.renderText('a', {font, size: 12, layout: {horizontalAlign: 'right', verticalAlign: 'middle'}});
         for (const options of [{verticalAlign: 'center', horizontalAlign: 'bottom'}, {horizontalAlign: 'top'}, {verticalAlign: 'left'}, {horizontalAlign: 'middle'}]) {
             let error = null;
             try { await Image.renderText('a', {font, size: 12, layout: options}); } catch (e) { error = e; }
-            assert(error instanceof TypeError && error.message.includes('text alignments only take the values of their own axis'), `layout ${JSON.stringify(options)} should throw a TypeError, got ${error}`);
+            assert(error instanceof TypeError && /must be '(left|top)'/.test(error.message), `layout ${JSON.stringify(options)} should throw a TypeError, got ${error}`);
         }
     }
 

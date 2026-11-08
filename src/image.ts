@@ -33,7 +33,7 @@ import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts'
 import { rotateBilinear } from './util/rotate.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, checkFactorOnly, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -1299,7 +1299,6 @@ export class Image {
      * @param opacity The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
      */
     opacity(opacity: number): this {
-        checkFactorOnly('opacity', arguments.length);
         opacity = finite(opacity, 'opacity value');
         if (opacity < 0)
             throw new RangeError('Invalid opacity value');
@@ -1314,7 +1313,6 @@ export class Image {
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
      */
     red(factor: number): this {
-        checkFactorOnly('red', arguments.length);
         if (this.__gain_map__) return this.__recolor__(image => image.red(factor));
         factor = finite(factor, 'red factor');
         if (factor < 0)
@@ -1330,7 +1328,6 @@ export class Image {
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
      */
     green(factor: number): this {
-        checkFactorOnly('green', arguments.length);
         if (this.__gain_map__) return this.__recolor__(image => image.green(factor));
         factor = finite(factor, 'green factor');
         if (factor < 0)
@@ -1346,7 +1343,6 @@ export class Image {
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
      */
     blue(factor: number): this {
-        checkFactorOnly('blue', arguments.length);
         if (this.__gain_map__) return this.__recolor__(image => image.blue(factor));
         factor = finite(factor, 'blue factor');
         if (factor < 0)
@@ -1371,7 +1367,6 @@ export class Image {
      * @param factor The factor to multiply the lightness with (>= 0, results are clamped)
      */
     lightness(factor: number): this {
-        checkFactorOnly('lightness', arguments.length);
         if (this.__gain_map__) return this.__recolor__(image => image.lightness(factor));
         factor = finite(factor, 'lightness factor');
         if (factor < 0)
@@ -1385,7 +1380,6 @@ export class Image {
      * @param factor The factor to multiply the saturation with (>= 0, results are clamped)
      */
     saturation(factor: number): this {
-        checkFactorOnly('saturation', arguments.length);
         if (this.__gain_map__) return this.__recolor__(image => image.saturation(factor), true);
         factor = finite(factor, 'saturation factor');
         if (factor < 0)
@@ -2469,9 +2463,6 @@ export class Image {
     encodePNG(options?: PNGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodePNG(options: PNGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encodePNG({ compression: 9, metadata: { author: \'me\' } })');
-        // the metadata of 3.x passed as the only argument would be ignored: it has to go in { metadata }
-        for (const key of Object.keys(options))
-            if (key !== 'compression' && key !== 'metadata') throw new TypeError(`encodePNG() takes the metadata in { metadata }, like encodePNG({ metadata: { ${key}: ... } }), not ${key} at the top level`);
         const { compression = 4, metadata = {} } = options;
 
         return png.encodeRGBA(this.__bytes__(), this.width, this.height, compressionLevel(compression), pngText(resolveMetadata(metadata)));
@@ -2937,9 +2928,7 @@ interface HSLA {
 export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, options?: ResizeOptions): [width: number | undefined, height: number | undefined, options: ResizeOptions | undefined, fit: 'fill' | 'inside'] {
     if (!isOptions(widthOrOptions)) {
         checkOptions(options, 'resize(width, height, { mode: \'area\' })');
-        // without a height, the aspect ratio would be kept silently (3.x refused that call)
-        if (height === undefined) throw new TypeError(`resize() needs a height or the options form, like resize({ width: ${widthOrOptions} }) to keep the aspect ratio`);
-        return [finite(widthOrOptions, 'width'), finite(height, 'height'), options, 'fill'];
+        return [finite(widthOrOptions, 'width'), finite(height as number, 'height'), options, 'fill'];
     }
     const { width, height: optionsHeight, fit = 'fill', ...rest } = widthOrOptions;
     if (width === undefined && optionsHeight === undefined) throw new TypeError('resize() needs a width, a height or both');

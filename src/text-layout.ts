@@ -66,11 +66,11 @@ export class TextLayout {
             throw new RangeError('Invalid wrapStyle');
 
         if (horizontalAlign !== undefined) {
-            if (!HORIZONTAL.includes(horizontalAlign)) throw new TypeError(`text alignments only take the values of their own axis: horizontalAlign takes 'left', 'center' or 'right', not '${horizontalAlign}'`);
+            if (!HORIZONTAL.includes(horizontalAlign)) throw new TypeError(`horizontalAlign must be 'left', 'center' or 'right', not '${horizontalAlign}'`);
             this.horizontalAlign = horizontalAlign;
         }
         if (verticalAlign !== undefined) {
-            if (!VERTICAL.includes(verticalAlign)) throw new TypeError(`text alignments only take the values of their own axis: verticalAlign takes 'top', 'middle' or 'bottom', not '${verticalAlign}'`);
+            if (!VERTICAL.includes(verticalAlign)) throw new TypeError(`verticalAlign must be 'top', 'middle' or 'bottom', not '${verticalAlign}'`);
             this.verticalAlign = verticalAlign;
         }
 

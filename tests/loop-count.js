@@ -112,7 +112,7 @@ const netscape = bytes => {
         throwsA(() => Animation.webpEncoder(4, 4, {loopCount: value}), expected, `webpEncoder with ${label}`);
     }
 
-    // -1 meant forever in 3.x: it says so in the message, and it is refused like any other negative number
+    // negative counts are refused, the message names the valid values
     throwsA(() => new Animation(frames(), {loopCount: -1}), RangeError, 'loopCount -1');
     try { new Animation(frames(), {loopCount: -1}); } catch (error) {
         if (!/Infinity/.test(error.message)) panic(`-1: the message should name Infinity, got ${error.message}`);

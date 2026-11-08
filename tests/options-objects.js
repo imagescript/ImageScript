@@ -16,7 +16,7 @@ const throwsA = async (fn, type, label) => {
 	const font = await fs.readFile('./tests/fonts/opensans bold.ttf');
 	const photo = new Image(20, 12).fill((x, y) => 0x336699ff + x * 0x01000000 + y * 0x00010000 >>> 0);
 
-	// methods that only take options refuse anything else (the positional forms of 3.x are gone), instead of ignoring it
+	// methods that only take options refuse anything else, instead of ignoring it
 	for (const [label, bad] of Object.entries({'true': true, 'false': false, 'a number': 0.5, 'a string': 'cover', 'null': null, 'a typed array': new Uint8Array(2)})) {
 		const image = photo.clone();
 		const error = await throwsA(() => image.cropCircle(bad), TypeError, `cropCircle(${label})`);
@@ -26,7 +26,7 @@ const throwsA = async (fn, type, label) => {
 	for (const fine of [undefined, {}, {size: 'cover'}, {size: 'contain', feathering: 0.1}]) photo.clone().cropCircle(fine);
 	await throwsA(() => photo.clone().cropCircle({size: 'huge'}), TypeError, 'cropCircle with an unknown size');
 
-	// renderText(text, { font, size, ... }) is the only form: the 3.x forms with the font first fail clearly
+	// renderText(text, { font, size, ... }) is the only form: the font first fails clearly
 	const ok = await Image.renderText('Hi', {font, size: 24});
 	if (ok.width < 4 || ok.height < 4) panic(`renderText: ${ok.width}x${ok.height}`);
 	for (const [label, call] of Object.entries({

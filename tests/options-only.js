@@ -5,7 +5,7 @@ const panic = message => {
 	process.exit(1);
 };
 
-// the 3.x positional forms of 4.0 methods throw a TypeError (and leave the image as it was)
+// methods that take options throw a TypeError for anything else than an options object (and leave the image as it was)
 const rejects = async (call, label) => {
 	let error = null;
 	try { await call(); } catch (e) { error = e; }
@@ -84,7 +84,6 @@ const sameImage = (image, reference, label) => {
 	for (const [label, call] of Object.entries({
 		'encodePNG(1)': () => photo.encodePNG(1),
 		'encodePNG(1, { author })': () => photo.encodePNG(1, {author: 'me'}),
-		'encodePNG({ author }) (3.x metadata)': () => photo.encodePNG({author: 'me'}),
 		'encodeJPEG(80)': () => photo.encodeJPEG(80),
 		'encodeGIF(10)': () => makeAnimation().encodeGIF(10),
 		'encodeAPNG(9)': () => makeAnimation().encodeAPNG(9),
@@ -133,28 +132,6 @@ const sameImage = (image, reference, label) => {
 		if (!/takes an options object/.test(error.message)) panic(`${label}: the message should name the options form, got ${error.message}`);
 	}
 
-	// the channel methods take a factor only: a second argument (3.x's absolute) throws before the image is touched
-	for (const method of ['opacity', 'red', 'green', 'blue', 'lightness', 'saturation']) {
-		for (const second of [true, {absolute: true}]) {
-			const image = photo.clone();
-			const before = Buffer.from(image.bitmap);
-			const error = await rejects(() => image[method](0.5, second), `${method}(0.5, ${JSON.stringify(second)})`);
-			if (!/channel methods reject the removed absolute argument/.test(error.message)) panic(`${method}: the message should name the replacement, got ${error.message}`);
-			if (!Buffer.from(image.bitmap).equals(before)) panic(`${method}(0.5, ${JSON.stringify(second)}) changed the image before throwing`);
-		}
-	}
-	if (new Image(1, 1).fill(0xc80000ff).red(0.5).getPixelAt(0, 0) !== 0x640000ff) panic('red(0.5) should scale the red channel');
-
-	// the positional resize needs a height (3.x refused resize(100)): the message names the options form
-	for (const [label, call] of Object.entries({
-		'image.resize(100)': () => photo.clone().resize(100),
-		'image.resize(100, undefined)': () => photo.clone().resize(100, undefined),
-		'frame.resize(100)': () => new Frame(8, 4).resize(100),
-		'animation.resize(100)': () => new Animation([new Frame(8, 4)]).resize(100)
-	})) {
-		const error = await rejects(call, label);
-		if (!/resize\(\) needs a height or the options form, like resize\(\{ width: 100 \}\)/.test(error.message)) panic(`${label}: the message should name resize({ width: 100 }), got ${error.message}`);
-	}
 	let nanError = null;
 	try { photo.clone().resize(NaN, 6); } catch (e) { nanError = e; }
 	if (!(nanError instanceof RangeError)) panic(`resize(NaN, 6) should throw a RangeError, got ${nanError}`);

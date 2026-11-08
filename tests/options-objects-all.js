@@ -6,7 +6,7 @@ const panic = message => {
 };
 
 // the options of every method that takes them must be an object (or left out): a stray number, string or boolean is a
-// call in a form that doesn't exist (the 3.x positional forms, or a typo), so it throws instead of being ignored
+// call in a form that doesn't exist, so it throws instead of being ignored
 (async () => {
 	const photo = new Image(16, 10).fill((x, y) => 0x336699ff + x * 0x01000000 + y * 0x00010000 >>> 0);
 	const frame = Frame.from(photo);

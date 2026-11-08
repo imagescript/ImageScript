@@ -146,15 +146,6 @@ if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
                 panic(`${func.name} failed with value ${JSON.stringify(value)}`);
             } catch {
             }
-
-    // the channel methods take a factor only: the 3.x absolute argument throws
-    const toReject = [[1, true], [1, false], [0, true], [0, false]];
-    for (const func of funcs)
-        for (const value of toReject) {
-            let error = null;
-            try { func.call(image, ...value); } catch (e) { error = e; }
-            if (!(error instanceof TypeError)) panic(`${func.name} with a second argument should throw a TypeError, got ${error}`);
-        }
 }
 
 {

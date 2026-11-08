@@ -4,20 +4,11 @@ export function isOptions<T>(value: T): value is Extract<T, object> {
 }
 
 /**
- * Checks that the options argument of a method is left out or an object. A method that only takes options (4.0 removed
- * the positional forms) throws a TypeError for anything else instead of silently ignoring it, which names the form that
- * works: `usage` is e.g. `cropCircle({ size: 'cover' })`
+ * Checks that the options argument of a method is left out or an object: anything else throws a TypeError instead of
+ * being ignored silently, naming the form that works (`usage`, e.g. `cropCircle({ size: 'cover' })`)
  */
 export function checkOptions(value: unknown, usage: string): void {
     if (value !== undefined && !isOptions(value)) throw new TypeError(`${usage.split('(')[0]}() takes an options object, like ${usage}, not ${value === null ? 'null' : typeof value}`);
-}
-
-/**
- * The channel methods take a factor only: 3.x's `absolute` argument, a second one, would be a silent scale now, so more
- * than one argument throws (before the image is touched). `method` is the name of the method
- */
-export function checkFactorOnly(method: string, count: number): void {
-    if (count > 1) throw new TypeError(`channel methods reject the removed absolute argument: use ${method}(factor) to scale, or recolor() for a fixed color`);
 }
 
 /**
@@ -32,12 +23,12 @@ export function finite(value: number, name: string): number {
 
 /**
  * A loop count: `Infinity` (loop forever) or an integer from 0 (0 plays once, 1 plays twice, ...). Anything else that is
- * a number throws a RangeError (`-1`, which 3.x meant as forever, says so), anything that isn't one a TypeError
+ * a number throws a RangeError, anything that isn't one a TypeError
  */
 export function loopCount(value: unknown, name = 'loop count'): number {
     if (typeof value !== 'number') throw new TypeError(`${name} must be a number (Infinity or an integer from 0), not ${value === null ? 'null' : typeof value}`);
     if (value !== Infinity && (!Number.isInteger(value) || value < 0))
-        throw new RangeError(`${name} must be Infinity or an integer from 0, not ${value}${value === -1 ? ' (use Infinity to loop forever)' : ''}`);
+        throw new RangeError(`${name} must be Infinity or an integer from 0, not ${value}`);
     return value;
 }
 
