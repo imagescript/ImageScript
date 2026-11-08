@@ -1,8 +1,8 @@
 # Migrating to 4.0
 
-ImageScript 4.0 removes everything 3.x deprecated, and changes five behaviors. Most of the removals are mechanical:
-the compiler points at them. The five behavior changes are not deprecations, nothing warns about them, and code can
-keep compiling while it does something else. Read the first section even if your build is clean.
+ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes seven behaviors. Most of the
+removals are mechanical: the compiler points at them. The seven behavior changes are not deprecations, nothing warns
+about them, and code keeps compiling while it does something else. Read the first section even if your build is clean.
 
 Node.js 22.13 or newer is required, as it was for 3.x (`engines` in `package.json`).
 
@@ -12,7 +12,8 @@ The recommended path:
    strikethrough, and the deprecation text names the replacement. `tsc` doesn't fail on them, so use the editor's
    problems list, or a lint rule for deprecated APIs (typescript-eslint has `no-deprecated`), to get the full list.
 2. Fix every deprecation hint, using the tables below.
-3. Switch to 4.0 and go through the five behavior changes. The [checklist](#checklist) at the end has grep patterns
+3. Switch to 4.0, fix what the compiler reports with the [renamed and reshaped APIs](#renamed-and-reshaped-apis), and go
+   through the seven behavior changes. The [checklist](#checklist) at the end has grep patterns
    for finding the code they affect.
 
 ## Behavior changes
@@ -37,7 +38,7 @@ import { Animation, decode } from 'imagescript';
 
 const decoded = await decode(data);
 if (decoded instanceof Animation) {
-  const out = await decoded.encodeGIF({ quality: 90 });
+  const out = await decoded.encodeGIF();
 }
 ```
 
@@ -131,20 +132,42 @@ still works without an error, but gives a different color: `Colors.fromHSL(0.5, 
 | `Colors.fromHSL(h, s, l)` with `h` in 0-1 | `Colors.fromHSL(h * 360, s, l)` |
 | `Colors.toHSLA(color)[0]` in 0-1 | `Colors.toHSLA(color)[0] / 360` for the old value |
 
+### `rotate()` turns clockwise
+
+`image.rotate(angle)` turns the image clockwise, like CSS' `rotate()`. In 3.x it turned counterclockwise. Negate the
+angle to keep the old result:
+
+| 3.x | 4.0 |
+| --- | --- |
+| `image.rotate(90)` | `image.rotate(-90)` (or `image.rotate(270)`) |
+| `image.rotate(45, false)` | `image.rotate(-45, { expand: false })` |
+
+Search your code for: `.rotate(`.
+
+### JPEG composites transparent pixels onto black
+
+JPEG has no alpha channel. In 3.x, `encodeJPEG()` dropped the alpha and kept the color, so a fully transparent pixel
+showed whatever RGB it had stored (often black, but not always). In 4.0, an image with transparent or translucent pixels
+is composited onto a background first, black by default, the way a viewer would show it on black. Pass `background`
+for another color: `image.encodeJPEG({ background: 0xffffffff })`. Opaque images encode as before, byte for byte.
+
+Search your code for: `encodeJPEG(` on images that can have transparency.
+
 ## Removed APIs
 
-Each table maps a 3.x API to its 4.0 replacement. The deprecation hint in 3.x gives the same mapping. The replacements
-are documented on their own pages: {@link ResizeModes}, {@link FrameDisposalModes},
+Each table maps a 3.x API to its 4.0 replacement. The deprecation hint in 3.x names a replacement too, but some of those
+replacements were reshaped in 4.0 as well (for example `ResizeModes`, which became plain strings); the tables give the
+4.0 form. The replacements are documented on their own pages: {@link ResizeMode}, {@link FrameDisposalModeName},
 {@link Colors}, {@link Frame}, {@link Animation}, {@link AnimationEncoder} and {@link Metadata}.
 
 ### Constants and modes
 
 | 3.x | 4.0 |
 | --- | --- |
-| `Image.RESIZE_NEAREST_NEIGHBOR` | `ResizeModes.NEAREST_NEIGHBOR` (`'nearest-neighbor'`) |
-| `Image.RESIZE_BILINEAR` | `ResizeModes.BILINEAR` (`'bilinear'`) |
-| `Image.RESIZE_BICUBIC` | `ResizeModes.BICUBIC` (`'bicubic'`) |
-| `Image.RESIZE_AREA` | `ResizeModes.AREA` (`'area'`) |
+| `Image.RESIZE_NEAREST_NEIGHBOR`, `ResizeModes.NEAREST_NEIGHBOR` | `'nearest-neighbor'` |
+| `Image.RESIZE_BILINEAR`, `ResizeModes.BILINEAR` | `'bilinear'` |
+| `Image.RESIZE_BICUBIC`, `ResizeModes.BICUBIC` | `'bicubic'` |
+| `Image.RESIZE_AREA`, `ResizeModes.AREA` | `'area'` |
 | `Image.RESIZE_AUTO`, `ResizeModes.AUTO` | Pass only the width or the height: `image.resize({ width: 256 })` |
 | The upper-case mode strings, `'RESIZE_BILINEAR'` and the others | The lower-case names, `'bilinear'` and the others |
 | The `ResizeMode` type, with the upper-case strings or the numbers 1-3 | Narrowed to the lower-case names: `'nearest-neighbor'`, `'bilinear'`, `'bicubic'` or `'area'` |
@@ -152,10 +175,12 @@ are documented on their own pages: {@link ResizeModes}, {@link FrameDisposalMode
 | `Image.SVG_MODE_SCALE` (or `1`) | `Image.renderSVG(svg, { scale: 2 })`, see [renamed APIs](#renamed-and-reshaped-apis) |
 | `Image.SVG_MODE_WIDTH` (or `2`) | `Image.renderSVG(svg, { width: 512 })`, see [renamed APIs](#renamed-and-reshaped-apis) |
 | `Image.SVG_MODE_HEIGHT` (or `3`) | `Image.renderSVG(svg, { height: 512 })`, see [renamed APIs](#renamed-and-reshaped-apis) |
-| `Frame.DISPOSAL_ANY`, `Frame.DISPOSAL_KEEP`, `Frame.DISPOSAL_PREVIOUS`, `Frame.DISPOSAL_BACKGROUND` | `FrameDisposalModes.ANY`, `.KEEP`, `.PREVIOUS`, `.BACKGROUND` |
+| `Frame.DISPOSAL_ANY`, `Frame.DISPOSAL_KEEP`, `Frame.DISPOSAL_PREVIOUS`, `Frame.DISPOSAL_BACKGROUND`, and the same on `FrameDisposalModes` | `'any'`, `'keep'`, `'previous'`, `'background'` |
 | Numeric disposal ids: `frame.disposalMode = 3`, `disposalMode: 3` in the frame options | The names: `frame.disposalMode = 'background'`, `disposalMode: 'background'`. `FrameDisposalModeId` is removed |
 
-The old string and number values are not accepted any more, so `image.resize(256, 256, 'RESIZE_BICUBIC')` throws.
+The modes are plain strings in 4.0: the `ResizeModes` and `FrameDisposalModes` classes are removed, and the types
+{@link ResizeMode} and {@link FrameDisposalModeName} list the names. The old string and number values are not accepted
+any more, so `image.resize(256, 256, { mode: 'RESIZE_BICUBIC' })` throws.
 
 ### Colors, pixels and encoding on `Image`
 
@@ -179,8 +204,7 @@ The color helpers take the same arguments and return the same values, so `Image.
 ### Channel methods and `absolute`
 
 `opacity()`, `red()`, `green()`, `blue()`, `lightness()` and `saturation()` only scale now. The `absolute` argument is
-removed, and so is the `AdjustOptions` type. A second argument throws a `TypeError` before the image is touched, so
-`image.red(0.5, true)` fails loudly instead of scaling.
+removed, and so is the `AdjustOptions` type.
 
 | 3.x | 4.0 |
 | --- | --- |
@@ -189,9 +213,9 @@ removed, and so is the `AdjustOptions` type. A second argument throws a `TypeErr
 | `AdjustOptions` (type) | Removed with `absolute`: the channel methods take the factor only |
 | `image.red(0.5, { absolute: true })` | See below |
 
-The extra argument throws a `TypeError` in 4.0, so `image.red(0.5, true)` fails at the call, in JavaScript and in untyped
-code, before the image is touched. (Had it been ignored, it would have scaled the channel: on a pixel with red 0 the
-result stays 0, where 3.x's `absolute` set it to 128.) `tsc` reports the call as `Expected 1 arguments, but got 2`.
+`tsc` reports a leftover call as `Expected 1 arguments, but got 2`. In JavaScript the extra argument is ignored, so
+`image.red(0.5, true)` scales the channel instead of setting it (a pixel with red 0 stays 0, where 3.x's `absolute` set
+it to 128): fix these while the 3.x deprecation hints still point at them.
 
 For a fixed color, use `image.recolor(color)`. It sets the RGB of every pixel and keeps each pixel's alpha. The 3.x
 `absolute` calls set one channel of every pixel to a value, and `recolor()` has no equivalent for a single channel. Set
@@ -216,7 +240,7 @@ read the color with `Colors.toHSLA()`, set the lightness or saturation, and writ
 | --- | --- |
 | `new GIF(frames, loopCount)` | `new Animation(frames, { loopCount })` |
 | `GIF.decode(data)` | `Animation.decode(data)`, which decodes APNGs and WebPs too |
-| `gif.encode(quality)` | `animation.encodeGIF({ quality })` |
+| `gif.encode(quality)` | `animation.encodeGIF({ colors })`, see the [GIF options](#renamed-and-reshaped-apis) |
 | `GIF` (the class, also in `instanceof`) | `Animation`. `GIF` is no longer exported |
 | `animation.slice(start, end)` | `new Animation(animation.frames.slice(start, end), { loopCount: animation.loopCount })` |
 | `animation[i]` and the array methods | `animation.frames[i]` and `animation.frames.<method>` |
@@ -229,7 +253,7 @@ The option types of the animation encoders are renamed, and each one takes `loop
 | --- | --- |
 | `AnimationEncoderOptions` | `AnimationEncodeOptions & AnimationOptions` |
 | `WebPAnimationEncoderOptions` | `WebPAnimationEncodeOptions & AnimationOptions` |
-| `GIFAnimationEncoderOptions` | `GIFEncodeOptions & AnimationOptions` |
+| `GIFAnimationEncoderOptions` | `GIFAnimationEncodeOptions & AnimationOptions` |
 | `APNGAnimationEncoderOptions` | `APNGEncodeOptions & AnimationOptions` |
 
 ### Text, crop and metadata
@@ -237,19 +261,19 @@ The option types of the animation encoders are renamed, and each one takes `loop
 | 3.x | 4.0 |
 | --- | --- |
 | `Image.renderText(font, size, text)` | `Image.renderText(text, { font, size })` |
-| `Image.renderText(font, size, text, color, layout, style)` | `Image.renderText(text, { font, size, color, layout, ...style })` |
+| `Image.renderText(font, size, text, color, layout, style)` | `Image.renderText(text, { font, size, color, ...layout, ...style })` |
 | `Image.renderText(font, size, text, options)` | `Image.renderText(text, { font, size, ...options })` |
 | `TextOptions` (type) | `RenderTextOptions` |
-| `layout: { verticalAlign: 'right' }`, `horizontalAlign: 'bottom'` (the other axis' values) | `horizontalAlign` takes `'left'`, `'center'` or `'right'`, `verticalAlign` takes `'top'`, `'middle'` or `'bottom'`. Other values throw a `TypeError` |
+| `verticalAlign: 'right'`, `horizontalAlign: 'bottom'` (the other axis' values) | `horizontalAlign` takes `'left'`, `'center'` or `'right'`, `verticalAlign` takes `'top'`, `'middle'` or `'bottom'`. Other values throw a `TypeError` |
 | `image.cropCircle(true)` | `image.cropCircle({ size: 'cover' })` |
 | `image.cropCircle(true, feathering)` | `image.cropCircle({ size: 'cover', feathering })` |
 | `image.cropCircle(false)` | `image.cropCircle()`, the default `size: 'contain'` |
 | `image.cropCircle({ max: true })` | `image.cropCircle({ size: 'cover' })` |
 | `PNGMetadata` (type) | `Metadata`, which all encoders take |
 
-`renderText()` takes the text first. The font, the size, the color and the layout are all in the options object, and
-`layout` takes the layout options (a plain object, see {@link TextLayoutOptions}). The options are documented in {@link RenderTextOptions}.
-Crop options are in {@link CropCircleOptions}. A key that is not an option is ignored without an error, so
+`renderText()` takes the text first. The font, the size, the color, the layout options ({@link TextLayoutOptions}) and
+the style are all in the one options object, documented in {@link RenderTextOptions}. Crop options are in
+{@link CropCircleOptions}. A key that is not an option is ignored without an error, so
 `cropCircle({ max: true })` quietly becomes the default `contain`: change it to `size: 'cover'`.
 
 ### Positional arguments
@@ -259,18 +283,18 @@ object under the names of their options. The options of each method are on its o
 {@link ResizeOptions}, {@link CompositeOptions}, {@link RotateOptions}, {@link SharpenOptions},
 {@link DominantColorOptions}, {@link RoundCornersOptions}, {@link FisheyeOptions}, {@link TrimOptions},
 {@link ColorToAlphaOptions}, {@link PNGEncodeOptions}, {@link JPEGEncodeOptions}, {@link SVGOptions} and
-{@link FrameOptions}. The animation options are {@link GIFEncodeOptions}, {@link APNGEncodeOptions},
+{@link FrameOptions}. The animation options are {@link GIFAnimationEncodeOptions}, {@link APNGEncodeOptions},
 {@link DecodeOptions} and {@link GainMapEncodeOptions} for `GainMap.encode()`.
 
 | 3.x | 4.0 |
 | --- | --- |
 | `image.resize(256, 256, 'bicubic')`, `image.resize(256, 256, ResizeModes.AREA)` | `image.resize(256, 256, { mode: 'bicubic' })` |
 | `image.scale(0.5, 'area')`, `image.scale(0.5, ResizeModes.AREA)` | `image.scale(0.5, { mode: 'area' })` |
-| `image.resize(100)` (width only, the height left out) | `image.resize({ width: 100 })`, which keeps the aspect ratio. The positional form throws a `TypeError` without a height |
+| `image.resize(100)` (width only, the height left out) | `image.resize({ width: 100 })`, which keeps the aspect ratio. The positional form throws a `RangeError` without a height |
 | `image.contain(w, h, mode)`, `image.fit(w, h, mode)`, `image.cover(w, h, mode)` | `image.resize({ width: w, height: h, fit: 'inside', mode })`, `image.contain(w, h, { mode })` and `image.cover(w, h, { mode })`, see [`contain()` pads to the box](#contain-pads-to-the-box) |
 | `Frame` and `Animation`: `resize(w, h, mode)` | `resize(w, h, { mode })` |
 | `image.composite(logo, 10, 20, { opacity: 0.5 })` | `image.composite(logo, { x: 10, y: 20, opacity: 0.5 })` |
-| `image.rotate(45, false)` | `image.rotate(45, { expand: false })` |
+| `image.rotate(45, false)` | `image.rotate(-45, { expand: false })`: the angle is negated because [`rotate()` turns clockwise](#rotate-turns-clockwise) now |
 | `image.sharpen(2, 3)` | `image.sharpen({ amount: 2, radius: 3 })` |
 | `image.dominantColor(true, true, 15)` | `image.dominantColor({ ignoreBlack: true, ignoreWhite: true, threshold: 15 })` |
 | `image.roundCorners(8)` | `image.roundCorners({ radius: 8 })` |
@@ -278,14 +302,14 @@ object under the names of their options. The options of each method are on its o
 | `image.trim(color, options)`, `frame.trim(color, options)` | `image.trim({ color, ...options })` |
 | `image.colorToAlpha(color, options)` | `image.colorToAlpha({ color, ...options })` |
 | `image.encodePNG(1, { author })` | `image.encodePNG({ compression: 1, metadata: { author } })` |
-| `image.encodePNG({ author })` (metadata alone) | `image.encodePNG({ metadata: { author } })`. The old form throws, see below |
+| `image.encodePNG({ author })` (metadata alone) | `image.encodePNG({ metadata: { author } })`. The old form is ignored, see below |
 | `image.encodeJPEG(90)` | `image.encodeJPEG({ quality: 90 })` |
-| `animation.encodeGIF(90)` | `animation.encodeGIF({ quality: 90 })` |
+| `animation.encodeGIF(90)` | `animation.encodeGIF()`; a quality of 90 and above was the default 256 colors, see the [GIF options](#renamed-and-reshaped-apis) for lower ones |
 | `animation.encodeAPNG(9)` | `animation.encodeAPNG({ compression: 9 })` |
 | `gainMap.encode(90)` | `gainMap.encode({ quality: 90 })` |
 | `Image.renderSVG(svg, 512, 'width')` | `Image.renderSVG(svg, { width: 512 })` (and `{ height }`, `{ scale }`) |
-| `new Frame(w, h, duration, x, y, disposal)` | `new Frame(w, h, { duration, xOffset, yOffset, disposalMode })` |
-| `Frame.from(image, duration, x, y, disposal)` | `Frame.from(image, { duration, xOffset, yOffset, disposalMode })` |
+| `new Frame(w, h, duration, x, y, disposal)` | `new Frame(new Image(w, h), { duration, xOffset, yOffset, disposalMode })`, see [frames](#frames-hold-an-image) |
+| `Frame.from(image, duration, x, y, disposal)` | `new Frame(image.clone(), { duration, xOffset, yOffset, disposalMode })` |
 | `new Animation(frames, loopCount)` | `new Animation(frames, { loopCount })` |
 | `Animation.decode(data, true)` | `Image.decode(data)` for the first frame, `Animation.decode(data)` for all |
 | `decode(data, true)` | `Image.decode(data)` |
@@ -293,8 +317,8 @@ object under the names of their options. The options of each method are on its o
 
 `decode()` and `Animation.decode()` take options only: a boolean throws a `TypeError` that names the options form.
 
-`encodePNG()` also throws when the metadata is passed without `metadata`. In 3.x, `image.encodePNG({ author })` was
-read as metadata; in 4.0 it would be ignored, so it throws a `TypeError` that names `{ metadata }`.
+In 3.x, `image.encodePNG({ author })` was read as metadata. In 4.0 the metadata goes in `metadata`, and an `author` key
+at the top level is ignored like any other unknown key: TypeScript reports it for an inline object, JavaScript doesn't.
 
 ## Renamed and reshaped APIs
 
@@ -302,20 +326,50 @@ These changed in 4.0 without a deprecation in 3.x. Most are compile errors in Ty
 options objects that aren't written inline, an old option key is ignored without an error (`rotate(45, { resize:
 false })` grows the image again), so search for them too.
 
+### Methods and options
+
 | 3.x | 4.0 |
 | --- | --- |
-| `image.rotate(angle, { resize: false })` | `image.rotate(angle, { expand: false })`, like `transform()`, `outline()` and `dropShadow()` |
+| `image.rotate(angle, { resize: false })` | `image.rotate(-angle, { expand: false })`, like `transform()`, `outline()` and `dropShadow()` (the angle negated, as [`rotate()` turns clockwise](#rotate-turns-clockwise)) |
+| `image.rotate(angle, { fast: false })`, `{ fast: true }` | `image.rotate(-angle)`: the precise bilinear sampling is the default now, `fast` is removed. `mode` picks `'nearest-neighbor'`, `'bilinear'` or `'bicubic'`, like `transform()` |
+| `ResizeModes.AREA` and the other `ResizeModes` | `'area'` and the other names, see [constants and modes](#constants-and-modes) |
+| `FrameDisposalModes.BACKGROUND` and the other `FrameDisposalModes` | `'background'` and the other names |
 | `Image.renderSVG(svg, { size: 512, mode: 'width' })`, `{ mode: 'height' }` | `Image.renderSVG(svg, { width: 512 })`, `{ height: 512 }` |
 | `Image.renderSVG(svg, { size: 2 })`, `{ size: 2, mode: 'scale' }` | `Image.renderSVG(svg, { scale: 2 })` |
 | `SVGScaleModes`, `SVGScaleMode` | Removed, see the two rows above |
 | `image.drawBox(x, y, w, h, color)` | `image.composite(new Image(w, h).fill(color), { x, y })`. It blends a translucent color over the image; `drawBox()` replaced the pixels |
 | `image.drawCircle(x, y, r, color)` | `image.composite(new Image(2 * r, 2 * r).fill(color).cropCircle(), { x: x - r, y: y - r })` |
 | `image.greyscale()` | `image.grayscale()` (the whole API spells American English) |
-| `new TextLayout(options)`, `layout: new TextLayout(options)` | `layout: options`, a plain object ({@link TextLayoutOptions}); the class isn't exported |
+| `Image.renderText(text, { font, size, layout: { maxWidth: 300 } })`, `layout: new TextLayout(options)` | `Image.renderText(text, { font, size, maxWidth: 300 })`: the layout options ({@link TextLayoutOptions}) are part of the options; `TextLayout` isn't exported |
+| `image.getRGBAAt(x, y)` | `Colors.toRGBA(image.getPixelAt(x, y))`, an array (`getRGBAAt()` returned a view into the bitmap) |
+| `image.region(x, y, w, h)` | `image.extract(x, y, w, h)` |
+| `animation.encodeGIF({ quality })`, `Animation.gifEncoder(w, h, { quality })` | `{ colors }`: the palette size, 2-256. A quality of 90 and above is the default `256`; below, `colors: Math.round(8 * 32 ** (quality / 90))` gives the old palette size. `dither` (`'floyd-steinberg'` by default, `'atkinson'`, `'ordered'` or `'none'`) and `ditherStrength` are new |
+| `GIFEncodeOptions` (the options of `Animation.encodeGIF()`) | `GIFAnimationEncodeOptions`. `GIFEncodeOptions` is now the options of the new `Image.encodeGIF()` |
 | `AnimationDecodeOptions` (type) | `DecodeOptions`, which `Image.decode()`, `Animation.decode()` and `decode()` all take |
 | `EncodeOptions` (type) as the options of `encodeTGA()` | `TGAEncodeOptions`. `EncodeOptions` is now the `metadata` that all encoder options extend |
 | `new GainMap(image, { gainMapMin, gainMapMax })`, `map.gainMapMin`, `map.gainMapMax` | `new GainMap(image, { min, max })`, `map.min`, `map.max` |
 | `setPixelAt(x, y, pixelColor)`, `lightness(value)`, `saturation(value)` (parameter names only) | `setPixelAt(x, y, color)`, `lightness(factor)`, `saturation(factor)` |
+
+### Frames hold an image
+
+A `Frame` is no longer an `Image`: it holds one, `frame.image`, with the frame's duration, offsets and disposal mode.
+`new Frame()` takes the image (which the frame uses as it is, without a copy), and `Frame.from()` is removed.
+
+| 3.x | 4.0 |
+| --- | --- |
+| `new Frame(width, height, options)` | `new Frame(new Image(width, height), options)` |
+| `Frame.from(image, options)` | `new Frame(image.clone(), options)`, or `new Frame(image, options)` without the copy |
+| `frame.blur(2)`, `frame.fill(color)`, `frame.bitmap`, `frame.gainMap`, ... | `frame.image.blur(2)`, `frame.image.fill(color)`, `frame.image.bitmap`, `frame.image.gainMap`, ... |
+| `image.composite(frame)`, `frame.encodePNG()` | `image.composite(frame.image)`, `frame.image.encodePNG()` |
+| `frame instanceof Image` | `false` now |
+
+`resize()`, `scale()`, `crop()` and `trim()` stay on the frame and move its offsets so its pixels stay where they are in
+the animation, and `width`, `height`, `clone()` and `toString()` work as before. Everything else goes through
+`frame.image` and leaves the offsets alone. In 3.x, a frame that grew up or left from `transform()`, `dropShadow()` or
+`outline()` moved its offsets with the growth (as far as they allowed); now the image grows and the offsets stay, so
+move them yourself if the frame's pixels have to stay in place.
+
+### Checked values and the canvas
 
 Values that were only checked when they were used are now checked when they are set: `frame.duration`,
 `frame.xOffset` and `frame.yOffset` (a finite number, a duration from 0), and the parameters of a `GainMap` (finite,
@@ -339,9 +393,11 @@ That covers numbers, strings, booleans and `null`. The message names the form th
 TypeError: cropCircle() takes an options object, like cropCircle({ size: 'cover' }), not boolean
 ```
 
-This is how the positional calls you missed show up at runtime. It applies to every method that took options in 3.x,
+This is how the positional calls you missed show up at runtime. It applies to every method that takes options,
 including `cropCircle()`, `Image.renderText()`, `quantize()`, `transform()`, `dropShadow()`, `outline()`, the
-gradients, `Image.decode()`, the encoders, `Animation.decode()`, `new GainMap()` and the `layout` of `Image.renderText()`.
+gradients, `Image.decode()`, the encoders, `Animation.decode()` and `new GainMap()`. Only the type of the argument is
+checked: a key that isn't an option is ignored, so a typo like `{ maxWith: 300 }` is not caught at runtime (TypeScript
+reports it for an inline object).
 
 ## Checklist
 
@@ -350,7 +406,7 @@ Grep patterns for the affected code. They find candidates; read each hit, becaus
 
 ```sh
 # constants and modes
-grep -rnE 'RESIZE_|SVG_MODE_|DISPOSAL_' src
+grep -rnE 'RESIZE_|SVG_MODE_|DISPOSAL_|ResizeModes|FrameDisposalModes' src
 
 # encode() on images, and the color helpers
 grep -rnE '\.encode\(' src
@@ -379,7 +435,11 @@ grep -rnE '\.(red|green|blue|opacity|lightness|saturation)\([^)]*,' src
 
 # renamed and reshaped in 4.0
 grep -rnE '\.(contain|fit)\(|greyscale|drawBox|drawCircle|SVGScaleMode|TextLayout|AnimationDecodeOptions|gainMapM(in|ax)' src
-grep -rnE 'fromHSLA?\(|toHSLA\(|rotate\([^)]*resize|renderSVG\([^)]*(size|mode)' src
+grep -rnE 'fromHSLA?\(|toHSLA\(|\.rotate\(|renderSVG\([^)]*(size|mode)|layout:|getRGBAAt|\.region\(' src
+grep -rnE 'encodeGIF\(|gifEncoder\(|GIFEncodeOptions|encodeJPEG\(' src
+
+# frames: anything an Image does, on a frame
+grep -rnE 'new Frame\(|Frame\.from\(|frame\w*\.[a-zA-Z]+\(' src
 
 # GainMap
 grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
@@ -388,6 +448,6 @@ grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
 Also search for the variables that hold animations, and for `[0]`, `.map(`, `.filter(` and `.forEach(` on them: the
 search can't tell an animation from an array, so check the type of each receiver.
 
-Then compile with `tsc`, and run the tests that cover your decode and encode paths. The five behavior changes need
-runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every `contain()` and every HSL
-hue in your code.
+Then compile with `tsc`, and run the tests that cover your decode and encode paths. The seven behavior changes need
+runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every `contain()`, every HSL hue,
+every `rotate()` and every JPEG made from an image with transparency.
