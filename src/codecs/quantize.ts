@@ -162,7 +162,7 @@ const ATKINSON = [[1, 0, 1 / 8], [2, 0, 1 / 8], [-1, 1, 1 / 8], [0, 1, 1 / 8], [
 /**
  * Replaces the RGB of every pixel with an alpha above 0 by its nearest palette entry (packed RGB), in place. Pixels
  * with alpha 0 are left alone. Dithering: `'floyd-steinberg'` and `'atkinson'` spread each pixel's rounding error to
- * the neighbours that come after it (serpentine: rows alternate direction), `'ordered'` offsets each pixel by a 4x4
+ * the neighbors that come after it (serpentine: rows alternate direction), `'ordered'` offsets each pixel by a 4x4
  * Bayer threshold. `strength` (0-1) scales the spread error and the threshold offset; 0 changes nothing but rounding
  */
 export function applyPalette(pixels: Uint8Array, width: number, height: number, palette: Uint8Array, dither: 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered', strength: number): void {

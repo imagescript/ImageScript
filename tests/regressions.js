@@ -764,7 +764,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(rgba(px(0x804020ff).brightness(2), 0, 0).join() === '255,128,64,255', 'brightness(2)');
         assert(rgba(px(0x804020ff).contrast(0), 0, 0).join() === '128,128,128,255', 'contrast(0) should be grey');
         assert(rgba(px(0x40404080).gamma(2), 0, 0).join() === '128,128,128,128', 'gamma(2) should brighten and keep alpha, got ' + rgba(px(0x40404080).gamma(2), 0, 0));
-        assert(rgba(px(0xff0000ff).greyscale(), 0, 0).join() === '76,76,76,255', 'greyscale should use the 601 luma');
+        assert(rgba(px(0xff0000ff).grayscale(), 0, 0).join() === '76,76,76,255', 'greyscale should use the 601 luma');
         assert(rgba(px(0xffffff80).sepia(), 0, 0).join() === '255,255,239,128', 'sepia, got ' + rgba(px(0xffffff80).sepia(), 0, 0));
 
         let threw = 0;

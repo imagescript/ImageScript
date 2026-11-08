@@ -37,7 +37,7 @@ const COMPRESSION_NAMES: Record<number, string> = { 2: 'CCITT RLE', 3: 'CCITT fa
  * Decodes the first image of a TIFF into 8-bit RGBA pixel data
  * Supports classic and BigTIFF in both byte orders, strips and tiles, chunky and planar data,
  * no/LZW/deflate/PackBits/JPEG compression, horizontal and floating point predictors,
- * 1-32 bit integer and 32/64 bit float samples (auto-ranged), greyscale, palette, RGB, CMYK and YCbCr images with alpha
+ * 1-32 bit integer and 32/64 bit float samples (auto-ranged), grayscale, palette, RGB, CMYK and YCbCr images with alpha
  * @param {Uint8Array} data
  * @return {{width: number, height: number, pixels: Uint8Array}}
  */

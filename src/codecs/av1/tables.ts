@@ -26,7 +26,7 @@ export const TX_4X4 = 0, TX_8X8 = 1, TX_16X16 = 2, TX_32X32 = 3, TX_64X64 = 4, R
 export const DCT_DCT = 0, IDTX = 9, WHT_WHT = 16;
 export const TX_CLASS_2D = 0, TX_CLASS_H = 1, TX_CLASS_V = 2;
 
-// which neighbouring edges an intra predicted block can use
+// which neighboring edges an intra predicted block can use
 export const EDGE_I444_TOP_HAS_RIGHT = 1, EDGE_I422_TOP_HAS_RIGHT = 2, EDGE_I420_TOP_HAS_RIGHT = 4,
     EDGE_I444_LEFT_HAS_BOTTOM = 8, EDGE_I422_LEFT_HAS_BOTTOM = 16, EDGE_I420_LEFT_HAS_BOTTOM = 32,
     EDGE_ALL_TOP_HAS_RIGHT = 7, EDGE_ALL_LEFT_HAS_BOTTOM = 56, EDGE_ALL_TR_AND_BL = 63;

@@ -126,7 +126,7 @@ export function decode(d: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneM
         for (let i = 0, o = header.data; i < samples.length; i++, o += wide ? 2 : 1) samples[i] = scale(wide ? d[o] << 8 | d[o + 1] : d[o]);
     }
 
-    // greyscale, greyscale and alpha, RGB, RGBA (by the depth; PAM's tuple types say the same)
+    // grayscale, grayscale and alpha, RGB, RGBA (by the depth; PAM's tuple types say the same)
     const pixels = new Uint8Array(count * 4);
     for (let i = 0; i < count; i++) {
         const s = i * depth, p = i * 4;
@@ -165,32 +165,32 @@ function decodePFM(d: Uint8Array, channels: number, maxPixels: number, toneMappi
 }
 
 /**
- * Encodes RGBA pixels into the smallest fitting Netpbm format: PBM for black and white images, PGM for greyscale
- * ones, PPM, and PAM (greyscale or RGB with alpha) for images with transparency
+ * Encodes RGBA pixels into the smallest fitting Netpbm format: PBM for black and white images, PGM for grayscale
+ * ones, PPM, and PAM (grayscale or RGB with alpha) for images with transparency
  */
 export function encode(rgba: Uint8Array, width: number, height: number): Uint8Array {
     if (width < 1 || height < 1) throw new RangeError('Netpbm: dimensions must be at least 1');
     const count = width * height;
-    let opaque = true, grey = true, bitmap = true;
+    let opaque = true, gray = true, bitmap = true;
     for (let p = 0; p < count * 4; p += 4) {
         const r = rgba[p], g = rgba[p + 1], b = rgba[p + 2], a = rgba[p + 3];
         if (a !== 255) opaque = false;
-        if (r !== g || g !== b) grey = false;
+        if (r !== g || g !== b) gray = false;
         if (r !== 0 && r !== 255 || r !== g || g !== b) bitmap = false;
-        if (!opaque && !grey) break;
+        if (!opaque && !gray) break;
     }
 
     const ascii = (text: string): Uint8Array => Uint8Array.from(text, c => c.charCodeAt(0));
     let header: Uint8Array, depth: number;
     if (!opaque) {
-        depth = grey ? 2 : 4;
-        header = ascii(`P7\nWIDTH ${width}\nHEIGHT ${height}\nDEPTH ${depth}\nMAXVAL 255\nTUPLTYPE ${grey ? 'GRAYSCALE_ALPHA' : 'RGB_ALPHA'}\nENDHDR\n`);
+        depth = gray ? 2 : 4;
+        header = ascii(`P7\nWIDTH ${width}\nHEIGHT ${height}\nDEPTH ${depth}\nMAXVAL 255\nTUPLTYPE ${gray ? 'GRAYSCALE_ALPHA' : 'RGB_ALPHA'}\nENDHDR\n`);
     } else if (bitmap) {
         depth = 0;
         header = ascii(`P4\n${width} ${height}\n`);
     } else {
-        depth = grey ? 1 : 3;
-        header = ascii(`P${grey ? 5 : 6}\n${width} ${height}\n255\n`);
+        depth = gray ? 1 : 3;
+        header = ascii(`P${gray ? 5 : 6}\n${width} ${height}\n255\n`);
     }
 
     const stride = depth ? width * depth : width + 7 >> 3;

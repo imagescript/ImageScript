@@ -15,7 +15,7 @@ The recommended path:
 3. Switch to 4.0 and go through the three behaviour changes. The [checklist](#checklist) at the end has grep patterns
    for finding the code they affect.
 
-## Behaviour changes
+## Behavior changes
 
 These change what code does without a compile error.
 

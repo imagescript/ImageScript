@@ -165,7 +165,7 @@ export interface QuantizeOptions {
     /**
      * How the rounding error of each pixel is handled, which makes gradients look smooth with few colors:
      * `'none'` (each pixel takes its nearest color), `'floyd-steinberg'` (the error goes to the next pixels, 7/16, 3/16,
-     * 5/16 and 1/16), `'atkinson'` (the error goes to six neighbours, 1/8 each: lighter, more contrast), `'ordered'` (a
+     * 5/16 and 1/16), `'atkinson'` (the error goes to six neighbors, 1/8 each: lighter, more contrast), `'ordered'` (a
      * regular 4x4 pattern of thresholds, no error spreading). Rows alternate direction for the error diffusions.
      * Default: `'none'`
      */
@@ -1862,7 +1862,7 @@ export class Image {
 
     /**
      * Mixes the colors of every pixel with a color matrix, like SVG's `feColorMatrix`: the new red, green, blue and alpha
-     * are each a sum of the old red, green, blue and alpha times a factor, plus an offset. Greyscale, sepia, tints,
+     * are each a sum of the old red, green, blue and alpha times a factor, plus an offset. Grayscale, sepia, tints,
      * swapped channels, color blindness simulation or a mix of those in one pass.
      *
      * The values are 20 numbers, four rows of `[red, green, blue, alpha, offset]` for the new red, green, blue and alpha,
@@ -2156,8 +2156,8 @@ export class Image {
     }
 
     /**
-     * Scales the color channels' distance from mid grey, e.g. 1.5 increases the contrast, 0.5 reduces it
-     * @param factor The factor (>= 0, 1 keeps the image, 0 makes it grey)
+     * Scales the color channels' distance from mid gray, e.g. 1.5 increases the contrast, 0.5 reduces it
+     * @param factor The factor (>= 0, 1 keeps the image, 0 makes it gray)
      */
     contrast(factor: number): this {
         if (this.__gain_map__) return this.__recolor__(image => image.contrast(factor), false, v => (v - 0.5) * factor + 0.5);
@@ -2180,10 +2180,10 @@ export class Image {
     }
 
     /**
-     * Converts the image to greyscale by its luma (ITU-R 601, like Pillow), keeping the alpha
+     * Converts the image to grayscale by its luma (ITU-R 601, like Pillow), keeping the alpha
      */
-    greyscale(): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.greyscale(), true);
+    grayscale(): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.grayscale(), true);
         const bitmap = this.bitmap;
         for (let i = 0; i < bitmap.length; i += 4)
             bitmap[i] = bitmap[i + 1] = bitmap[i + 2] = bitmap[i] * 19595 + bitmap[i + 1] * 38470 + bitmap[i + 2] * 7471 + 0x8000 >> 16;
@@ -2578,7 +2578,7 @@ export class Image {
 
     /**
      * Encodes the image into a PNG, with the smallest lossless color type (a palette for up to 256 colors,
-     * greyscale or RGB, alpha only if needed). Uses the runtime's native zlib when available
+     * grayscale or RGB, alpha only if needed). Uses the runtime's native zlib when available
      * @param options See {@link PNGEncodeOptions}
      * @return The encoded data
      */
@@ -2703,7 +2703,7 @@ export class Image {
     /**
      * Encodes the image as JPEG XL: losslessly (the default) like libjxl's `cjxl -e 3` (a palette of up to 1024 colors,
      * else palettes of channels using few of their values; YCoCg; the weighted predictor in contexts of its error;
-     * greyscale if the image is), at effort 0 the codestream byte for byte like `cjxl -e 1` on CPUs with AVX2 or NEON
+     * grayscale if the image is), at effort 0 the codestream byte for byte like `cjxl -e 1` on CPUs with AVX2 or NEON
      * (its fast lossless mode: the gradient predictor, a palette if the image has at most 511 colors besides black,
      * else YCoCg), or lossy with a quality (like `cjxl -q`: XYB, varblocks of libjxl's search, chroma from luma, the
      * edge preserving filter). Alpha (if the image has transparency) is lossless either way. The codestream is in the
@@ -2723,7 +2723,7 @@ export class Image {
     }
 
     /**
-     * Encodes the image as the smallest fitting Netpbm format: PBM for black and white images, PGM for greyscale ones,
+     * Encodes the image as the smallest fitting Netpbm format: PBM for black and white images, PGM for grayscale ones,
      * PPM for others, PAM if the image has transparency
      */
     async encodePNM(): Promise<Uint8Array<ArrayBuffer>> {

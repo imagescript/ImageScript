@@ -220,7 +220,7 @@ export class TileDecoder {
     private aPalSz: Uint8Array; private lPalSz = new Uint8Array(32);
     private aPalSzUv: Uint8Array; private lPalSzUv = new Uint8Array(32);
     private aPartition: Uint8Array; private lPartition = new Uint8Array(16);
-    // palettes of the neighbours: [position][plane][8]
+    // palettes of the neighbors: [position][plane][8]
     private aPal: Uint16Array; private lPal = new Uint16Array(32 * 24);
 
     private pal = new Uint16Array(24);
@@ -600,7 +600,7 @@ export class TileDecoder {
         const segmentation = hdr.segmentation;
         let seg = null as null | typeof segmentation.data[0];
         const readSegId = (): void => {
-            // predicted from the neighbours' segments
+            // predicted from the neighbors' segments
             const map = f.segMap, s = f.b4Stride, o = by * s + bx;
             let segCtx: number, pred: number;
             if (haveLeft && haveTop) {

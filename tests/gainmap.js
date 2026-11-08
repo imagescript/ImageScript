@@ -166,7 +166,7 @@ const meanValue = (image, left, top, right, bottom) => {
 	{
 		const image = single.clone().brightness(1).contrast(1);
 		if (!same(image.gainMap.image, single.gainMap.image)) panic('brightness(1): the map changed');
-		const grey = single.clone().greyscale();
+		const grey = single.clone().grayscale();
 		if (!same(grey.gainMap.image, single.gainMap.image)) panic('greyscale: a single channel map changed');
 	}
 

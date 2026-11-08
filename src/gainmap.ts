@@ -69,7 +69,7 @@ export class GainMap {
 
     /**
      * Creates a gain map
-     * @param image The map's pixels: grey (red, green and blue the same) for one map for all channels. Its alpha is
+     * @param image The map's pixels: gray (red, green and blue the same) for one map for all channels. Its alpha is
      *     ignored
      * @param options See {@link GainMapOptions}
      */
@@ -110,12 +110,12 @@ export class GainMap {
     }
 
     /**
-     * @internal from decoded pixels (an AVIF's or JPEG XL's map); `grey`: a map whose channels differ by at most 2
-     * levels anywhere is made grey (a grey map stored in color, like libjxl writes them: one channel when written)
+     * @internal from decoded pixels (an AVIF's or JPEG XL's map); `gray`: a map whose channels differ by at most 2
+     * levels anywhere is made gray (a gray map stored in color, like libjxl writes them: one channel when written)
      */
-    static __from_pixels__(image: Image, params: codec.Params, grey = true): GainMap {
+    static __from_pixels__(image: Image, params: codec.Params, gray = true): GainMap {
         const px = image.bitmap;
-        if (grey) {
+        if (gray) {
             let spread = 0;
             for (let i = 0; i < px.length && spread <= 2; i += 4) spread = Math.max(spread, Math.abs(px[i] - px[i + 1]), Math.abs(px[i] - px[i + 2]));
             if (spread > 0 && spread <= 2) for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = Math.round((px[i] + px[i + 1] + px[i + 2]) / 3);
@@ -183,7 +183,7 @@ export class GainMap {
         return (this.__pixels__ as Image).height;
     }
 
-    /** `1` for a grey map (one boost for red, green and blue), `3` for one per channel */
+    /** `1` for a gray map (one boost for red, green and blue), `3` for one per channel */
     get channels(): 1 | 3 {
         const bitmap = (this.__pixels__ as Image).bitmap;
         for (let i = 0; i < bitmap.length; i += 4) if (bitmap[i] !== bitmap[i + 1] || bitmap[i] !== bitmap[i + 2]) return 3;
@@ -207,8 +207,8 @@ export class GainMap {
         const bitmap = image.bitmap;
         const pixels = new Uint8Array(bitmap.buffer, bitmap.byteOffset, bitmap.byteLength);
         // (3 channels: their differences are the point, so the chroma keeps its resolution)
-        const grey = this.channels === 1;
-        return jpeg.encode(pixels, image.width, image.height, quality ?? 90, { grey, fullChroma: !grey });
+        const gray = this.channels === 1;
+        return jpeg.encode(pixels, image.width, image.height, quality ?? 90, { gray, fullChroma: !gray });
     }
 
     /** @internal the stored values (0-255, per channel) that boost by nothing (log2 gain 0), clamped to the range */

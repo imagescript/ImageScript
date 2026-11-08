@@ -9,7 +9,7 @@ const samePixels = require('./util/pixels');
     const font = await fs.readFile('./tests/fonts/opensans bold.ttf');
 
     const tiles = [
-        tile().blur(3), tile().sharpen({amount: 2, radius: 2}), tile().greyscale(), tile().sepia(),
+        tile().blur(3), tile().sharpen({amount: 2, radius: 2}), tile().grayscale(), tile().sepia(),
         tile().brightness(1.3), tile().contrast(1.6), tile().gamma(2),
         tile().composite(gradient, {opacity: 0.4}),
         ...['multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'exclusion', 'add']

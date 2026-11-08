@@ -38,7 +38,7 @@ export interface EncodeOptions {
     palette?: Uint8Array;
     /** alpha per palette entry */
     transparency?: Uint8Array;
-    /** whether to paeth filter the rows (pays off for truecolor and greyscale images) */
+    /** whether to paeth filter the rows (pays off for truecolor and grayscale images) */
     filter?: boolean;
 }
 
@@ -110,7 +110,7 @@ function filter(data: Uint8Array, rowBytes: number, y0: number, y1: number, bpp:
         const row = y * rowBytes, o = (y - y0) * (rowBytes + 1) + 1;
         out[o - 1] = 4;
 
-        // the first row has no row above, the first pixel of every row no left neighbour
+        // the first row has no row above, the first pixel of every row no left neighbor
         if (y === 0) {
             for (let i = 0; i < rowBytes; i++) out[o + i] = data[row + i] - (i >= bpp ? data[row + i - bpp] : 0);
             continue;
@@ -183,11 +183,11 @@ export interface PixelFormat {
 
 /**
  * Picks the smallest lossless format that fits all the given RGBA images: a palette for up to 256 colors,
- * otherwise greyscale or RGB, with alpha only if a pixel isn't opaque
+ * otherwise grayscale or RGB, with alpha only if a pixel isn't opaque
  */
 /**
  * How much more an opaque image costs per pixel with transparent pixels than without them, given the pixel formats
- * (palette, grey or truecolor) both get: e.g. 4/3 for RGBA instead of RGB, 4 for RGBA instead of a palette when the
+ * (palette, gray or truecolor) both get: e.g. 4/3 for RGBA instead of RGB, 4 for RGBA instead of a palette when the
  * transparent pixels are the 257th color, 2 for 8 instead of 4 bit palette indices when they're the 17th
  * @param images RGBA, only the transparent pixels aren't opaque
  */
@@ -199,7 +199,7 @@ export function alphaCost(images: Uint8Array[]): number {
 
 /** {@link alphaCost}, of images given one at a time */
 export class AlphaCost {
-    private grey = true;
+    private gray = true;
     private colors = new Set<number>();
     private done = false;
 
@@ -214,10 +214,10 @@ export class AlphaCost {
             previous = value;
             const o = i * 4;
             if (rgba[o + 3] === 0) continue;
-            if (rgba[o] !== rgba[o + 1] || rgba[o] !== rgba[o + 2]) this.grey = false;
+            if (rgba[o] !== rgba[o + 1] || rgba[o] !== rgba[o + 2]) this.gray = false;
             if (colors.size <= 256) colors.add(value);
-            // more than 256 colors and not grey: truecolor either way, nothing else can change
-            else if (!this.grey) {
+            // more than 256 colors and not gray: truecolor either way, nothing else can change
+            else if (!this.gray) {
                 this.done = true;
                 return;
             }
@@ -225,11 +225,11 @@ export class AlphaCost {
     }
 
     cost(): number {
-        const { colors, grey } = this;
-        // bytes per pixel: palette 1/8 to 1 (by its bit depth), grey 1 (with alpha 2), truecolor 3 (with alpha 4)
+        const { colors, gray } = this;
+        // bytes per pixel: palette 1/8 to 1 (by its bit depth), gray 1 (with alpha 2), truecolor 3 (with alpha 4)
         const palette = (entries: number): number => (entries <= 2 ? 1 : entries <= 4 ? 2 : entries <= 16 ? 4 : 8) / 8;
-        const transparent = colors.size < 256 ? palette(colors.size + 1) : grey ? 2 : 4;
-        const opaque = colors.size <= 256 ? palette(colors.size) : grey ? 1 : 3;
+        const transparent = colors.size < 256 ? palette(colors.size + 1) : gray ? 2 : 4;
+        const opaque = colors.size <= 256 ? palette(colors.size) : gray ? 1 : 3;
         return transparent / opaque;
     }
 }
@@ -243,7 +243,7 @@ function pixelFormat(images: Uint8Array[]): PixelFormat {
 /** {@link pixelFormat} of images given one at a time */
 export class FormatScanner {
     private opaque = true;
-    private grey = true;
+    private gray = true;
     // up to 256 distinct colors, by their first appearance
     private colors: Map<number, number> | null = new Map();
 
@@ -258,22 +258,22 @@ export class FormatScanner {
 
             const o = i * 4;
             if (rgba[o + 3] !== 255) this.opaque = false;
-            if (rgba[o] !== rgba[o + 1] || rgba[o] !== rgba[o + 2]) this.grey = false;
+            if (rgba[o] !== rgba[o + 1] || rgba[o] !== rgba[o + 2]) this.gray = false;
             if (this.colors && !this.colors.has(value)) {
                 if (this.colors.size === 256) this.colors = null;
                 else this.colors.set(value, this.colors.size);
             }
             // nothing left to find out: RGBA it is
-            if (!this.colors && !this.opaque && !this.grey) return;
+            if (!this.colors && !this.opaque && !this.gray) return;
         }
     }
 
     format(): PixelFormat {
-        return formatOf(this.colors, this.opaque, this.grey);
+        return formatOf(this.colors, this.opaque, this.gray);
     }
 }
 
-function formatOf(colors: Map<number, number> | null, opaque: boolean, grey: boolean): PixelFormat {
+function formatOf(colors: Map<number, number> | null, opaque: boolean, gray: boolean): PixelFormat {
     if (colors) {
         // opaque entries are moved to the end, so tRNS can be cut short
         const entries = [...colors.keys()].map(value => new Uint8Array(new Uint32Array([value]).buffer));
@@ -311,7 +311,7 @@ function formatOf(colors: Map<number, number> | null, opaque: boolean, grey: boo
         };
     }
 
-    const channels = (grey ? 1 : 3) + (opaque ? 0 : 1);
+    const channels = (gray ? 1 : 3) + (opaque ? 0 : 1);
     return {
         channels, depth: 8,
         convert(rgba, width, height) {
@@ -846,7 +846,7 @@ function unfilter(data: Uint8Array, offset: number, height: number, rowBytes: nu
     const out = inPlace ? data.subarray(offset, offset + height * rowBytes) : new Uint8Array(height * rowBytes);
     const first = Math.min(bpp, rowBytes);
 
-    // the first row and the first pixel of every row have zero neighbours, those are handled by separate loops
+    // the first row and the first pixel of every row have zero neighbors, those are handled by separate loops
     for (let y = 0; y < height; y++) {
         const filter = data[offset++];
         const row = y * rowBytes;
@@ -868,11 +868,11 @@ function unfilter(data: Uint8Array, offset: number, height: number, rowBytes: nu
             }
         } else if (filter === 4) {
             if (y === 0) {
-                // paeth with no row above picks the left neighbour
+                // paeth with no row above picks the left neighbor
                 out.set(data.subarray(offset, offset + first), row);
                 for (let i = row + bpp; i < row + rowBytes; i++) out[i] = data[src + i] + out[i - bpp];
             } else {
-                // and with no left neighbour the one above
+                // and with no left neighbor the one above
                 for (let i = row; i < row + first; i++) out[i] = data[src + i] + out[i - rowBytes];
                 if (bpp === 3 || bpp === 4) paethRow(data, src, out, row, rowBytes, bpp);
                 else for (let i = row + bpp; i < row + rowBytes; i++) {
@@ -891,7 +891,7 @@ function unfilter(data: Uint8Array, offset: number, height: number, rowBytes: nu
     return out;
 }
 
-// the paeth filter on a row of 3 or 4 byte pixels, the left and upper left neighbours in variables: as above, with each
+// the paeth filter on a row of 3 or 4 byte pixels, the left and upper left neighbors in variables: as above, with each
 // channel's predictor not waiting for the byte just stored
 function paethRow(data: Uint8Array, src: number, out: Uint8Array, row: number, rowBytes: number, bpp: number): void {
     const up = row - rowBytes, end = row + rowBytes;

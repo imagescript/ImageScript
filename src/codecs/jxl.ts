@@ -8,7 +8,7 @@ import { startThreads } from '../util/threads.ts';
 import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
 import { BitReader } from './jxl/bits.ts';
 import {
-    CS_GREY, CS_RGB, decodeICC, imageHeader, PRI_BT2100, PRI_CUSTOM, PRI_P3, readICC, TF_DCI, TF_HLG, TF_LINEAR, TF_PQ,
+    CS_GRAY, CS_RGB, decodeICC, imageHeader, PRI_BT2100, PRI_CUSTOM, PRI_P3, readICC, TF_DCI, TF_HLG, TF_LINEAR, TF_PQ,
     WP_CUSTOM, WP_DCI, WP_E, type ColourEncoding, type ImageHeader
 } from './jxl/headers.ts';
 import { frameHeader, toc } from './jxl/frame-header.ts';
@@ -120,15 +120,15 @@ const PRIMARIES: Record<number, number[][]> = {
  */
 export function colorSpace(image: ImageHeader): ColorSpace | undefined {
     const c: ColourEncoding = image.colour;
-    if (image.xybEncoded || c.wantICC || (c.colourSpace !== CS_RGB && c.colourSpace !== CS_GREY)) return;
+    if (image.xybEncoded || c.wantICC || (c.colourSpace !== CS_RGB && c.colourSpace !== CS_GRAY)) return;
     if (c.transfer === TF_PQ || c.transfer === TF_HLG) return;
     const curve: Curve | null = c.transfer === -1 ? (c.gamma > 0 ? v => v ** (1 / c.gamma) : null)
         : c.transfer === TF_LINEAR ? v => v : c.transfer === TF_DCI ? v => v ** 2.6 : null;
     const white = c.whitePoint === WP_CUSTOM ? c.white : c.whitePoint === WP_E ? [1 / 3, 1 / 3] : c.whitePoint === WP_DCI ? [0.314, 0.351] : null;
-    const primaries = c.colourSpace === CS_GREY ? null : c.primaries === PRI_CUSTOM
+    const primaries = c.colourSpace === CS_GRAY ? null : c.primaries === PRI_CUSTOM
         ? [0, 2, 4].map(i => c.primariesXY.slice(i, i + 2)) : PRIMARIES[c.primaries] ?? null;
     // (sRGB: nothing to convert; gray only by its curve)
-    if (c.colourSpace === CS_GREY) return curve ? { xy: null, curve } : undefined;
+    if (c.colourSpace === CS_GRAY) return curve ? { xy: null, curve } : undefined;
     if (!curve && !white && !primaries) return;
     return { xy: [...primaries ?? [[0.64, 0.33], [0.30, 0.60], [0.15, 0.06]], white ?? WHITE_D65], curve: curve ?? srgbDecode };
 }

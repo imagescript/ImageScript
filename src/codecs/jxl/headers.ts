@@ -24,7 +24,7 @@ export interface ExtraChannel {
     spot: number[];
 }
 
-export const CS_RGB = 0, CS_GREY = 1, CS_XYB = 2;
+export const CS_RGB = 0, CS_GRAY = 1, CS_XYB = 2;
 export const WP_D65 = 1, WP_CUSTOM = 2, WP_E = 10, WP_DCI = 11;
 export const PRI_SRGB = 1, PRI_CUSTOM = 2, PRI_BT2100 = 9, PRI_P3 = 11;
 export const TF_BT709 = 1, TF_UNKNOWN = 2, TF_LINEAR = 8, TF_SRGB = 13, TF_PQ = 16, TF_DCI = 17, TF_HLG = 18;
@@ -158,7 +158,7 @@ export function colourEncoding(r: BitReader): ColourEncoding {
         if (c.whitePoint === WP_CUSTOM) c.white = [customXY(r), customXY(r)];
         else if (c.whitePoint !== WP_D65 && c.whitePoint !== WP_E && c.whitePoint !== WP_DCI) throw new Error('JPEG XL: invalid white point');
     }
-    if (c.colourSpace !== CS_XYB && c.colourSpace !== CS_GREY) {
+    if (c.colourSpace !== CS_XYB && c.colourSpace !== CS_GRAY) {
         c.primaries = r.enum();
         if (c.primaries === PRI_CUSTOM) for (let i = 0; i < 6; i++) c.primariesXY.push(customXY(r));
         else if (c.primaries !== PRI_SRGB && c.primaries !== PRI_BT2100 && c.primaries !== PRI_P3) throw new Error('JPEG XL: invalid primaries');
