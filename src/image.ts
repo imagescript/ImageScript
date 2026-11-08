@@ -30,7 +30,6 @@ import { TextLayout, TextLayoutOptions } from './text-layout.ts';
 import { Metadata, resolveMetadata, pngText, exifData } from './metadata.ts';
 import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
-import { rotateBilinear } from './util/rotate.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
 import { isOptions, checkOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
@@ -548,12 +547,11 @@ export interface RotateOptions {
      */
     expand?: boolean;
     /**
-     * Whether to sample with 8-bit weights on 8-bit premultiplied pixels (like {@link ResizeOptions.fast}), about twice
-     * as fast: opaque pixels stay within a step of the precise result, what shows of translucent ones (also the
-     * faded edges) within about 2.5 steps (pixels that are almost transparent keep less of their color). Only affects
-     * angles that aren't multiples of 90°. Default: `true`
+     * How the pixels between the source's are sampled for angles that aren't multiples of 90° (those move whole
+     * pixels): `'nearest-neighbor'` (hard pixels, for pixel art), `'bilinear'` (smooth) or `'bicubic'` (sharper, can
+     * overshoot a little at hard edges), like {@link TransformOptions.mode}. Default: `'bilinear'`
      */
-    fast?: boolean;
+    mode?: TransformMode;
 }
 
 /** Options of {@link Image.trim} */
@@ -2163,15 +2161,19 @@ export class Image {
     }
 
     /**
-     * Rotates the image counterclockwise by the given amount of degrees
-     * @param angle The angle to rotate the image for (in degrees)
+     * Rotates the image clockwise by the given angle in degrees (like CSS' `rotate()`; negative angles turn it
+     * counterclockwise). Multiples of 90° move whole pixels; other angles resample the image (see
+     * {@link RotateOptions.mode}) and, by default, grow it so the corners fit
+     * @param angle The angle in degrees, clockwise
      * @param options See {@link RotateOptions}
      */
     rotate(angle: number, options?: RotateOptions): this;
     rotate(angle: number, options: RotateOptions = {}): this {
         checkOptions(options, 'rotate(angle, { expand: false })');
-        const { expand = true, fast = true } = options;
-        angle = ((finite(angle, 'angle') % 360) + 360) % 360;
+        const { expand = true, mode = 'bilinear' } = options;
+        if (!TRANSFORM_MODES.includes(mode)) throw new TypeError(`rotate mode must be one of ${TRANSFORM_MODES.map(name => `'${name}'`).join(', ')}, not ${String(mode)}`);
+        // (counterclockwise from here on: the image's y axis points down, so this turns it clockwise on screen)
+        angle = ((-finite(angle, 'angle') % 360) + 360) % 360;
         if (angle === 0) return this;
 
         const {width, height} = this;
@@ -2209,65 +2211,10 @@ export class Image {
         const outHeight = expand ? Math.round(Math.abs(width * sin) + Math.abs(height * cos)) : height;
         const out = new Image(outWidth, outHeight);
         rotateGainMap(outWidth, outHeight);
-        if (fast && rotateBilinear(this.bitmap, width, height, out.bitmap, outWidth, outHeight, sin, cos)) return this.__apply__(out);
-        const s8 = this.bitmap, d8 = out.bitmap;
-
-        // bilinear sampling of the counterclockwise rotated source, with premultiplied alpha
-        for (let oy = 0; oy < outHeight; oy++) {
-            for (let ox = 0; ox < outWidth; ox++) {
-                const dx = ox + 0.5 - outWidth / 2, dy = oy + 0.5 - outHeight / 2;
-                const sx = dx * cos - dy * sin + width / 2 - 0.5;
-                const sy = dx * sin + dy * cos + height / 2 - 0.5;
-                const x0 = Math.floor(sx), y0 = Math.floor(sy);
-                if (x0 < -1 || y0 < -1 || x0 >= width || y0 >= height) continue;
-
-                const fx = sx - x0, fy = sy - y0;
-                const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
-                let r = 0, g = 0, b = 0, a = 0;
-
-                // taps outside the source are skipped (zero weight taps add nothing either way)
-                const left = x0 >= 0, right = x0 + 1 < width, top = y0 >= 0, bottom = y0 + 1 < height;
-                let i = 4 * (y0 * width + x0);
-                if (top && left) {
-                    const wa = w00 * s8[i + 3];
-                    r += wa * s8[i];
-                    g += wa * s8[i + 1];
-                    b += wa * s8[i + 2];
-                    a += wa;
-                }
-                if (top && right) {
-                    const wa = w10 * s8[i + 7];
-                    r += wa * s8[i + 4];
-                    g += wa * s8[i + 5];
-                    b += wa * s8[i + 6];
-                    a += wa;
-                }
-                i += 4 * width;
-                if (bottom && left) {
-                    const wa = w01 * s8[i + 3];
-                    r += wa * s8[i];
-                    g += wa * s8[i + 1];
-                    b += wa * s8[i + 2];
-                    a += wa;
-                }
-                if (bottom && right) {
-                    const wa = w11 * s8[i + 7];
-                    r += wa * s8[i + 4];
-                    g += wa * s8[i + 5];
-                    b += wa * s8[i + 6];
-                    a += wa;
-                }
-
-                if (a <= 0) continue;
-                // the clamped bitmap rounds on assignment
-                const o = 4 * (oy * outWidth + ox);
-                d8[o] = r / a;
-                d8[o + 1] = g / a;
-                d8[o + 2] = b / a;
-                d8[o + 3] = a;
-            }
-        }
-
+        // the source position of each output position (pixel centers), around the middles of both images
+        const inverse: [number, number, number, number, number, number] = [cos, sin, -sin, cos,
+            width / 2 - cos * outWidth / 2 + sin * outHeight / 2, height / 2 - sin * outWidth / 2 - cos * outHeight / 2];
+        sampleAffine(this.bitmap, width, height, out.bitmap, outWidth, outHeight, inverse, 0, 0, mode);
         return this.__apply__(out);
     }
 

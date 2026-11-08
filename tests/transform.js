@@ -28,16 +28,16 @@ const photo = (width, height) => new Image(width, height).fill((x, y) => Colors.
         // flips and quarter turns are exact (the library's rotate() turns counterclockwise)
         check(same(source.clone().transform([-1, 0, 0, 1, 0, 0]), source.clone().flip('horizontal')), 'transform: flipped horizontally');
         check(same(source.clone().transform([1, 0, 0, -1, 0, 0]), source.clone().flip('vertical')), 'transform: flipped vertically');
-        check(same(source.clone().transform([0, -1, 1, 0, 0, 0]), source.clone().rotate(90)), 'transform: turned 90 degrees counterclockwise');
+        check(same(source.clone().transform([0, -1, 1, 0, 0, 0]), source.clone().rotate(-90)), 'transform: turned 90 degrees counterclockwise');
         check(same(source.clone().transform([-1, 0, 0, -1, 0, 0]), source.clone().rotate(180)), 'transform: turned 180 degrees');
-        check(same(source.clone().transform([0, 1, -1, 0, 0, 0]), source.clone().rotate(270)), 'transform: turned 270 degrees');
+        check(same(source.clone().transform([0, 1, -1, 0, 0, 0]), source.clone().rotate(-270)), 'transform: turned 270 degrees');
         const turned = source.clone().transform([0, -1, 1, 0, 0, 0]);
         check(turned.width === 9 && turned.height === 13, `transform: a quarter turn swaps the size: ${turned.width}x${turned.height}`);
 
-        // any angle: close to rotate() (counterclockwise 30 degrees), on a canvas that keeps its size
+        // any angle: rotate() (counterclockwise 30 degrees: -30), on a canvas that keeps its size
         const angle = 30 * Math.PI / 180, big = photo(40, 30);
         const ours = big.clone().transform([Math.cos(angle), -Math.sin(angle), Math.sin(angle), Math.cos(angle), 0, 0], {expand: false});
-        const theirs = big.clone().rotate(30, {expand: false});
+        const theirs = big.clone().rotate(-30, {expand: false});
         let total = 0;
         for (let i = 0; i < ours.bitmap.length; i++) total += Math.abs(ours.bitmap[i] - theirs.bitmap[i]);
         check(ours.width === 40 && ours.height === 30 && total / ours.bitmap.length < 3, `transform: a rotation by any angle is rotate()'s (mean difference ${total / ours.bitmap.length})`);

@@ -17,17 +17,17 @@ const assert = (condition, message) => {
 const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
 (async () => {
-    // rotating non-square images by right angles (#29)
+    // rotating non-square images by right angles (#29): rotate() turns clockwise
     {
         const image = new Image(3, 2).fill((x, y) => Colors.fromRGBA(x + 1, y + 1, 0, 255));
-        const ccw = image.clone().rotate(90);
-        assert(ccw.width === 2 && ccw.height === 3, 'rotate(90): dimensions not swapped');
-        assert(rgba(ccw, 0, 2).slice(0, 2).join() === '1,1', 'rotate(90): top left should end up bottom left');
-        assert(rgba(ccw, 1, 0).slice(0, 2).join() === '3,2', 'rotate(90): bottom right should end up top right');
+        const ccw = image.clone().rotate(270);
+        assert(ccw.width === 2 && ccw.height === 3, 'rotate(270): dimensions not swapped');
+        assert(rgba(ccw, 0, 2).slice(0, 2).join() === '1,1', 'rotate(270): top left should end up bottom left');
+        assert(rgba(ccw, 1, 0).slice(0, 2).join() === '3,2', 'rotate(270): bottom right should end up top right');
 
-        const cw = image.clone().rotate(270);
-        assert(rgba(cw, 1, 0).slice(0, 2).join() === '1,1', 'rotate(270): top left should end up top right');
-        for (const [x, y, color] of cw.pixels()) assert((color & 0xff) === 255, `rotate(270): hole at ${x},${y}`);
+        const cw = image.clone().rotate(90);
+        assert(rgba(cw, 1, 0).slice(0, 2).join() === '1,1', 'rotate(90): top left should end up top right');
+        for (const [x, y, color] of cw.pixels()) assert((color & 0xff) === 255, `rotate(90): hole at ${x},${y}`);
     }
 
     // free rotation keeps the edges
@@ -313,7 +313,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const read = n => fs.readFileSync(`./tests/jpegs/exif-orientation-${n}.jpg`);
         const raw = await Image.decode(read(3), {applyOrientation: false});
         assert(raw.width === 48 && raw.height === 32, 'decode: applyOrientation: false should keep the stored pixels');
-        for (const [n, angle] of [[3, 180], [6, 270], [8, 90]]) {
+        for (const [n, angle] of [[3, 180], [6, 90], [8, 270]]) {
             const oriented = await Image.decode(read(n));
             const expected = (await Image.decode(read(n), {applyOrientation: false})).rotate(angle);
             assert(oriented.width === expected.width && Buffer.from(oriented.bitmap).equals(Buffer.from(expected.bitmap)), `decode: orientation ${n} not applied`);

@@ -140,9 +140,9 @@ const meanValue = (image, left, top, right, bottom) => {
 		const oriented = Buffer.concat([files['multi-channel'].subarray(0, app0End), segment, files['multi-channel'].subarray(app0End)]);
 		const image = await Image.decode(oriented);
 		if (image.width !== 384 || !image.gainMap || image.gainMap.width !== 384) panic(`orientation: ${image.width}, map ${image.gainMap?.width}`);
-		// (orientation 6: turned clockwise, rotate(270))
-		if (!same(image, multi.clone().rotate(270))) panic('orientation: test file wrong');
-		if (!same(image.gainMap.image, multi.gainMap.image.clone().rotate(270))) panic('orientation: the map wasn\'t turned like the image');
+		// (orientation 6: turned clockwise, rotate(90))
+		if (!same(image, multi.clone().rotate(90))) panic('orientation: test file wrong');
+		if (!same(image.gainMap.image, multi.gainMap.image.clone().rotate(90))) panic('orientation: the map wasn\'t turned like the image');
 	}
 
 	// drawing over it: no boost where something without one went, the rest as it was
