@@ -613,10 +613,11 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(Buffer.from(await map.encode()).equals(Buffer.from(await map.encode({}))), 'GainMap.encode() without arguments');
     }
 
-    // gradients and recolor with an image
+    // gradients, recolor with an image and drop shadows / glows
     {
         const {GainMap} = require('..');
         const px = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
+        const alphaAt = (image, x, y) => image.bitmap[(y * image.width + x) * 4 + 3];
         const throws = (fn, type, message) => {
             let error = null;
             try { fn(); } catch (e) { error = e; }
@@ -674,6 +675,47 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         mapped.gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
         mapped.recolor(Image.linearGradient(8, 8, {stops: [0xff0000ff, 0x0000ffff], angle: 90}));
         assert(px(mapped, 0, 0)[0] > 200 && px(mapped, 7, 0)[2] > 200 && mapped.gainMap && mapped.gainMap.width === 4, 'recolor(image) keeps the gain map');
+
+        // drop shadows and glows
+        const square = () => new Image(10, 10).fill((x, y) => x >= 3 && x < 7 && y >= 3 && y < 7 ? 0xff8040ff : 0);
+        let image = square().dropShadow();
+        assert(image.width === 10 && image.height === 10 && px(image, 4, 4).join() === '255,128,64,255' && px(image, 2, 4)[3] === 0, 'dropShadow() without offset or blur changes nothing outside of the shape');
+        image = square().dropShadow({x: 2, y: 3});
+        assert(image.width === 12 && image.height === 13, `dropShadow({x, y}) grows right and down: ${image.width}x${image.height}`);
+        assert(px(image, 8, 9).join() === '0,0,0,128' && px(image, 4, 4).join() === '255,128,64,255' && px(image, 9, 9)[3] === 0, `dropShadow: the shadow is 50% black behind the shape, shifted: ${px(image, 8, 9)}`);
+        image = square().dropShadow({x: -2, y: -1, color: 0xff0000ff});
+        assert(image.width === 12 && image.height === 11 && px(image, 3, 3).join() === '255,0,0,255' && px(image, 5, 5).join() === '255,128,64,255', `dropShadow({x: -2, y: -1}) grows left and up, the image moves: ${image.width}x${image.height} ${px(image, 3, 3)}`);
+        image = square().dropShadow({x: 2, y: 3, expand: false});
+        assert(image.width === 10 && image.height === 10 && px(image, 8, 9).join() === '0,0,0,128', 'dropShadow({expand: false}) keeps the size');
+        image = square().dropShadow({blur: 2});
+        assert(image.width === 22 && image.height === 22, `dropShadow({blur}) leaves room for the blur (3 deviations): ${image.width}x${image.height}`);
+        assert(alphaAt(image, 3 + 6 - 1, 3 + 6 + 2) > 0 && alphaAt(image, 0, 0) <= 1 && alphaAt(image, 3 + 6 + 1, 3 + 6 + 1) === 255 && px(image, 11, 11).join() === '255,128,64,255', 'dropShadow({blur}): a soft shadow around the shape, the shape on top');
+        image = square().dropShadow({spread: 1.5, color: 0x00ff00ff});
+        assert(image.width === 14 && px(image, 4, 7).join() === '0,255,0,255' && alphaAt(image, 3, 7) > 64 && alphaAt(image, 3, 7) < 192 && alphaAt(image, 2, 7) === 0, `dropShadow({spread}) grows the shape by the spread: ${[2, 3, 4].map(x => alphaAt(image, x, 7))}`);
+        const glowing = square().dropShadow({blur: 3, spread: 1, color: 0xff2fb9ff});
+        let pinks = 0;
+        for (let i = 0; i < glowing.bitmap.length; i += 4)
+            if (glowing.bitmap[i + 3] > 0 && glowing.bitmap[i + 3] < 255) pinks += glowing.bitmap[i] === 255 && glowing.bitmap[i + 1] === 47 && glowing.bitmap[i + 2] === 185 ? 1 : 0;
+        assert(pinks > 200 && pinks === (() => { let n = 0; for (let i = 0; i < glowing.bitmap.length; i += 4) if (glowing.bitmap[i + 3] > 0 && glowing.bitmap[i + 3] < 255) n++; return n; })(), `a glow is exactly the color all around, also where it's faint: ${pinks} pixels`);
+        throws(() => square().dropShadow({blur: -1}), RangeError, 'negative blur');
+        throws(() => square().dropShadow({spread: -1}), RangeError, 'negative spread');
+        throws(() => square().dropShadow({x: NaN}), RangeError, 'NaN offset');
+        const translucent = new Image(6, 6).fill(0xffffff80);
+        const shadowed = translucent.clone().dropShadow({color: 0x000000ff});
+        assert(px(shadowed, 2, 2).join() === px(translucent, 2, 2).join() || px(shadowed, 2, 2)[3] >= 128, 'dropShadow keeps translucent pixels over their shadow');
+
+        // frames stay in place: the offsets move with the growth, up and left only as far as they allow
+        const frame = Frame.from(square(), {duration: 40, xOffset: 2, yOffset: 5}).dropShadow({blur: 2});
+        assert(frame.xOffset === 0 && frame.yOffset === 0 && frame.width === 10 + 2 + 6 && frame.height === 10 + 5 + 6 && frame.duration === 40, `Frame.dropShadow: ${frame.width}x${frame.height} at ${frame.xOffset},${frame.yOffset}`);
+        assert(px(frame, 2 + 4, 5 + 4).join() === '255,128,64,255', 'Frame.dropShadow: the pixels stay where they were on the animation canvas');
+        const farFrame = Frame.from(square(), {xOffset: 20, yOffset: 20}).dropShadow({blur: 1});
+        assert(farFrame.xOffset === 17 && farFrame.yOffset === 17, 'Frame.dropShadow with room moves the offsets by the growth');
+
+        // gain maps grow with the image
+        const hdr = square();
+        hdr.gainMap = new GainMap(new Image(5, 5).fill(0xc0c0c0ff), {gainMapMin: 0, gainMapMax: 2});
+        const hdrShadow = hdr.clone().dropShadow({x: 5, y: 0, blur: 1});
+        assert(hdrShadow.gainMap && Math.abs(hdrShadow.gainMap.width / hdrShadow.width - 0.5) < 0.1 && Math.abs(hdrShadow.gainMap.height / hdrShadow.height - 0.5) < 0.1, 'dropShadow keeps the gain map at its scale');
     }
 
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values

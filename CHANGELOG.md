@@ -4,6 +4,7 @@
 
 ### New
 
+- **`image.dropShadow({ x, y, blur, spread, color, expand })`**: a shadow behind the image, shaped by its alpha. Without an offset it is a glow: `image.dropShadow({ blur: 8, spread: 2, color: 0xff2fb9ff })`. The image grows to fit it, unless `expand: false`.
 - **`Image.linearGradient(width, height, { stops, angle })`** and **`Image.radialGradient(width, height, { stops, x, y, radius })`**: images with a gradient, with the angle like CSS' `linear-gradient()`. `stops` are positions and colors like `Colors.gradient()` takes them, or just the colors, evenly spaced.
 - **`image.recolor(otherImage)`**: takes the colors from another image of the same size and keeps the alpha. With a gradient it fills a shape, e.g. gradient text: `text.recolor(Image.linearGradient(text.width, text.height, { stops: [0x22d3eeff, 0xfb923cff], angle: 90 }))`.
 

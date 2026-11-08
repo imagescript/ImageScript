@@ -171,6 +171,25 @@ export interface SharpenOptions {
     radius?: number;
 }
 
+/** Options of {@link Image.dropShadow} */
+export interface ShadowOptions {
+    /** How far to move the shadow to the right (negative values: to the left), in pixels. Default: `0` */
+    x?: number;
+    /** How far to move the shadow down (negative values: up), in pixels. Default: `0` */
+    y?: number;
+    /** How soft the shadow's edge is: the standard deviation of a gaussian blur in pixels, like {@link Image.blur}. Default: `0` */
+    blur?: number;
+    /** How far to grow the shadow's shape before blurring it, in pixels. Default: `0` */
+    spread?: number;
+    /** The shadow's color, its alpha is the shadow's opacity. Default: `0x00000080` (50% black) */
+    color?: Color;
+    /**
+     * Whether to make the image larger so the shadow isn't cut off. Without it, the image keeps its size and the part
+     * of the shadow outside is lost. Default: `true`
+     */
+    expand?: boolean;
+}
+
 /** The colors of a gradient, see {@link Image.linearGradient} */
 export interface GradientOptions {
     /**
@@ -1985,6 +2004,111 @@ export class Image {
         gaussianBlur(pixels, this.width, this.height, radius);
         unpremultiply(pixels, this.bitmap);
         return this;
+    }
+
+    /**
+     * Adds a shadow behind the image, shaped by its alpha: a drop shadow with an offset, or a glow without one
+     * (`image.dropShadow({ blur: 8, color: 0xff2fb9ff })`, with `spread` to make it stronger). The image grows to fit
+     * the shadow, unless `expand` is `false`. Frames stay where they are (their offsets move with the growth), they only
+     * grow up and left as far as their offset allows
+     * @param options See {@link ShadowOptions}
+     */
+    dropShadow(options: ShadowOptions = {}): this {
+        const { x = 0, y = 0, blur = 0, spread = 0, color = 0x00000080, expand = true } = options;
+        finite(x, 'x');
+        finite(y, 'y');
+        if (finite(blur, 'blur') < 0) throw new RangeError('Invalid blur radius');
+        if (finite(spread, 'spread') < 0) throw new RangeError('Invalid spread');
+        const [r, g, b, a] = Colors.toRGBA(checkColor(color));
+
+        // the shadow's room: the spread and what the blur reaches (3 standard deviations), and a border for the outline
+        const reach = spread + 3 * blur, margin = Math.ceil(reach) + 1;
+        const layer = this.__shape_layer__(margin);
+        const width = layer.width;
+        const coverage = new Uint8Array(width * layer.height);
+        for (let i = 0; i < coverage.length; i++) coverage[i] = layer.bitmap[i * 4 + 3];
+        const grown = spread > 0 ? outline(coverage, width, layer.height, spread) : null;
+        const bitmap = layer.bitmap;
+        for (let i = 0; i < coverage.length; i++) {
+            bitmap[i * 4] = r;
+            bitmap[i * 4 + 1] = g;
+            bitmap[i * 4 + 2] = b;
+            bitmap[i * 4 + 3] = (grown ? grown[i] * 255 : coverage[i]) * a / 255;
+        }
+        if (blur > 0) {
+            layer.blur(blur);
+            // (a flat color: blurring the alpha only, the exact color goes back, 8 bit premultiplied colors drift where it's faint)
+            for (let i = 0; i < coverage.length; i++) {
+                if (!bitmap[i * 4 + 3]) continue;
+                bitmap[i * 4] = r;
+                bitmap[i * 4 + 1] = g;
+                bitmap[i * 4 + 2] = b;
+            }
+        }
+
+        const room = this.__room__();
+        return this.__under__(layer, x - margin, y - margin, expand ? {
+            left: Math.min(room.left, Math.max(0, Math.ceil(reach - x))),
+            top: Math.min(room.top, Math.max(0, Math.ceil(reach - y))),
+            right: Math.max(0, Math.ceil(reach + x)),
+            bottom: Math.max(0, Math.ceil(reach + y))
+        } : { left: 0, top: 0, right: 0, bottom: 0 });
+    }
+
+    /**
+     * A transparent image with this one's alpha in the middle, with a margin all around
+     * @internal
+     * @ignore
+     */
+    protected __shape_layer__(margin: number): Image {
+        const layer = new Image(this.width + 2 * margin, this.height + 2 * margin);
+        for (let y = 0; y < this.height; y++)
+            for (let x = 0; x < this.width; x++)
+                layer.bitmap[((y + margin) * layer.width + x + margin) * 4 + 3] = this.bitmap[(y * this.width + x) * 4 + 3];
+        return layer;
+    }
+
+    /**
+     * Puts a layer behind the image on a larger canvas (the layer's position is relative to the image), keeping the
+     * gain map in place
+     * @internal
+     * @ignore
+     */
+    protected __under__(layer: Image, layerX: number, layerY: number, grow: { left: number, top: number, right: number, bottom: number }): this {
+        const { left, top, right, bottom } = grow;
+        const width = this.width + left + right, height = this.height + top + bottom;
+        const result = new Image(width, height);
+        result.composite(layer, { x: layerX + left, y: layerY + top });
+        const map = this.__gain_map__;
+        this.__gain_map__ = null;
+        try {
+            result.composite(this, { x: left, y: top });
+        } finally {
+            this.__gain_map__ = map;
+        }
+        map?.__transform__(this.width, this.height, width, height, (X, Y) => [X - left, Y - top]);
+        this.__apply__(result);
+        if (left || top) this.__grown__(left, top);
+        return this;
+    }
+
+    /**
+     * How far the image may grow up and left
+     * @internal
+     * @ignore
+     */
+    protected __room__(): { left: number, top: number } {
+        return { left: Infinity, top: Infinity };
+    }
+
+    /**
+     * Called when the image has grown up and left
+     * @internal
+     * @ignore
+     */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    protected __grown__(_left: number, _top: number): void {
+        // (frames move their offsets)
     }
 
     /**

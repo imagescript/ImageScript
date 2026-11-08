@@ -198,6 +198,23 @@ export class Frame extends Image {
     }
 
     /**
+     * @internal
+     * @ignore
+     */
+    protected override __room__(): { left: number, top: number } {
+        return { left: this.xOffset, top: this.yOffset };
+    }
+
+    /**
+     * @internal
+     * @ignore
+     */
+    protected override __grown__(left: number, top: number): void {
+        this.xOffset -= left;
+        this.yOffset -= top;
+    }
+
+    /**
      * Removes borders of one color, moving the frame's offsets so the remaining pixels stay in place
      * @param options See {@link TrimOptions}
      */
