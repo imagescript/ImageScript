@@ -45,10 +45,10 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(rgba(blend, 0, 0)[3] === 192, 'composite: alpha should combine to 0.75');
     }
 
-    // cropCircle(max)
+    // cropCircle({ size })
     {
         const count = image => [...image.pixels()].filter(([, , c]) => c & 0xff).length;
-        assert(count(new Image(8, 2).fill(0xffffffff).cropCircle(true)) > count(new Image(8, 2).fill(0xffffffff).cropCircle(false)), 'cropCircle: max has no effect');
+        assert(count(new Image(8, 2).fill(0xffffffff).cropCircle({ size: 'cover' })) > count(new Image(8, 2).fill(0xffffffff).cropCircle({ size: 'contain' })), 'cropCircle: cover has no effect');
     }
 
     // crop is clipped to the image
@@ -277,7 +277,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             for (let x = 0; x < 6; x++)
                 assert(a(x, y) === a(5 - x, y) && a(x, y) === a(x, 5 - y), `cropCircle should be symmetric (${x}, ${y})`);
 
-        const feathered = new Image(41, 41).fill(0xffffffff).cropCircle(false, 0.5);
+        const feathered = new Image(41, 41).fill(0xffffffff).cropCircle({ feathering: 0.5 });
         const f = x => feathered.getPixelAt(x, 20) & 0xff;
         assert(f(20) === 255 && f(12) === 255 && f(5) > 0 && f(5) < 255 && f(0) < 32, 'cropCircle feathering should only soften the outer part');
     }
@@ -428,16 +428,11 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(coordinates[4].join() === '1,1' && pixels[4][2] === Colors.fromRGBA(50, 100, 7, 255), 'coordinates() and pixels() are row by row');
     }
 
-    // cropCircle({size}): 'contain' is the default, `max` (deprecated, removed in 4.0) maps to 'cover'
+    // cropCircle({size}): 'contain' is the default
     {
         const wide = new Image(40, 20).fill(Colors.fromRGBA(200, 100, 50, 255));
         const same = (a, b) => Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
         assert(same(wide.clone().cropCircle(), wide.clone().cropCircle({size: 'contain'})), 'cropCircle() is contain');
-        assert(same(wide.clone().cropCircle(false), wide.clone().cropCircle({size: 'contain'})), 'cropCircle(false)');
-        assert(same(wide.clone().cropCircle({max: false}), wide.clone().cropCircle({size: 'contain'})), 'cropCircle({max: false})');
-        assert(same(wide.clone().cropCircle(true), wide.clone().cropCircle({size: 'cover'})), 'cropCircle(true)');
-        assert(same(wide.clone().cropCircle({max: true, feathering: .5}), wide.clone().cropCircle({size: 'cover', feathering: .5})), 'cropCircle({max: true, feathering})');
-        assert(same(wide.clone().cropCircle({max: true, size: 'contain'}), wide.clone().cropCircle({size: 'contain'})), 'size wins over max');
         assert(!same(wide.clone().cropCircle({size: 'cover'}), wide.clone().cropCircle({size: 'contain'})), 'cover differs from contain');
         assert(wide.clone().cropCircle({size: 'contain'}).getPixelAt(20, 1) >>> 0 !== 0 && (wide.clone().cropCircle({size: 'contain'}).getPixelAt(1, 10) & 0xff) === 0, 'contain: the circle fits the height');
         let threw = false;
@@ -730,7 +725,6 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // options objects as alternatives to positional arguments
     {
         const base = new Image(20, 20).fill(0xff0000ff);
-        assert(Buffer.from(base.clone().cropCircle({max: true, feathering: 0.3}).bitmap).equals(Buffer.from(base.clone().cropCircle(true, 0.3).bitmap)), 'cropCircle options');
         assert(base.clone().rotate(45, {resize: false}).width === 20 && base.clone().rotate(45).width > 20, 'rotate options');
         const navy = new Image(10, 10).fill(0x00002aff).drawBox(0, 0, 3, 3, 0xc8c800ff);
         assert(navy.dominantColor({threshold: 0}) === 0x00002aff && navy.dominantColor({ignoreBlack: true}) === navy.dominantColor(true), 'dominantColor options');
@@ -1050,7 +1044,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             rgbaToColor: v => Colors.fromRGBA(v, 0, 0, 255), hslaToColor: v => Colors.fromHSLA(v, 0.5, 0.5, 1), colorToRGBA: v => Colors.toRGBA(v),
             getPixelAt: v => image().getPixelAt(v, 1), setPixelAt: v => image().setPixelAt(1, 1, v), fill: v => image().fill(v), contain: v => image().contain(v, 4),
             crop: v => image().crop(v, 0, 2, 2), trim: v => image().trim(v), drawBox: v => image().drawBox(0, 0, v, 2, 0), drawCircle: v => image().drawCircle(2, 2, v, 0),
-            cropCircle: v => image().cropCircle(false, v), opacity: v => image().opacity(v), red: v => image().red(v), lightness: v => image().lightness(v),
+            cropCircle: v => image().cropCircle({ feathering: v }), opacity: v => image().opacity(v), red: v => image().red(v), lightness: v => image().lightness(v),
             composite: v => image().composite(image(), v, 0), hueShift: v => image().hueShift(v), brightness: v => image().brightness(v), gamma: v => image().gamma(v),
             colorToAlpha: v => image().colorToAlpha(v), rotate: v => image().rotate(v, false), gradient: v => Colors.gradient({0: v, 1: 0}),
             roundCorners: v => image().roundCorners(v), fisheye: v => image().fisheye(v), encodePNG: v => image().encodePNG(v), encodeJPEG: v => image().encodeJPEG(v),

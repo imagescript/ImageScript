@@ -16,6 +16,8 @@
 
 - **`PNGMetadata` is removed**: use `Metadata`, which all encoders take. The type is the same.
 
+- **The `max` argument of `cropCircle()` is removed**: `cropCircle(true, feathering)` and `cropCircle({ max: true })` are now `cropCircle({ size: 'cover', feathering })`, and `cropCircle(false)` is `cropCircle()`, the default `size: 'contain'`.
+
 ## 3.20.1
 
 ### Performance

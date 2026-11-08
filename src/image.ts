@@ -553,11 +553,6 @@ export interface CropCircleOptions {
      * transparent on the shorter side). Default: `'contain'`
      */
     size?: 'contain' | 'cover';
-    /**
-     * Whether to use the larger dimension for the size. Default: `false`
-     * @deprecated Use `size: 'cover'` (`true`) or `size: 'contain'` (`false`), `max` will be removed in 4.0
-     */
-    max?: boolean;
     /** Share of the radius (0..1) over which the edge fades out. Default: `0` */
     feathering?: number;
 }
@@ -1402,18 +1397,8 @@ export class Image {
      * Crops the image into a circle with an antialiased edge
      * @param options See {@link CropCircleOptions}
      */
-    cropCircle(options?: CropCircleOptions): this;
-    /**
-     * Crops the image into a circle with an antialiased edge
-     * @param max Whether to use the larger dimension for the size. Default: `false`
-     * @param feathering Share of the radius (0..1) over which the edge fades out. Default: `0`
-     * @deprecated Pass {@link CropCircleOptions} instead, `cropCircle({ size: 'cover' })`. The arguments will be
-     *     removed in 4.0
-     */
-    cropCircle(max?: boolean, feathering?: number): this;
-    cropCircle(maxOrOptions: boolean | CropCircleOptions = false, featheringArgument = 0): this {
-        const { max = false, size = max ? 'cover' : 'contain', feathering = 0 } = typeof maxOrOptions === 'object' && maxOrOptions !== null
-            ? maxOrOptions : { max: maxOrOptions, feathering: featheringArgument };
+    cropCircle(options: CropCircleOptions = {}): this {
+        const { size = 'contain', feathering = 0 } = options;
         finite(feathering, 'feathering');
         if (size !== 'contain' && size !== 'cover') throw new TypeError(`Invalid circle size: ${String(size)}`);
         const radius = (size === 'cover' ? Math.max : Math.min)(this.width, this.height) / 2;

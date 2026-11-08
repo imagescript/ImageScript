@@ -51,7 +51,7 @@ const panic = message => {
     {
         const image = new Image(256, 512);
         image.fill(0x000000ff);
-        image.cropCircle(true, .5);
+        image.cropCircle({ size: 'cover', feathering: .5 });
 
         const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
 
