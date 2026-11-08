@@ -41,6 +41,15 @@ export function loopCount(value: unknown, name = 'loop count'): number {
     return value;
 }
 
+/**
+ * The plays of an APNG or WebP header for a loop count: they count plays, so a loop count is one less (0 = forever,
+ * for Infinity)
+ */
+export const toPlays = (count: number): number => count === Infinity ? 0 : count + 1;
+
+/** The loop count of a plays field (0 = forever, which is Infinity), the inverse of {@link toPlays} */
+export const fromPlays = (plays: number): number => plays === 0 ? Infinity : plays - 1;
+
 /** A quality argument (0-100) of the encoders that take one, finite and in range */
 export function quality(value: number, name = 'quality'): number {
     const q = finite(value, name);

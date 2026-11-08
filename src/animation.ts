@@ -12,13 +12,9 @@ import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel, loopCount } from './util/options.ts';
+import { checkOptions, finite, compressionLevel, loopCount, toPlays, fromPlays } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
-
-// loop counts: how many times the animation starts over (Infinity = forever); APNG and WebP count plays (0 = forever)
-const toPlays = (count: number): number => count === Infinity ? 0 : count + 1;
-const fromPlays = (plays: number): number => plays === 0 ? Infinity : plays - 1;
 
 // frames decoded fully composited, as full canvas frames
 function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uint8Array | Uint8ClampedArray, duration: number }>): Frame[] {

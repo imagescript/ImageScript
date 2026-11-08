@@ -6,11 +6,8 @@ import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel, loopCount } from './util/options.ts';
+import { checkOptions, finite, compressionLevel, loopCount, toPlays } from './util/options.ts';
 import type { AnimationOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
-
-// (the loop count is how many times the animation starts over, Infinity forever; APNG and WebP count plays, 0 forever)
-const toPlays = (count: number): number => count === Infinity ? 0 : count + 1;
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
 interface Format {
