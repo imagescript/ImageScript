@@ -280,9 +280,14 @@ export interface PNGEncodeOptions {
 }
 
 /** Options of {@link Image.encodeJPEG} */
-export interface JPEGEncodeOptions {
-    /** The JPEG quality (1-100), chroma subsampling is disabled above 90. Default: `90` */
+export interface JPEGEncodeOptions extends EncodeOptions {
+    /** The JPEG quality (1-100). Default: `90` */
     quality?: number;
+    /**
+     * Chroma subsampling: `'4:4:4'` keeps the full color resolution, `'4:2:0'` halves it (smaller, like most
+     * cameras). Default: `'4:2:0'` up to quality 90, `'4:4:4'` above (like libjpeg-turbo's `cjpeg`)
+     */
+    subsampling?: '4:4:4' | '4:2:0';
     /** Metadata to include, see {@link Metadata} */
     metadata?: Metadata;
     /**
@@ -2595,9 +2600,10 @@ export class Image {
     encodeJPEG(options?: JPEGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodeJPEG(options: JPEGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encodeJPEG({ quality: 80 })');
-        const { quality = 90, metadata = {}, gainMap: gainMapOption = true } = options;
+        const { quality = 90, subsampling, metadata = {}, gainMap: gainMapOption = true } = options;
+        if (subsampling !== undefined && subsampling !== '4:4:4' && subsampling !== '4:2:0') throw new TypeError(`subsampling must be '4:4:4' or '4:2:0', not ${String(subsampling)}`);
         const m = resolveMetadata(metadata);
-        const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined };
+        const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined, subsampling };
         const gainMap = this.__gain_map__;
         if (!gainMap || gainMapOption === false) return jpeg.encode(this.__bytes__(), this.width, this.height, finite(quality, 'quality'), base);
 

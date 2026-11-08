@@ -993,9 +993,11 @@ export interface EncodeMetadata {
     grey?: boolean;
     /** whether to keep the chroma at full resolution at any quality (else only above 90) */
     fullChroma?: boolean;
+    /** the chroma subsampling, overriding the default by quality (4:2:0 up to 90, 4:4:4 above) */
+    subsampling?: '4:4:4' | '4:2:0';
 }
 
-export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment, segments, grey = false, fullChroma = false }: EncodeMetadata = {}): Uint8Array {
+export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment, segments, grey = false, fullChroma = false, subsampling }: EncodeMetadata = {}): Uint8Array {
     if (!width || !height || width > 0xffff || height > 0xffff) throw new RangeError('JPEG: invalid dimensions');
 
     quality = Math.min(100, Math.max(1, Math.round(quality)));
@@ -1007,7 +1009,7 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
     // like libjpeg-turbo (cjpeg -optimize, -sample 1x1 above 90), byte for byte: its color conversion, downsampling,
     // integer DCT, quantization and padding
     // (greyscale: like cjpeg -grayscale, one component, no subsampling)
-    const subsample = quality <= 90 && !grey && !fullChroma;
+    const subsample = !grey && !fullChroma && (subsampling ? subsampling === '4:2:0' : quality <= 90);
     const hmax = subsample ? 2 : 1;
     const mcuSize = 8 * hmax;
     const mcusPerLine = Math.ceil(width / mcuSize);
