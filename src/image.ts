@@ -33,7 +33,7 @@ import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts'
 import { rotateBilinear } from './util/rotate.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -1390,6 +1390,7 @@ export class Image {
      * @param options See {@link CropCircleOptions}
      */
     cropCircle(options: CropCircleOptions = {}): this {
+        checkOptions(options, 'cropCircle({ size: \'cover\' })');
         const { size = 'contain', feathering = 0 } = options;
         finite(feathering, 'feathering');
         if (size !== 'contain' && size !== 'cover') throw new TypeError(`Invalid circle size: ${String(size)}`);
@@ -3031,6 +3032,8 @@ export class Image {
      * @return The rendered text
      */
     static async renderText(text: string, options: RenderTextOptions): Promise<Image> {
+        if (typeof text !== 'string' || !isOptions(options)) throw new TypeError('renderText() takes the text and an options object, like renderText(\'Hello\', { font, size: 32 })');
+        if (options.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
         const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {} } = options;
         const layout = options.layout instanceof TextLayout ? options.layout : new TextLayout(options.layout);
         const axes = textRenderer.axisValues(variations);

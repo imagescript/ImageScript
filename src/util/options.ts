@@ -4,6 +4,15 @@ export function isOptions<T>(value: T): value is Extract<T, object> {
 }
 
 /**
+ * Checks that the options argument of a method is left out or an object. A method that only takes options (4.0 removed
+ * the positional forms) throws a TypeError for anything else instead of silently ignoring it, which names the form that
+ * works: `usage` is e.g. `cropCircle({ size: 'cover' })`
+ */
+export function checkOptions(value: unknown, usage: string): void {
+    if (value !== undefined && !isOptions(value)) throw new TypeError(`${usage.split('(')[0]}() takes an options object, like ${usage}, not ${value === null ? 'null' : typeof value}`);
+}
+
+/**
  * A number argument, converted like arithmetic does (numeric strings keep working); NaN and the infinities throw
  * a RangeError naming the argument
  */
