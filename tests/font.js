@@ -14,7 +14,7 @@
  */
 
 const fs = require('fs').promises;
-const {Image, TextLayout} = require('..');
+const {Image} = require('..');
 const samePixels = require('./util/pixels');
 
 const panic = message => {
@@ -85,7 +85,7 @@ const panic = message => {
     {
         const font = await fs.readFile('./tests/fonts/opensans bold.ttf');
         // (unhinted: the layout places glyphs with subpixel precision)
-        const render = (text, options) => Image.renderText(text, { font, size: 40, color: 0xffffffff, layout: new TextLayout(options), hinting: false });
+        const render = (text, options) => Image.renderText(text, { font, size: 40, color: 0xffffffff, layout: options, hinting: false });
         // first column with ink in the given row
         const inkStart = (image, y) => {
             for (let x = 0; x < image.width; x++)
@@ -373,7 +373,7 @@ const panic = message => {
         const fonts = await Promise.all(['opensans bold.ttf', 'noto sans hebrew subset.ttf', 'noto naskh arabic subset.ttf', 'noto sans devanagari subset.ttf']
             .map(name => fs.readFile(`./tests/fonts/${name}`)));
         const text = 'Hi שָׁלוֹם עוֹלָם (2024) and مرحبا بالعالم!\nمرحبا بالعالم، هذا نص (2024)!\nनमस्ते क्षत्रिय र्क्ष';
-        const font = await Image.renderText(text, { font: fonts, size: 40, color: 0xffffffff, layout: new TextLayout({maxWidth: 420, horizontalAlign: 'right'}) });
+        const font = await Image.renderText(text, { font: fonts, size: 40, color: 0xffffffff, layout: {maxWidth: 420, horizontalAlign: 'right'} });
         const encoded = await font.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
@@ -433,15 +433,10 @@ const panic = message => {
         }
     }
 
-    // a plain layout object is a TextLayout
+    // renderText rejects options without a font or size
     {
         const font = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
         const text = 'Hello wrapped world';
-        const layout = new TextLayout({maxWidth: 90, horizontalAlign: 'center'});
-        const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
-        const withLayout = await Image.renderText(text, {font, size: 24, color: 0xff8800ff, layout});
-        const withOptions = await Image.renderText(text, {font, size: 24, color: 0xff8800ff, layout: {maxWidth: 90, horizontalAlign: 'center'}});
-        if (!same(withLayout, withOptions)) panic('renderText: a layout object should render like a TextLayout');
         for (const options of [undefined, {size: 20}, {font}, {font, size: NaN}]) {
             let error = null;
             try { await Image.renderText(text, options); } catch (err) { error = err; }

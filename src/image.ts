@@ -393,8 +393,8 @@ export interface RenderTextOptions extends TextStyle {
     size: number;
     /** The text color. Default: `0xffffffff` */
     color?: Color;
-    /** The text layout, as {@link TextLayoutOptions} or a {@link TextLayout}. Default: the defaults of `TextLayout` */
-    layout?: TextLayoutOptions | TextLayout;
+    /** The text layout: wrapping, cutting off and alignment, see {@link TextLayoutOptions}. Default: `{}` */
+    layout?: TextLayoutOptions;
 }
 
 /** Options of {@link Image.decode}, {@link Animation.decode} and {@link decode} */
@@ -2924,7 +2924,7 @@ export class Image {
         if (typeof text !== 'string' || !isOptions(options)) throw new TypeError('renderText() takes the text and an options object, like renderText(\'Hello\', { font, size: 32 })');
         if (options.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
         const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {} } = options;
-        const layout = options.layout instanceof TextLayout ? options.layout : new TextLayout(options.layout);
+        const layout = new TextLayout(options.layout);
         const axes = textRenderer.axisValues(variations);
         const size = finite(options.size, 'font size');
         if (size < 0) throw new RangeError(`Invalid font size: ${size}`);

@@ -1,4 +1,4 @@
-const {Image, Frame, Animation, GainMap, TextLayout} = require('..');
+const {Image, Frame, Animation, GainMap} = require('..');
 
 const panic = message => {
 	console.error(message);
@@ -29,7 +29,7 @@ const panic = message => {
 		'Animation.apngEncoder': bad => Animation.apngEncoder(8, 8, bad),
 		'AnimationEncoder.add': async bad => { const encoder = Animation.gifEncoder(16, 10); await encoder.add(photo, bad); },
 		'new GainMap': bad => new GainMap(new Image(2, 2), bad),
-		'new TextLayout': bad => new TextLayout(bad)
+		'renderText layout': bad => Image.renderText('a', {font: new Uint8Array(0), size: 12, layout: bad})
 	};
 	for (const [name, call] of Object.entries(calls)) {
 		for (const [label, bad] of Object.entries({'a number': 80, 'a string': 'fast', 'true': true, 'null': null})) {
@@ -51,6 +51,5 @@ const panic = message => {
 	photo.clone().quantize().quantize({colors: 4});
 	photo.clone().dropShadow().outline({width: 1});
 	if ((await photo.encodeWebP({quality: 50})).length < 10 || (await photo.encodeWebP()).length < 10) panic('encodeWebP with and without options');
-	if (new TextLayout().maxWidth !== undefined && new TextLayout({maxWidth: 30}).maxWidth !== 30) panic('TextLayout options');
 	if (gainMap.width !== 4) panic('GainMap options');
 })().catch(error => panic(error.stack || String(error)));

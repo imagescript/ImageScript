@@ -7,7 +7,7 @@ export type HorizontalAlign = 'left' | 'center' | 'right';
 /** Which lines to keep when the text is cut off at `maxHeight` */
 export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
-/** Options of {@link TextLayout} */
+/** The text layout of {@link Image.renderText}: wrapping, cutting off and alignment */
 export interface TextLayoutOptions {
     /** Longer lines are wrapped. Default: `Infinity` */
     maxWidth?: number;
@@ -27,7 +27,8 @@ const HORIZONTAL: readonly string[] = ['left', 'center', 'right'];
 const VERTICAL: readonly string[] = ['top', 'middle', 'bottom'];
 
 /**
- * Layout options for {@link Image.renderText}
+ * The layout options checked and with their defaults (internal: {@link Image.renderText} takes plain options)
+ * @internal
  */
 export class TextLayout {
     /** Longer lines are wrapped */
@@ -48,7 +49,7 @@ export class TextLayout {
      * @param options See {@link TextLayoutOptions}
      */
     constructor(options: TextLayoutOptions = {}) {
-        checkOptions(options, 'new TextLayout({ maxWidth: 300 })');
+        checkOptions(options, 'renderText(text, { font, size, layout: { maxWidth: 300 } })');
         const { maxWidth, maxHeight, wrapStyle, verticalAlign, horizontalAlign, wrapHardBreaks } = options;
 
         // (undefined and 0 mean no limit, NaN is invalid)

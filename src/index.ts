@@ -18,7 +18,6 @@ export type { GainMapOptions, GainMapEncodeOptions } from './gainmap.ts';
 export { Animation } from './animation.ts';
 export type { AnimationOptions, AnimationCanvasOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
 export { AnimationEncoder } from './animation-encoder.ts';
-export { TextLayout } from './text-layout.ts';
 export type { TextLayoutOptions, WrapStyle, HorizontalAlign, VerticalAlign } from './text-layout.ts';
 export { ImageType } from './image-type.ts';
 export type { ImageTypeName } from './image-type.ts';

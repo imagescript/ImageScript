@@ -1,5 +1,5 @@
-const {Image, Frame, Animation, TextLayout} = require('..');
-const {ResizeModes, SVGScaleModes, FrameDisposalModes, Colors} = require('..');
+const {Image, Frame, Animation} = require('..');
+const {ResizeModes, FrameDisposalModes, Colors} = require('..');
 const zlib = require('zlib');
 // (encoders stamp the current time into the metadata: tests that compare two encodes freeze it, or they differ when a second ends in between)
 const withFrozenTime = async run => {
@@ -144,12 +144,12 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // text alignments only take the values of their own axis
     {
-        const current = new TextLayout({horizontalAlign: 'right', verticalAlign: 'middle'});
-        assert(current.horizontalAlign === 'right' && current.verticalAlign === 'middle', 'TextLayout: names');
+        const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
+        await Image.renderText('a', {font, size: 12, layout: {horizontalAlign: 'right', verticalAlign: 'middle'}});
         for (const options of [{verticalAlign: 'center', horizontalAlign: 'bottom'}, {horizontalAlign: 'top'}, {verticalAlign: 'left'}, {horizontalAlign: 'middle'}]) {
             let error = null;
-            try { new TextLayout(options); } catch (e) { error = e; }
-            assert(error instanceof TypeError && error.message.includes('text alignments only take the values of their own axis'), `TextLayout ${JSON.stringify(options)} should throw a TypeError, got ${error}`);
+            try { await Image.renderText('a', {font, size: 12, layout: options}); } catch (e) { error = e; }
+            assert(error instanceof TypeError && error.message.includes('text alignments only take the values of their own axis'), `layout ${JSON.stringify(options)} should throw a TypeError, got ${error}`);
         }
     }
 
@@ -1035,7 +1035,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     }
     {
         // NaN and the infinities throw instead of drawing black, transparent or nothing; numeric strings still work
-        const {Frame, Animation, TextLayout} = require('..');
+        const {Frame, Animation} = require('..');
         const image = () => new Image(8, 8).fill(0xff0000ff);
         const calls = {
             rgbaToColor: v => Colors.fromRGBA(v, 0, 0, 255), hslaToColor: v => Colors.fromHSLA(v, 0.5, 0.5, 1), colorToRGBA: v => Colors.toRGBA(v),
@@ -1061,10 +1061,10 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             }
         const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
         for (const [name, call] of Object.entries({size: v => Image.renderText('a', { font, size: v }), color: v => Image.renderText('a', { font, size: 12, color: v }),
-            maxWidth: v => new TextLayout({maxWidth: v})}))
+            maxWidth: v => Image.renderText('a', { font, size: 12, layout: {maxWidth: v} })}))
             if (!await Promise.resolve().then(() => call(NaN)).then(() => false, e => e instanceof RangeError)) panic(`renderText: a NaN ${name} should throw a RangeError`);
         // (no limit is a valid layout)
-        new TextLayout({maxWidth: Infinity, maxHeight: Infinity});
+        await Image.renderText('a', { font, size: 12, layout: {maxWidth: Infinity, maxHeight: Infinity} });
 
         const strings = image().crop('1', '1', '4', '4').rotate('45').opacity('0.5').composite(image(), {x: '1', y: '2'});
         if (strings.width !== 6) panic('numeric strings should keep working');
