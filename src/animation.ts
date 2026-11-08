@@ -6,8 +6,7 @@ import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
-import type { ToneMapping } from './codecs/hdr.ts';
-import { Image, ResizeOptions, ResizeToOptions, resizeArguments } from './image.ts';
+import { Image, DecodeOptions, ResizeOptions, ResizeToOptions, resizeArguments } from './image.ts';
 import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
@@ -36,34 +35,15 @@ export interface AnimationOptions {
     loopCount?: number;
 }
 
-/** Options of {@link Animation.decode} */
-export interface AnimationDecodeOptions {
+/** Options of {@link Animation}'s constructor: the canvas size and the loop count */
+export interface AnimationCanvasOptions extends AnimationOptions {
     /**
-     * The most pixels to decode, of all frames together (every frame is a full canvas): larger animations throw a
-     * RangeError before anything that size is allocated, so small files declaring huge animations (decompression
-     * bombs) can't exhaust the memory. Default: `268402689` (16383², like sharp), `Infinity` for no limit
+     * The canvas width in pixels: frames (or the parts of them) outside the canvas aren't encoded. Default: the
+     * frames' right edge (the largest `xOffset + width`), following the frames until a canvas size is set
      */
-    maxPixels?: number;
-    /** Whether to convert the colors of frames with an embedded ICC profile (APNGs, WebPs) to sRGB, like `applyColorProfile` of {@link Image.decode}. Default: `true` */
-    applyColorProfile?: boolean;
-    /** At most this many worker threads decode in parallel, like `threads` of {@link Image.decode}. Default: the processors available, at most 8 */
-    threads?: number;
-    /**
-     * Whether to rotate/mirror the frames as the orientation tag (Exif, JPEG XL's header, PNG's eXIf chunk or XMP)
-     * says, like `applyOrientation` of {@link Image.decode}: APNGs, animated WebPs and JPEG XLs. Default: `true`
-     */
-    applyOrientation?: boolean;
-    /**
-     * How HDR (PQ or HLG) JPEG XL animations, whose light can be brighter than (SDR) white, become 8 bit sRGB, like
-     * `toneMapping` of {@link Image.decode}: `'reinhard'` compresses the brightest parts, `'clamp'` clamps everything
-     * brighter than white. Default: `'reinhard'`
-     */
-    toneMapping?: ToneMapping;
-    /**
-     * Whether to read the gain map (jhgm box) of JPEG XL animations into {@link Image.gainMap} of every frame, like
-     * `gainMap` of {@link Image.decode}. Default: `true`
-     */
-    gainMap?: boolean;
+    width?: number;
+    /** The canvas height in pixels, like `width`. Default: the frames' bottom edge (the largest `yOffset + height`) */
+    height?: number;
 }
 
 /** The options all animation encoders have */
@@ -416,10 +396,10 @@ export class Animation {
     /**
      * Decodes an animated GIF, APNG, WebP or JPEG XL into fully composited frames (still images become a single frame)
      * @param input The binary data to decode
-     * @param options See {@link AnimationDecodeOptions}
+     * @param options See {@link DecodeOptions}
      */
-    static decode(input: BinaryData, options?: AnimationDecodeOptions): Promise<Animation>;
-    static async decode(input: BinaryData, options: AnimationDecodeOptions = {}): Promise<Animation> {
+    static decode(input: BinaryData, options?: DecodeOptions): Promise<Animation>;
+    static async decode(input: BinaryData, options: DecodeOptions = {}): Promise<Animation> {
         // (checked outside of decoding(), which reports RangeErrors as damaged data)
         checkOptions(options, 'Animation.decode(data, { maxPixels: 1e8 })');
         const { maxPixels = MAX_PIXELS, threads = 1 } = options;
@@ -434,7 +414,7 @@ export class Animation {
      * @internal
      * @ignore
      */
-    private static async __decode__(input: BinaryData, options: AnimationDecodeOptions): Promise<Animation> {
+    private static async __decode__(input: BinaryData, options: DecodeOptions): Promise<Animation> {
         const { maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)), applyOrientation = true, toneMapping = 'reinhard', gainMap = true } = options;
         const orient = (frames: Frame[], orientation: number): Frame[] => {
             if (applyOrientation && orientation > 1) for (const frame of frames) frame.__orient__(orientation);

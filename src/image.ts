@@ -410,9 +410,12 @@ export interface RenderTextOptions extends TextStyle {
     layout?: TextLayoutOptions | TextLayout;
 }
 
-/** Options of {@link Image.decode} */
+/** Options of {@link Image.decode}, {@link Animation.decode} and {@link decode} */
 export interface DecodeOptions {
-    /** Whether to rotate/mirror JPEGs, TIFFs, PNGs and WebPs as their orientation tag (Exif or XMP) says. Default: `true` */
+    /**
+     * Whether to rotate/mirror the image (or every frame) as its orientation tag says: Exif in JPEGs, TIFFs, PNGs
+     * (also eXIf and XMP, and in APNGs) and WebPs (also animated ones), and JPEG XL's header. Default: `true`
+     */
     applyOrientation?: boolean;
     /**
      * Whether to convert the colors of images with an embedded ICC profile (PNG, JPEG, WebP, AVIF, JPEG XL, TIFF), and
@@ -424,8 +427,9 @@ export interface DecodeOptions {
     applyColorProfile?: boolean;
     /**
      * The most pixels to decode: larger images throw a RangeError before anything that size is allocated, so small
-     * files declaring huge images (decompression bombs) can't exhaust the memory. Default: `268402689` (16383², like
-     * sharp), `Infinity` for no limit
+     * files declaring huge images (decompression bombs) can't exhaust the memory. For {@link Animation.decode}, all
+     * frames together (every frame is a full canvas). Default: `268402689` (16383², like sharp), `Infinity` for no
+     * limit
      */
     maxPixels?: number;
     /**
@@ -437,7 +441,7 @@ export interface DecodeOptions {
     toneMapping?: ToneMapping;
     /**
      * Whether to read the gain maps of JPEGs (Ultra HDR, JPEG-R, ISO 21496-1, Apple's), AVIFs (tone mapped items) and
-     * JPEG XLs (jhgm boxes) into {@link Image.gainMap}. Default: `true`
+     * JPEG XLs (jhgm boxes, also of every frame of an animation) into {@link Image.gainMap}. Default: `true`
      */
     gainMap?: boolean;
     /**

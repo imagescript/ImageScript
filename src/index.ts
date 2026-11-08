@@ -1,7 +1,7 @@
 import { BinaryData } from './util/mem.ts';
 import { Image, DecodeOptions } from './image.ts';
 import { Frame } from './frame.ts';
-import { Animation, AnimationDecodeOptions } from './animation.ts';
+import { Animation } from './animation.ts';
 import { checkOptions } from './util/options.ts';
 import * as png from './codecs/png.ts';
 import * as webp from './codecs/webp.ts';
@@ -16,7 +16,7 @@ export type { FrameDisposalModeName, FrameOptions } from './frame.ts';
 export { GainMap } from './gainmap.ts';
 export type { GainMapOptions, GainMapEncodeOptions } from './gainmap.ts';
 export { Animation } from './animation.ts';
-export type { AnimationOptions, AnimationDecodeOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
+export type { AnimationOptions, AnimationCanvasOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
 export { AnimationEncoder } from './animation-encoder.ts';
 export { TextLayout } from './text-layout.ts';
 export type { TextLayoutOptions, WrapStyle, HorizontalAlign, VerticalAlign } from './text-layout.ts';
@@ -32,18 +32,18 @@ export type { Metadata } from './metadata.ts';
  * (also a GIF, APNG, WebP or JPEG XL with one frame) becomes an Image of that frame, without its offsets and duration.
  * Static formats (PNG, JPEG, AVIF, ...) are always Images, AVIF image sequences decode to their first frame, as
  * {@link Image.decode} does. The options are passed on to {@link Animation.decode} or {@link Image.decode}.
- * @param data The image data
- * @param options See {@link AnimationDecodeOptions} and {@link DecodeOptions}
+ * @param input The image data
+ * @param options See {@link DecodeOptions}
  */
-export function decode(data: BinaryData, options?: AnimationDecodeOptions & DecodeOptions): Promise<Image | Animation>;
-export async function decode(data: BinaryData, options: AnimationDecodeOptions & DecodeOptions = {}): Promise<Image | Animation> {
+export function decode(input: BinaryData, options?: DecodeOptions): Promise<Image | Animation>;
+export async function decode(input: BinaryData, options: DecodeOptions = {}): Promise<Image | Animation> {
     checkOptions(options, 'decode(data, { maxPixels: 1e8 })');
-    const bytes = view(data);
+    const bytes = view(input);
     const type = ImageType.getType(bytes);
     const animated = type === 'gif' || type === 'jxl' || (type === 'webp' && webp.isAnimated(bytes)) || (type === 'png' && png.isAnimated(bytes));
-    if (!animated) return Image.decode(data, options);
+    if (!animated) return Image.decode(input, options);
 
-    const animation = await Animation.decode(data, options);
+    const animation = await Animation.decode(input, options);
     if (animation.length !== 1) return animation;
     // the only frame, as an image: its pixels and gain map
     const frame: Frame = animation.frames[0];
