@@ -274,7 +274,7 @@ export class GainMap {
      * Encodes the gain map alone: a JPEG with its parameters (hdrgm XMP and ISO 21496-1), like the second image in an
      * Ultra HDR JPEG
      * @param quality The JPEG quality (1-100). Default: `90`
-      * @deprecated Pass {@link GainMapEncodeOptions} instead, the positional arguments will be removed in 4.0
+     * @deprecated Pass {@link GainMapEncodeOptions} instead, the positional arguments will be removed in 4.0
      */
     encode(quality?: number): Promise<Uint8Array>;
     async encode(qualityOrOptions?: number | GainMapEncodeOptions): Promise<Uint8Array> {

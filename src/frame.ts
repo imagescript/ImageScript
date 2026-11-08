@@ -115,7 +115,7 @@ export class Frame extends Image {
      * @param xOffset The frame's offset on the x-axis
      * @param yOffset The frame's offset on the y-axis
      * @param disposalMode The frame's disposal mode
-      * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
+     * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
      */
     constructor(width: number, height: number, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId);
     constructor(width: number, height: number, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId) {
@@ -176,7 +176,7 @@ export class Frame extends Image {
      * @param xOffset The frame's offset on the x-axis
      * @param yOffset The frame's offset on the y-axis
      * @param disposalMode The frame's disposal mode
-      * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
+     * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
      */
     static from(image: Image, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId): Frame;
     static from(image: Image, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId): Frame {
@@ -206,7 +206,7 @@ export class Frame extends Image {
      * Removes borders of one color, moving the frame's offsets so the remaining pixels stay in place
      * @param color The border color, by default the color of the top left pixel
      * @param options See {@link TrimOptions}
-      * @deprecated Pass {@link TrimOptions} instead, the positional arguments will be removed in 4.0
+     * @deprecated Pass {@link TrimOptions} instead, the positional arguments will be removed in 4.0
      */
     override trim(color?: Color, options?: TrimOptions): this;
     override trim(colorOrOptions?: Color | TrimOptions, optionsArgument: TrimOptions = {}): this {

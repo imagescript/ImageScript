@@ -818,6 +818,24 @@ ul.tsd-hierarchy ul.tsd-hierarchy > li::before {
     white-space: nowrap;
 }
 
+/* members with only some deprecated overloads: typedoc leaves their signatures unmarked, so the tag goes before the
+   signature (not in members that are deprecated as a whole, which have the tag before their name) */
+.tsd-member:not(:has(h3 > .deprecated)) .tsd-signatures > li:has(.tsd-tag-deprecated) > .tsd-signature::before {
+    content: "Deprecated";
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0.6rem;
+    padding: 0.15em 0.5em;
+    border-radius: 999px;
+    background: var(--color-background-warning);
+    color: var(--color-warning-text);
+    font-family: var(--font-text);
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
 /* ---------- footer ---------- */
 
 footer {

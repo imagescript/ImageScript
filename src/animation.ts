@@ -136,7 +136,7 @@ export class Animation extends Array<Frame> {
      * Creates a new animation
      * @param frames The frames to create the animation from
      * @param loopCount How many times to repeat the animation (`Infinity` = forever, 0 = play once, 1 = play twice, ...)
-      * @deprecated Pass {@link AnimationOptions} instead, the positional arguments will be removed in 4.0
+     * @deprecated Pass {@link AnimationOptions} instead, the positional arguments will be removed in 4.0
      */
     constructor(frames: Frame[], loopCount?: number);
     constructor(frames: Frame[], loopCountOrOptions: number | AnimationOptions = -1) {
@@ -238,7 +238,7 @@ export class Animation extends Array<Frame> {
      * @param width The new width
      * @param height The new height
      * @param mode The resizing mode to use. Default: {@link ResizeModes.BILINEAR}
-      * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
+     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
      */
     resize(width: number, height: number, mode?: ResizeMode): this;
     /**
@@ -292,7 +292,7 @@ export class Animation extends Array<Frame> {
      * animation shows, but not necessarily to the same frames. Semi-transparent pixels become opaque or transparent
      * after the frames are composited
      * @param quality 1-100, scales the palette size from 8 colors (1) to 256 colors (90 and above)
-      * @deprecated Pass {@link GIFEncodeOptions} instead, the positional arguments will be removed in 4.0
+     * @deprecated Pass {@link GIFEncodeOptions} instead, the positional arguments will be removed in 4.0
      */
     encodeGIF(quality?: number): Promise<Uint8Array>;
     async encodeGIF(qualityOrOptions: number | GIFEncodeOptions = 95): Promise<Uint8Array> {
@@ -329,7 +329,7 @@ export class Animation extends Array<Frame> {
      * merged (unless the `optimize` option is false): the file shows exactly the same animation, but doesn't
      * necessarily decode to the same frames
      * @param compression The zlib compression level (0-9), higher is smaller but slower. Default: `4`
-      * @deprecated Pass {@link APNGEncodeOptions} instead, the positional arguments will be removed in 4.0
+     * @deprecated Pass {@link APNGEncodeOptions} instead, the positional arguments will be removed in 4.0
      */
     encodeAPNG(compression?: number): Promise<Uint8Array>;
     async encodeAPNG(compressionOrOptions: number | APNGEncodeOptions = 4): Promise<Uint8Array> {
@@ -459,7 +459,7 @@ export class Animation extends Array<Frame> {
      * Decodes an animated GIF, APNG, WebP or JPEG XL into fully composited frames (still images become a single frame)
      * @param input The binary data to decode
      * @param onlyExtractFirstFrame Whether to stop decoding after the first frame
-      * @deprecated Pass {@link AnimationDecodeOptions} instead, the positional arguments will be removed in 4.0
+     * @deprecated Pass {@link AnimationDecodeOptions} instead, the positional arguments will be removed in 4.0
      */
     static decode(input: BinaryData, onlyExtractFirstFrame?: boolean): Promise<Animation>;
     static async decode(input: BinaryData, onlyFirstFrameOrOptions: boolean | AnimationDecodeOptions = false): Promise<Animation> {
