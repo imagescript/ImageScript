@@ -244,9 +244,8 @@ export interface OutlineOptions {
 /** The colors of a gradient, see {@link Image.linearGradient} */
 export interface GradientOptions {
     /**
-     * The colors along the gradient: their positions (0..1) and colors, like {@link Colors.gradient} takes them
-     * (`{ 0: 0xff0000ff, 0.5: 0xffff00ff, 1: 0x00ff00ff }`), or just the colors, evenly spaced
-     * (`[0xff0000ff, 0x00ff00ff]`)
+     * The colors along the gradient: their positions (0..1) and colors (`{ 0: 0xff0000ff, 0.5: 0xffff00ff, 1: 0x00ff00ff }`),
+     * or just the colors, evenly spaced (`[0xff0000ff, 0x00ff00ff]`), like {@link Colors.gradient} takes them
      */
     stops: Record<number, Color> | Color[];
 }
@@ -3086,11 +3085,7 @@ const BLEND_MODES: Record<BlendMode, (backdrop: number, source: number) => numbe
 
 // the color at every position of a gradient, from its stops
 function gradientFunction(stops: Record<number, Color> | Color[]): (position: number) => Color {
-    if (!Array.isArray(stops)) return Colors.gradient(stops);
-    if (!stops.length) throw new RangeError('Invalid gradient point count');
-    // (one color is a gradient of two equal ones)
-    const colors = stops.length === 1 ? [stops[0], stops[0]] : stops;
-    return Colors.gradient(Object.fromEntries(colors.map((color, i) => [i / (colors.length - 1), color])));
+    return Colors.gradient(stops);
 }
 
 /**

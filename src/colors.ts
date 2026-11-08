@@ -192,10 +192,18 @@ export class Colors {
 
     /**
      * Creates a multi-point gradient generator
-     * @param colors The gradient points to use (e.g. `{0: 0xff0000ff, 1: 0x00ff00ff}`)
+     * @param stops The colors along the gradient: their positions (0..1) and colors (`{ 0: 0xff0000ff, 1: 0x00ff00ff }`),
+     *     or just the colors, evenly spaced (`[0xff0000ff, 0x00ff00ff]`), like {@link GradientOptions.stops}
      * @return The gradient generator. The function argument is the position in the gradient (0..1).
      */
-    static gradient(colors: Record<number, Color>): (position: number) => Color {
+    static gradient(stops: Record<number, Color> | Color[]): (position: number) => Color {
+        let colors: Record<number, Color>;
+        if (Array.isArray(stops)) {
+            if (!stops.length) throw new RangeError('Invalid gradient point count');
+            // (one color is a gradient of two equal ones)
+            const list = stops.length === 1 ? [stops[0], stops[0]] : stops;
+            colors = Object.fromEntries(list.map((color, i) => [i / (list.length - 1), color]));
+        } else colors = stops;
         const entries = Object.entries(colors).sort((a, b) => Number(a[0]) - Number(b[0]));
         const positions = entries.map(e => finite(parseFloat(e[0]), 'gradient position'));
         const values = entries.map(e => checkColor(e[1]));
