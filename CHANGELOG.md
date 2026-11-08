@@ -20,6 +20,8 @@
 
 - **The positional forms of `Image.renderText()` are removed**: `Image.renderText(font, size, text, color?, layout?, style?)` and `Image.renderText(font, size, text, options?)` are now `Image.renderText(text, { font, size, color, layout, ...style })`, which takes the same options. A `TextLayout` instance goes to `layout`.
 
+- **The deprecated animation encoder option types and `AnimationEncoder.frames` are removed**: `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and `APNGAnimationEncoderOptions` are `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`, `GIFEncodeOptions` and `APNGEncodeOptions`, each with `AnimationOptions` for the `loopCount`, and `encoder.frames` is `encoder.frameCount`.
+
 ## 3.20.1
 
 ### Performance

@@ -7,40 +7,10 @@ import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, cov
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { finite, compressionLevel } from './util/options.ts';
-import type { AnimationOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
+import type { AnimationOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // (ImageScript, like GIF, counts repetitions: -1 forever, 0 play once; APNG and WebP count plays, 0 forever)
 const toPlays = (loopCount: number): number => loopCount < 0 || loopCount === Infinity ? 0 : loopCount + 1;
-
-/**
- * The options all animation encoders of {@link Animation.webpEncoder} and the others have
- * @deprecated {@link Animation.webpEncoder} and the others take the options of {@link Animation.encodeWebP} and the
- *     others ({@link AnimationEncodeOptions}) with the {@link AnimationOptions.loopCount}, this will be removed in 4.0
- * @group Deprecated
- */
-export type AnimationEncoderOptions = AnimationEncodeOptions & AnimationOptions;
-
-/**
- * Options of {@link Animation.webpEncoder}
- * @deprecated Use {@link WebPAnimationEncodeOptions}, with {@link AnimationOptions.loopCount}: this will be removed
- *     in 4.0
- * @group Deprecated
- */
-export type WebPAnimationEncoderOptions = WebPAnimationEncodeOptions & AnimationOptions;
-
-/**
- * Options of {@link Animation.gifEncoder}
- * @deprecated Use {@link GIFEncodeOptions}, with {@link AnimationOptions.loopCount}: this will be removed in 4.0
- * @group Deprecated
- */
-export type GIFAnimationEncoderOptions = GIFEncodeOptions & AnimationOptions;
-
-/**
- * Options of {@link Animation.apngEncoder}
- * @deprecated Use {@link APNGEncodeOptions}, with {@link AnimationOptions.loopCount}: this will be removed in 4.0
- * @group Deprecated
- */
-export type APNGAnimationEncoderOptions = APNGEncodeOptions & AnimationOptions;
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
 interface Format {
@@ -77,15 +47,6 @@ export class AnimationEncoder {
 
     /** How many frames were added */
     get frameCount(): number {
-        return this.count;
-    }
-
-    /**
-     * How many frames were added
-     * @deprecated Use {@link AnimationEncoder.frameCount}, `frames` will be removed in 4.0
-     * @group Deprecated
-     */
-    get frames(): number {
         return this.count;
     }
 

@@ -30,8 +30,7 @@ const metadata = {creationTime: 0, software: ''};
                 ['apng', {}, a => a.encodeAPNG({optimize, metadata})]]) {
                 const encoder = Animation[`${format}Encoder`](animation.width, animation.height, {...options, optimize, metadata, loopCount: animation.loopCount});
                 for (const frame of animation) await encoder.add(frame);
-                if (encoder.frames !== animation.length) panic(`${name} ${format}: ${encoder.frames} frames added`);
-                if (encoder.frameCount !== encoder.frames) panic(`${name} ${format}: frameCount ${encoder.frameCount} != frames ${encoder.frames}`);
+                if (encoder.frameCount !== animation.length) panic(`${name} ${format}: ${encoder.frameCount} frames added`);
                 const file = await encoder.finish(), expected = await reference(animation);
                 if (equal(file, expected)) continue;
                 // unoptimized WebPs with frames disposed to the previous one: the frames from there on show the canvas,

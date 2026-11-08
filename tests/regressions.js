@@ -440,7 +440,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(threw, 'cropCircle({size}) validates');
     }
 
-    // the encoders take the options of the encode functions (the *AnimationEncoderOptions types are deprecated aliases, removed in 4.0)
+    // the encoders take the options of the encode functions
     await withFrozenTime(async () => {
         const {Animation} = require('..');
         const frames = () => [Frame.from(new Image(6, 6).fill(0x336699ff), 100), Frame.from(new Image(6, 6).fill(0x996633ff), 100)];
