@@ -14,6 +14,8 @@
 
 - **Iterating over an image and `iterateWithColors()` are removed**: `for (const [x, y] of image)` is now `image.coordinates()`, and `image.iterateWithColors()` is `image.pixels()`, which yields `[x, y, color]`.
 
+- **`PNGMetadata` is removed**: use `Metadata`, which all encoders take. The type is the same.
+
 ## 3.20.1
 
 ### Performance

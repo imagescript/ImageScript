@@ -609,13 +609,6 @@ export interface ColorToAlphaOptions {
     opacityThreshold?: number;
 }
 
-/**
- * Text metadata written into PNGs
- * @deprecated Use {@link Metadata}, which all encoders take
- * @group Deprecated
- */
-export type PNGMetadata = Metadata;
-
 // OpenType features as tags and values (tags are 4 printable ASCII characters)
 function featureList(features: Record<string, boolean | number>): Array<[string, number]> {
     if (typeof features !== 'object' || features === null) throw new TypeError('Features must be an object');
