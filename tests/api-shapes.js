@@ -148,6 +148,14 @@ const throws = (call, type, message) => {
         assert(Colors.gradient([0xff0000ff])(0.3) === 0xff0000ff, 'gradient of one color');
     }
 
+    // renderSVG takes one font without an array
+    {
+        const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="20"><text x="2" y="15" font-size="14">Hi</text></svg>';
+        const one = await Image.renderSVG(svg, {fonts: font}), list = await Image.renderSVG(svg, {fonts: [font]});
+        assert(Buffer.from(one.bitmap).equals(Buffer.from(list.bitmap)) && one.bitmap.some(v => v), 'renderSVG: one font like a list of one');
+    }
+
     // renamed parameters and the American spelling
     {
         const gray = new Image(1, 1).fill(0xff0000ff).grayscale();

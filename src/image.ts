@@ -360,9 +360,10 @@ export interface SVGOptions {
      * installed fonts). Generic families (`serif`, `sans-serif`, `monospace`, ...) are the first font that fits them,
      * other families and text without one get the first font's family; characters a face doesn't have come from the
      * other fonts (TrueType, OpenType or WOFF). Fonts the SVG embeds with `@font-face` (in data: URIs) are used too,
-     * before these for their family names. Without any fonts text isn't rendered. Default: `[]`
+     * before these for their family names. Without any fonts text isn't rendered. One font can be given without an
+     * array. Default: `[]`
      */
-    fonts?: BinaryData[];
+    fonts?: BinaryData | BinaryData[];
     /**
      * Images for the `<image>` elements (and `feImage`) by their `href`, the same string the SVG uses: with
      * `images: { 'logo.png': bytes }`, `<image href="logo.png" .../>` draws the image. Values are encoded images (PNG,
@@ -2724,7 +2725,7 @@ export class Image {
             }
         }
 
-        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, fonts.map(font => view(font)));
+        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, (Array.isArray(fonts) ? fonts : [fonts]).map(font => view(font)));
         const image = new Image(width, height);
         image.bitmap.set(pixels);
 
