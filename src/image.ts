@@ -830,13 +830,13 @@ export class Image {
      * Sets the pixel color for the specified position (0-based)
      * @param x The x coordinate
      * @param y The y coordinate
-     * @param pixelColor The new color (`0xRRGGBBAA`)
+     * @param color The new color (`0xRRGGBBAA`)
      */
-    setPixelAt(x: number, y: number, pixelColor: Color): this {
+    setPixelAt(x: number, y: number, color: Color): this {
         x = ~~finite(x, 'x');
         y = ~~finite(y, 'y');
         this.__check_boundaries__(x, y);
-        this.__set_pixel__(x, y, checkColor(pixelColor));
+        this.__set_pixel__(x, y, checkColor(color));
         return this;
     }
 
@@ -1478,30 +1478,30 @@ export class Image {
 
     /**
      * Scales the lightness of the image (HSL), keeping its hue and saturation
-     * @param value The factor to multiply the lightness with (>= 0, results are clamped)
+     * @param factor The factor to multiply the lightness with (>= 0, results are clamped)
      */
-    lightness(value: number): this {
+    lightness(factor: number): this {
         checkFactorOnly('lightness', arguments.length);
-        if (this.__gain_map__) return this.__recolor__(image => image.lightness(value));
-        value = finite(value, 'lightness value');
-        if (value < 0)
-            throw new RangeError('Invalid lightness value');
+        if (this.__gain_map__) return this.__recolor__(image => image.lightness(factor));
+        factor = finite(factor, 'lightness factor');
+        if (factor < 0)
+            throw new RangeError('Invalid lightness factor');
 
-        return this.__map_hsla__(c => { c.l = value * c.l; });
+        return this.__map_hsla__(c => { c.l = factor * c.l; });
     }
 
     /**
-     * Scales the saturation of the image (HSL), keeping its hue and lightness. 0 makes it greyscale
-     * @param value The factor to multiply the saturation with (>= 0, results are clamped)
+     * Scales the saturation of the image (HSL), keeping its hue and lightness. 0 makes it grayscale
+     * @param factor The factor to multiply the saturation with (>= 0, results are clamped)
      */
-    saturation(value: number): this {
+    saturation(factor: number): this {
         checkFactorOnly('saturation', arguments.length);
-        if (this.__gain_map__) return this.__recolor__(image => image.saturation(value), true);
-        value = finite(value, 'saturation value');
-        if (value < 0)
-            throw new RangeError('Invalid saturation value');
+        if (this.__gain_map__) return this.__recolor__(image => image.saturation(factor), true);
+        factor = finite(factor, 'saturation factor');
+        if (factor < 0)
+            throw new RangeError('Invalid saturation factor');
 
-        return this.__map_hsla__(c => { c.s = value * c.s; });
+        return this.__map_hsla__(c => { c.s = factor * c.s; });
     }
 
     /**
