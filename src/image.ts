@@ -171,6 +171,36 @@ export interface SharpenOptions {
     radius?: number;
 }
 
+/** The colors of a gradient, see {@link Image.linearGradient} */
+export interface GradientOptions {
+    /**
+     * The colors along the gradient: their positions (0..1) and colors, like {@link Colors.gradient} takes them
+     * (`{ 0: 0xff0000ff, 0.5: 0xffff00ff, 1: 0x00ff00ff }`), or just the colors, evenly spaced
+     * (`[0xff0000ff, 0x00ff00ff]`)
+     */
+    stops: Record<number, Color> | Color[];
+}
+
+/** Options of {@link Image.linearGradient} */
+export interface LinearGradientOptions extends GradientOptions {
+    /**
+     * The direction of the gradient in degrees, like CSS' `linear-gradient()`: `0` goes up, `90` to the right, `180`
+     * down, `270` to the left. The first stop is at the start of the line through the center that touches the
+     * corners. Default: `180`
+     */
+    angle?: number;
+}
+
+/** Options of {@link Image.radialGradient} */
+export interface RadialGradientOptions extends GradientOptions {
+    /** The x position of the center in pixels. Default: the middle of the image */
+    x?: number;
+    /** The y position of the center in pixels. Default: the middle of the image */
+    y?: number;
+    /** The radius of the last stop in pixels. Default: the distance to the farthest corner */
+    radius?: number;
+}
+
 /** Options of {@link Image.encode} */
 export interface PNGEncodeOptions {
     /** The compression level (0-9), higher is smaller but slower. Default: `4` */
@@ -767,6 +797,50 @@ export class Image {
      */
     static colorToRGB(color: Color): [r: number, g: number, b: number] {
         return Colors.toRGB(color);
+    }
+
+    /**
+     * Creates an image with a linear gradient, like CSS' `linear-gradient()`
+     * @param width The image's width
+     * @param height The image's height
+     * @param options The colors and the direction, see {@link LinearGradientOptions}
+     * @returns The new image
+     */
+    static linearGradient(width: number, height: number, options: LinearGradientOptions): Image {
+        const { stops, angle = 180 } = options;
+        const color = gradientFunction(stops);
+        finite(angle, 'angle');
+        const image = new Image(width, height);
+        const radians = angle * Math.PI / 180;
+        // the direction (y points down, 0 degrees up), and the length of the line through the center to the corners
+        const dx = Math.sin(radians), dy = -Math.cos(radians);
+        const length = Math.abs(width * dx) + Math.abs(height * dy);
+        const cx = width / 2, cy = height / 2, bitmap = new DataView(image.bitmap.buffer, image.bitmap.byteOffset, image.bitmap.byteLength);
+        for (let y = 0, i = 0; y < height; y++)
+            for (let x = 0; x < width; x++, i += 4)
+                bitmap.setUint32(i, color(((x + 0.5 - cx) * dx + (y + 0.5 - cy) * dy) / length + 0.5), false);
+        return image;
+    }
+
+    /**
+     * Creates an image with a radial (circular) gradient, like CSS' `radial-gradient(circle)`
+     * @param width The image's width
+     * @param height The image's height
+     * @param options The colors and the circle, see {@link RadialGradientOptions}
+     * @returns The new image
+     */
+    static radialGradient(width: number, height: number, options: RadialGradientOptions): Image {
+        const { stops, x: cx = width / 2, y: cy = height / 2, radius = Math.hypot(Math.max(cx, width - cx), Math.max(cy, height - cy)) } = options;
+        const color = gradientFunction(stops);
+        finite(cx, 'x');
+        finite(cy, 'y');
+        if (!(finite(radius, 'radius') > 0)) throw new RangeError('Invalid radius');
+        const image = new Image(width, height);
+        const bitmap = new DataView(image.bitmap.buffer, image.bitmap.byteOffset, image.bitmap.byteLength);
+        for (let y = 0, i = 0; y < height; y++)
+            for (let x = 0; x < width; x++, i += 4)
+                bitmap.setUint32(i, color(Math.hypot(x + 0.5 - cx, y + 0.5 - cy) / radius), false);
+        return image;
     }
 
     /**
@@ -2991,6 +3065,15 @@ const BLEND_MODES: Record<BlendMode, (backdrop: number, source: number) => numbe
     'exclusion': (b, s) => b + s - 2 * b * s,
     'add': (b, s) => Math.min(1, b + s)
 };
+
+// the color at every position of a gradient, from its stops
+function gradientFunction(stops: Record<number, Color> | Color[]): (position: number) => Color {
+    if (!Array.isArray(stops)) return Colors.gradient(stops);
+    if (!stops.length) throw new RangeError('Invalid gradient point count');
+    // (one color is a gradient of two equal ones)
+    const colors = stops.length === 1 ? [stops[0], stops[0]] : stops;
+    return Colors.gradient(Object.fromEntries(colors.map((color, i) => [i / (colors.length - 1), color])));
+}
 
 /**
  * Grows a coverage mask by a radius, using the distance of every pixel to the glyphs (an exact euclidean distance

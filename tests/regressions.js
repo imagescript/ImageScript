@@ -613,6 +613,54 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(Buffer.from(await map.encode()).equals(Buffer.from(await map.encode({}))), 'GainMap.encode() without arguments');
     }
 
+    // gradients
+    {
+        const px = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
+        const throws = (fn, type, message) => {
+            let error = null;
+            try { fn(); } catch (e) { error = e; }
+            assert(error instanceof type, `${message}: should throw a ${type.name}, got ${error}`);
+        };
+        const stops = {0: 0xff0000ff, 0.5: 0x00ff00ff, 1: 0x0000ffff};
+        const gradient = ColorHelpers.gradient(stops);
+        const rgba = color => ColorHelpers.toRGBA(color);
+
+        // linear gradients follow Colors.gradient along CSS' directions (0 up, 90 right, 180 down, 270 left)
+        for (const [angle, at] of [[90, x => [x, 0, (x + 0.5) / 4]], [270, x => [x, 0, 1 - (x + 0.5) / 4]]]) {
+            const horizontal = Image.linearGradient(4, 1, {stops, angle});
+            for (let x = 0; x < 4; x++) {
+                const [X, Y, t] = at(x);
+                assert(px(horizontal, X, Y).join() === rgba(gradient(t)).join(), `linearGradient ${angle}deg, x ${x}: ${px(horizontal, X, Y)} vs ${rgba(gradient(t))}`);
+            }
+        }
+        for (const [angle, t] of [[180, y => (y + 0.5) / 4], [0, y => 1 - (y + 0.5) / 4]]) {
+            const vertical = Image.linearGradient(1, 4, {stops, angle});
+            for (let y = 0; y < 4; y++)
+                assert(px(vertical, 0, y).join() === rgba(gradient(t(y))).join(), `linearGradient ${angle}deg, y ${y}`);
+        }
+        const defaultDirection = Image.linearGradient(2, 3, {stops: [0xff0000ff, 0x0000ffff]});
+        assert(px(defaultDirection, 0, 0).join() === px(defaultDirection, 1, 0).join() && px(defaultDirection, 0, 0)[0] > px(defaultDirection, 0, 2)[0], 'linearGradient goes down by default');
+        const diagonal = Image.linearGradient(8, 8, {stops: [0x000000ff, 0xffffffff], angle: 135});
+        assert(px(diagonal, 0, 0)[0] < 20 && px(diagonal, 7, 7)[0] > 235 && px(diagonal, 7, 0).join() === px(diagonal, 0, 7).join(), 'linearGradient at 135deg runs from corner to corner');
+        // (an array of colors is evenly spaced, one color is a plain fill, alpha is part of the color)
+        assert(px(Image.linearGradient(3, 1, {stops: [0xff0000ff, 0x00ff00ff, 0x0000ffff], angle: 90}), 1, 0).join() === rgba(ColorHelpers.gradient({0: 0xff0000ff, 0.5: 0x00ff00ff, 1: 0x0000ffff})(0.5)).join(), 'linearGradient with an array of colors');
+        assert(px(Image.linearGradient(3, 3, {stops: [0x336699ff]}), 2, 2).join() === '51,102,153,255', 'linearGradient with one color');
+        assert(px(Image.linearGradient(2, 1, {stops: [0xff000000, 0xff0000ff], angle: 90}), 0, 0)[3] < 100, 'linearGradient keeps alpha');
+
+        // radial gradients: the center is the first stop, the radius the last
+        const radial = Image.radialGradient(9, 9, {stops: [0xffffffff, 0x000000ff]});
+        assert(px(radial, 4, 4)[0] > 240 && px(radial, 0, 0)[0] < 40 && px(radial, 0, 8).join() === px(radial, 8, 0).join(), 'radialGradient from the center to the farthest corner');
+        const circle = Image.radialGradient(20, 20, {stops: [0xff0000ff, 0x0000ffff], x: 5.5, y: 5.5, radius: 4});
+        assert(px(circle, 5, 5)[0] > 240 && px(circle, 15, 15).join() === '0,0,255,255' && px(circle, 9, 5)[2] > 200, 'radialGradient with a center and a radius');
+        for (const [name, call] of Object.entries({
+            'no stops': () => Image.linearGradient(2, 2, {stops: []}),
+            'no stops (object)': () => Image.radialGradient(2, 2, {stops: {}}),
+            'NaN angle': () => Image.linearGradient(2, 2, {stops: [1, 2], angle: NaN}),
+            'zero radius': () => Image.radialGradient(2, 2, {stops: [1, 2], radius: 0}),
+            'NaN center': () => Image.radialGradient(2, 2, {stops: [1, 2], x: NaN})
+        })) throws(call, RangeError, name);
+    }
+
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values
     {
         const { Colors } = require('..');

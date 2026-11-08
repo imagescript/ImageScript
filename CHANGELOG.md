@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.19.0
+
+### New
+
+- **`Image.linearGradient(width, height, { stops, angle })`** and **`Image.radialGradient(width, height, { stops, x, y, radius })`**: images with a gradient, with the angle like CSS' `linear-gradient()`. `stops` are positions and colors like `Colors.gradient()` takes them, or just the colors, evenly spaced.
+
 ## 3.18.0
 
 ### Changes
