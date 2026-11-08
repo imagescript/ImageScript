@@ -271,13 +271,33 @@ export interface RadialGradientOptions extends GradientOptions {
     radius?: number;
 }
 
-/** Options of {@link Image.encodePNG} */
-export interface PNGEncodeOptions {
-    /** The compression level (0-9), higher is smaller but slower. Default: `4` */
-    compression?: number;
+/** The options every encoder that writes metadata has */
+export interface EncodeOptions {
     /** Metadata to include, see {@link Metadata} */
     metadata?: Metadata;
 }
+
+/**
+ * How the encoders that can carry a gain map (JPEG, AVIF, JPEG XL) write {@link Image.gainMap}, see their `gainMap`
+ * option
+ */
+export interface GainMapEmbedOptions {
+    /**
+     * The map's quality (1-100, like the format's `quality`; for JPEG XL 100 is lossless). Default: `90`
+     */
+    quality?: number;
+    /** The map's size as a factor of the image's (0-1). Default: the map's own size */
+    scale?: number;
+}
+
+/** Options of {@link Image.encodePNG} */
+export interface PNGEncodeOptions extends EncodeOptions {
+    /** The compression level (0-9), higher is smaller but slower. Default: `4` */
+    compression?: number;
+}
+
+/** Options of {@link Image.encodeTGA} */
+export type TGAEncodeOptions = EncodeOptions;
 
 /** Options of {@link Image.encodeJPEG} */
 export interface JPEGEncodeOptions extends EncodeOptions {
@@ -288,22 +308,15 @@ export interface JPEGEncodeOptions extends EncodeOptions {
      * cameras). Default: `'4:2:0'` up to quality 90, `'4:4:4'` above (like libjpeg-turbo's `cjpeg`)
      */
     subsampling?: '4:4:4' | '4:2:0';
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
     /**
      * Whether to write the image's {@link Image.gainMap} (an Ultra HDR JPEG, brighter on HDR displays), or how.
      * Default: `true` (written if there is one)
      */
-    gainMap?: boolean | {
-        /** The map's JPEG quality (1-100). Default: `90` */
-        quality?: number,
-        /** The map's size as a factor of the image's (0-1). Default: the map's own size */
-        scale?: number
-    };
+    gainMap?: boolean | GainMapEmbedOptions;
 }
 
 /** Options of {@link Image.encodeWebP} */
-export interface WebPEncodeOptions {
+export interface WebPEncodeOptions extends EncodeOptions {
     /**
      * Lossy compression (0-100, like libwebp's quality: 75 is its default): the image is encoded like cwebp encodes it
      * (with `-m` set to the effort), much smaller than lossless. Without it the image is encoded losslessly
@@ -338,14 +351,6 @@ export interface WebPEncodeOptions {
      * most 8
      */
     threads?: number;
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
-}
-
-/** Options of {@link Image.encodeTGA} */
-export interface EncodeOptions {
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
 }
 
 /** Options of {@link Image.roundCorners} */
@@ -445,7 +450,7 @@ export interface DecodeOptions {
 }
 
 /** Options of {@link Image.encodeJXL} */
-export interface JXLEncodeOptions {
+export interface JXLEncodeOptions extends EncodeOptions {
     /**
      * Lossy compression (0-100, like cjxl's `-q`: 90 is visually lossless, 100 lossless): higher is better and larger.
      * Without it the image is encoded losslessly
@@ -468,22 +473,15 @@ export interface JXLEncodeOptions {
      * Default: the processors available, at most 8
      */
     threads?: number;
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
     /**
      * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a jhgm box, like libjxl's), or how.
      * Default: `true` (written if there is one)
      */
-    gainMap?: boolean | {
-        /** The map's quality (1-100 like `quality`, 100 lossless). Default: `90` */
-        quality?: number,
-        /** The map's size as a factor of the image's (0-1). Default: the map's own size */
-        scale?: number
-    };
+    gainMap?: boolean | GainMapEmbedOptions;
 }
 
 /** Options of {@link Image.encodeAVIF} */
-export interface AVIFEncodeOptions {
+export interface AVIFEncodeOptions extends EncodeOptions {
     /** 0-100, like avifenc's: higher is better and larger, 100 is lossless. Default: `60` */
     quality?: number;
     /** The quality of the alpha channel (if the image has transparency), like avifenc's. Default: `100` (lossless) */
@@ -499,18 +497,11 @@ export interface AVIFEncodeOptions {
      * them. Default: the processors available, at most 8
      */
     threads?: number;
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
     /**
      * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a tone mapped item, like libavif
      * writes), or how. Default: `true` (written if there is one)
      */
-    gainMap?: boolean | {
-        /** The map's quality (1-100). Default: `90` */
-        quality?: number,
-        /** The map's size as a factor of the image's (0-1). Default: the map's own size */
-        scale?: number
-    };
+    gainMap?: boolean | GainMapEmbedOptions;
 }
 
 /** Text style options of {@link Image.renderText} */
@@ -2608,7 +2599,7 @@ export class Image {
         if (!gainMap || gainMapOption === false) return jpeg.encode(this.__bytes__(), this.width, this.height, finite(quality, 'quality'), base);
 
         // the gain map's JPEG first: the primary's XMP holds its length
-        const { quality: mapQuality, scale } = typeof gainMapOption === 'object' && gainMapOption !== null ? gainMapOption : {} as { quality?: number, scale?: number };
+        const { quality: mapQuality, scale } = typeof gainMapOption === 'object' && gainMapOption !== null ? gainMapOption : {} as GainMapEmbedOptions;
         let width: number | undefined, height: number | undefined;
         if (scale !== undefined) {
             const s = finite(scale, 'gain map scale');
@@ -2641,7 +2632,7 @@ export class Image {
      * Encodes the image as run length encoded TGA (32 bit, or 24 bit if the image is opaque)
      * @param options See {@link EncodeOptions}
      */
-    async encodeTGA(options: EncodeOptions = {}): Promise<Uint8Array> {
+    async encodeTGA(options: TGAEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'image.encodeTGA({ metadata })');
         const { metadata = {} } = options;
         const { author, comment, creationTime: time, software } = resolveMetadata(metadata);
