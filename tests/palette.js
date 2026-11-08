@@ -70,14 +70,20 @@ const blockError = (original, result) => {
 
     // dithering averages out: 8x8 block averages of a gradient with 4 colors are closer to the original than undithered
     const ramp = new Image(128, 16).fill(x => Colors.fromRGBA(Math.round(x * 255 / 127), Math.round(x * 255 / 127), Math.round(x * 255 / 127), 255));
-    const plain = blockError(ramp, ramp.clone().quantize({colors: 4}));
+    const plain = blockError(ramp, ramp.clone().quantize({colors: 4, dither: 'none'}));
     for (const dither of ['floyd-steinberg', 'atkinson', 'ordered']) {
         const error = blockError(ramp, ramp.clone().quantize({colors: 4, dither}));
         if (!(error < plain)) panic(`${dither} block error ${error} is not below the undithered ${plain}`);
     }
+    // the defaults are the GIF encoders': Floyd-Steinberg at 0.85
+    {
+        const byDefault = photo(30, 20).quantize({colors: 6});
+        const explicit = photo(30, 20).quantize({colors: 6, dither: 'floyd-steinberg', ditherStrength: 0.85});
+        if (!Buffer.from(byDefault.bitmap).equals(Buffer.from(explicit.bitmap))) panic('quantize defaults: not floyd-steinberg at 0.85');
+    }
     // strength 0 is the same as no dithering
     for (const dither of ['floyd-steinberg', 'atkinson', 'ordered']) {
-        const none = photo(20, 20).quantize({colors: 4});
+        const none = photo(20, 20).quantize({colors: 4, dither: 'none'});
         const zero = photo(20, 20).quantize({colors: 4, dither, ditherStrength: 0});
         if (!Buffer.from(none.bitmap).equals(Buffer.from(zero.bitmap))) panic(`${dither} with ditherStrength 0 differs from none`);
     }

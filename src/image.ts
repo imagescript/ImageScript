@@ -146,12 +146,12 @@ export interface QuantizeOptions {
     palette?: Color[];
     /**
      * How the rounding error of each pixel is handled, which makes gradients look smooth with few colors, see
-     * {@link DitherMethod}. Default: `'none'`
+     * {@link DitherMethod}. Default: `'floyd-steinberg'`, like {@link GIFEncodeOptions.dither}
      */
     dither?: DitherMethod;
     /**
      * How strongly to dither, from `0` (no spreading or threshold, the same as `'none'`) to `1` (the full error or
-     * threshold). Default: `1`
+     * threshold). Default: `0.85`, like {@link GIFEncodeOptions.ditherStrength}
      */
     ditherStrength?: number;
 }
@@ -1689,7 +1689,7 @@ export class Image {
     quantize(options: QuantizeOptions = {}): this {
         checkOptions(options, 'image.quantize({ colors: 16 })');
         if (typeof options !== 'object' || options === null) throw new TypeError('quantize takes an options object');
-        const { colors, palette, dither = 'none', ditherStrength = 1 } = options;
+        const { colors, palette, dither = 'floyd-steinberg', ditherStrength = 0.85 } = options;
 
         // everything is checked before the image changes
         if (colors !== undefined && palette !== undefined) throw new TypeError('quantize takes colors or palette, not both');
