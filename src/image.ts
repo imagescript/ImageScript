@@ -390,8 +390,11 @@ export interface SVGOptions {
     images?: Record<string, BinaryData | Image>;
 }
 
-/** Options of {@link Image.renderText}: the font and size, the text color and layout, and its style (see {@link TextStyle}) */
-export interface RenderTextOptions extends TextStyle {
+/**
+ * Options of {@link Image.renderText}: the font and size, the text color, the layout (wrapping, cutting off and alignment,
+ * see {@link TextLayoutOptions}) and the style (see {@link TextStyle})
+ */
+export interface RenderTextOptions extends TextStyle, TextLayoutOptions {
     /**
      * TrueType (ttf/ttc), OpenType (otf) or WOFF font buffer to use, or several by priority: every character comes
      * from the first font that has it (e.g. `[text, emoji]`), the first one sets the line height. Color glyphs (COLR
@@ -403,8 +406,6 @@ export interface RenderTextOptions extends TextStyle {
     size: number;
     /** The text color. Default: `0xffffffff` */
     color?: Color;
-    /** The text layout: wrapping, cutting off and alignment, see {@link TextLayoutOptions}. Default: `{}` */
-    layout?: TextLayoutOptions;
 }
 
 /** Options of {@link Image.decode}, {@link Animation.decode} and {@link decode} */
@@ -2756,7 +2757,8 @@ export class Image {
         if (typeof text !== 'string' || !isOptions(options)) throw new TypeError('renderText() takes the text and an options object, like renderText(\'Hello\', { font, size: 32 })');
         if (options.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
         const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {} } = options;
-        const layout = new TextLayout(options.layout);
+        const { maxWidth, maxHeight, wrapStyle, horizontalAlign, verticalAlign, wrapHardBreaks } = options;
+        const layout = new TextLayout({ maxWidth, maxHeight, wrapStyle, horizontalAlign, verticalAlign, wrapHardBreaks });
         const axes = textRenderer.axisValues(variations);
         const size = finite(options.size, 'font size');
         if (size < 0) throw new RangeError(`Invalid font size: ${size}`);

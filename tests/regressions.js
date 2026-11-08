@@ -135,10 +135,10 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // text alignments only take the values of their own axis (the message names them)
     {
         const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
-        await Image.renderText('a', {font, size: 12, layout: {horizontalAlign: 'right', verticalAlign: 'middle'}});
+        await Image.renderText('a', {font, size: 12, horizontalAlign: 'right', verticalAlign: 'middle'});
         for (const options of [{verticalAlign: 'center', horizontalAlign: 'bottom'}, {horizontalAlign: 'top'}, {verticalAlign: 'left'}, {horizontalAlign: 'middle'}]) {
             let error = null;
-            try { await Image.renderText('a', {font, size: 12, layout: options}); } catch (e) { error = e; }
+            try { await Image.renderText('a', {font, size: 12, ...options}); } catch (e) { error = e; }
             assert(error instanceof TypeError && /must be '(left|top)'/.test(error.message), `layout ${JSON.stringify(options)} should throw a TypeError, got ${error}`);
         }
     }
@@ -1034,10 +1034,10 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             }
         const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
         for (const [name, call] of Object.entries({size: v => Image.renderText('a', { font, size: v }), color: v => Image.renderText('a', { font, size: 12, color: v }),
-            maxWidth: v => Image.renderText('a', { font, size: 12, layout: {maxWidth: v} })}))
+            maxWidth: v => Image.renderText('a', { font, size: 12, maxWidth: v })}))
             if (!await Promise.resolve().then(() => call(NaN)).then(() => false, e => e instanceof RangeError)) panic(`renderText: a NaN ${name} should throw a RangeError`);
         // (no limit is a valid layout)
-        await Image.renderText('a', { font, size: 12, layout: {maxWidth: Infinity, maxHeight: Infinity} });
+        await Image.renderText('a', { font, size: 12, maxWidth: Infinity, maxHeight: Infinity });
 
         const strings = image().crop('1', '1', '4', '4').rotate('45').opacity('0.5').composite(image(), {x: '1', y: '2'});
         if (strings.width !== 6) panic('numeric strings should keep working');

@@ -28,8 +28,7 @@ const panic = message => {
 		'Animation.gifEncoder': bad => Animation.gifEncoder(8, 8, bad),
 		'Animation.apngEncoder': bad => Animation.apngEncoder(8, 8, bad),
 		'AnimationEncoder.add': async bad => { const encoder = Animation.gifEncoder(16, 10); await encoder.add(photo, bad); },
-		'new GainMap': bad => new GainMap(new Image(2, 2), bad),
-		'renderText layout': bad => Image.renderText('a', {font: new Uint8Array(0), size: 12, layout: bad})
+		'new GainMap': bad => new GainMap(new Image(2, 2), bad)
 	};
 	for (const [name, call] of Object.entries(calls)) {
 		for (const [label, bad] of Object.entries({'a number': 80, 'a string': 'fast', 'true': true, 'null': null})) {

@@ -85,7 +85,7 @@ const panic = message => {
     {
         const font = await fs.readFile('./tests/fonts/opensans bold.ttf');
         // (unhinted: the layout places glyphs with subpixel precision)
-        const render = (text, options) => Image.renderText(text, { font, size: 40, color: 0xffffffff, layout: options, hinting: false });
+        const render = (text, options) => Image.renderText(text, { font, size: 40, color: 0xffffffff, ...options, hinting: false });
         // first column with ink in the given row
         const inkStart = (image, y) => {
             for (let x = 0; x < image.width; x++)
@@ -373,7 +373,7 @@ const panic = message => {
         const fonts = await Promise.all(['opensans bold.ttf', 'noto sans hebrew subset.ttf', 'noto naskh arabic subset.ttf', 'noto sans devanagari subset.ttf']
             .map(name => fs.readFile(`./tests/fonts/${name}`)));
         const text = 'Hi שָׁלוֹם עוֹלָם (2024) and مرحبا بالعالم!\nمرحبا بالعالم، هذا نص (2024)!\nनमस्ते क्षत्रिय र्क्ष';
-        const font = await Image.renderText(text, { font: fonts, size: 40, color: 0xffffffff, layout: {maxWidth: 420, horizontalAlign: 'right'} });
+        const font = await Image.renderText(text, { font: fonts, size: 40, color: 0xffffffff, maxWidth: 420, horizontalAlign: 'right' });
         const encoded = await font.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)

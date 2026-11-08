@@ -1,5 +1,3 @@
-import { checkOptions } from './util/options.ts';
-
 /** Where lines are wrapped: between words or at any character */
 export type WrapStyle = 'word' | 'char';
 /** Alignment of the lines relative to the widest line */
@@ -7,7 +5,7 @@ export type HorizontalAlign = 'left' | 'center' | 'right';
 /** Which lines to keep when the text is cut off at `maxHeight` */
 export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
-/** The text layout of {@link Image.renderText}: wrapping, cutting off and alignment */
+/** The layout options of {@link Image.renderText} (part of {@link RenderTextOptions}): wrapping, cutting off and alignment */
 export interface TextLayoutOptions {
     /** Longer lines are wrapped. Default: `Infinity` */
     maxWidth?: number;
@@ -49,7 +47,6 @@ export class TextLayout {
      * @param options See {@link TextLayoutOptions}
      */
     constructor(options: TextLayoutOptions = {}) {
-        checkOptions(options, 'renderText(text, { font, size, layout: { maxWidth: 300 } })');
         const { maxWidth, maxHeight, wrapStyle, verticalAlign, horizontalAlign, wrapHardBreaks } = options;
 
         // (undefined and 0 mean no limit, NaN is invalid)
