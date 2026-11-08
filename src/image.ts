@@ -271,7 +271,7 @@ export interface RadialGradientOptions extends GradientOptions {
     radius?: number;
 }
 
-/** Options of {@link Image.encode} */
+/** Options of {@link Image.encodePNG} */
 export interface PNGEncodeOptions {
     /** The compression level (0-9), higher is smaller but slower. Default: `4` */
     compression?: number;
@@ -2835,35 +2835,6 @@ export class Image {
         else metadata = compressionOrOptions as Metadata;
 
         return png.encodeRGBA(this.__bytes__(), this.width, this.height, compressionLevel(compression), pngText(resolveMetadata(metadata)));
-    }
-
-    /**
-     * Encodes the image into a PNG
-     * @param options See {@link PNGEncodeOptions}
-     * @return The encoded data
-     * @deprecated Use {@link Image.encodePNG}, `encode()` will be removed in 4.0
-     * @group Deprecated
-     */
-    encode(options?: PNGEncodeOptions): Promise<Uint8Array>;
-    /**
-     * Encodes the image into a PNG
-     * @param compression The compression level (0-9). Default: `4`
-     * @param metadata Metadata to include, see {@link Metadata}
-     * @return The encoded data
-     * @deprecated Use {@link Image.encodePNG}, `encode()` will be removed in 4.0
-     * @group Deprecated
-     */
-    encode(compression?: number, metadata?: Metadata): Promise<Uint8Array>;
-    /**
-     * Encodes the image into a PNG with compression level 4
-     * @param metadata Metadata to include, see {@link Metadata}
-     * @return The encoded data
-     * @deprecated Use {@link Image.encodePNG}, `encode()` will be removed in 4.0
-     * @group Deprecated
-     */
-    encode(metadata?: Metadata): Promise<Uint8Array>;
-    encode(compressionOrOptions?: number | PNGEncodeOptions | Metadata, metadata?: Metadata): Promise<Uint8Array> {
-        return this.encodePNG(compressionOrOptions as number, metadata);
     }
 
     /**

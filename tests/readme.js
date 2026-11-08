@@ -78,7 +78,7 @@ const font = name => fs.readFileSync('./tests/fonts/' + name);
     image.composite(greeting, left, card.y + 446 + (card.height - 446 - greeting.height) / 2);
 
     image.roundCorners(24);
-    const encoded = await image.encode({metadata: {creationTime: 0, software: ''}});
+    const encoded = await image.encodePNG({metadata: {creationTime: 0, software: ''}});
 
     if (process.env.OVERWRITE_TEST)
         fs.writeFileSync('./tests/targets/readme.png', encoded);

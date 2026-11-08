@@ -33,11 +33,11 @@ const same = (name, a, b) => {
 
     // encoders: decoded, since the metadata has a creation time
     const pixelsOf = async data => (await Image.decode(data)).bitmap;
-    same('encode', await pixelsOf(await tile().encode(9)), await pixelsOf(await tile().encode({compression: 9})));
+    same('encode', await pixelsOf(await tile().encodePNG(9)), await pixelsOf(await tile().encodePNG({compression: 9})));
     same('encodeJPEG', await pixelsOf(await tile().encodeJPEG(40)), await pixelsOf(await tile().encodeJPEG({quality: 40})));
     // metadata as the first argument (3.x), and in the options
     const author = 'options test';
-    for (const data of [await tile().encode({author}), await tile().encode({metadata: {author}}), await tile().encode(1, {author})])
+    for (const data of [await tile().encodePNG({author}), await tile().encodePNG({metadata: {author}}), await tile().encodePNG(1, {author})])
         if (!Buffer.from(data).includes(author)) panic('encode: metadata missing');
     if (!Buffer.from(await tile().encodeJPEG({metadata: {author}})).includes(author)) panic('encodeJPEG: metadata missing');
     for (const method of ['encodeWebP', 'encodeTGA'])

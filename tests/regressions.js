@@ -83,7 +83,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
 
     // PNG metadata as the only argument
     {
-        const encoded = await new Image(1, 1).encode({title: 'regression'});
+        const encoded = await new Image(1, 1).encodePNG({title: 'regression'});
         assert(Buffer.from(encoded).includes(Buffer.from('regression')), 'encode(metadata): title missing');
     }
 
@@ -303,7 +303,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
             rgba: [new Image(300, 2).fill((x, y) => Image.rgbaToColor(x & 255, x >> 8, y, 200)), 6]
         };
         for (const [name, [image, type]] of Object.entries(cases)) {
-            const encoded = await image.encode();
+            const encoded = await image.encodePNG();
             const decoded = await Image.decode(encoded);
             assert(Buffer.from(decoded.bitmap).equals(Buffer.from(image.bitmap)), `PNG ${name}: roundtrip failed`);
             assert(encoded[25] === type, `PNG ${name}: expected color type ${type}, got ${encoded[25]}`);
@@ -311,9 +311,9 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
 
         // truecolor rows are filtered, which makes smooth gradients tiny
         const gradient = new Image(512, 512).fill((x, y) => Image.rgbToColor(x / 2, y / 2, (x + y) / 4));
-        const size = (await gradient.encode()).length;
+        const size = (await gradient.encodePNG()).length;
         assert(size < 20000, `PNG: gradient should compress well with row filters, got ${size} bytes`);
-        assert(Buffer.from((await Image.decode(await gradient.encode(9))).bitmap).equals(Buffer.from(gradient.bitmap)), 'PNG: filtered roundtrip failed');
+        assert(Buffer.from((await Image.decode(await gradient.encodePNG(9))).bitmap).equals(Buffer.from(gradient.bitmap)), 'PNG: filtered roundtrip failed');
     }
 
     // invertValue inverts HSV value and invertLightness HSL lightness
@@ -322,14 +322,6 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert([0, 1, 2].map(x => rgba(value, x, 0).join(' ')).join() === '55 28 14 128,255 255 255 255,0 0 0 255', 'invertValue should invert HSV value, got ' + [0, 1, 2].map(x => rgba(value, x, 0)));
         const lightness = new Image(1, 1).fill(Image.rgbToColor(200, 100, 50)).invertLightness();
         assert(rgba(lightness, 0, 0).join() === '205,105,55,255', 'invertLightness should invert HSL lightness, got ' + rgba(lightness, 0, 0));
-    }
-
-    // encodePNG is an alias of encode
-    {
-        const image = new Image(3, 3).fill((x, y) => Image.rgbaToColor(x * 80, y * 80, 7, 200));
-        const meta = {creationTime: 0, software: 'test'};
-        assert(Buffer.from(await image.encodePNG(meta)).equals(Buffer.from(await image.encode(meta))), 'encodePNG(meta) should equal encode(meta)');
-        assert(Buffer.from(await image.encodePNG(0, meta)).equals(Buffer.from(await image.encode(0, meta))), 'encodePNG(level, meta) should equal encode(level, meta)');
     }
 
     // gif frame durations are rounded to centiseconds
@@ -435,15 +427,6 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(JSON.stringify(pixels) === JSON.stringify([...image.iterateWithColors()]), 'pixels() vs iterateWithColors()');
         assert(coordinates[4].join() === '1,1' && pixels[4][2] === ColorHelpers.fromRGBA(50, 100, 7, 255), 'coordinates() and pixels() are row by row');
     }
-
-    // encodePNG() is the implementation, encode() (deprecated, removed in 4.0) an alias of it
-    await withFrozenTime(async () => {
-        const image = new Image(5, 4).fill((x, y) => ColorHelpers.fromRGBA(x * 40, y * 60, 9, 200));
-        for (const args of [[], [9], [0, {title: 'x'}], [{compression: 1}], [{title: 'y'}]]) {
-            const a = await image.encodePNG(...args), b = await image.encode(...args);
-            assert(Buffer.from(a).equals(Buffer.from(b)), `encode(${JSON.stringify(args)}) vs encodePNG`);
-        }
-    });
 
     // cropCircle({size}): 'contain' is the default, `max` (deprecated, removed in 4.0) maps to 'cover'
     {
@@ -764,7 +747,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
     // type checks take any binary data
     {
         const {ImageType} = require('..');
-        const png = await new Image(1, 1).encode();
+        const png = await new Image(1, 1).encodePNG();
         assert(ImageType.isPNG(png) && ImageType.isPNG(Buffer.from(png)) && ImageType.isPNG(new DataView(png.buffer)) && !ImageType.isGIF(png), 'ImageType checks');
     }
 
@@ -886,7 +869,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         };
 
         const source = new Image(3, 2).fill((x, y) => Image.rgbaToColor(x * 100, y * 100, 0, 255));
-        const encoded = Buffer.from(await source.encode());
+        const encoded = Buffer.from(await source.encodePNG());
         const withChunks = (...extra) => Buffer.concat([encoded.subarray(0, encoded.length - 12), ...extra, encoded.subarray(encoded.length - 12)]);
 
         for (const [name, make] of Object.entries(chunks)) {
@@ -1078,7 +1061,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
             cropCircle: v => image().cropCircle(false, v), opacity: v => image().opacity(v), red: v => image().red(v), lightness: v => image().lightness(v),
             composite: v => image().composite(image(), v, 0), hueShift: v => image().hueShift(v), brightness: v => image().brightness(v), gamma: v => image().gamma(v),
             colorToAlpha: v => image().colorToAlpha(v), rotate: v => image().rotate(v, false), gradient: v => Image.gradient({0: v, 1: 0}),
-            roundCorners: v => image().roundCorners(v), fisheye: v => image().fisheye(v), encode: v => image().encode(v), encodeJPEG: v => image().encodeJPEG(v),
+            roundCorners: v => image().roundCorners(v), fisheye: v => image().fisheye(v), encodePNG: v => image().encodePNG(v), encodeJPEG: v => image().encodeJPEG(v),
             frame: v => new Frame(4, 4, v), animation: v => new Animation([new Frame(4, 4)], v),
         };
         for (const [name, call] of Object.entries(calls))

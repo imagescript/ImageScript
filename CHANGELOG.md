@@ -8,6 +8,8 @@
 
 - **`absolute` is removed from `opacity()`, `red()`, `green()`, `blue()`, `lightness()` and `saturation()`**: they only scale now, `image.red(0.5)` (and `AdjustOptions`, the type of their options, is removed). For a fixed color, use `image.recolor()`.
 
+- **`Image.encode()` is removed**: use `image.encodePNG()`, which takes the same arguments.
+
 ## 3.20.1
 
 ### Performance

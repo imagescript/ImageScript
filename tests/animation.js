@@ -49,7 +49,7 @@ const square = (color, w, h) => new Image(w, h).fill((x, y) => (x + y) % 5 === 0
     if (still.getPixelAt(0, 0) !== 0xff0000ff) panic('APNG: the default image should be the first frame');
 
     // still images decode to a single frame; GIFs stay GIFs
-    const single = await Animation.decode(await still.encode());
+    const single = await Animation.decode(await still.encodePNG());
     if (single.length !== 1 || single.width !== 8) panic('Animation.decode should accept still images');
     const gif = await Animation.decode(await new GIF([Frame.from(still)]).encode());
     if (!(gif instanceof Animation) || gif.length !== 1) panic('Animation.decode should decode GIFs');

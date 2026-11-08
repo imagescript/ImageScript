@@ -303,5 +303,5 @@ const meanValue = (image, left, top, right, bottom) => {
 	const removed = single.clone();
 	removed.gainMap = null;
 	if ((await Image.decode(await removed.encodeJPEG())).gainMap !== null) panic('removed map still written');
-	if ((await Image.decode(await single.encode())).gainMap !== null) panic('PNG with a gain map');
+	if ((await Image.decode(await single.encodePNG())).gainMap !== null) panic('PNG with a gain map');
 })();

@@ -54,7 +54,7 @@ const rejects = async (name, fn, Type, pattern) => {
     await rejects('dominantColor threshold NaN', () => image.dominantColor({threshold: NaN}), RangeError, /threshold/);
     await rejects('renderSVG size NaN', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {size: NaN}), RangeError, /SVG size/);
     await rejects('renderText size -1', () => Image.renderText(new Uint8Array(0), -1, 'x'), RangeError, /font size/);
-    const png = await image.encode();
+    const png = await image.encodePNG();
     for (const maxPixels of [NaN, -1, 0]) {
         await rejects(`Image.decode maxPixels ${maxPixels}`, () => Image.decode(png, {maxPixels}), RangeError, /maxPixels/);
         await rejects(`Animation.decode maxPixels ${maxPixels}`, () => Animation.decode(png, {maxPixels}), RangeError, /maxPixels/);

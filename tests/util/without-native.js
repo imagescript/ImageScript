@@ -22,7 +22,7 @@ if (mode === 'plain') {
     const image = await Image.decode(fs.readFileSync('./tests/targets/image.png'));
     results.decoded = sha256(image.bitmap);
     for (let level = 0; level <= 9; level++) {
-        const encoded = await image.encode({compression: level, metadata: {creationTime: 0, software: ''}});
+        const encoded = await image.encodePNG({compression: level, metadata: {creationTime: 0, software: ''}});
         // the output differs between the deflaters, the pixels must not
         results[`level ${level}`] = sha256((await Image.decode(encoded)).bitmap);
     }

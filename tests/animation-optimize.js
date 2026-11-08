@@ -155,7 +155,7 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
         const animation = new Animation(Array.from({length: 20}, (_, i) =>
             Frame.from(background.clone().drawBox(10 + i * 6, 50, 8, 8, 0xffffffff), 50)));
         await check('screen recording', animation);
-        const still = (await background.encode()).length;
+        const still = (await background.encodePNG()).length;
         for (const format of ['APNG', 'WebP', 'GIF']) {
             const size = (await animation[`encode${format}`]()).length;
             if (size > 3 * (format === 'GIF' ? (await new Animation([Frame.from(background)]).encodeGIF()).length : still))

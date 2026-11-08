@@ -39,7 +39,7 @@ const panic = message => {
 
     {
         const font = await Image.renderText(await fs.readFile('./tests/fonts/carbon phyber.ttf'), 128, 'ThE qUiCk');
-        const encoded = await font.encode(1, {creationTime: 0, software: ''});
+        const encoded = await font.encodePNG(1, {creationTime: 0, software: ''});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/font-1.png', encoded);
@@ -50,7 +50,7 @@ const panic = message => {
 
     {
         const font = await Image.renderText(await fs.readFile('./tests/fonts/ethnocentric rg.ttf'), 128, 'BrOwN fOx');
-        const encoded = await font.encode(1, {creationTime: 0, software: ''});
+        const encoded = await font.encodePNG(1, {creationTime: 0, software: ''});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/font-2.png', encoded);
@@ -61,7 +61,7 @@ const panic = message => {
 
     {
         const font = await Image.renderText(await fs.readFile('./tests/fonts/opensans bold.ttf'), 128, 'Extra\n-Test\nnewline');
-        const encoded = await font.encode(1, {creationTime: 0, software: ''});
+        const encoded = await font.encodePNG(1, {creationTime: 0, software: ''});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/font-3.png', encoded);
@@ -73,7 +73,7 @@ const panic = message => {
     {
         // OpenType font with CFF outlines
         const font = await Image.renderText(await fs.readFile('./tests/fonts/sourcesans3 regular.otf'), 64, 'Quartz glyph job, vex!');
-        const encoded = await font.encode(1, {creationTime: 0, software: ''});
+        const encoded = await font.encodePNG(1, {creationTime: 0, software: ''});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/font-4.png', encoded);
@@ -248,7 +248,7 @@ const panic = message => {
         for (const [file, target] of [['noto color emoji subset.ttf', 'emoji-cbdt'], ['twemoji mozilla subset.ttf', 'emoji-colr'], ['noto colrv1 subset.ttf', 'emoji-colrv1']]) {
             const emoji = await fs.readFile(`./tests/fonts/${file}`);
             const image = await Image.renderText([sans, emoji], 48, 'Hi 😀🔥 👍🏽 🇩🇪 1️⃣ ❤️ 👨‍👩‍👧', {color: 0x000000ff});
-            const encoded = await image.encode(1, {creationTime: 0, software: ''});
+            const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
             if (process.env.OVERWRITE_TEST)
                 await fs.writeFile(`./tests/targets/${target}.png`, encoded);
             if (!await samePixels(await fs.readFile(`./tests/targets/${target}.png`), encoded)) panic(`${target} doesn't match`);
@@ -289,7 +289,7 @@ const panic = message => {
         const font = await fs.readFile('./tests/fonts/colrv1 paints.ttf');
         const glyphs = Array.from({length: 17}, (_, k) => String.fromCodePoint(0xe000 + k)).join('');
         const image = await Image.renderText(font, 48, glyphs, {color: 0x00aaaaff});
-        const encoded = await image.encode(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/colrv1-paints.png', encoded);
         if (!await samePixels(await fs.readFile('./tests/targets/colrv1-paints.png'), encoded)) panic('colrv1-paints doesn\'t match');
@@ -374,7 +374,7 @@ const panic = message => {
             .map(name => fs.readFile(`./tests/fonts/${name}`)));
         const text = 'Hi שָׁלוֹם עוֹלָם (2024) and مرحبا بالعالم!\nمرحبا بالعالم، هذا نص (2024)!\nनमस्ते क्षत्रिय र्क्ष';
         const font = await Image.renderText(fonts, 40, text, 0xffffffff, new TextLayout({maxWidth: 420, horizontalAlign: 'right'}));
-        const encoded = await font.encode(1, {creationTime: 0, software: ''});
+        const encoded = await font.encodePNG(1, {creationTime: 0, software: ''});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/font-bidi.png', encoded);
@@ -386,7 +386,7 @@ const panic = message => {
         const line = await Image.renderText(fonts, 40, 'مرحبا Hi', 0xffffffff);
         const arabic = await Image.renderText(fonts, 40, 'مرحبا', 0xffffffff);
         const right = line.clone().crop(line.width - arabic.width, 0, arabic.width, line.height);
-        if (!await samePixels(await arabic.encode(1, {creationTime: 0, software: ''}), await right.encode(1, {creationTime: 0, software: ''})))
+        if (!await samePixels(await arabic.encodePNG(1, {creationTime: 0, software: ''}), await right.encodePNG(1, {creationTime: 0, software: ''})))
             panic('the right to left paragraph should start on the right');
     }
 

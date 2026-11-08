@@ -9,7 +9,7 @@ const samePixels = require('./util/pixels');
         const image = await Image.decode(input);
         image.flip('horizontal');
 
-        const output = await image.encode(1, {creationTime: 0, software: ''});
+        const output = await image.encodePNG(1, {creationTime: 0, software: ''});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/flip-horizontal.png', output);
@@ -24,7 +24,7 @@ const samePixels = require('./util/pixels');
         const image = await Image.decode(input);
         image.flip('vertical');
 
-        const output = await image.encode(1, {creationTime: 0, software: ''});
+        const output = await image.encodePNG(1, {creationTime: 0, software: ''});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/flip-vertical.png', output);

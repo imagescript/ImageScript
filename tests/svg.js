@@ -11,7 +11,7 @@ const panic = message => {
     {
         const svg = await fs.readFile('./tests/svgs/potato.svg');
         const image = await Image.renderSVG(svg.toString(), 256 / 36, SVGScaleModes.SCALE);
-        const encoded = await image.encode(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/potato.png', encoded);
@@ -26,7 +26,7 @@ const panic = message => {
         const image = await Image.renderSVG(svg, 480, SVGScaleModes.WIDTH);
         if (image.width !== 480 || image.height !== 320) panic('features: unexpected size');
 
-        const encoded = await image.encode(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/svg-features.png', encoded);
@@ -53,7 +53,7 @@ const panic = message => {
         const gif = await new Animation([Frame.from(opaque)]).encodeGIF();
         const jpeg = await opaque.encodeJPEG(90);
         const cases = [
-            ['image/png', await source.encode(1), source],
+            ['image/png', await source.encodePNG(1), source],
             ['image/webp', await source.encodeWebP(), source],
             ['image/gif', gif, (await Animation.decode(gif))[0]],
             ['image/jpeg', jpeg, await Image.decode(jpeg)],
