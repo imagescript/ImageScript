@@ -37,7 +37,7 @@ const photo = (width, height) => new Image(width, height).fill((x, y) => Colors.
         // any angle: close to rotate() (counterclockwise 30 degrees), on a canvas that keeps its size
         const angle = 30 * Math.PI / 180, big = photo(40, 30);
         const ours = big.clone().transform([Math.cos(angle), -Math.sin(angle), Math.sin(angle), Math.cos(angle), 0, 0], {expand: false});
-        const theirs = big.clone().rotate(30, {resize: false});
+        const theirs = big.clone().rotate(30, {expand: false});
         let total = 0;
         for (let i = 0; i < ours.bitmap.length; i++) total += Math.abs(ours.bitmap[i] - theirs.bitmap[i]);
         check(ours.width === 40 && ours.height === 30 && total / ours.bitmap.length < 3, `transform: a rotation by any angle is rotate()'s (mean difference ${total / ours.bitmap.length})`);

@@ -23,7 +23,7 @@ const panic = msg => {
     {
         const binary = await fs.readFile('./tests/targets/image.png');
         const image = await Image.decode(binary);
-        image.rotate(45, {resize: false});
+        image.rotate(45, {expand: false});
 
         const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
@@ -88,7 +88,7 @@ const panic = msg => {
         for (let i = 0; i < transparent.bitmap.length; i += 4) transparent.bitmap[i + 3] = (i >> 2) % transparent.width * 255 / (transparent.width - 1);
         for (const source of [photo, transparent])
             for (const [angle, resize] of [[30, true], [-17.5, true], [123, false], [0.3, true]]) {
-                const a = source.clone().rotate(angle, {resize, fast: false}).bitmap, b = source.clone().rotate(angle, {resize}).bitmap;
+                const a = source.clone().rotate(angle, {expand: resize, fast: false}).bitmap, b = source.clone().rotate(angle, {expand: resize}).bitmap;
                 let opaque = 0, shown = 0;
                 for (let i = 0; i < a.length; i++) {
                     if (a[i] === b[i]) continue;

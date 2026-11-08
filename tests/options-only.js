@@ -76,7 +76,7 @@ const sameImage = (image, reference, label) => {
 	if (solid.clone().composite(patch, {x: 1, y: 1}).getPixelAt(1, 1) !== 0xff0000ff) panic('composite(patch, { x, y }) should place the patch');
 	if (solid.clone().sharpen({amount: 0}).getPixelAt(2, 2) !== 0x000000ff) panic('sharpen({ amount: 0 }) should not change the pixels');
 	if (solid.clone().roundCorners({radius: 0}).getPixelAt(0, 0) !== 0xffffffff) panic('roundCorners({ radius: 0 }) should not change the pixels');
-	if (solid.clone().rotate(90, {resize: false}).width !== 6) panic('rotate(90, { resize: false })');
+	if (solid.clone().rotate(90, {expand: false}).width !== 6) panic('rotate(90, { expand: false })');
 
 	// the encoders take their values in the options object only; the metadata goes in { metadata }
 	const makeAnimation = () => new Animation([new Frame(4, 4)]);

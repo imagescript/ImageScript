@@ -560,8 +560,11 @@ export interface DominantColorOptions {
 
 /** Options of {@link Image.rotate} */
 export interface RotateOptions {
-    /** Whether to resize the image so it fits all pixels or just ignore outlying pixels. Default: `true` */
-    resize?: boolean;
+    /**
+     * Whether to make the image larger so the rotated corners aren't cut off. Without it, the image keeps its size and
+     * the parts outside are lost. Default: `true`
+     */
+    expand?: boolean;
     /**
      * Whether to sample with 8-bit weights on 8-bit premultiplied pixels (like {@link ResizeOptions.fast}), about twice
      * as fast: opaque pixels stay within a step of the precise result, what shows of translucent ones (also the
@@ -2304,8 +2307,8 @@ export class Image {
      */
     rotate(angle: number, options?: RotateOptions): this;
     rotate(angle: number, options: RotateOptions = {}): this {
-        checkOptions(options, 'rotate(angle, { resize: false })');
-        const { resize = true, fast = true } = options;
+        checkOptions(options, 'rotate(angle, { expand: false })');
+        const { expand = true, fast = true } = options;
         angle = ((finite(angle, 'angle') % 360) + 360) % 360;
         if (angle === 0) return this;
 
@@ -2340,8 +2343,8 @@ export class Image {
 
         const rad = angle * Math.PI / 180;
         const sin = Math.sin(rad), cos = Math.cos(rad);
-        const outWidth = resize ? Math.round(Math.abs(width * cos) + Math.abs(height * sin)) : width;
-        const outHeight = resize ? Math.round(Math.abs(width * sin) + Math.abs(height * cos)) : height;
+        const outWidth = expand ? Math.round(Math.abs(width * cos) + Math.abs(height * sin)) : width;
+        const outHeight = expand ? Math.round(Math.abs(width * sin) + Math.abs(height * cos)) : height;
         const out = new Image(outWidth, outHeight);
         rotateGainMap(outWidth, outHeight);
         if (fast && rotateBilinear(this.bitmap, width, height, out.bitmap, outWidth, outHeight, sin, cos)) return this.__apply__(out);

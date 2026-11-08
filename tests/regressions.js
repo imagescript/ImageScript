@@ -32,7 +32,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // free rotation keeps the edges
     {
-        const image = new Image(4, 4).fill(0xff0000ff).rotate(0.001, {resize: false});
+        const image = new Image(4, 4).fill(0xff0000ff).rotate(0.001, {expand: false});
         for (const [x, y, color] of image.pixels()) assert((color & 0xff) > 250, `rotate: edge pixel ${x},${y} lost`);
     }
 
@@ -1041,7 +1041,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             crop: v => image().crop(v, 0, 2, 2), trim: v => image().trim({color: v}), drawBox: v => image().drawBox(0, 0, v, 2, 0), drawCircle: v => image().drawCircle(2, 2, v, 0),
             cropCircle: v => image().cropCircle({ feathering: v }), opacity: v => image().opacity(v), red: v => image().red(v), lightness: v => image().lightness(v),
             composite: v => image().composite(image(), {x: v, y: 0}), hueShift: v => image().hueShift(v), brightness: v => image().brightness(v), gamma: v => image().gamma(v),
-            colorToAlpha: v => image().colorToAlpha({color: v}), rotate: v => image().rotate(v, {resize: false}), gradient: v => Colors.gradient({0: v, 1: 0}),
+            colorToAlpha: v => image().colorToAlpha({color: v}), rotate: v => image().rotate(v, {expand: false}), gradient: v => Colors.gradient({0: v, 1: 0}),
             roundCorners: v => image().roundCorners({radius: v}), fisheye: v => image().fisheye({strength: v}), encodePNG: v => image().encodePNG({compression: v}), encodeJPEG: v => image().encodeJPEG({quality: v}),
             frame: v => new Frame(4, 4, {duration: v}), animation: v => new Animation([new Frame(4, 4)], {loopCount: v}),
         };
