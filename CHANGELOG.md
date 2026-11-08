@@ -6,6 +6,7 @@
 
 - **`image.quantize({ colors, palette, dither, ditherStrength })`**: reduces the image to a palette, in place: `image.quantize({ colors: 16 })` for the 16 colors that best represent it, or a fixed one: `image.quantize({ palette: [0x0f380fff, 0x306230ff, 0x8bac0fff, 0x9bbc0fff] })` for a Game Boy look. `dither: 'floyd-steinberg'` (or `'atkinson'`, or `'ordered'` for a regular pattern) makes gradients look smooth with few colors. Transparent pixels keep their color and don't count towards the palette.
 - **`Image.renderSVG(svg, { images })`**: images for the `<image>` elements by their `href`, without data URIs: `Image.renderSVG('<svg ...><image href="logo.png" .../></svg>', { images: { 'logo.png': bytes } })`. The values are encoded images or `Image`s; they are decoded only when the SVG uses them. Nothing is read from files or URLs.
+- **`image.colorMatrix(matrix)`**: mixes the colors of every pixel with a color matrix, like SVG's `feColorMatrix`: greyscale, sepia, tints, swapped channels, color blindness simulation or any mix of them in one pass. Twenty values (four rows of `[red, green, blue, alpha, offset]`, 0 to 1) or nine for just the colors: `image.colorMatrix([0, 0, 1, 0, 0,  0, 1, 0, 0, 0,  1, 0, 0, 0, 0,  0, 0, 0, 1, 0])` swaps red and blue.
 
 ## 3.19.0
 

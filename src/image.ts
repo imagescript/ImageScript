@@ -2106,6 +2106,43 @@ export class Image {
     }
 
     /**
+     * Mixes the colors of every pixel with a color matrix, like SVG's `feColorMatrix`: the new red, green, blue and alpha
+     * are each a sum of the old red, green, blue and alpha times a factor, plus an offset. Greyscale, sepia, tints,
+     * swapped channels, color blindness simulation or a mix of those in one pass.
+     *
+     * The values are 20 numbers, four rows of `[red, green, blue, alpha, offset]` for the new red, green, blue and alpha,
+     * with the colors and the offsets as 0 to 1 (like CSS and SVG): `[1, 0, 0, 0, 0,  0, 1, 0, 0, 0,  0, 0, 1, 0, 0,
+     * 0, 0, 0, 1, 0]` changes nothing, `[0, 0, 1, 0, 0,  0, 1, 0, 0, 0,  1, 0, 0, 0, 0,  0, 0, 0, 1, 0]` swaps red and
+     * blue. Nine numbers are the first three rows without the alpha and the offsets (the alpha stays as it is). The
+     * colors are the sRGB values, not premultiplied, and the results are clamped. With a gain map (an HDR image), the
+     * HDR highlights follow the change as they do for other color changes
+     * @param matrix The 9 or 20 values
+     */
+    colorMatrix(matrix: ArrayLike<number>): this {
+        if (matrix === null || typeof matrix !== 'object' || (matrix.length !== 9 && matrix.length !== 20))
+            throw new RangeError('A color matrix has 9 or 20 values');
+        const m = new Float64Array(20);
+        // (numbers only: a string is a mistake in data like this)
+        const value = (v: unknown): number => finite(typeof v === 'number' ? v : NaN, 'color matrix value');
+        if (matrix.length === 20) for (let i = 0; i < 20; i++) m[i] = value(matrix[i]);
+        else for (let row = 0; row < 3; row++) for (let column = 0; column < 3; column++) m[row * 5 + column] = value(matrix[row * 3 + column]);
+        // (nine values leave the alpha as it is)
+        if (matrix.length === 9) m[18] = 1;
+
+        if (this.__gain_map__) return this.__recolor__(image => image.colorMatrix(m));
+        const bitmap = this.bitmap;
+        for (let i = 0; i < bitmap.length; i += 4) {
+            const r = bitmap[i], g = bitmap[i + 1], b = bitmap[i + 2], a = bitmap[i + 3];
+            // (the offsets are 0 to 1, the values 0 to 255; the clamped array rounds and clamps)
+            bitmap[i] = m[0] * r + m[1] * g + m[2] * b + m[3] * a + m[4] * 255;
+            bitmap[i + 1] = m[5] * r + m[6] * g + m[7] * b + m[8] * a + m[9] * 255;
+            bitmap[i + 2] = m[10] * r + m[11] * g + m[12] * b + m[13] * a + m[14] * 255;
+            bitmap[i + 3] = m[15] * r + m[16] * g + m[17] * b + m[18] * a + m[19] * 255;
+        }
+        return this;
+    }
+
+    /**
      * Adds a shadow behind the image, shaped by its alpha: a drop shadow with an offset, or a glow without one
      * (`image.dropShadow({ blur: 8, color: 0xff2fb9ff })`, with `spread` to make it stronger). The image grows to fit
      * the shadow, unless `expand` is `false`. Frames stay where they are (their offsets move with the growth), they only
