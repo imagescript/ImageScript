@@ -36,7 +36,7 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
     - uses: actions/setup-node@v7
       with:
-        node-version: 24.x
+        node-version: 26.x
 
     - run: npm ci --no-audit --no-fund
     # a version that was just published can take some minutes to show up on the registry (3.6.0 took more than 2.5);
