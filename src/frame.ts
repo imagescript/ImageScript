@@ -15,7 +15,7 @@ type DisposalId = 0 | 1 | 2 | 3;
 
 const DISPOSAL_MODES: readonly FrameDisposalModeName[] = ['any', 'keep', 'previous', 'background'];
 
-/** Options of {@link Frame} and {@link Frame.from} */
+/** Options of {@link Frame} */
 export interface FrameOptions {
     /** The frame's duration in milliseconds. Default: `100` */
     duration?: number;
@@ -28,10 +28,13 @@ export interface FrameOptions {
 }
 
 /**
- * Represents a frame of an {@link Animation}: an {@link Image} with a duration, offsets and a disposal mode, so every
- * method of {@link Image} works on it too
+ * A frame of an {@link Animation}: an {@link Image} ({@link Frame.image}) with a duration, offsets and a disposal mode.
+ * The frame's own methods (resize, scale, crop, trim) keep its pixels where they are in the animation by moving the
+ * offsets along; every other change goes to the image (`frame.image.blur(2)`), which leaves the offsets as they are
  */
-export class Frame extends Image {
+export class Frame {
+    /** @internal @ignore */
+    private __image__: Image;
     /** @internal @ignore */
     private __duration__ = 100;
     /** @internal @ignore */
@@ -57,25 +60,44 @@ export class Frame extends Image {
     }
 
     /**
-     * Creates a new, blank frame
-     * @param width The width in pixels
-     * @param height The height in pixels
+     * Creates a frame of an image. The frame uses the image as it is (it isn't copied): changes to it are the frame's
+     * @param image The frame's pixels
      * @param options See {@link FrameOptions}
      */
-    constructor(width: number, height: number, options?: FrameOptions);
-    constructor(width: number, height: number, options: FrameOptions = {}) {
-        checkOptions(options, 'Frame(width, height, { duration: 100 })');
+    constructor(image: Image, options?: FrameOptions);
+    constructor(image: Image, options: FrameOptions = {}) {
+        if (!(image instanceof Image)) throw new TypeError('A frame takes an Image, like new Frame(image, { duration: 100 })');
+        checkOptions(options, 'Frame(image, { duration: 100 })');
         const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = 'keep' } = options;
-        if (finite(duration, 'frame duration') < 0)
-            throw new RangeError('Invalid frame duration');
-        finite(x, 'x offset');
-        finite(y, 'y offset');
-
-        super(width, height);
+        this.__image__ = image;
         this.duration = duration;
         this.xOffset = x;
         this.yOffset = y;
         this.disposalMode = disposal;
+    }
+
+    /** The frame's pixels. Changing the image changes the frame; the offsets stay as they are */
+    get image(): Image {
+        return this.__image__;
+    }
+
+    /**
+     * Replaces the frame's pixels
+     * @param image The new image (used as it is, not copied)
+     */
+    set image(image: Image) {
+        if (!(image instanceof Image)) throw new TypeError('A frame\'s image has to be an Image');
+        this.__image__ = image;
+    }
+
+    /** The frame's width (its image's) */
+    get width(): number {
+        return this.__image__.width;
+    }
+
+    /** The frame's height (its image's) */
+    get height(): number {
+        return this.__image__.height;
     }
 
     /**
@@ -123,7 +145,7 @@ export class Frame extends Image {
         this.__y__ = finite(y, 'y offset');
     }
 
-    /** The frame's disposal mode (`'any'`, `'keep'`, `'previous'` or `'background'`) */
+    /** The frame's disposal mode, see {@link FrameDisposalModeName} */
     get disposalMode(): FrameDisposalModeName {
         return DISPOSAL_MODES[this.__disposalMode__];
     }
@@ -146,100 +168,82 @@ export class Frame extends Image {
     }
 
     /** A short description for debugging, e.g. `Frame<64x64x100ms>` */
-    override toString(): string {
+    toString(): string {
         return `Frame<${this.width}x${this.height}x${this.duration}ms>`;
     }
 
-    /**
-     * Converts an Image instance to a Frame, cloning it in the process
-     * @param image The image to create the frame from
-     * @param options See {@link FrameOptions}
-     */
-    static from(image: Image, options?: FrameOptions): Frame;
-    static from(image: Image, options: FrameOptions = {}): Frame {
-        if (!(image instanceof Image))
-            throw new TypeError('Invalid image passed');
-        checkOptions(options, 'Frame.from(image, { duration: 100 })');
-
-        const frame = new Frame(image.width, image.height, options);
-        frame.bitmap.set(image.bitmap);
-
-        return frame;
+    /** Clones the frame: its image (with its pixels and gain map), duration, offsets and disposal mode */
+    clone(): Frame {
+        return new Frame(this.__image__.clone(), { duration: this.duration, xOffset: this.xOffset, yOffset: this.yOffset, disposalMode: this.disposalMode });
     }
 
     /**
-     * Clones the frame, including its duration, offsets and disposal mode
-     */
-    override clone(): Frame {
-        return Frame.from(this, { duration: this.duration, xOffset: this.xOffset, yOffset: this.yOffset, disposalMode: this.disposalMode });
-    }
-
-    /**
-     * @internal
-     * @ignore
-     */
-    protected override __room__(): { left: number, top: number } {
-        return { left: this.xOffset, top: this.yOffset };
-    }
-
-    /**
-     * @internal
-     * @ignore
-     */
-    protected override __grown__(left: number, top: number): void {
-        this.xOffset -= left;
-        this.yOffset -= top;
-    }
-
-    /**
-     * Removes borders of one color, moving the frame's offsets so the remaining pixels stay in place
-     * @param options See {@link TrimOptions}
-     */
-    override trim(options?: TrimOptions): this;
-    override trim(options: TrimOptions = {}): this {
-        checkOptions(options, 'trim({ tolerance: 0.1 })');
-        const { color, ...rest } = options;
-        const bounds = this.__trim_bounds__(color, rest);
-        if (!bounds) return this;
-        this.xOffset += bounds[0];
-        this.yOffset += bounds[1];
-        return this.__apply__(this.__crop__(...bounds));
-    }
-
-    /**
-     * Resizes the frame, scaling its offsets along with it.
-     * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
+     * Resizes the frame, scaling its offsets along with it (as if the whole animation was resized by the same factor)
      * @param width The new width
      * @param height The new height
      * @param options See {@link ResizeOptions}
      */
-    override resize(width: number, height: number, options?: ResizeOptions): this;
+    resize(width: number, height: number, options?: ResizeOptions): this;
     /**
      * Resizes the frame, scaling its offsets along with it: to the given width or height (the other side keeps the
      * aspect ratio), or to both
      * @param options The size and how to resize, see {@link ResizeToOptions}
      */
-    override resize(options: ResizeToOptions): this;
-    override resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
-        const [width, height, options, fit] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
-        const originalWidth = this.width;
-        const originalHeight = this.height;
-
-        super.resize(...this.__resized_size__(width, height, fit), options);
-
+    resize(options: ResizeToOptions): this;
+    resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
+        const originalWidth = this.width, originalHeight = this.height;
+        if (typeof widthOrOptions === 'number') this.__image__.resize(widthOrOptions, heightArgument as number, optionsArgument);
+        else {
+            resizeArguments(widthOrOptions, heightArgument, optionsArgument);
+            this.__image__.resize(widthOrOptions);
+        }
         this.xOffset = Math.round(this.xOffset * this.width / originalWidth);
         this.yOffset = Math.round(this.yOffset * this.height / originalHeight);
-
         return this;
     }
 
     /**
-     * Scales the offsets like {@link Frame.resize} for a resize to the given size (that only produces a part of it)
-     * @internal
-     * @ignore
+     * Scales the frame by a factor, and its offsets along with it
+     * @param factor The factor
+     * @param options See {@link ResizeOptions}
      */
-    protected override __rescaled__(width: number, height: number): void {
-        this.xOffset = Math.round(this.xOffset * width / this.width);
-        this.yOffset = Math.round(this.yOffset * height / this.height);
+    scale(factor: number, options?: ResizeOptions): this {
+        const originalWidth = this.width, originalHeight = this.height;
+        this.__image__.scale(factor, options);
+        this.xOffset = Math.round(this.xOffset * this.width / originalWidth);
+        this.yOffset = Math.round(this.yOffset * this.height / originalHeight);
+        return this;
+    }
+
+    /**
+     * Crops the frame to a region of it, moving the offsets so the remaining pixels stay where they are in the
+     * animation. The region is clipped to the frame
+     * @param x The x offset in the frame (0-based)
+     * @param y The y offset in the frame (0-based)
+     * @param width The new width
+     * @param height The new height
+     */
+    crop(x: number, y: number, width: number, height: number): this {
+        const left = Math.max(0, Math.floor(finite(x, 'x'))), top = Math.max(0, Math.floor(finite(y, 'y')));
+        this.__image__.crop(x, y, width, height);
+        this.xOffset += left;
+        this.yOffset += top;
+        return this;
+    }
+
+    /**
+     * Removes borders of one color, moving the offsets so the remaining pixels stay where they are in the animation
+     * @param options See {@link TrimOptions}
+     */
+    trim(options?: TrimOptions): this;
+    trim(options: TrimOptions = {}): this {
+        checkOptions(options, 'trim({ tolerance: 0.1 })');
+        const { color, ...rest } = options;
+        const bounds = this.__image__.__trim_bounds__(color, rest);
+        if (!bounds) return this;
+        this.__image__.crop(...bounds);
+        this.xOffset += bounds[0];
+        this.yOffset += bounds[1];
+        return this;
     }
 }

@@ -82,7 +82,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // frames keep their metadata
     {
-        const frame = new Frame(10, 10, {duration: 500, xOffset: 2, yOffset: 4, disposalMode: 'background'});
+        const frame = new Frame(new Image(10, 10), {duration: 500, xOffset: 2, yOffset: 4, disposalMode: 'background'});
         const clone = frame.clone();
         assert(clone instanceof Frame && clone.duration === 500 && clone.xOffset === 2 && clone.disposalMode === 'background', 'Frame.clone lost metadata');
 
@@ -92,7 +92,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // the frames are the array: the animation's frames have the array methods, the animation itself none
     {
-        const gif = new Animation([new Frame(4, 4), new Frame(4, 4), new Frame(4, 4)], {loopCount: 2});
+        const gif = new Animation([new Frame(new Image(4, 4)), new Frame(new Image(4, 4)), new Frame(new Image(4, 4))], {loopCount: 2});
         assert(new Animation(gif.frames.slice(1), {loopCount: gif.loopCount}).length === 2, 'frames.slice(start)');
         assert(gif.frames.slice(-1).length === 1, 'frames.slice(negative)');
         assert(gif.frames.map(frame => frame.width).join() === '4,4,4', 'frames.map');
@@ -101,7 +101,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // resizing GIFs scales partial frames proportionally
     {
-        const gif = new Animation([new Frame(10, 10), new Frame(4, 4, {duration: 100, xOffset: 6, yOffset: 6})]).resize(5, 5);
+        const gif = new Animation([new Frame(new Image(10, 10)), new Frame(new Image(4, 4), {duration: 100, xOffset: 6, yOffset: 6})]).resize(5, 5);
         assert(gif.width === 5 && gif.height === 5, `GIF.resize: canvas is ${gif.width}x${gif.height}`);
         assert(gif.frames[1].width === 2 && gif.frames[1].xOffset === 3, 'GIF.resize: partial frame not scaled');
     }
@@ -302,7 +302,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // gif frame durations are rounded to centiseconds
     {
         // (different frames: identical ones are merged)
-        const gif = new Animation([new Frame(2, 2, {duration: 16}), new Frame(2, 2, {duration: 14}).fill(0xff0000ff)]);
+        const gif = new Animation([new Frame(new Image(2, 2), {duration: 16}), new Frame(new Image(2, 2).fill(0xff0000ff), {duration: 14})]);
         const decoded = await Animation.decode(await gif.encodeGIF());
         assert(decoded.frames[0].duration === 20 && decoded.frames[1].duration === 10, `gif durations should round, got ${decoded.frames[0].duration}, ${decoded.frames[1].duration}`);
     }
@@ -342,13 +342,13 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // disposal modes read back as the names they are set with
     {
-        const frame = new Frame(1, 1, {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'previous'});
+        const frame = new Frame(new Image(1, 1), {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'previous'});
         assert(frame.disposalMode === 'previous', 'disposalMode should be a name, got ' + frame.disposalMode);
         // the numeric ids (0-3) are not accepted any more, the names are
         let threw = false;
         try { frame.disposalMode = 0; } catch (e) { threw = e instanceof RangeError; }
         assert(threw && frame.disposalMode === 'previous', 'disposalMode should only take names');
-        const decoded = await Animation.decode(await new Animation([new Frame(2, 2, {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'background'}), new Frame(2, 2).fill(0xff0000ff)]).encodeGIF());
+        const decoded = await Animation.decode(await new Animation([new Frame(new Image(2, 2), {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'background'}), new Frame(new Image(2, 2).fill(0xff0000ff))]).encodeGIF());
         assert(decoded.length === 2, 'gif with disposal modes should roundtrip');
     }
 
@@ -382,15 +382,15 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         try { photo.clone().resize({}); } catch (e) { threw = e instanceof TypeError; }
         assert(threw, 'resize({}) throws');
 
-        const frame = Frame.from(photo.clone(), {duration: 100, xOffset: 4, yOffset: 2});
+        const frame = new Frame(photo.clone(), {duration: 100, xOffset: 4, yOffset: 2});
         frame.resize({width: 6});
         assert(frame.width === 6 && frame.height === 4 && frame.xOffset === 2 && frame.yOffset === 1, `Frame.resize({width}): ${frame.width}x${frame.height}+${frame.xOffset}+${frame.yOffset}`);
 
-        const animation = new Animation([Frame.from(photo.clone(), {duration: 100}), Frame.from(photo.clone().invert(), {duration: 100})]);
-        const other = new Animation([Frame.from(photo.clone(), {duration: 100}), Frame.from(photo.clone().invert(), {duration: 100})]);
+        const animation = new Animation([new Frame(photo.clone(), {duration: 100}), new Frame(photo.clone().invert(), {duration: 100})]);
+        const other = new Animation([new Frame(photo.clone(), {duration: 100}), new Frame(photo.clone().invert(), {duration: 100})]);
         animation.resize({height: 4});
         other.resize(6, 4);
-        assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f, other.frames[i])), 'Animation.resize({height})');
+        assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f.image, other.frames[i].image)), 'Animation.resize({height})');
     }
 
     // coordinates() and pixels() yield every pixel row by row
@@ -418,7 +418,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // the encoders take the options of the encode functions
     await withFrozenTime(async () => {
         const {Animation} = require('..');
-        const frames = () => [Frame.from(new Image(6, 6).fill(0x336699ff), {duration: 100}), Frame.from(new Image(6, 6).fill(0x996633ff), {duration: 100})];
+        const frames = () => [new Frame(new Image(6, 6).fill(0x336699ff), {duration: 100}), new Frame(new Image(6, 6).fill(0x996633ff), {duration: 100})];
         for (const [format, options] of [['GIF', {quality: 80, optimize: false}], ['APNG', {compression: 9}], ['WebP', {quality: 70, effort: 1}]]) {
             const animation = new Animation(frames(), {loopCount: 3});
             const encoder = Animation[`${format.toLowerCase()}Encoder`](6, 6, {...options, loopCount: 3});
@@ -431,7 +431,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     await withFrozenTime(async () => {
         const {Animation} = require('..');
         const still = new Image(6, 6).fill(0x336699ff);
-        const frames = () => [Frame.from(still.clone(), {duration: 100}), Frame.from(still.clone().invert(), {duration: 100})];
+        const frames = () => [new Frame(still.clone(), {duration: 100}), new Frame(still.clone().invert(), {duration: 100})];
         const forever = new Animation(frames(), {loopCount: Infinity});
         assert(forever.loopCount === Infinity && new Animation(frames(), {loopCount: Infinity}).loopCount === Infinity, 'Animation keeps Infinity');
         for (const format of ['GIF', 'APNG', 'WebP']) {
@@ -458,7 +458,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const fs = require('fs');
         const pixel = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
         const tiff = orientation => Buffer.from([0x4d, 0x4d, 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, orientation, 0, 0, 0, 0, 0, 0, 0, 0]);
-        const source = () => [0, 1].map(i => Frame.from(new Image(3, 2).fill((x, y) => Colors.fromRGBA(x * 100, y * 100, i * 120, 255)), {duration: 100}));
+        const source = () => [0, 1].map(i => new Frame(new Image(3, 2).fill((x, y) => Colors.fromRGBA(x * 100, y * 100, i * 120, 255)), {duration: 100}));
 
         // APNG (eXIf) and animated WebP (EXIF): orientation 6 turns the top left into the top right
         const png = Buffer.from(await new Animation(source(), {loopCount: 2}).encodeAPNG({metadata: {software: ''}}));
@@ -489,7 +489,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
                 const oriented = await Animation.decode(data, options);
                 assert(oriented.width === 2 && oriented.height === 3 && oriented.length === 2, `${name}: rotated (${JSON.stringify(options)})`);
                 for (let i = 0; i < 2; i++)
-                    assert(pixel(oriented.frames[i], 1, 0).join() === pixel(stored.frames[i], 0, 0).join() && pixel(oriented.frames[i], 0, 2).join() === pixel(stored.frames[i], 2, 1).join(), `${name}: frame ${i} not oriented like Image.decode`);
+                    assert(pixel(oriented.frames[i].image, 1, 0).join() === pixel(stored.frames[i].image, 0, 0).join() && pixel(oriented.frames[i].image, 0, 2).join() === pixel(stored.frames[i].image, 2, 1).join(), `${name}: frame ${i} not oriented like Image.decode`);
             }
         }
         // (without an orientation tag nothing changes)
@@ -521,9 +521,9 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const plain = await Animation.decode(container, {gainMap: false});
         const withMap = await Animation.decode(container);
         assert(plain.length > 1 && withMap.length === plain.length, 'JPEG XL animation with a jhgm box decodes');
-        assert(plain.frames.every(f => f.gainMap === null) && (await Animation.decode(codestream)).frames.every(f => f.gainMap === null), 'JPEG XL: gainMap false, or no jhgm box');
-        assert(withMap.frames.every(f => f.gainMap && f.gainMap.width === 4 && f.gainMap.max[0] === 2), 'JPEG XL: every frame has the gain map');
-        assert(withMap.frames[0].gainMap !== withMap.frames[1].gainMap && withMap.frames.every((f, i) => Buffer.from(f.bitmap).equals(Buffer.from(plain.frames[i].bitmap))), 'JPEG XL: the frames are the same with the map, with maps of their own');
+        assert(plain.frames.every(f => f.image.gainMap === null) && (await Animation.decode(codestream)).frames.every(f => f.image.gainMap === null), 'JPEG XL: gainMap false, or no jhgm box');
+        assert(withMap.frames.every(f => f.image.gainMap && f.image.gainMap.width === 4 && f.image.gainMap.max[0] === 2), 'JPEG XL: every frame has the gain map');
+        assert(withMap.frames[0].image.gainMap !== withMap.frames[1].image.gainMap && withMap.frames.every((f, i) => Buffer.from(f.image.bitmap).equals(Buffer.from(plain.frames[i].image.bitmap))), 'JPEG XL: the frames are the same with the map, with maps of their own');
 
         // toneMapping is checked
         let threw = false;
@@ -538,7 +538,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const bordered = () => new Image(6, 5).fill(0x102030ff).setPixelAt(2, 2, 0xffffffff).setPixelAt(3, 2, 0x00000000);
         const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
         assert(same(bordered().trim(), bordered().trim(undefined)) && same(bordered().trim(), bordered().trim({})), 'trim() without arguments');
-        const frame = () => Frame.from(bordered(), {duration: 100, xOffset: 3, yOffset: 4});
+        const frame = () => new Frame(bordered(), {duration: 100, xOffset: 3, yOffset: 4});
         assert(frame().trim({color: 0x102030ff}).xOffset === 5, 'Frame.trim({color}) moves the offsets');
         assert(same(bordered().colorToAlpha(), bordered().colorToAlpha(undefined)) && same(bordered().colorToAlpha(), bordered().colorToAlpha({})), 'colorToAlpha() without arguments');
         const map = new GainMap(new Image(4, 4).fill(0x808080ff), {min: 0, max: 2});
@@ -636,13 +636,6 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const shadowed = translucent.clone().dropShadow({color: 0x000000ff});
         assert(px(shadowed, 2, 2).join() === px(translucent, 2, 2).join() || px(shadowed, 2, 2)[3] >= 128, 'dropShadow keeps translucent pixels over their shadow');
 
-        // frames stay in place: the offsets move with the growth, up and left only as far as they allow
-        const frame = Frame.from(square(), {duration: 40, xOffset: 2, yOffset: 5}).dropShadow({blur: 2});
-        assert(frame.xOffset === 0 && frame.yOffset === 0 && frame.width === 10 + 2 + 6 && frame.height === 10 + 5 + 6 && frame.duration === 40, `Frame.dropShadow: ${frame.width}x${frame.height} at ${frame.xOffset},${frame.yOffset}`);
-        assert(px(frame, 2 + 4, 5 + 4).join() === '255,128,64,255', 'Frame.dropShadow: the pixels stay where they were on the animation canvas');
-        const farFrame = Frame.from(square(), {xOffset: 20, yOffset: 20}).dropShadow({blur: 1});
-        assert(farFrame.xOffset === 17 && farFrame.yOffset === 17, 'Frame.dropShadow with room moves the offsets by the growth');
-
         // gain maps grow with the image
         const hdr = square();
         hdr.gainMap = new GainMap(new Image(5, 5).fill(0xc0c0c0ff), {min: 0, max: 2});
@@ -663,8 +656,6 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(alphaAt(holey.clone().outline({width: 1, color: 0x000000ff}), 1 + 4, 1 + 4) === 255, 'outline fills small holes of the shape');
         throws(() => square().outline({width: -1}), RangeError, 'negative outline width');
         throws(() => square().outline({width: Infinity}), RangeError, 'infinite outline width');
-        const outlinedFrame = Frame.from(square(), {xOffset: 1, yOffset: 4}).outline({width: 3});
-        assert(outlinedFrame.xOffset === 0 && outlinedFrame.yOffset === 1 && outlinedFrame.width === 10 + 1 + 3 && outlinedFrame.height === 10 + 3 + 3, `Frame.outline: ${outlinedFrame.width}x${outlinedFrame.height} at ${outlinedFrame.xOffset},${outlinedFrame.yOffset}`);
         const glowOnText = new Image(12, 12).fill((x, y) => (x - 5.5) ** 2 + (y - 5.5) ** 2 < 16 ? 0xffffffff : 0).outline({width: 2, color: 0xfacc15ff}).dropShadow({blur: 1, y: 2});
         assert(glowOnText.width > 16 && glowOnText.height > 18, 'outline and dropShadow chain');
     }
@@ -1008,7 +999,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     }
     {
         // NaN and the infinities throw instead of drawing black, transparent or nothing; numeric strings still work
-        const {Frame, Animation} = require('..');
+        const {Image, Frame, Animation} = require('..');
         const image = () => new Image(8, 8).fill(0xff0000ff);
         const calls = {
             rgbaToColor: v => Colors.fromRGBA(v, 0, 0, 255), hslaToColor: v => Colors.fromHSLA(v, 0.5, 0.5, 1), colorToRGBA: v => Colors.toRGBA(v),
@@ -1018,7 +1009,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             composite: v => image().composite(image(), {x: v, y: 0}), hueShift: v => image().hueShift(v), brightness: v => image().brightness(v), gamma: v => image().gamma(v),
             colorToAlpha: v => image().colorToAlpha({color: v}), rotate: v => image().rotate(v, {expand: false}), gradient: v => Colors.gradient({0: v, 1: 0}),
             roundCorners: v => image().roundCorners({radius: v}), fisheye: v => image().fisheye({strength: v}), encodePNG: v => image().encodePNG({compression: v}), encodeJPEG: v => image().encodeJPEG({quality: v}),
-            frame: v => new Frame(4, 4, {duration: v}), animation: v => new Animation([new Frame(4, 4)], {loopCount: v}),
+            frame: v => new Frame(new Image(4, 4), {duration: v}), animation: v => new Animation([new Frame(new Image(4, 4))], {loopCount: v}),
         };
         for (const [name, call] of Object.entries(calls))
             for (const value of [NaN, Infinity, -Infinity]) {

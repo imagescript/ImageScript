@@ -1,6 +1,5 @@
 import { BinaryData } from './util/mem.ts';
 import { Image, DecodeOptions } from './image.ts';
-import { Frame } from './frame.ts';
 import { Animation } from './animation.ts';
 import { checkOptions } from './util/options.ts';
 import * as png from './codecs/png.ts';
@@ -45,9 +44,5 @@ export async function decode(input: BinaryData, options: DecodeOptions = {}): Pr
     const animation = await Animation.decode(input, options);
     if (animation.length !== 1) return animation;
     // the only frame, as an image: its pixels and gain map
-    const frame: Frame = animation.frames[0];
-    const image = new Image(frame.width, frame.height);
-    image.bitmap = frame.bitmap;
-    image.gainMap = frame.gainMap;
-    return image;
+    return animation.frames[0].image;
 }

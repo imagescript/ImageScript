@@ -35,8 +35,9 @@ const samePixels = require('./util/pixels');
     try { source.region(600, 0, 10, 10); } catch (err) { threw = err instanceof RangeError; }
     if (!threw) panic('region: a region outside the image should throw a RangeError');
 
-    // a frame's region is a plain image, the frame stays as it is
-    const frame = Frame.from(source, {duration: 100, xOffset: 4, yOffset: 6});
-    const part = frame.region(0, 0, 10, 10);
-    if (part instanceof Frame || part.width !== 10 || frame.width !== 512 || frame.xOffset !== 4) panic('region: frames');
+    // a frame's crop moves its offsets, so the pixels stay where they are in the animation
+    const frame = new Frame(source.clone(), {duration: 100, xOffset: 4, yOffset: 6});
+    const pixel = source.getPixelAt(30, 20);
+    frame.crop(20, 10, 40, 30);
+    if (frame.width !== 40 || frame.height !== 30 || frame.xOffset !== 24 || frame.yOffset !== 16 || frame.image.getPixelAt(10, 10) !== pixel) panic('crop: frames');
 })();

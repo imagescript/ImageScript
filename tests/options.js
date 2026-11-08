@@ -35,13 +35,13 @@ const same = (name, a, b) => {
     const svg = await fs.readFile('./tests/svgs/crown.svg');
 
     // frames and animations
-    const b = new Frame(8, 6, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
-    const c = Frame.from(logo, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
+    const b = new Frame(new Image(8, 6), {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
+    const c = new Frame(logo.clone(), {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
     for (const frame of [b, c])
         if (frame.duration !== 40 || frame.xOffset !== 2 || frame.yOffset !== 3 || frame.disposalMode !== 'background') panic('Frame: options not applied');
-    if (new Frame(1, 1, {}).duration !== 100 || new Frame(1, 1, {}).disposalMode !== 'keep') panic('Frame: wrong defaults');
+    if (new Frame(new Image(1, 1), {}).duration !== 100 || new Frame(new Image(1, 1), {}).disposalMode !== 'keep') panic('Frame: wrong defaults');
 
-    const frames = () => [Frame.from(tile(), {duration: 50}), Frame.from(tile().invert(), {duration: 50})];
+    const frames = () => [new Frame(tile(), {duration: 50}), new Frame(tile().invert(), {duration: 50})];
     if (new Animation(frames(), {loopCount: 2}).loopCount !== 2) panic('Animation: loopCount not applied');
     const animation = new Animation(frames());
     // (GIFs only store comments)

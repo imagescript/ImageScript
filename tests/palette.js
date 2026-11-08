@@ -141,13 +141,6 @@ const blockError = (original, result) => {
     const thin = photo(1, 9).quantize({colors: 3, dither: 'floyd-steinberg'});
     if (thin.width !== 1 || thin.height !== 9 || colorsOf(thin).size > 3) panic('1x9 quantize');
 
-    // frames: quantize their own pixels and return the frame
-    {
-        const frame = new Frame(20, 10, {duration: 100}).fill((x, y) => Colors.fromRGBA(x * 12, y * 25, 128, 255));
-        if (frame.quantize({colors: 2, dither: 'ordered'}) !== frame) panic('quantize does not return this for a frame');
-        if (colorsOf(frame).size > 2) panic('frame quantize');
-    }
-
     // an image with a gain map keeps a valid one
     {
         const hdr = new Image(8, 8).fill((x, y) => Colors.fromRGBA(x * 30, y * 30, 200, 255));

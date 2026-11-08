@@ -41,7 +41,7 @@ const panic = message => {
 
     {
         // images embedded as data URIs: placed at their size, the pixels are the decoded image's
-        const {Animation, Frame} = require('..');
+        const {Animation, Image, Frame} = require('..');
         const pixel = (x, y, alpha) => Colors.fromRGBA(x * 10, y * 15, 128, alpha && x > 20 ? 0 : 255);
         const source = new Image(24, 16), opaque = new Image(24, 16);
         for (let y = 0; y < 16; y++)
@@ -50,12 +50,12 @@ const panic = message => {
                 opaque.setPixelAt(x, y, pixel(x, y, false));
             }
         const rect = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16"><rect width="12" height="16" fill="#0f0"/></svg>';
-        const gif = await new Animation([Frame.from(opaque)]).encodeGIF();
+        const gif = await new Animation([new Frame(opaque.clone())]).encodeGIF();
         const jpeg = await opaque.encodeJPEG({quality: 90});
         const cases = [
             ['image/png', await source.encodePNG({compression: 1}), source],
             ['image/webp', await source.encodeWebP(), source],
-            ['image/gif', gif, (await Animation.decode(gif)).frames[0]],
+            ['image/gif', gif, (await Animation.decode(gif)).frames[0].image],
             ['image/jpeg', jpeg, await Image.decode(jpeg)],
             ['image/svg+xml', require('zlib').gzipSync(rect), await Image.renderSVG(rect)]
         ];

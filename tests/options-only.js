@@ -33,10 +33,10 @@ const sameImage = (image, reference, label) => {
 		const scaled = photo.clone();
 		await rejects(() => scaled.scale(0.5, mode), `scale(0.5, ${label})`);
 		sameImage(scaled, photo, `scale(0.5, ${label})`);
-		const frame = new Frame(20, 12, {duration: 50});
+		const frame = new Frame(new Image(20, 12), {duration: 50});
 		await rejects(() => frame.resize(10, 6, mode), `Frame.resize(10, 6, ${label})`);
 		if (frame.width !== 20 || frame.height !== 12) panic(`Frame.resize(10, 6, ${label}): the frame should keep its size`);
-		const animation = new Animation([new Frame(20, 12)]);
+		const animation = new Animation([new Frame(new Image(20, 12))]);
 		await rejects(() => animation.resize(10, 6, mode), `Animation.resize(10, 6, ${label})`);
 		if (animation.frames[0].width !== 20 || animation.frames[0].height !== 12) panic(`Animation.resize(10, 6, ${label}): the frames should keep their size`);
 	}
@@ -67,7 +67,7 @@ const sameImage = (image, reference, label) => {
 		sameImage(image, photo, label);
 	}
 	{
-		const frame = new Frame(20, 12, {xOffset: 4, yOffset: 5});
+		const frame = new Frame(new Image(20, 12), {xOffset: 4, yOffset: 5});
 		await rejects(() => frame.trim(0xffffffff), 'Frame.trim(0xffffffff)');
 		if (frame.xOffset !== 4 || frame.yOffset !== 5 || frame.width !== 20) panic('Frame.trim(0xffffffff): the frame should be unchanged');
 	}
@@ -79,7 +79,7 @@ const sameImage = (image, reference, label) => {
 	if (solid.clone().rotate(90, {expand: false}).width !== 6) panic('rotate(90, { expand: false })');
 
 	// the encoders take their values in the options object only; the metadata goes in { metadata }
-	const makeAnimation = () => new Animation([new Frame(4, 4)]);
+	const makeAnimation = () => new Animation([new Frame(new Image(4, 4))]);
 	const gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {min: 0, max: 2});
 	for (const [label, call] of Object.entries({
 		'encodePNG(1)': () => photo.encodePNG(1),
@@ -111,17 +111,17 @@ const sameImage = (image, reference, label) => {
 	if (byWidth.width !== 30 || byWidth.height !== 30) panic(`renderSVG(svg, { width }): ${byWidth.width}x${byWidth.height}`);
 
 	// frames and animations take their duration, offsets, disposal mode and loop count in the options object only
-	const frame = new Frame(4, 4, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
-	if (frame.duration !== 40 || frame.xOffset !== 2 || frame.yOffset !== 3 || frame.disposalMode !== 'background') panic('new Frame(width, height, options)');
-	if (Frame.from(photo, {duration: 40, xOffset: 2}).xOffset !== 2 || Frame.from(photo).duration !== 100) panic('Frame.from(image, options)');
-	if (new Animation([new Frame(4, 4)], {loopCount: 2}).loopCount !== 2 || new Animation([new Frame(4, 4)]).loopCount !== Infinity) panic('new Animation(frames, options)');
-	const encodedGIF = await new Animation([new Frame(4, 4)]).encodeGIF();
+	const frame = new Frame(new Image(4, 4), {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
+	if (frame.duration !== 40 || frame.xOffset !== 2 || frame.yOffset !== 3 || frame.disposalMode !== 'background') panic('new Frame(new Image(width, height), options)');
+	if (new Frame(photo.clone(), {duration: 40, xOffset: 2}).xOffset !== 2 || new Frame(photo.clone()).duration !== 100) panic('new Frame(image.clone(), options)');
+	if (new Animation([new Frame(new Image(4, 4))], {loopCount: 2}).loopCount !== 2 || new Animation([new Frame(new Image(4, 4))]).loopCount !== Infinity) panic('new Animation(frames, options)');
+	const encodedGIF = await new Animation([new Frame(new Image(4, 4))]).encodeGIF();
 	if (!((await Image.decode(encodedGIF)) instanceof Image)) panic('Image.decode(data) should return the first frame as an Image');
 	const oldFrames = {
-		'new Frame(4, 4, 100)': () => new Frame(4, 4, 100),
-		'new Frame(4, 4, 100, 1, 1, "keep")': () => new Frame(4, 4, 100, 1, 1, 'keep'),
-		'Frame.from(photo, 100)': () => Frame.from(photo, 100),
-		'Frame.from(photo, 100, 1, 1, "keep")': () => Frame.from(photo, 100, 1, 1, 'keep'),
+		'new Frame(new Image(4, 4), 100)': () => new Frame(new Image(4, 4), 100),
+		'new Frame(new Image(4, 4), 100, 1, 1, "keep")': () => new Frame(new Image(4, 4), 100, 1, 1, 'keep'),
+		'new Frame(photo.clone(), 100)': () => new Frame(photo.clone(), 100),
+		'new Frame(photo.clone(), 100, 1, 1, "keep")': () => new Frame(photo.clone(), 100, 1, 1, 'keep'),
 		'new Animation([frame], 2)': () => new Animation([frame], 2),
 		'new Animation([frame], Infinity)': () => new Animation([frame], Infinity),
 		'Animation.decode(gif, true)': () => Animation.decode(encodedGIF, true),
@@ -144,6 +144,6 @@ const sameImage = (image, reference, label) => {
 	if (photo.clone().resize({width: 10, height: 10, fit: 'inside', mode: 'area'}).width !== 10) panic('resize({ width, height, fit: \'inside\', mode })');
 	if (photo.clone().contain(10, 10, {mode: 'area'}).height !== 10) panic('contain(10, 10, { mode })');
 	if (photo.clone().cover(10, 10, {mode: 'area'}).width !== 10) panic('cover(10, 10, { mode })');
-	if (new Frame(20, 12).resize(10, 6, {mode: 'area'}).width !== 10) panic('Frame.resize(10, 6, { mode })');
-	if (new Animation([new Frame(20, 12)]).resize(10, 6, {mode: 'area'}).frames[0].width !== 10) panic('Animation.resize(10, 6, { mode })');
+	if (new Frame(new Image(20, 12)).resize(10, 6, {mode: 'area'}).width !== 10) panic('Frame.resize(10, 6, { mode })');
+	if (new Animation([new Frame(new Image(20, 12))]).resize(10, 6, {mode: 'area'}).frames[0].width !== 10) panic('Animation.resize(10, 6, { mode })');
 })().catch(error => panic(error.stack || String(error)));

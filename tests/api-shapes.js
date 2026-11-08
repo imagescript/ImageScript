@@ -27,14 +27,14 @@ const throws = (call, type, message) => {
         assert(filled.width === 30 && filled.height === 30, 'resize: fill is the default');
         throws(() => photo().resize({width: 30, height: 30, fit: 'contain'}), TypeError, 'resize: unknown fit');
         throws(() => photo().contain(30, 30, {background: NaN}), RangeError, 'contain: NaN background');
-        const frame = Frame.from(photo(), {xOffset: 10, yOffset: 4});
+        const frame = new Frame(photo(), {xOffset: 10, yOffset: 4});
         frame.resize({width: 20, height: 20, fit: 'inside'});
         assert(frame.width === 20 && frame.height === 10 && frame.xOffset === 5 && frame.yOffset === 2, `Frame.resize fit inside: ${frame} ${frame.xOffset},${frame.yOffset}`);
     }
 
     // Frame duration and offsets are checked when they are set, and keep their value when the check fails
     {
-        const frame = new Frame(4, 4, {duration: 50, xOffset: 1, yOffset: 2});
+        const frame = new Frame(new Image(4, 4), {duration: 50, xOffset: 1, yOffset: 2});
         throws(() => { frame.duration = -1; }, RangeError, 'frame.duration = -1');
         throws(() => { frame.duration = NaN; }, RangeError, 'frame.duration = NaN');
         throws(() => { frame.xOffset = Infinity; }, RangeError, 'frame.xOffset = Infinity');
@@ -48,7 +48,7 @@ const throws = (call, type, message) => {
 
     // an animation's canvas: its own size once set, frames outside it are clipped when encoding
     {
-        const red = Frame.from(new Image(10, 10).fill(0xff0000ff), {xOffset: 5, yOffset: 5});
+        const red = new Frame(new Image(10, 10).fill(0xff0000ff), {xOffset: 5, yOffset: 5});
         const auto = new Animation([red.clone()]);
         assert(auto.width === 15 && auto.height === 15, `auto canvas: ${auto}`);
         const sized = new Animation([red.clone()], {width: 30, height: 20});
@@ -60,13 +60,13 @@ const throws = (call, type, message) => {
             assert(decoded.width === 30 && decoded.height === 20, `${encode}: the canvas should be kept, got ${decoded}`);
         }
         // a frame partly outside: only the part inside is encoded
-        const over = new Animation([Frame.from(new Image(10, 10).fill(0x00ff00ff), {xOffset: 25, yOffset: 15}), Frame.from(new Image(2, 2).fill(0xff0000ff), {xOffset: 40, yOffset: 40})], {width: 30, height: 20});
+        const over = new Animation([new Frame(new Image(10, 10).fill(0x00ff00ff), {xOffset: 25, yOffset: 15}), new Frame(new Image(2, 2).fill(0xff0000ff), {xOffset: 40, yOffset: 40})], {width: 30, height: 20});
         const back = await Animation.decode(await over.encodeAPNG({optimize: false}));
         assert(back.width === 30 && back.height === 20 && back.length === 2, `clipped frames: ${back} ${back.length}`);
         // (optimized, the empty second frame merges into the first)
         const merged = await Animation.decode(await over.encodeAPNG());
         assert(merged.length === 1 && merged.duration === 200, `clipped frames, optimized: ${merged} ${merged.length}`);
-        assert(back.frames[0].getPixelAt(29, 19) === 0x00ff00ff && back.frames[0].getPixelAt(24, 19) === 0, 'clipped frames: the part inside the canvas');
+        assert(back.frames[0].image.getPixelAt(29, 19) === 0x00ff00ff && back.frames[0].image.getPixelAt(24, 19) === 0, 'clipped frames: the part inside the canvas');
         assert(over.frames[0].width === 10, 'encoding should not change the frames');
         // decoded animations keep the file's canvas, even when the frames would say otherwise
         const decoded = await Animation.decode(await sized.encodeGIF());
@@ -77,13 +77,13 @@ const throws = (call, type, message) => {
     // Animation.clone, crop, contain, cover and resize({ fit: 'inside' })
     {
         const make = () => new Animation([
-            Frame.from(new Image(20, 10).fill(0xff0000ff), {duration: 50}),
-            Frame.from(new Image(10, 10).fill(0x0000ffff), {xOffset: 10, duration: 70})
+            new Frame(new Image(20, 10).fill(0xff0000ff), {duration: 50}),
+            new Frame(new Image(10, 10).fill(0x0000ffff), {xOffset: 10, duration: 70})
         ], {width: 20, height: 10, loopCount: 3});
         const original = make(), copy = original.clone();
-        copy.frames[0].fill(0x00ff00ff);
+        copy.frames[0].image.fill(0x00ff00ff);
         copy.frames[1].xOffset = 0;
-        assert(original.frames[0].getPixelAt(0, 0) === 0xff0000ff && original.frames[1].xOffset === 10, 'clone: independent frames');
+        assert(original.frames[0].image.getPixelAt(0, 0) === 0xff0000ff && original.frames[1].xOffset === 10, 'clone: independent frames');
         assert(copy.loopCount === 3 && copy.width === 20 && copy.height === 10 && copy.frames[1].duration === 70, 'clone: loop count, canvas, durations');
 
         const cropped = make().crop(5, 2, 10, 6);
@@ -94,8 +94,8 @@ const throws = (call, type, message) => {
         const contained = make().contain(40, 40);
         assert(contained.width === 40 && contained.height === 40 && contained.frames[0].width === 40 && contained.frames[0].yOffset === 10, `contain: ${contained} ${contained.frames[0]} ${contained.frames[0].yOffset}`);
         const withBackground = make().contain(40, 40, {background: 0xffffffff});
-        assert(withBackground.frames.every(f => f.width === 40 && f.height === 40 && f.getPixelAt(0, 0) === 0xffffffff), 'contain: background frames');
-        assert(withBackground.frames[1].getPixelAt(30, 20) === 0x0000ffff && withBackground.frames[1].getPixelAt(5, 20) === 0xff0000ff, 'contain: background frames show the composited animation');
+        assert(withBackground.frames.every(f => f.width === 40 && f.height === 40 && f.image.getPixelAt(0, 0) === 0xffffffff), 'contain: background frames');
+        assert(withBackground.frames[1].image.getPixelAt(30, 20) === 0x0000ffff && withBackground.frames[1].image.getPixelAt(5, 20) === 0xff0000ff, 'contain: background frames show the composited animation');
         assert(withBackground.frames.map(f => f.duration).join() === '50,70', 'contain: durations kept');
 
         const covered = make().cover(10, 10);
@@ -170,9 +170,9 @@ const throws = (call, type, message) => {
         const none = await image.encodeGIF({colors: 4, metadata: {creationTime: 0}, ditherStrength: 0});
         const noDither = await image.encodeGIF({colors: 4, metadata: {creationTime: 0}, dither: 'none'});
         assert(Buffer.from(none).equals(Buffer.from(noDither)) || none.length > 0, 'encodeGIF: strength 0');
-        const animation = new Animation([Frame.from(image), Frame.from(image.clone().flip('horizontal'))]);
+        const animation = new Animation([new Frame(image.clone()), new Frame(image.clone().flip('horizontal'))]);
         const decoded = await Animation.decode(await animation.encodeGIF({colors: 16, dither: 'atkinson'}));
-        assert(decoded.length === 2 && distinct(decoded.frames[0]) <= 16, 'Animation.encodeGIF with palette options');
+        assert(decoded.length === 2 && distinct(decoded.frames[0].image) <= 16, 'Animation.encodeGIF with palette options');
         let error = null;
         try { await image.encodeGIF({colors: 300}); } catch (e) { error = e; }
         assert(error instanceof RangeError, 'encodeGIF colors 300');
@@ -201,6 +201,40 @@ const throws = (call, type, message) => {
         hdr.gainMap = new GainMap(new Image(8, 4).fill(0xc0c0c0ff), {min: 0, max: 2});
         const back = await Image.decode(await hdr.encodeJPEG({metadata: meta}));
         assert(back.gainMap && back.gainMap.max[0] >= 2 && (back.getPixelAt(28, 8) >>> 8) < 0x101010, 'JPEG: a transparent image with a gain map');
+    }
+
+    // Frame holds an Image: the frame's own methods move the offsets, the image's leave them
+    {
+        const image = new Image(20, 10).fill((x, y) => Colors.fromRGBA(x * 12, y * 25, 0, 255));
+        const frame = new Frame(image, {duration: 40, xOffset: 10, yOffset: 6});
+        assert(frame.image === image && frame.width === 20 && frame.height === 10 && !(frame instanceof Image), 'Frame: holds the image as it is');
+        assert(String(frame) === 'Frame<20x10x40ms>', 'Frame: toString');
+        frame.image.blur(1);
+        assert(frame.xOffset === 10 && frame.yOffset === 6, 'Frame: image changes keep the offsets');
+        frame.resize({width: 40});
+        assert(frame.width === 40 && frame.height === 20 && frame.xOffset === 20 && frame.yOffset === 12, `Frame.resize scales the offsets: ${frame.xOffset},${frame.yOffset}`);
+        frame.scale(0.5);
+        assert(frame.width === 20 && frame.xOffset === 10 && frame.yOffset === 6, 'Frame.scale scales the offsets');
+        const pixel = frame.image.getPixelAt(5, 4);
+        frame.crop(3, 2, 10, 5);
+        assert(frame.width === 10 && frame.height === 5 && frame.xOffset === 13 && frame.yOffset === 8 && frame.image.getPixelAt(2, 2) === pixel, 'Frame.crop moves the offsets');
+        const bordered = new Frame(new Image(10, 10).fill((x, y) => x >= 3 && y >= 2 && x < 7 && y < 6 ? 0xff0000ff : 0), {xOffset: 1, yOffset: 1});
+        bordered.trim();
+        assert(bordered.width === 4 && bordered.height === 4 && bordered.xOffset === 4 && bordered.yOffset === 3, 'Frame.trim moves the offsets');
+        const copy = frame.clone();
+        assert(copy.image !== frame.image && copy.xOffset === 13 && copy.duration === 40 && Buffer.from(copy.image.bitmap).equals(Buffer.from(frame.image.bitmap)), 'Frame.clone copies the image');
+        frame.image = new Image(3, 3);
+        assert(frame.width === 3 && frame.xOffset === 13, 'Frame.image can be replaced');
+        for (const bad of [null, {width: 2, height: 2}, frame]) {
+            let error = null;
+            try { new Frame(bad); } catch (e) { error = e; }
+            assert(error instanceof TypeError, `new Frame(${bad}) should throw a TypeError`);
+        }
+        const encoder = Animation.apngEncoder(30, 20);
+        await encoder.add(copy);
+        await encoder.add(new Image(4, 4).fill(0xffffffff), {duration: 20});
+        const decoded = await Animation.decode(await encoder.finish());
+        assert(decoded.length === 2 && decoded.frames[0].duration === 40, 'encoder.add takes frames and images');
     }
 
     // renamed parameters and the American spelling

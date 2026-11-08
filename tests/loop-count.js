@@ -10,7 +10,7 @@ const throwsA = (fn, type, label) => {
     if (!(error instanceof type)) panic(`${label}: should throw a ${type.name}, got ${error}`);
 };
 
-const frames = () => [Frame.from(new Image(4, 4).fill(0xff0000ff), {duration: 40}), Frame.from(new Image(4, 4).fill(0x00ff00ff), {duration: 60})];
+const frames = () => [new Frame(new Image(4, 4).fill(0xff0000ff), {duration: 40}), new Frame(new Image(4, 4).fill(0x00ff00ff), {duration: 60})];
 // each format: its encode method, its encoder factory, and the count the file stores when it loops forever or plays
 // (the GIF's NETSCAPE block counts repetitions, APNG and WebP count plays)
 const formats = {GIF: ['encodeGIF', 'gifEncoder'], APNG: ['encodeAPNG', 'apngEncoder'], WebP: ['encodeWebP', 'webpEncoder']};

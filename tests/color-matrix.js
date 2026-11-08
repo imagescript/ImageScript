@@ -52,8 +52,8 @@ const IDENTITY = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
             check(Buffer.from(image.bitmap).equals(Buffer.from(before)), `colorMatrix with ${label}: the image should be unchanged`);
         }
 
-        const frame = Frame.from(photo(4, 4), {duration: 40, xOffset: 2, yOffset: 3}).colorMatrix(sepia);
-        check(frame instanceof Frame && frame.duration === 40 && frame.xOffset === 2 && frame.yOffset === 3 && same(frame, photo(4, 4).sepia()), 'colorMatrix on a frame');
+        const frame = new Frame(photo(4, 4).colorMatrix(sepia), {duration: 40, xOffset: 2, yOffset: 3});
+        check(frame instanceof Frame && frame.duration === 40 && frame.xOffset === 2 && frame.yOffset === 3 && same(frame.image, photo(4, 4).sepia()), 'colorMatrix on a frame');
 
         const hdr = photo(8, 8);
         hdr.gainMap = new GainMap(new Image(4, 4).fill(0xc0c0c0ff), {min: 0, max: 2});

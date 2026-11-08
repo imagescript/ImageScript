@@ -10,8 +10,8 @@ const panic = message => {
 (async () => {
     const frames = [];
     for (let i = 0; i < 30; i++) {
-        const frame = new Frame(256, 256);
-        frame.fill(x => Colors.fromHSL((x / frame.width + i / 30) * 360, 1, 0.5));
+        const frame = new Frame(new Image(256, 256));
+        frame.image.fill(x => Colors.fromHSL((x / frame.width + i / 30) * 360, 1, 0.5));
         frames.push(frame);
     }
 
@@ -31,7 +31,7 @@ const panic = message => {
             panic('decode: incorrect frame count');
 
         for (let i = 0; i < gif.length; i++) {
-            if (gif.frames[i].bitmap.length !== decoded.frames[i].bitmap.length)
+            if (gif.frames[i].image.bitmap.length !== decoded.frames[i].image.bitmap.length)
                 panic('decode: incorrect frame bitmap length');
         }
 
@@ -44,7 +44,7 @@ const panic = message => {
         // frames with <= 256 colors survive a roundtrip losslessly
         const decoded = await Animation.decode(await gif.encodeGIF());
         for (let i = 0; i < gif.length; i++)
-            if (!Buffer.from(decoded.frames[i].bitmap).equals(Buffer.from(gif.frames[i].bitmap)))
+            if (!Buffer.from(decoded.frames[i].image.bitmap).equals(Buffer.from(gif.frames[i].image.bitmap)))
                 panic(`roundtrip: frame ${i} differs`);
         if (decoded.frames[0].duration !== gif.frames[0].duration)
             panic('roundtrip: incorrect duration');
@@ -57,14 +57,14 @@ const panic = message => {
         const black = Colors.fromRGBA(0, 0, 0, 255);
         const white = Colors.fromRGBA(255, 255, 255, 255);
 
-        const background = new Frame(4, 4, {duration: 100});
-        background.fill(black);
-        const dot = new Frame(1, 1, {duration: 100, xOffset: 1, yOffset: 1, disposalMode: 'previous'});
-        dot.fill(white);
-        const hole = new Frame(2, 2, {duration: 100, xOffset: 2, yOffset: 2, disposalMode: 'background'});
-        hole.fill((x, y) => x === y ? white : 0);
-        const last = new Frame(1, 1, {duration: 100, xOffset: 0, yOffset: 0});
-        last.fill(white);
+        const background = new Frame(new Image(4, 4), {duration: 100});
+        background.image.fill(black);
+        const dot = new Frame(new Image(1, 1), {duration: 100, xOffset: 1, yOffset: 1, disposalMode: 'previous'});
+        dot.image.fill(white);
+        const hole = new Frame(new Image(2, 2), {duration: 100, xOffset: 2, yOffset: 2, disposalMode: 'background'});
+        hole.image.fill((x, y) => x === y ? white : 0);
+        const last = new Frame(new Image(1, 1), {duration: 100, xOffset: 0, yOffset: 0});
+        last.image.fill(white);
 
         const decoded = await Animation.decode(await new Animation([background, dot, hole, last], {loopCount: 2}).encodeGIF());
         if (decoded.loopCount !== 2)
@@ -74,7 +74,7 @@ const panic = message => {
             for (let y = 0; y < 4; y++)
                 for (let x = 0; x < 4; x++) {
                     const want = pixels[y * 4 + x];
-                    const got = decoded.frames[frame].getPixelAt(x, y);
+                    const got = decoded.frames[frame].image.getPixelAt(x, y);
                     if (want === 'B' ? got !== black : want === 'W' ? got !== white : got !== 0)
                         panic(`disposal: frame ${frame} pixel ${x},${y} is ${got.toString(16)}`);
                 }
@@ -90,7 +90,7 @@ const panic = message => {
     {
         const [frame] = (await Animation.decode(await fs.readFile('./tests/gifs/interlaced.gif'))).frames;
         if (frame.width !== 80 || frame.height !== 37) panic('interlaced: dimensions don\'t match');
-        if (crypto.createHash('sha256').update(new Uint8Array(frame.bitmap)).digest('hex') !== '854e5e98f2124a6009d5bc28748772ede25af244a2503021ef4f52e323309d46')
+        if (crypto.createHash('sha256').update(new Uint8Array(frame.image.bitmap)).digest('hex') !== '854e5e98f2124a6009d5bc28748772ede25af244a2503021ef4f52e323309d46')
             panic('interlaced: pixels don\'t match');
     }
 

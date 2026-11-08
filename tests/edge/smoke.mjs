@@ -28,7 +28,7 @@ export async function smoke() {
     await step('jxl lossless', async () => back(await alpha.encodeJXL()));
     await step('jxl lossy', async () => back(await alpha.encodeJXL({ quality: 85, effort: 2 })));
     await step('tga, bmp, qoi, pnm', async () => (await Promise.all([photo.encodeTGA(), photo.encodeBMP(), photo.encodeQOI(), photo.encodePNM()].map(async d => back(await d)))).join(', '));
-    const frames = [Frame.from(photo.clone().resize(64, 64), {duration: 100}), Frame.from(photo.clone().resize(64, 64).invert(), {duration: 100})];
+    const frames = [new Frame(photo.clone().resize(64, 64), {duration: 100}), new Frame(photo.clone().resize(64, 64).invert(), {duration: 100})];
     for (const [name, encode] of [['gif', a => a.encodeGIF()], ['apng', a => a.encodeAPNG()], ['animated webp', a => a.encodeWebP({ quality: 70 })]]) {
         await step(name, async () => {
             const decoded = await Animation.decode(await encode(new Animation(frames)));

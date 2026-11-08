@@ -177,8 +177,8 @@ export interface TransformOptions {
     };
     /**
      * Whether to make the image as large as the transformed one, which then fills it (a rotated image grows to fit its
-     * corners, a skewed one gets wider). Without it, the image keeps its size and the parts outside are lost. Frames
-     * only grow up and left as far as their offset allows. Default: `true`
+     * corners, a skewed one gets wider). Without it, the image keeps its size and the parts outside are lost.
+     * Default: `true`
      */
     expand?: boolean;
     /**
@@ -1007,7 +1007,6 @@ export class Image {
         // only the part the crop keeps is resampled (the same pixels as resizing the whole image, then cropping)
         if (resizeOpts.mode !== 'nearest-neighbor' && width >= 1 && height >= 1) {
             const region = { x: ~~((resizedWidth - width) / 2), y: ~~((resizedHeight - height) / 2), width, height };
-            this.__rescaled__?.(resizedWidth, resizedHeight);
             const fx = resizedWidth / this.width, fy = resizedHeight / this.height;
             this.__gain_map__?.__transform__(this.width, this.height, width, height, (X, Y) => [(X + region.x) / fx, (Y + region.y) / fy], Math.min(fx, fy));
             return this.__apply__(this.__resize__(resizedWidth, resizedHeight, resizeOpts.mode, resizeOpts.fast, region));
@@ -1140,8 +1139,7 @@ export class Image {
 
     /**
      * Removes borders of one color, e.g. the empty space around rendered text or around a logo on a solid background.
-     * Frames keep their position: their offsets move by the trimmed amount. An image that only has the color stays
-     * unchanged
+     * An image that only has the color stays unchanged ({@link Frame.trim} also moves the frame's offsets)
      * @param options See {@link TrimOptions}
      */
     trim(options?: TrimOptions): this;
@@ -1159,7 +1157,7 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __trim_bounds__(color: Color | undefined, { tolerance = 0 }: TrimOptions): [number, number, number, number] | null {
+    __trim_bounds__(color: Color | undefined, { tolerance = 0 }: TrimOptions): [number, number, number, number] | null {
         if (!(tolerance >= 0 && tolerance <= 1)) throw new RangeError('Invalid tolerance, it has to be between 0 and 1');
 
         const bitmap = this.bitmap;
@@ -1685,7 +1683,7 @@ export class Image {
      * 0x8bac0fff, 0x9bbc0fff] })` for a Game Boy look. Transparent pixels (alpha 0) keep their color and don't count
      * towards the palette; the other pixels keep their alpha and only their RGB is reduced. The result is deterministic.
      * With a gain map (an HDR image), the HDR highlights are dropped, like {@link Image.invert} does: the map is neutral
-     * afterwards. Frames quantize their own pixels
+     * afterwards
      * @param options See {@link QuantizeOptions}
      */
     quantize(options: QuantizeOptions = {}): this {
@@ -1810,16 +1808,6 @@ export class Image {
             outHeight = Math.max(1, Math.round(maxY - minY));
             left = minX - (outWidth - (maxX - minX)) / 2;
             top = minY - (outHeight - (maxY - minY)) / 2;
-            // frames only grow as far up and left as their offset allows
-            const room = this.__room__();
-            if (left < -room.left) {
-                left = -room.left;
-                outWidth = Math.max(1, Math.round(maxX - left));
-            }
-            if (top < -room.top) {
-                top = -room.top;
-                outHeight = Math.max(1, Math.round(maxY - top));
-            }
             if (outWidth * outHeight > MAX_PIXELS) throw new RangeError(`The transformed image would have ${outWidth}x${outHeight} pixels, more than the ${MAX_PIXELS} allowed`);
         }
 
@@ -1830,17 +1818,13 @@ export class Image {
             const x = X + left, y = Y + top;
             return [inverse[0] * x + inverse[2] * y + inverse[4], inverse[1] * x + inverse[3] * y + inverse[5]];
         }, scale);
-        this.__apply__(out);
-        // (a frame's offsets are whole pixels)
-        if (left || top) this.__grown__(-Math.round(left), -Math.round(top));
-        return this;
+        return this.__apply__(out);
     }
 
     /**
      * Adds a shadow behind the image, shaped by its alpha: a drop shadow with an offset, or a glow without one
      * (`image.dropShadow({ blur: 8, color: 0xff2fb9ff })`, with `spread` to make it stronger). The image grows to fit
-     * the shadow, unless `expand` is `false`. Frames stay where they are (their offsets move with the growth), they only
-     * grow up and left as far as their offset allows
+     * the shadow, unless `expand` is `false`
      * @param options See {@link ShadowOptions}
      */
     dropShadow(options: ShadowOptions = {}): this {
@@ -1877,10 +1861,9 @@ export class Image {
             }
         }
 
-        const room = this.__room__();
         return this.__under__(layer, x - margin, y - margin, expand ? {
-            left: Math.min(room.left, Math.max(0, Math.ceil(reach - x))),
-            top: Math.min(room.top, Math.max(0, Math.ceil(reach - y))),
+            left: Math.max(0, Math.ceil(reach - x)),
+            top: Math.max(0, Math.ceil(reach - y)),
             right: Math.max(0, Math.ceil(reach + x)),
             bottom: Math.max(0, Math.ceil(reach + y))
         } : { left: 0, top: 0, right: 0, bottom: 0 });
@@ -1888,8 +1871,7 @@ export class Image {
 
     /**
      * Draws an outline around the image's shape (its alpha): the sticker effect for cut-out images, or an outline for
-     * text. The image grows to fit it, unless `expand` is `false`. Frames stay where they are (their offsets move with
-     * the growth), they only grow up and left as far as their offset allows
+     * text. The image grows to fit it, unless `expand` is `false`
      * @param options See {@link OutlineOptions}
      */
     outline(options: OutlineOptions = {}): this {
@@ -1913,9 +1895,9 @@ export class Image {
             bitmap[i * 4 + 3] = stroke[i] * (1 - coverage[i] / 255) * a;
         }
 
-        const room = this.__room__(), grow = Math.ceil(width);
+        const grow = Math.ceil(width);
         return this.__under__(layer, -margin, -margin, expand
-            ? { left: Math.min(room.left, grow), top: Math.min(room.top, grow), right: grow, bottom: grow }
+            ? { left: grow, top: grow, right: grow, bottom: grow }
             : { left: 0, top: 0, right: 0, bottom: 0 });
     }
 
@@ -1952,27 +1934,7 @@ export class Image {
         }
         map?.__transform__(this.width, this.height, width, height, (X, Y) => [X - left, Y - top]);
         this.__apply__(result);
-        if (left || top) this.__grown__(left, top);
         return this;
-    }
-
-    /**
-     * How far the image may grow up and left
-     * @internal
-     * @ignore
-     */
-    protected __room__(): { left: number, top: number } {
-        return { left: Infinity, top: Infinity };
-    }
-
-    /**
-     * Called when the image has grown up and left
-     * @internal
-     * @ignore
-     */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    protected __grown__(_left: number, _top: number): void {
-        // (frames move their offsets)
     }
 
     /**
@@ -2295,12 +2257,6 @@ export class Image {
         }
     }
 
-    /**
-     * For a resize to the given size that only produces a part of it (frames scale their offsets)
-     * @internal
-     * @ignore
-     */
-    protected __rescaled__?(width: number, height: number): void;
 
     /**
      * @internal

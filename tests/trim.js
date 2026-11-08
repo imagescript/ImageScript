@@ -42,8 +42,8 @@ const size = image => `${image.width}x${image.height}`;
 
     // frames keep their position
     {
-        const frame = new Frame(10, 10, {duration: 100, xOffset: 5, yOffset: 7});
-        frame.composite(new Image(4, 4).fill(0xffffffff), {x: 2, y: 3});
+        const frame = new Frame(new Image(10, 10), {duration: 100, xOffset: 5, yOffset: 7});
+        frame.image.composite(new Image(4, 4).fill(0xffffffff), {x: 2, y: 3});
         frame.trim();
         if (size(frame) !== '4x4' || frame.xOffset !== 7 || frame.yOffset !== 10) panic(`trim: frame ${size(frame)} at ${frame.xOffset},${frame.yOffset}`);
     }

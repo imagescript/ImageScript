@@ -66,8 +66,8 @@ const expected = {
     // browsers do (here a wrong sequence number in the second fcTL)
     {
         const frames = [100, 70000, 100].map((duration, i) => {
-            const frame = new Frame(8, 8, {duration});
-            frame.fill(0xff0000ff + i * 0x1000);
+            const frame = new Frame(new Image(8, 8), {duration});
+            frame.image.fill(0xff0000ff + i * 0x1000);
             return frame;
         });
         const encoded = Buffer.from(await new Animation(frames).encodeAPNG({optimize: false}));

@@ -13,12 +13,12 @@ const metadata = {creationTime: 0, software: ''};
 (async () => {
     const frames = [];
     for (let i = 0; i < 6; i++) {
-        const f = new Frame(20 + i, 15, {duration: 50 + i * 10, xOffset: i * 3, yOffset: i, disposalMode: ['keep', 'previous', 'background', 'keep', 'any', 'background'][i]});
-        f.fill((x, y) => Colors.fromRGBA((x * 30 + i * 40) & 255, y * 15, i * 40, (x + y + i) % 5 ? 255 : 100));
+        const f = new Frame(new Image(20 + i, 15), {duration: 50 + i * 10, xOffset: i * 3, yOffset: i, disposalMode: ['keep', 'previous', 'background', 'keep', 'any', 'background'][i]});
+        f.image.fill((x, y) => Colors.fromRGBA((x * 30 + i * 40) & 255, y * 15, i * 40, (x + y + i) % 5 ? 255 : 100));
         frames.push(f);
     }
     // offsets, every disposal, translucent pixels; a decoded GIF
-    const synthetic = new Animation([new Frame(40, 30, {duration: 20}).fill(0x203040ff), ...frames], {loopCount: 2});
+    const synthetic = new Animation([new Frame(new Image(40, 30).fill(0x203040ff), {duration: 20}), ...frames], {loopCount: 2});
     const decoded = await Animation.decode(await fs.readFile('./tests/targets/gif.gif'));
 
     for (const [name, animation] of [['synthetic', synthetic], ['gif.gif', decoded]])
@@ -39,7 +39,7 @@ const metadata = {creationTime: 0, software: ''};
                 const a = await Animation.decode(file), b = await Animation.decode(expected);
                 const differs = (f, g) => options.quality === undefined ? f.bitmap.some((v, k) => Math.abs(v - g.bitmap[k]) > 1)
                     : f.bitmap.reduce((sum, v, k) => sum + Math.abs(v - g.bitmap[k]), 0) / f.bitmap.length > 4;
-                if (a.length !== b.length || a.frames.some((f, i) => f.duration !== b.frames[i].duration || differs(f, b.frames[i])))
+                if (a.length !== b.length || a.frames.some((f, i) => f.duration !== b.frames[i].duration || differs(f.image, b.frames[i].image)))
                     panic(`${name} ${format} ${JSON.stringify(options)}: doesn't show the same animation`);
             }
 
@@ -50,10 +50,10 @@ const metadata = {creationTime: 0, software: ''};
         const added = encoder.add(image, {duration: 70});
         image.fill(0x00ff00ff);
         await added;
-        await encoder.add(new Frame(4, 4, {duration: 10}).fill(0x0000ffff), {duration: 30, xOffset: 2, yOffset: 2});
+        await encoder.add(new Frame(new Image(4, 4).fill(0x0000ffff), {duration: 10}), {duration: 30, xOffset: 2, yOffset: 2});
         const file = await encoder.finish();
-        const expected = await new Animation([Frame.from(new Image(8, 8).fill(0xff0000ff), {duration: 70}),
-            new Frame(4, 4, {duration: 30, xOffset: 2, yOffset: 2}).fill(0x0000ffff)]).encodeAPNG({metadata});
+        const expected = await new Animation([new Frame(new Image(8, 8).fill(0xff0000ff), {duration: 70}),
+            new Frame(new Image(4, 4).fill(0x0000ffff), {duration: 30, xOffset: 2, yOffset: 2})]).encodeAPNG({metadata});
         if (!equal(file, expected)) panic('images and options: not the same file');
     }
 

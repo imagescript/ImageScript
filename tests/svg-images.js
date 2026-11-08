@@ -50,7 +50,7 @@ const crc32 = bytes => {
     const png = await logo.encodePNG({compression: 1});
     const webp = await logo.encodeWebP();
     const jpeg = await opaque.encodeJPEG({quality: 90});
-    const gif = await new Animation([Frame.from(opaque)]).encodeGIF();
+    const gif = await new Animation([new Frame(opaque.clone())]).encodeGIF();
     const otherPNG = await other.encodePNG({compression: 1});
 
     // images given by href render exactly like the same images as data URIs, in every format and placement

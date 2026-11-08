@@ -46,7 +46,7 @@ const animated = [
     if (animation.length !== 4 || animation.loopCount !== Infinity) panic('animated WebP: wrong frame or loop count');
     if (animation.frames.map(f => f.duration).join() !== '80,120,80,200') panic('animated WebP: wrong durations');
     animation.frames.forEach((frame, i) => {
-        if (sha256(frame.bitmap) !== animated[i]) panic(`animated WebP: frame ${i} doesn't match libwebp`);
+        if (sha256(frame.image.bitmap) !== animated[i]) panic(`animated WebP: frame ${i} doesn't match libwebp`);
     });
 
     // filtered alpha (horizontal, vertical, gradient), from libwebp-test-data
@@ -66,7 +66,7 @@ const animated = [
     ];
     if (blended.length !== 4) panic('blended WebP: wrong frame count');
     blended.frames.forEach((frame, i) => {
-        if (sha256(frame.bitmap) !== blendedHashes[i]) panic(`blended WebP: frame ${i} doesn't match libwebp`);
+        if (sha256(frame.image.bitmap) !== blendedHashes[i]) panic(`blended WebP: frame ${i} doesn't match libwebp`);
     });
 
     // lossless encoding: photo-like content (predictor), few colors (palette), alpha, odd sizes

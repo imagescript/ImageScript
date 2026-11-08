@@ -12,9 +12,9 @@ const throwsA = (fn, type, label) => {
     return error;
 };
 
-const a = new Frame(4, 4, {duration: 10}).fill(0xff0000ff);
-const b = new Frame(2, 2, {duration: 20, xOffset: 1, yOffset: 1}).fill(0x00ff00ff);
-const c = new Frame(3, 3, {duration: 30}).fill(0x0000ffff);
+const a = new Frame(new Image(4, 4).fill(0xff0000ff), {duration: 10});
+const b = new Frame(new Image(2, 2).fill(0x00ff00ff), {duration: 20, xOffset: 1, yOffset: 1});
+const c = new Frame(new Image(3, 3).fill(0x0000ffff), {duration: 30});
 
 // an animation holds its frames: it is not an array
 const animation = new Animation([a, b]);
@@ -79,4 +79,4 @@ const sized = new Animation([a, b]);
 if (sized.width !== 4 || sized.height !== 4 || sized.duration !== 30) panic(`size ${sized.width}x${sized.height}, ${sized.duration} ms`);
 if (sized.toString() !== 'Animation<4x4x30ms>') panic(`toString: ${sized.toString()}`);
 const first = new Image(2, 2);
-if (new Animation([Frame.from(first, {duration: 5})]).frames[0].duration !== 5) panic('Frame.from frames');
+if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration !== 5) panic('Frame from an image');

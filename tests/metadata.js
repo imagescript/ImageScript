@@ -12,7 +12,7 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
     const {VERSION} = await import('../dist/version.js');
     const software = `ImageScript v${VERSION}`;
     const image = new Image(8, 4).fill(0xff000080);
-    const animation = new Animation([Frame.from(image, {duration: 100}), Frame.from(new Image(8, 4).fill(0x00ff00ff), {duration: 100})]);
+    const animation = new Animation([new Frame(image.clone(), {duration: 100}), new Frame(new Image(8, 4).fill(0x00ff00ff), {duration: 100})]);
 
     const encoders = {
         png: m => image.encodePNG({metadata: m}),

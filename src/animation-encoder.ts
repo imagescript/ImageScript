@@ -57,8 +57,9 @@ export class AnimationEncoder {
     add(frame: Frame | Image, options: FrameOptions = {}): Promise<void> {
         checkOptions(options, 'encoder.add(frame, { duration: 40 })');
         if (this.finished) throw new Error('The animation encoder is finished');
-        if (!(frame instanceof Image)) throw new TypeError('Invalid frame passed');
         const own = frame instanceof Frame ? frame : null;
+        const image = own ? own.image : frame;
+        if (!(image instanceof Image)) throw new TypeError('encoder.add() takes a Frame or an Image');
         const duration = options.duration ?? own?.duration ?? 100;
         const x = options.xOffset ?? own?.xOffset ?? 0, y = options.yOffset ?? own?.yOffset ?? 0;
         if (finite(duration, 'frame duration') < 0) throw new RangeError('Invalid frame duration');
@@ -66,10 +67,10 @@ export class AnimationEncoder {
         finite(y, 'y offset');
         const disposal = options.disposalMode !== undefined ? Frame.__convert_disposal_mode__(options.disposalMode) : own ? own.__disposal_id__ : 1;
         const input: InputFrame & { disposal: number } = {
-            x, y, width: frame.width, height: frame.height, duration, disposal,
+            x, y, width: image.width, height: image.height, duration, disposal,
             // (0 none, 1 background, 2 previous, like APNG)
             dispose: [0, 0, 2, 1][disposal],
-            pixels: new Uint8Array(frame.bitmap.buffer, frame.bitmap.byteOffset, frame.bitmap.byteLength).slice()
+            pixels: new Uint8Array(image.bitmap.buffer, image.bitmap.byteOffset, image.bitmap.byteLength).slice()
         };
         this.count++;
         return this.queue = this.queue.then(async () => {

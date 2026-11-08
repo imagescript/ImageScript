@@ -19,9 +19,9 @@ const rejects = async (name, fn, Type, pattern) => {
 
 (async () => {
     const image = new Image(8, 8).fill(0x336699ff);
-    const animation = () => new Animation([new Frame(8, 8, {duration: 100}).fill(0xff0000ff), new Frame(8, 8, {duration: 100}).fill(0x00ff00ff)]);
+    const animation = () => new Animation([new Frame(new Image(8, 8).fill(0xff0000ff), {duration: 100}), new Frame(new Image(8, 8).fill(0x00ff00ff), {duration: 100})]);
     const encoded = async (encoder) => {
-        await encoder.add(new Frame(8, 8).fill(0xff0000ff));
+        await encoder.add(new Frame(new Image(8, 8).fill(0xff0000ff)));
         return encoder.finish();
     };
 
@@ -52,7 +52,7 @@ const rejects = async (name, fn, Type, pattern) => {
     await rejects('apngEncoder compression NaN', () => encoded(Animation.apngEncoder(8, 8, {compression: NaN})), RangeError, /compression level/);
     if (!(await animation().encodeAPNG({compression: 12})).length) panic('clamped values rejected');
 
-    await rejects('Animation loopCount 1.5', () => new Animation([new Frame(8, 8)], {loopCount: 1.5}), RangeError, /loop count/);
+    await rejects('Animation loopCount 1.5', () => new Animation([new Frame(new Image(8, 8))], {loopCount: 1.5}), RangeError, /loop count/);
     await rejects('dominantColor threshold NaN', () => image.dominantColor({threshold: NaN}), RangeError, /threshold/);
     await rejects('renderSVG scale NaN', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {scale: NaN}), RangeError, /SVG scale/);
     await rejects('renderText size -1', () => Image.renderText('x', { font: new Uint8Array(0), size: -1 }), RangeError, /font size/);
@@ -64,7 +64,7 @@ const rejects = async (name, fn, Type, pattern) => {
     await rejects('Animation.decode threads 0', () => Animation.decode(png, {threads: 0}), RangeError, /threads must be/);
 
     // Image.decode takes the options object of a GIF too: maxPixels counts its first frame
-    const gif = await new Animation([new Frame(4, 4).fill(0xff0000ff)]).encodeGIF();
+    const gif = await new Animation([new Frame(new Image(4, 4).fill(0xff0000ff))]).encodeGIF();
     await rejects('Image.decode GIF maxPixels', () => Image.decode(gif, {maxPixels: 15}), RangeError, /maxPixels/);
     if ((await Image.decode(gif, {maxPixels: 16})).width !== 4) panic('Image.decode GIF: the first frame should fit maxPixels 16');
 

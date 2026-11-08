@@ -106,12 +106,6 @@ const photo = (width, height) => new Image(width, height).fill((x, y) => Colors.
         throwsA(() => photo(5, 5).transform([1, 0, 0, 1, 0, 0], {origin: {x: NaN}}), RangeError, 'transform with a NaN origin');
         throwsA(() => photo(5, 5).transform([1, 0, 0, 1, 0, 0], null), TypeError, 'transform with null options');
 
-        // a frame stays where it is: it grows up and left as far as its offset allows
-        const frame = Frame.from(photo(20, 20), {duration: 40, xOffset: 3, yOffset: 50}).transform([Math.cos(Math.PI / 4), Math.sin(Math.PI / 4), -Math.sin(Math.PI / 4), Math.cos(Math.PI / 4), 0, 0]);
-        check(frame instanceof Frame && frame.duration === 40 && frame.xOffset === 0 && frame.yOffset >= 45 && frame.yOffset < 50, `Frame.transform: offsets ${frame.xOffset},${frame.yOffset}`);
-        const middle = Frame.from(photo(20, 20), {xOffset: 100, yOffset: 100}).transform([1, 0, 0.5, 1, 0, 0]);
-        check(middle.width === 30 && middle.xOffset === 95 && middle.yOffset === 100, `Frame.transform with room grows left, its pixels stay where they were: ${middle.width}, offsets ${middle.xOffset},${middle.yOffset}`);
-
         // gain maps move with the image
         const hdr = photo(20, 10);
         hdr.gainMap = new GainMap(new Image(10, 5).fill((x) => x < 5 ? 0x000000ff : 0xffffffff), {min: 0, max: 2});

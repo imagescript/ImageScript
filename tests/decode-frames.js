@@ -15,7 +15,7 @@ const throwsA = async (fn, type, label) => {
 
 (async () => {
     const photo = new Image(12, 8).fill((x, y) => Colors.fromRGBA(x * 20, y * 30, 90, 255));
-    const two = new Animation([Frame.from(photo, {duration: 50}), Frame.from(photo.clone().invert(), {duration: 70})]);
+    const two = new Animation([new Frame(photo.clone(), {duration: 50}), new Frame(photo.clone().invert(), {duration: 70})]);
 
     // multiple frames: an Animation, with every frame
     const gif = await fs.readFile('./tests/targets/gif.gif');
@@ -38,17 +38,17 @@ const throwsA = async (fn, type, label) => {
     if (!(jxlFrames instanceof Animation) || jxlFrames.length !== jxlRef.length) panic(`JPEG XL: ${jxlFrames.constructor.name} with ${jxlFrames.length} frames instead of ${jxlRef.length}`);
 
     // one frame: an Image with the frame's pixels, as Animation.decode's first frame has them
-    const single = new Animation([new Frame(12, 8, {duration: 90, xOffset: 0, yOffset: 0}).fill((x, y) => Colors.fromRGBA(x * 20, y * 30, 90, 255))]);
+    const single = new Animation([new Frame(new Image(12, 8).fill((x, y) => Colors.fromRGBA(x * 20, y * 30, 90, 255)), {duration: 90, xOffset: 0, yOffset: 0})]);
     for (const [format, bytes] of [['GIF', await single.encodeGIF()], ['APNG', await single.encodeAPNG()], ['WebP', await single.encodeWebP({quality: 90})]]) {
         const image = await decode(bytes);
         if (image instanceof Animation || !(image instanceof Image)) panic(`single frame ${format}: ${image.constructor.name} instead of an Image`);
-        const reference = (await Animation.decode(bytes)).frames[0];
+        const reference = (await Animation.decode(bytes)).frames[0].image;
         if (image.width !== reference.width || image.height !== reference.height) panic(`single frame ${format}: ${image.width}x${image.height} instead of ${reference.width}x${reference.height}`);
         if (sha256(image.bitmap) !== sha256(reference.bitmap)) panic(`single frame ${format}: pixels differ from Animation.decode's first frame`);
     }
 
     // a single frame with an offset: the image is the canvas, the offset is dropped
-    const offset = await new Animation([new Frame(4, 3, {xOffset: 2, yOffset: 1, duration: 40}).fill(0xff0000ff)]).encodeGIF({optimize: false});
+    const offset = await new Animation([new Frame(new Image(4, 3).fill(0xff0000ff), {xOffset: 2, yOffset: 1, duration: 40})]).encodeGIF({optimize: false});
     const offsetImage = await decode(offset);
     if (offsetImage instanceof Animation || offsetImage.width !== 6 || offsetImage.height !== 4) panic(`single frame with an offset: ${offsetImage.width}x${offsetImage.height}`);
 
@@ -68,7 +68,7 @@ const throwsA = async (fn, type, label) => {
     // options pass through: Image.decode gives the first frame as an Image, maxPixels applies to both kinds
     const first = await Image.decode(gif);
     if (first instanceof Animation || !(first instanceof Image)) panic('Image.decode: expected an Image');
-    if (sha256(first.bitmap) !== sha256((await Animation.decode(gif)).frames[0].bitmap)) panic('Image.decode: wrong frame');
+    if (sha256(first.bitmap) !== sha256((await Animation.decode(gif)).frames[0].image.bitmap)) panic('Image.decode: wrong frame');
     await throwsA(() => decode(gif, {maxPixels: 100}), RangeError, 'maxPixels on a GIF');
     const jpeg = await fs.readFile('./tests/targets/external.jpg');
     await throwsA(() => decode(jpeg, {maxPixels: 100}), RangeError, 'maxPixels on a JPEG');
@@ -140,18 +140,18 @@ const throwsA = async (fn, type, label) => {
 
     const oneAnimation = await Animation.decode(oneApng);
     if (!(oneAnimation instanceof Animation) || oneAnimation.length !== 1) panic(`one-frame APNG with acTL: Animation.decode gives ${oneAnimation.constructor.name} with ${oneAnimation.length} frames`);
-    if (sha256(oneAnimation.frames[0].bitmap) !== sha256((await Animation.decode(apng)).frames[0].bitmap)) panic('one-frame APNG with acTL: the frame differs from the first frame of the two-frame file');
+    if (sha256(oneAnimation.frames[0].image.bitmap) !== sha256((await Animation.decode(apng)).frames[0].image.bitmap)) panic('one-frame APNG with acTL: the frame differs from the first frame of the two-frame file');
     const oneImage = await decode(oneApng);
     if (oneImage instanceof Animation || !(oneImage instanceof Image)) panic('one-frame APNG with acTL: decode() should give an Image');
-    if (sha256(oneImage.bitmap) !== sha256(oneAnimation.frames[0].bitmap)) panic('one-frame APNG with acTL: decode() pixels differ from Animation.decode');
+    if (sha256(oneImage.bitmap) !== sha256(oneAnimation.frames[0].image.bitmap)) panic('one-frame APNG with acTL: decode() pixels differ from Animation.decode');
 
     // Image.decode of an animation is its first frame, an Image composed like Animation.decode's first frame: frames that
     // differ, with offsets and disposal modes, from our encoders (GIF, APNG, animated WebP, lossless and lossy)
     const moving = new Animation([
-        new Frame(12, 8, {duration: 50}).fill((x, y) => Colors.fromRGBA(x * 20, y * 30, 90, 255)),
-        new Frame(5, 4, {duration: 70, xOffset: 3, yOffset: 2, disposalMode: 'background'}).fill((x, y) => Colors.fromRGBA(255, x * 50, y * 60, 128)),
-        new Frame(6, 3, {duration: 40, xOffset: 1, yOffset: 4, disposalMode: 'previous'}).fill(0x00ff00ff),
-        new Frame(4, 4, {duration: 60, xOffset: 8, yOffset: 4}).fill((x, y) => Colors.fromRGBA(y * 90, 0, 200, 255 - x * 60))
+        new Frame(new Image(12, 8).fill((x, y) => Colors.fromRGBA(x * 20, y * 30, 90, 255)), {duration: 50}),
+        new Frame(new Image(5, 4).fill((x, y) => Colors.fromRGBA(255, x * 50, y * 60, 128)), {duration: 70, xOffset: 3, yOffset: 2, disposalMode: 'background'}),
+        new Frame(new Image(6, 3).fill(0x00ff00ff), {duration: 40, xOffset: 1, yOffset: 4, disposalMode: 'previous'}),
+        new Frame(new Image(4, 4).fill((x, y) => Colors.fromRGBA(y * 90, 0, 200, 255 - x * 60)), {duration: 60, xOffset: 8, yOffset: 4})
     ]);
     const movingFiles = {
         GIF: await moving.encodeGIF(),
@@ -166,10 +166,10 @@ const throwsA = async (fn, type, label) => {
         if (image.constructor !== Image) panic(`${name}: Image.decode gives ${image.constructor.name}, not an Image`);
         const frames = (await Animation.decode(bytes)).frames;
         if (frames.length !== 4) panic(`${name}: ${frames.length} frames instead of 4`);
-        const reference = frames[0];
+        const reference = frames[0].image;
         if (image.width !== reference.width || image.height !== reference.height) panic(`${name}: ${image.width}x${image.height} instead of ${reference.width}x${reference.height}`);
         if (sha256(image.bitmap) !== sha256(reference.bitmap)) panic(`${name}: Image.decode is not the first frame of Animation.decode`);
-        if (sha256(image.bitmap) === sha256(frames[1].bitmap)) panic(`${name}: the frames should differ`);
+        if (sha256(image.bitmap) === sha256(frames[1].image.bitmap)) panic(`${name}: the frames should differ`);
     }
     // options apply to the first frame: maxPixels counts the canvas
     await throwsA(() => Image.decode(movingFiles.GIF, {maxPixels: 10}), RangeError, 'Image.decode maxPixels of an animated GIF');
@@ -210,10 +210,10 @@ const throwsA = async (fn, type, label) => {
     const shown = await Image.decode(separate);
     if (shown.constructor !== Image || sha256(shown.bitmap) !== sha256((await Image.decode(defaultPNG)).bitmap)) panic('APNG with a separate default image: Image.decode should give the default image');
     const animated = await Animation.decode(separate);
-    if (animated.length !== 1 || sha256(animated.frames[0].bitmap) !== sha256((await Image.decode(framePNG)).bitmap)) panic('APNG with a separate default image: Animation.decode should give only the animation\'s frame');
+    if (animated.length !== 1 || sha256(animated.frames[0].image.bitmap) !== sha256((await Image.decode(framePNG)).bitmap)) panic('APNG with a separate default image: Animation.decode should give only the animation\'s frame');
 
     // a large animation: Image.decode stops after its first frame, so it takes a fraction of the time of all 50 frames
-    const many = new Animation(Array.from({length: 50}, (_, i) => new Frame(480, 360, {duration: 40}).fill((x, y) => Colors.fromRGBA((x * 7 + i * 13) & 255, (y * 5 + x * i) & 255, (x ^ y) & 255, 255))));
+    const many = new Animation(Array.from({length: 50}, (_, i) => new Frame(new Image(480, 360).fill((x, y) => Colors.fromRGBA((x * 7 + i * 13) & 255, (y * 5 + x * i) & 255, (x ^ y) & 255, 255)), {duration: 40})));
     const large = await many.encodeGIF();
     const median = async fn => {
         const times = [];

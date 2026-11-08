@@ -19,10 +19,10 @@ import { AnimationEncoder } from './animation-encoder.ts';
 // frames decoded fully composited, as full canvas frames
 function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uint8Array | Uint8ClampedArray, duration: number }>): Frame[] {
     return frames.map(({ pixels, duration }) => {
-        const frame = new Frame(width, height, { duration, disposalMode: 'background' });
         // the composited frames are copies already, the frame can keep them
-        frame.bitmap = pixels;
-        return frame;
+        const image = new Image(width, height);
+        image.bitmap = pixels;
+        return new Frame(image, { duration, disposalMode: 'background' });
     });
 }
 
@@ -229,8 +229,7 @@ export class Animation {
             // scale both edges so adjacent frames stay aligned
             const left = Math.round(frame.xOffset * sx), top = Math.round(frame.yOffset * sy);
             const right = Math.round((frame.xOffset + frame.width) * sx), bottom = Math.round((frame.yOffset + frame.height) * sy);
-            (Image.prototype.resize as (width: number, height: number, options?: ResizeOptions) => Image)
-                .call(frame, Math.max(1, right - left), Math.max(1, bottom - top), options);
+            frame.image.resize(Math.max(1, right - left), Math.max(1, bottom - top), options);
             frame.xOffset = left;
             frame.yOffset = top;
         }
@@ -286,10 +285,9 @@ export class Animation {
         if (backgroundColor !== 0) {
             const composited = png.compositeAnimation({ width: boxWidth, height: boxHeight, frames: this.__apngFrames__() });
             this.frames = composited.map(({ pixels, duration }) => {
-                const frame = new Frame(boxWidth, boxHeight, { duration, disposalMode: 'background' }).fill(backgroundColor);
                 const content = new Image(boxWidth, boxHeight);
                 content.bitmap = pixels;
-                return frame.composite(content);
+                return new Frame(new Image(boxWidth, boxHeight).fill(backgroundColor).composite(content), { duration, disposalMode: 'background' });
             });
         }
         return this;
@@ -325,10 +323,10 @@ export class Animation {
             const left = Math.max(0, x), top = Math.max(0, y);
             const right = Math.min(width, x + frame.width), bottom = Math.min(height, y + frame.height);
             const options = { duration: frame.duration, disposalMode: frame.disposalMode };
-            if (right <= left || bottom <= top) return new Frame(1, 1, { ...options, disposalMode: 'keep' });
-            const clipped = Frame.from(frame.region(left - x, top - y, right - left, bottom - top), { ...options, xOffset: left, yOffset: top });
+            if (right <= left || bottom <= top) return new Frame(new Image(1, 1), { ...options, disposalMode: 'keep' });
+            const clipped = frame.image.region(left - x, top - y, right - left, bottom - top);
             clipped.gainMap = null;
-            return clipped;
+            return new Frame(clipped, { ...options, xOffset: left, yOffset: top });
         });
     }
 
@@ -364,7 +362,7 @@ export class Animation {
                 height: frame.height,
                 duration: frame.duration,
                 dispose: frame.__disposal_id__,
-                pixels: new Uint8Array(frame.bitmap.buffer, frame.bitmap.byteOffset, frame.bitmap.byteLength)
+                pixels: new Uint8Array(frame.image.bitmap.buffer, frame.image.bitmap.byteOffset, frame.image.bitmap.byteLength)
             }));
         // gifs store centiseconds; rounding keeps e.g. 16 ms (60 fps) from becoming 10 ms
         const gifFrames = frames.map(({ duration, ...f }) => ({ ...f, delay: Math.round(duration / 10) }));
@@ -427,7 +425,7 @@ export class Animation {
 
         return Array.from(clipped, frame => {
             let { xOffset: x, yOffset: y, width: w, height: h } = frame;
-            let pixels = new Uint8Array(frame.bitmap.buffer, frame.bitmap.byteOffset, frame.bitmap.byteLength);
+            let pixels = new Uint8Array(frame.image.bitmap.buffer, frame.image.bitmap.byteOffset, frame.image.bitmap.byteLength);
             // odd offsets: one transparent pixel more on the left/top (blending makes it invisible)
             if (x & 1 || y & 1) {
                 const dx = x & 1, dy = y & 1;
@@ -464,7 +462,7 @@ export class Animation {
             duration: frame.duration,
             dispose: dispose[frame.__disposal_id__],
             blend: 1,
-            pixels: new Uint8Array(frame.bitmap.buffer, frame.bitmap.byteOffset, frame.bitmap.byteLength)
+            pixels: new Uint8Array(frame.image.bitmap.buffer, frame.image.bitmap.byteOffset, frame.image.bitmap.byteLength)
         }));
     }
 
@@ -530,12 +528,12 @@ export class Animation {
     private static async __decode__(input: BinaryData, options: DecodeOptions): Promise<Animation> {
         const { maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)), applyOrientation = true, toneMapping = 'reinhard', gainMap = true } = options;
         const orient = (frames: Frame[], orientation: number): Frame[] => {
-            if (applyOrientation && orientation > 1) for (const frame of frames) frame.__orient__(orientation);
+            if (applyOrientation && orientation > 1) for (const frame of frames) frame.image.__orient__(orientation);
             return frames;
         };
         const profile = (frames: Frame[], icc: Uint8Array | undefined, space?: jxl.ColorSpace): Frame[] => {
             const transform = !applyColorProfile ? null : icc ? profileTransform(icc) : space ? colorSpaceTransform(space.xy, space.curve) : null;
-            if (transform) for (const frame of frames) transform(frame.bitmap);
+            if (transform) for (const frame of frames) transform(frame.image.bitmap);
             return frames;
         };
         const data = view(input);
@@ -565,9 +563,9 @@ export class Animation {
             let loops = Infinity, icc: Uint8Array | undefined, space: jxl.ColorSpace | undefined;
             let orientation = 1;
             for await (const decoded of jxl.frames(data, maxPixels, toneMapping, threads)) {
-                const frame = new Frame(decoded.width, decoded.height, { duration: decoded.duration, disposalMode: 'background' });
-                frame.bitmap = decoded.pixels;
-                frames.push(frame);
+                const image = new Image(decoded.width, decoded.height);
+                image.bitmap = decoded.pixels;
+                frames.push(new Frame(image, { duration: decoded.duration, disposalMode: 'background' }));
                 orientation = decoded.orientation;
                 loops = fromPlays(decoded.loopCount);
                 icc = decoded.icc;
@@ -578,15 +576,15 @@ export class Animation {
             if (map) for (const frame of frames) {
                 const image = new Image(map.width, map.height);
                 image.bitmap = map.pixels.slice();
-                frame.gainMap = GainMap.__from_pixels__(image, map.params);
+                frame.image.gainMap = GainMap.__from_pixels__(image, map.params);
             }
             for (const frame of orient(profile(frames, icc, space), orientation)) {
-                const mapOfFrame = frame.gainMap;
+                const mapOfFrame = frame.image.gainMap;
                 if (!mapOfFrame || !applyOrientation || orientation <= 1) continue;
                 try {
                     mapOfFrame.image = mapOfFrame.image.__orient__(orientation);
                 } catch {
-                    frame.gainMap = null;
+                    frame.image.gainMap = null;
                 }
             }
             return new Animation(frames, { loopCount: frames.length > 1 ? loops : Infinity, ...(frames.length ? { width: frames[0].width, height: frames[0].height } : {}) });
@@ -594,7 +592,7 @@ export class Animation {
 
         if (type) {
             const image = await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile, toneMapping, gainMap, threads });
-            return new Animation([Frame.from(image, { duration: 0 })], { width: image.width, height: image.height });
+            return new Animation([new Frame(image, { duration: 0 })], { width: image.width, height: image.height });
         }
         throw new Error('Unsupported image type');
     }
