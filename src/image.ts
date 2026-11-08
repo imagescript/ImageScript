@@ -775,26 +775,6 @@ export class Image {
     }
 
     /**
-     * Yields an [x, y] array for every pixel in the image (0-based)
-     * @yields The coordinates of the pixel ([x, y])
-     * @deprecated Use {@link Image.coordinates}, iterating over the image will be removed in 4.0
-     * @group Deprecated
-     */
-    *[Symbol.iterator](): Generator<[x: number, y: number], void, undefined> {
-        yield* this.coordinates();
-    }
-
-    /**
-     * Yields an [x, y, color] array for every pixel in the image (0-based)
-     * @yields The coordinates and color of the pixel ([x, y, color])
-     * @deprecated Use {@link Image.pixels}, `iterateWithColors()` will be removed in 4.0
-     * @group Deprecated
-     */
-    *iterateWithColors(): Generator<[x: number, y: number, color: Color], void, undefined> {
-        yield* this.pixels();
-    }
-
-    /**
      * Creates an image with a linear gradient, like CSS' `linear-gradient()`
      * @param width The image's width
      * @param height The image's height

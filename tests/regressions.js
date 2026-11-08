@@ -27,13 +27,13 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
         const cw = image.clone().rotate(270);
         assert(rgba(cw, 1, 0).slice(0, 2).join() === '1,1', 'rotate(270): top left should end up top right');
-        for (const [x, y, color] of cw.iterateWithColors()) assert((color & 0xff) === 255, `rotate(270): hole at ${x},${y}`);
+        for (const [x, y, color] of cw.pixels()) assert((color & 0xff) === 255, `rotate(270): hole at ${x},${y}`);
     }
 
     // free rotation keeps the edges
     {
         const image = new Image(4, 4).fill(0xff0000ff).rotate(0.001, false);
-        for (const [x, y, color] of image.iterateWithColors()) assert((color & 0xff) > 250, `rotate: edge pixel ${x},${y} lost`);
+        for (const [x, y, color] of image.pixels()) assert((color & 0xff) > 250, `rotate: edge pixel ${x},${y} lost`);
     }
 
     // compositing respects the destination alpha
@@ -47,7 +47,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // cropCircle(max)
     {
-        const count = image => [...image.iterateWithColors()].filter(([, , c]) => c & 0xff).length;
+        const count = image => [...image.pixels()].filter(([, , c]) => c & 0xff).length;
         assert(count(new Image(8, 2).fill(0xffffffff).cropCircle(true)) > count(new Image(8, 2).fill(0xffffffff).cropCircle(false)), 'cropCircle: max has no effect');
     }
 
@@ -118,7 +118,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const image = new Image(3, 3);
         image.setPixelAt(0, 0, 0xff0000ff);
         assert(image.bitmap[0] === 0xff, 'setPixelAt(0, 0) should set the first pixel');
-        assert([...image][0].join() === '0,0' && [...image].pop().join() === '2,2', 'iterator should be 0-based');
+        assert([...image.coordinates()][0].join() === '0,0' && [...image.coordinates()].pop().join() === '2,2', 'coordinates() should be 0-based');
 
         let threw = false;
         try { image.getPixelAt(3, 0); } catch { threw = true; }
@@ -243,7 +243,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const checker = new Image(64, 64).fill((x, y) => (x + y) & 1 ? 0xffffffff : 0x000000ff);
         for (const mode of [ResizeModes.BILINEAR, ResizeModes.BICUBIC, ResizeModes.AREA]) {
             const small = checker.clone().resize(8, 8, mode);
-            for (const [x, y, color] of small.iterateWithColors())
+            for (const [x, y, color] of small.pixels())
                 assert(Math.abs((color >>> 24) - 128) <= 2, `${mode}: checkerboard should average to grey at ${x},${y}, got ${color >>> 24}`);
         }
 
@@ -418,13 +418,13 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f, other[i])), 'Animation.resize({height})');
     }
 
-    // coordinates() and pixels(), the iterator and iterateWithColors() (deprecated, removed in 4.0) yield the same
+    // coordinates() and pixels() yield every pixel row by row
     {
         const image = new Image(3, 2).fill((x, y) => Colors.fromRGBA(x * 50, y * 100, 7, 255));
         const coordinates = [...image.coordinates()], pixels = [...image.pixels()];
         assert(coordinates.length === 6 && pixels.length === 6, 'coordinates()/pixels() count');
-        assert(JSON.stringify(coordinates) === JSON.stringify([...image]), 'coordinates() vs the iterator');
-        assert(JSON.stringify(pixels) === JSON.stringify([...image.iterateWithColors()]), 'pixels() vs iterateWithColors()');
+        assert(coordinates.every(([x, y], i) => x === i % 3 && y === Math.floor(i / 3)), 'coordinates() row by row');
+        assert(pixels.every(([x, y, color], i) => x === i % 3 && y === Math.floor(i / 3) && color === Colors.fromRGBA(x * 50, y * 100, 7, 255)), 'pixels() row by row');
         assert(coordinates[4].join() === '1,1' && pixels[4][2] === Colors.fromRGBA(50, 100, 7, 255), 'coordinates() and pixels() are row by row');
     }
 
@@ -820,7 +820,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const outlined = await Image.renderText(font, 40, 'Hi', 0xffffffff, undefined, {strokeWidth: 3, strokeColor: 0xff0000ff});
         assert(outlined.width === plain.width + 6 && outlined.height === plain.height + 6, 'stroke should grow the image');
         let red = 0, white = 0;
-        for (const [, , color] of outlined.iterateWithColors()) {
+        for (const [, , color] of outlined.pixels()) {
             if (color === 0xff0000ff) red++;
             if (color === 0xffffffff) white++;
         }
@@ -831,7 +831,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const fill = await Image.renderText(font, 40, 'Hi', 0x0000ff80);
         let inside = 0, tinted = 0;
         // pixels the glyphs cover fully (the stroked image is 3 pixels larger on every side)
-        for (const [x, y, color] of fill.iterateWithColors()) {
+        for (const [x, y, color] of fill.pixels()) {
             if (color !== 0x0000ff80) continue;
             inside++;
             if (translucent.getPixelAt(x + 3, y + 3) !== 0x0000ff80) tinted++;

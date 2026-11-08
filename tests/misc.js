@@ -19,11 +19,11 @@ try {
 if (new Image(1, 1).toString() !== 'Image<1x1>')
     panic('toString failed');
 
-for (const [x, y] of new Image(1, 1))
-    if (x !== 0 || y !== 0) panic('Symbol.iterator failed');
+for (const [x, y] of new Image(1, 1).coordinates())
+    if (x !== 0 || y !== 0) panic('coordinates failed');
 
-for (const [x, y, color] of new Image(1, 1).fill(0xff8000ff).iterateWithColors())
-    if (x !== 0 || y !== 0 || color !== 0xff8000ff) panic('iterateWithColors failed');
+for (const [x, y, color] of new Image(1, 1).fill(0xff8000ff).pixels())
+    if (x !== 0 || y !== 0 || color !== 0xff8000ff) panic('pixels failed');
 
 if (Colors.fromRGB(0xff, 0x80, 0x00) !== 0xff8000ff)
     panic('rgbToColor failed');
