@@ -411,6 +411,7 @@ export class Animation {
      * @param options See {@link APNGEncodeOptions}, and {@link AnimationOptions.loopCount}
      */
     static apngEncoder(width: number, height: number, options: APNGEncodeOptions & AnimationOptions = {}): AnimationEncoder {
+        checkOptions(options, 'Animation.apngEncoder(width, height, { compression: 9 })');
         return AnimationEncoder.__apng__(width, height, options);
     }
 

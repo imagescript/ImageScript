@@ -26,6 +26,7 @@ const panic = message => {
 		'Animation.encodeWebP': bad => new Animation([frame]).encodeWebP(bad),
 		'Animation.webpEncoder': bad => Animation.webpEncoder(8, 8, bad),
 		'Animation.gifEncoder': bad => Animation.gifEncoder(8, 8, bad),
+		'Animation.apngEncoder': bad => Animation.apngEncoder(8, 8, bad),
 		'AnimationEncoder.add': async bad => { const encoder = Animation.gifEncoder(16, 10); await encoder.add(photo, bad); },
 		'new GainMap': bad => new GainMap(new Image(2, 2), bad),
 		'new TextLayout': bad => new TextLayout(bad)
