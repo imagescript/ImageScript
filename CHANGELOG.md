@@ -4,7 +4,7 @@
 
 ### Breaking changes
 
-Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://imagescript.dev/documents/Migrating_to_4.0.html) lists every change and the seven behavior changes that don't show up as deprecations or compile errors.
+Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://imagescript.dev/documents/Migrating_to_4.0.html) lists every change and the nine behavior changes that don't show up as deprecations or compile errors.
 
 - **Methods that take options refuse anything else than an object**: a stray number, string, boolean or `null` as the options of `cropCircle()`, `Image.renderText()`, the encoders (`encodeWebP()`, `encodeAVIF()`, `encodeJXL()`, ...), `quantize()`, `transform()`, `dropShadow()`, `outline()`, the gradients, `Image.decode()`, the animation encoders, and `new GainMap()` throws a `TypeError` that names the working form (e.g. `cropCircle({ size: 'cover' })`), so the 3.x calls that are gone like `cropCircle(true)` or `Image.renderText(font, 32, 'Hi')` fail instead of being ignored. Only the type of the argument is checked: a key that isn't an option is still ignored, so a typo like `{ maxWith: 300 }` isn't caught.
 - **The mode constants are removed, modes are plain strings**: `Image.RESIZE_*`, `Image.SVG_MODE_*`, `Frame.DISPOSAL_*` and the `ResizeModes`, `SVGScaleModes` and `FrameDisposalModes` classes are gone. Resize modes are `'nearest-neighbor'`, `'bilinear'`, `'bicubic'` and `'area'` (the `ResizeMode` type), disposal modes `'any'`, `'keep'`, `'previous'` and `'background'` (`FrameDisposalModeName`), and the SVG modes became options of `renderSVG()` (below). `Image.RESIZE_AUTO`/`ResizeModes.AUTO` is `image.resize({ width: 256 })`. The old values are no longer accepted either: `'RESIZE_BILINEAR'`, the numbers 1-3 for SVG scale modes and the numeric disposal ids 0-3.
@@ -67,9 +67,11 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`encodeJPEG()` composites transparent pixels onto a background**, black by default (`background` sets the color), instead of dropping the alpha and showing the stored color. Opaque images encode as before.
 
-- **`Frame` holds an image instead of extending `Image`**: `frame.image` is the image, `new Frame(image, options)` takes it (without a copy), and `Frame.from()` is removed. `resize()`, `scale()`, `crop()` and `trim()` stay on the frame and move its offsets; everything else is `frame.image.blur(2)` and the like, and leaves the offsets alone (`transform()`, `dropShadow()` and `outline()` no longer move them).
+- **`Frame` holds an image instead of extending `Image`**: `frame.image` is the image, `new Frame(image, options)` takes it (without a copy), and `Frame.from()` is removed. The methods that change the size (`resize()`, `scale()`, `contain()`, `cover()`, `crop()`, `trim()`, `rotate()`, `transform()`, `dropShadow()` and `outline()`) stay on the frame and move its offsets so it stays in place; everything else is `frame.image.blur(2)` and the like. `frame.crop()` and `frame.rotate()` now move the offsets too (3.x kept them), `frame.cover()` moves them by the cropped amount, and the offsets can become negative where 3.x stopped the growth at 0.
 
 - **GIF palettes take a color count**: the `quality` of `Animation.encodeGIF()` and `Animation.gifEncoder()` is `colors` (2-256, default 256, which `quality` 90 and above gave), with the new `dither` and `ditherStrength`. Their options type is `GIFAnimationEncodeOptions`; `GIFEncodeOptions` is now the options of `Image.encodeGIF()`.
+
+- **`quantize()` dithers by default**: Floyd-Steinberg at a strength of `0.85`, like the GIF encoders (3.x: no dithering, and a strength of `1` when dithering). `dither: 'none'` gives the old default.
 
 - **Removed**: `getRGBAAt()` (use `Colors.toRGBA(image.getPixelAt(x, y))`).
 
@@ -89,6 +91,8 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `resize({ width, height, fit: 'inside' })` on images, frames and animations: as large as fits inside the box, keeping the aspect ratio.
 - `encodeJPEG({ subsampling: '4:4:4' | '4:2:0' })`; the default stays 4:2:0 up to quality 90 and 4:4:4 above.
 - `Colors.gradient()` takes an array of evenly spaced colors, like the `stops` of the gradient functions.
+- `Animation.scale()`, `Animation.trim()`, `Animation.rotate()`, `Animation.transform()`, `Animation.dropShadow()` and `Animation.outline()`. `scale()` and `trim()` keep the frames; the others work on the composited animation (full canvas frames) and resize the canvas.
+- `Frame.contain()`, `Frame.cover()`, `Frame.rotate()`, `Frame.transform()`, `Frame.dropShadow()` and `Frame.outline()`, which move the offsets like `Frame.resize()` and `Frame.crop()`.
 - `Image.encodeGIF()` for single images, with `colors`, `dither` and `ditherStrength` (also on the animation encoders).
 - `renderSVG({ fonts })` takes a single font without an array.
 

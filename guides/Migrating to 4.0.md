@@ -1,7 +1,7 @@
 # Migrating to 4.0
 
-ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes seven behaviors. Most of the
-removals are mechanical: the compiler points at them. The seven behavior changes are not deprecations, nothing warns
+ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes nine behaviors. Most of the
+removals are mechanical: the compiler points at them. The nine behavior changes are not deprecations, nothing warns
 about them, and code keeps compiling while it does something else. Read the first section even if your build is clean.
 
 Node.js 22.13 or newer is required, as it was for 3.x (`engines` in `package.json`).
@@ -13,7 +13,7 @@ The recommended path:
    problems list, or a lint rule for deprecated APIs (typescript-eslint has `no-deprecated`), to get the full list.
 2. Fix every deprecation hint, using the tables below.
 3. Switch to 4.0, fix what the compiler reports with the [renamed and reshaped APIs](#renamed-and-reshaped-apis), and go
-   through the seven behavior changes. The [checklist](#checklist) at the end has grep patterns
+   through the nine behavior changes. The [checklist](#checklist) at the end has grep patterns
    for finding the code they affect.
 
 ## Behavior changes
@@ -152,6 +152,40 @@ is composited onto a background first, black by default, the way a viewer would 
 for another color: `image.encodeJPEG({ background: 0xffffffff })`. Opaque images encode as before, byte for byte.
 
 Search your code for: `encodeJPEG(` on images that can have transparency.
+
+### `quantize()` dithers by default
+
+`image.quantize()` now dithers with Floyd-Steinberg at a strength of `0.85` by default, like the GIF encoders. In 3.x
+it didn't dither unless you passed `dither`. For the old result, pass `dither: 'none'`:
+
+| 3.x | 4.0 |
+| --- | --- |
+| `image.quantize({ colors: 16 })` | `image.quantize({ colors: 16, dither: 'none' })` |
+| `image.quantize({ colors: 16, dither: 'floyd-steinberg' })` (strength 1) | `image.quantize({ colors: 16, dither: 'floyd-steinberg', ditherStrength: 1 })` |
+
+The second row matters for every dither method: the default strength is `0.85` now, so pass `ditherStrength: 1` to
+keep 3.x's result.
+
+Search your code for: `.quantize(`.
+
+### Frames move their offsets when their size changes
+
+A frame's `crop()`, `cover()` and `rotate()` now move its offsets, so the frame's pixels stay where they are in the
+animation. In 3.x, `crop()` and `rotate()` kept the offsets (the top left corner stayed in place), and `cover()` only
+scaled them. Now:
+
+- `frame.crop(x, y, w, h)` adds `x` and `y` to the offsets, like `trim()` already did.
+- `frame.rotate(angle)` keeps the frame's middle in place.
+- `frame.cover(w, h)` scales the offsets and then moves them by the cropped amount.
+
+`transform()`, `dropShadow()` and `outline()` moved the offsets in 3.x too, but only as far as they allowed (a frame at
+`xOffset: 0` grew to the right instead). Now the offsets can become negative: the frame grows evenly, and the part
+outside the animation's canvas isn't encoded.
+
+To keep a frame's offsets as they are, call the method on its image: `frame.image.crop(x, y, w, h)`. See
+[frames hold an image](#frames-hold-an-image) for the other frame changes.
+
+Search your code for: `.crop(`, `.cover(` and `.rotate(` on frames.
 
 ## Removed APIs
 
@@ -363,11 +397,13 @@ A `Frame` is no longer an `Image`: it holds one, `frame.image`, with the frame's
 | `image.composite(frame)`, `frame.encodePNG()` | `image.composite(frame.image)`, `frame.image.encodePNG()` |
 | `frame instanceof Image` | `false` now |
 
-`resize()`, `scale()`, `crop()` and `trim()` stay on the frame and move its offsets so its pixels stay where they are in
-the animation, and `width`, `height`, `clone()` and `toString()` work as before. Everything else goes through
-`frame.image` and leaves the offsets alone. In 3.x, a frame that grew up or left from `transform()`, `dropShadow()` or
-`outline()` moved its offsets with the growth (as far as they allowed); now the image grows and the offsets stay, so
-move them yourself if the frame's pixels have to stay in place.
+The methods that change the size stay on the frame: `resize()`, `scale()`, `contain()`, `cover()`, `crop()`, `trim()`,
+`rotate()`, `transform()`, `dropShadow()` and `outline()`. They move the offsets so the frame stays in place in the
+animation (resizing scales the offsets, as if the whole animation was resized); see
+[frames move their offsets](#frames-move-their-offsets-when-their-size-changes) for how that differs from 3.x.
+`width`, `height`, `clone()` and `toString()` work as before. Everything else goes through `frame.image`. The image's
+own methods don't know about the frame and leave the offsets alone, so `frame.image.rotate(90)` turns the frame around
+its top left corner.
 
 ### Checked values and the canvas
 
@@ -448,6 +484,6 @@ grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
 Also search for the variables that hold animations, and for `[0]`, `.map(`, `.filter(` and `.forEach(` on them: the
 search can't tell an animation from an array, so check the type of each receiver.
 
-Then compile with `tsc`, and run the tests that cover your decode and encode paths. The seven behavior changes need
+Then compile with `tsc`, and run the tests that cover your decode and encode paths. The nine behavior changes need
 runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every `contain()`, every HSL hue,
-every `rotate()` and every JPEG made from an image with transparency.
+every `rotate()`, every JPEG made from an image with transparency, every `quantize()`, and the size changes of frames.
