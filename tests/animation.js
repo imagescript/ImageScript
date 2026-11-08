@@ -69,8 +69,8 @@ const square = (color, w, h) => new Image(w, h).fill((x, y) => (x + y) % 5 === 0
         if (!threw || animation.length !== 1) panic('frames should only take frames');
     }
 
-    // loop counts: -1 forever, 0 once, n repeats
-    for (const loopCount of [-1, 0, 5]) {
+    // loop counts: Infinity forever, 0 once, n repeats
+    for (const loopCount of [Infinity, 0, 1, 5]) {
         // (different frames: identical ones are merged, and a single frame has no loop count)
         const two = new Animation([Frame.from(still), Frame.from(still.clone().invert())], {loopCount});
         for (const format of ['APNG', 'WebP', 'GIF'])

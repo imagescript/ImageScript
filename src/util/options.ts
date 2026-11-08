@@ -22,6 +22,17 @@ export function finite(value: number, name: string): number {
     return number;
 }
 
+/**
+ * A loop count: `Infinity` (loop forever) or an integer from 0 (0 plays once, 1 plays twice, ...). Anything else that is
+ * a number throws a RangeError (`-1`, which 3.x meant as forever, says so), anything that isn't one a TypeError
+ */
+export function loopCount(value: unknown, name = 'loop count'): number {
+    if (typeof value !== 'number') throw new TypeError(`${name} must be a number (Infinity or an integer from 0), not ${value === null ? 'null' : typeof value}`);
+    if (value !== Infinity && (!Number.isInteger(value) || value < 0))
+        throw new RangeError(`${name} must be Infinity or an integer from 0, not ${value}${value === -1 ? ' (use Infinity to loop forever)' : ''}`);
+    return value;
+}
+
 /** A quality argument (0-100) of the encoders that take one, finite and in range */
 export function quality(value: number, name = 'quality'): number {
     const q = finite(value, name);

@@ -6,11 +6,11 @@ import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel } from './util/options.ts';
+import { checkOptions, finite, compressionLevel, loopCount } from './util/options.ts';
 import type { AnimationOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
-// (ImageScript, like GIF, counts repetitions: -1 forever, 0 play once; APNG and WebP count plays, 0 forever)
-const toPlays = (loopCount: number): number => loopCount < 0 || loopCount === Infinity ? 0 : loopCount + 1;
+// (the loop count is how many times the animation starts over, Infinity forever; APNG and WebP count plays, 0 forever)
+const toPlays = (count: number): number => count === Infinity ? 0 : count + 1;
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
 interface Format {
@@ -94,8 +94,9 @@ export class AnimationEncoder {
     }
 
     /** @internal */
-    static __webp__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
-        canvas(width, height, loopCount);
+    static __webp__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
+        const loops = loopCount(count);
+        canvas(width, height);
         if (width > 1 << 24 || height > 1 << 24) throw new RangeError('WebP: canvas too large');
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
         const resolved = resolveMetadata(metadata), chunks: Uint8Array[] = [];
@@ -118,14 +119,15 @@ export class AnimationEncoder {
                 if (full) return add({ x: 0, y: 0, width, height, duration: input.duration, dispose: true, blend: false, pixels: shown });
                 await add(webpFrame(input));
             },
-            file: () => webp.animationFile(chunks, width, height, toPlays(loopCount), alpha, exifData(resolved))
+            file: () => webp.animationFile(chunks, width, height, toPlays(loops), alpha, exifData(resolved))
         }, optimize);
     }
 
     /** @internal */
-    static __gif__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, quality: qualityOption = 95 }: GIFEncodeOptions & AnimationOptions): AnimationEncoder {
+    static __gif__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, quality: qualityOption = 95 }: GIFEncodeOptions & AnimationOptions): AnimationEncoder {
         const quality = finite(qualityOption, 'quality');
-        canvas(width, height, loopCount);
+        const loops = loopCount(count);
+        canvas(width, height);
         const comments = gifComments(resolveMetadata(metadata));
         // (the first frame is encoded last: it needs a transparent index if any frame restores the background)
         let first: gifCodec.GIFFrame | null = null, restores = false;
@@ -144,15 +146,16 @@ export class AnimationEncoder {
             },
             file() {
                 const f = first as gifCodec.GIFFrame;
-                return concat([gifCodec.header(width, height, loopCount, comments), gifCodec.encodeFrame(f, quality, f.dispose === 3 || restores), ...rest, new Uint8Array([0x3b])]);
+                return concat([gifCodec.header(width, height, loops, comments), gifCodec.encodeFrame(f, quality, f.dispose === 3 || restores), ...rest, new Uint8Array([0x3b])]);
             }
         }, optimize);
     }
 
     /** @internal */
-    static __apng__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, compression: compressionOption = 4 }: APNGEncodeOptions & AnimationOptions): AnimationEncoder {
+    static __apng__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, compression: compressionOption = 4 }: APNGEncodeOptions & AnimationOptions): AnimationEncoder {
         const compression = compressionLevel(compressionOption);
-        canvas(width, height, loopCount);
+        const loops = loopCount(count);
+        canvas(width, height);
         const text = pngText(resolveMetadata(metadata));
         // the frames are kept compressed (quickly): the pixel format, and whether opaque animations are stored without
         // transparency, depend on all of them; then they are converted and compressed one at a time, like encodeAPNG
@@ -191,15 +194,14 @@ export class AnimationEncoder {
                 for await (const f of frames()) scanner.add(f.pixels);
                 const format = scanner.format(), encoded: png.EncodedAPNGFrame[] = [];
                 for await (const { pixels, ...f } of frames()) encoded.push({ ...f, data: await png.frameData(pixels, f.width, f.height, format, compression) });
-                return png.animationFile(encoded, width, height, toPlays(loopCount), format, text);
+                return png.animationFile(encoded, width, height, toPlays(loops), format, text);
             }
         }, optimize);
     }
 }
 
-function canvas(width: number, height: number, loopCount: number): void {
+function canvas(width: number, height: number): void {
     if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`Invalid canvas size: ${width}x${height}`);
-    if (loopCount !== Infinity && (!Number.isInteger(loopCount) || loopCount < -1)) throw new RangeError('Invalid loop count');
 }
 
 // a frame in the WebP codec's terms (odd offsets: one transparent pixel more on the left/top, blending makes it

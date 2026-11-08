@@ -25,7 +25,7 @@ export interface GIFFrame {
 export interface GIFData {
     width: number;
     height: number;
-    /** -1 loops forever, 0 plays once, n repeats n times */
+    /** Infinity loops forever, 0 plays once, n repeats n times */
     loopCount: number;
     frames: GIFFrame[];
 }
@@ -62,14 +62,14 @@ interface GraphicControl {
 
 /**
  * Encodes frames into a GIF
- * @param {{width: number, height: number, loopCount?: number, frames: GIFFrame[]}} gif loopCount -1 loops forever, 0 plays once, n repeats n times
+ * @param {{width: number, height: number, loopCount?: number, frames: GIFFrame[]}} gif loopCount Infinity loops forever, 0 plays once, n repeats n times
  * @param {number} [quality=95] 1-100, scales the palette size (1 = 8 colors, 50 = 55, 90 and above = 256)
  * @return {Uint8Array}
  */
 /**
  * @param comments written as comment extensions
  */
-export function encode({ width, height, loopCount = -1, frames }: Omit<GIFData, 'loopCount'> & { loopCount?: number }, quality = 95, comments: Uint8Array[] = []): Uint8Array {
+export function encode({ width, height, loopCount = Infinity, frames }: Omit<GIFData, 'loopCount'> & { loopCount?: number }, quality = 95, comments: Uint8Array[] = []): Uint8Array {
     // frames that restore the background have a transparent index: decoders like Pillow and ffmpeg restore to it
     // (browsers to transparent), otherwise to the background color. So does the first frame then: Pillow decides by it
     // whether the animation has transparency at all
@@ -99,7 +99,7 @@ export function header(width: number, height: number, loopCount: number, comment
         out.bytes(0x21, 0xff, 0x0b);
         out.string('NETSCAPE2.0');
         out.bytes(0x03, 0x01);
-        out.u16(loopCount === -1 || loopCount === Infinity ? 0 : loopCount);
+        out.u16(loopCount === Infinity ? 0 : loopCount);
         out.bytes(0x00);
     }
 
@@ -280,7 +280,7 @@ export function decode(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX
                             const sub = reader.slice(length);
                             if (sub[0] === 1 && length >= 3) {
                                 const count = sub[1] | sub[2] << 8;
-                                loopCount = count === 0 ? -1 : count;
+                                loopCount = count === 0 ? Infinity : count;
                             }
                         }
                     } else skipSubBlocks(reader);

@@ -452,17 +452,17 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         }
     });
 
-    // Infinity is a loop count for ever (like -1, which is removed in 4.0), the encoders take the options of the encode functions
+    // Infinity is the loop count for ever (the default), the encoders take the options of the encode functions
     await withFrozenTime(async () => {
         const {Animation} = require('..');
         const still = new Image(6, 6).fill(0x336699ff);
         const frames = () => [Frame.from(still.clone(), {duration: 100}), Frame.from(still.clone().invert(), {duration: 100})];
-        const forever = new Animation(frames(), {loopCount: Infinity}), minusOne = new Animation(frames(), {loopCount: -1});
+        const forever = new Animation(frames(), {loopCount: Infinity});
         assert(forever.loopCount === Infinity && new Animation(frames(), {loopCount: Infinity}).loopCount === Infinity, 'Animation keeps Infinity');
         for (const format of ['GIF', 'APNG', 'WebP']) {
-            const a = await forever[`encode${format}`](), b = await minusOne[`encode${format}`]();
-            assert(Buffer.from(a).equals(Buffer.from(b)), `${format}: Infinity vs -1`);
-            assert((await Animation.decode(a)).loopCount === -1, `${format}: decodes as -1 until 4.0`);
+            const a = await forever[`encode${format}`]();
+            assert(Buffer.from(a).equals(Buffer.from(await new Animation(frames())[`encode${format}`]())), `${format}: Infinity is the default`);
+            assert((await Animation.decode(a)).loopCount === Infinity, `${format}: decodes as Infinity`);
             const encoder = Animation[`${format.toLowerCase()}Encoder`](6, 6, {loopCount: Infinity});
             for (const frame of frames()) await encoder.add(frame);
             assert(Buffer.from(await encoder.finish()).equals(Buffer.from(a)), `${format}: encoder with Infinity`);

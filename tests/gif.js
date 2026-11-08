@@ -48,7 +48,7 @@ const panic = message => {
                 panic(`roundtrip: frame ${i} differs`);
         if (decoded.frames[0].duration !== gif.frames[0].duration)
             panic('roundtrip: incorrect duration');
-        if (decoded.loopCount !== -1)
+        if (decoded.loopCount !== Infinity)
             panic('roundtrip: incorrect loop count');
     }
 

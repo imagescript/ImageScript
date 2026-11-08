@@ -39,6 +39,8 @@
 
 - **`Animation` holds its frames instead of extending `Array`**: `animation.frames` is the array the animation uses, and `animation[0]`, `animation.push(frame)`, `animation.map(...)` and the other array methods are `animation.frames[0]`, `animation.frames.push(frame)`, `animation.frames.map(...)`, and so on. `animation.slice(start, end)` is `new Animation(animation.frames.slice(start, end), { loopCount: animation.loopCount })`. `for (const frame of animation)`, `animation.length` and the methods of `Animation` work as before, and `Array.isArray(animation)` is `false`.
 
+- **Loop counts are `Infinity` (forever, the default) or an integer from 0**: `loopCount: -1` is `loopCount: Infinity`, and the encoders and the decoded animations use `Infinity` where they used `-1`. `-1` now throws a `RangeError` like the other negative numbers, `NaN` and fractions do, and numeric strings, `null` and booleans throw a `TypeError`. The check applies to `new Animation(frames, { loopCount })`, `animation.loopCount = ...` (which leaves the count as it was when it throws) and the encoders (`Animation.gifEncoder()`, `webpEncoder()` and `apngEncoder()`). Finite counts are the same as before: `loopCount: 2` still plays three times.
+
 ## 3.20.1
 
 ### Performance

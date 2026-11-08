@@ -12,13 +12,13 @@ import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel } from './util/options.ts';
+import { checkOptions, finite, compressionLevel, loopCount } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
-// loop counts: ImageScript (like GIF) counts repetitions (-1 forever, 0 play once), APNG and WebP count plays (0 forever)
-const toPlays = (loopCount: number): number => loopCount < 0 || loopCount === Infinity ? 0 : loopCount + 1;
-const fromPlays = (plays: number): number => plays === 0 ? -1 : plays - 1;
+// loop counts: how many times the animation starts over (Infinity = forever); APNG and WebP count plays (0 = forever)
+const toPlays = (count: number): number => count === Infinity ? 0 : count + 1;
+const fromPlays = (plays: number): number => plays === 0 ? Infinity : plays - 1;
 
 // frames decoded fully composited, as full canvas frames
 function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uint8Array | Uint8ClampedArray, duration: number }>): Frame[] {
@@ -33,8 +33,9 @@ function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uin
 /** Options of {@link Animation} */
 export interface AnimationOptions {
     /**
-     * How many times to repeat the animation (`Infinity` = forever, 0 = play once, 1 = play twice, ...). `-1` still
-     * means forever, it will be removed in 4.0. Default: forever
+     * How many times to repeat the animation: `Infinity` loops forever, 0 plays once, 1 plays twice, ... Anything else
+     * throws: a RangeError unless it is an integer from 0 or `Infinity`, a TypeError unless it is a number. Default:
+     * `Infinity`
      */
     loopCount?: number;
 }
@@ -116,12 +117,8 @@ export interface APNGEncodeOptions extends AnimationEncodeOptions {
  * iterated (`for (const frame of animation)`), and its `length` is the number of frames.
  */
 export class Animation {
-    /**
-     * How many times to repeat the animation (`Infinity` = forever, 0 = play once, 1 = play twice, ...). `-1` still
-     * means forever, it will be removed in 4.0, when `Infinity` is what animations that loop forever have (animations
-     * that loop forever have `-1` until then, also the decoded ones)
-     */
-    loopCount: number;
+    /** @internal @ignore */
+    private __loopCount__ = Infinity;
 
     /** @internal @ignore */
     private __frames__: Frame[] = [];
@@ -134,13 +131,27 @@ export class Animation {
     constructor(frames: Frame[], options?: AnimationOptions);
     constructor(frames: Frame[], options: AnimationOptions = {}) {
         checkOptions(options, 'Animation(frames, { loopCount: 2 })');
-        const { loopCount = -1 } = options;
+        const { loopCount: count = Infinity } = options;
+        const loops = loopCount(count);
         this.frames = frames;
+        this.__loopCount__ = loops;
+    }
 
-        if (loopCount !== Infinity && (finite(loopCount, 'loop count') < -1 || !Number.isInteger(Number(loopCount))))
-            throw new RangeError(`Invalid loop count: ${loopCount}`);
+    /**
+     * How many times to repeat the animation: `Infinity` (the default) loops forever, 0 plays once, 1 plays twice, ...
+     * Other values throw, see {@link AnimationOptions.loopCount}, and the loop count stays as it was
+     */
+    get loopCount(): number {
+        return this.__loopCount__;
+    }
 
-        this.loopCount = loopCount;
+    /**
+     * Replaces the loop count (see {@link Animation.loopCount}). Anything else than `Infinity` or an integer from 0
+     * throws, and the count stays as it was
+     * @param value The new loop count
+     */
+    set loopCount(value: number) {
+        this.__loopCount__ = loopCount(value);
     }
 
     /**
@@ -450,24 +461,24 @@ export class Animation {
         // (still PNGs decode like images)
         if (type === 'png' && !png.isAnimated(data)) {
             const image = await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile });
-            return new Animation(canvasFrames(image.width, image.height, [{ pixels: image.bitmap, duration: 0 }]), { loopCount: -1 });
+            return new Animation(canvasFrames(image.width, image.height, [{ pixels: image.bitmap, duration: 0 }]), { loopCount: Infinity });
         }
         if (type === 'png') {
             const decoded = await png.decodeAnimation(data, onlyExtractFirstFrame, maxPixels);
             const frames = orient(profile(canvasFrames(decoded.width, decoded.height, png.compositeAnimation(decoded)), decoded.icc), decoded.orientation);
-            return new Animation(frames, { loopCount: decoded.frames.length > 1 ? fromPlays(decoded.plays) : -1 });
+            return new Animation(frames, { loopCount: decoded.frames.length > 1 ? fromPlays(decoded.plays) : Infinity });
         }
 
         if (type === 'jxl') {
             const frames: Frame[] = [];
-            let loopCount = -1, icc: Uint8Array | undefined, space: jxl.ColorSpace | undefined;
+            let loops = Infinity, icc: Uint8Array | undefined, space: jxl.ColorSpace | undefined;
             let orientation = 1;
             for await (const decoded of jxl.frames(data, maxPixels, toneMapping, threads)) {
                 const frame = new Frame(decoded.width, decoded.height, { duration: decoded.duration, disposalMode: FrameDisposalModes.BACKGROUND });
                 frame.bitmap = decoded.pixels;
                 frames.push(frame);
                 orientation = decoded.orientation;
-                loopCount = fromPlays(decoded.loopCount);
+                loops = fromPlays(decoded.loopCount);
                 icc = decoded.icc;
                 space = decoded.colorSpace;
                 if (onlyExtractFirstFrame) break;
@@ -488,7 +499,7 @@ export class Animation {
                     frame.gainMap = null;
                 }
             }
-            return new Animation(frames, { loopCount: frames.length > 1 ? loopCount : -1 });
+            return new Animation(frames, { loopCount: frames.length > 1 ? loops : Infinity });
         }
 
         if (type) return new Animation([Frame.from(await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile, toneMapping, gainMap, threads }), { duration: 0 })]);

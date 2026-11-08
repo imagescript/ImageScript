@@ -115,7 +115,7 @@ const sameImage = (image, reference, label) => {
 	const frame = new Frame(4, 4, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
 	if (frame.duration !== 40 || frame.xOffset !== 2 || frame.yOffset !== 3 || frame.disposalMode !== 'background') panic('new Frame(width, height, options)');
 	if (Frame.from(photo, {duration: 40, xOffset: 2}).xOffset !== 2 || Frame.from(photo).duration !== 100) panic('Frame.from(image, options)');
-	if (new Animation([new Frame(4, 4)], {loopCount: 2}).loopCount !== 2 || new Animation([new Frame(4, 4)]).loopCount !== -1) panic('new Animation(frames, options)');
+	if (new Animation([new Frame(4, 4)], {loopCount: 2}).loopCount !== 2 || new Animation([new Frame(4, 4)]).loopCount !== Infinity) panic('new Animation(frames, options)');
 	const encodedGIF = await new Animation([new Frame(4, 4)]).encodeGIF();
 	if ((await Animation.decode(encodedGIF, {onlyFirstFrame: true})).length !== 1) panic('Animation.decode(data, { onlyFirstFrame })');
 	const oldFrames = {
