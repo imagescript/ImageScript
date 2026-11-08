@@ -103,9 +103,22 @@ export interface ResizeToOptions extends ResizeOptions {
     width?: number;
     /** The new height. Without it, it follows from the width */
     height?: number;
+    /**
+     * How a width and a height together are met: `'fill'` stretches the image to exactly that size, `'inside'` keeps
+     * the aspect ratio and makes the image as large as fits inside it, so one side can be smaller (a thumbnail of at
+     * most 800x600: `resize({ width: 800, height: 600, fit: 'inside' })`). For a box of exactly that size, see
+     * {@link Image.contain} and {@link Image.cover}. Default: `'fill'`
+     */
+    fit?: 'fill' | 'inside';
 }
 
-/** Options of {@link Image.scale}, {@link Image.resize}, {@link Image.contain}, {@link Image.fit} and {@link Image.cover} */
+/** Options of {@link Image.contain} */
+export interface ContainOptions extends ResizeOptions {
+    /** The color of the bars around the image where it doesn't fill the box. Default: `0x00000000` (transparent) */
+    background?: Color;
+}
+
+/** Options of {@link Image.scale}, {@link Image.resize}, {@link Image.contain} and {@link Image.cover} */
 export interface ResizeOptions {
     /** The resizing mode. Default: {@link ResizeModes.BILINEAR} */
     mode?: ResizeMode;
@@ -945,45 +958,37 @@ export class Image {
      */
     resize(options: ResizeToOptions): this;
     resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
-        const [width, height, options] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
+        const [width, height, options, fit] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
         const { mode, fast } = resizeOptions(options);
-        const image = this.__resize__(...this.__resized_size__(width, height), mode, fast);
+        const image = this.__resize__(...this.__resized_size__(width, height, fit), mode, fast);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         return this.__apply__(image);
     }
 
     /**
-     * Resizes the image so it is contained in the given bounding box.
-     * Can return an image with one axis smaller than the given bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param options See {@link ResizeOptions}
+     * Resizes the image to fit inside the given box, keeping its aspect ratio, and centers it in a box of exactly that
+     * size (like CSS' `object-fit: contain`): the bars where it doesn't fill the box are transparent or the
+     * `background` color. To only resize it to fit inside the box, without the bars, use
+     * `resize({ width, height, fit: 'inside' })`
+     * @param width The width of the box
+     * @param height The height of the box
+     * @param options The background and how to resize, see {@link ContainOptions}
      * @returns The resized image
      */
-    contain(width: number, height: number, options?: ResizeOptions): this;
-    contain(width: number, height: number, options?: ResizeOptions): this {
-        checkOptions(options, 'contain(width, height, { mode: \'area\' })');
-        const resizeOpts = resizeOptions(options);
+    contain(width: number, height: number, options?: ContainOptions): this;
+    contain(width: number, height: number, options?: ContainOptions): this {
+        checkOptions(options, 'contain(width, height, { background: 0x000000ff })');
+        const { background = 0x00000000, ...resizeOpts } = options ?? {};
+        const backgroundColor = checkColor(background, 'background');
+        resizeOptions(resizeOpts);
         width = Math.floor(finite(width, 'width'));
         height = Math.floor(finite(height, 'height'));
-        // round instead of flooring the scaled size, so the limiting axis matches the box exactly
-        const scale = Math.min(width / this.width, height / this.height);
-        return this.resize(Math.max(1, Math.min(width, Math.round(this.width * scale))), Math.max(1, Math.min(height, Math.round(this.height * scale))), resizeOpts);
-    }
-
-    /**
-     * Resizes the image so it is contained in the given bounding box, placing it in the center of the given bounding box.
-     * Always returns the exact dimensions of the bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param options See {@link ResizeOptions}
-     * @returns The resized image
-     */
-    fit(width: number, height: number, options?: ResizeOptions): this;
-    fit(width: number, height: number, options?: ResizeOptions): this {
-        checkOptions(options, 'fit(width, height, { mode: \'area\' })');
+        // (checked before anything changes)
+        if (width < 1) throw new RangeError('Image has to be at least 1 pixel wide');
+        if (height < 1) throw new RangeError('Image has to be at least 1 pixel high');
         const result = new Image(width, height);
-        this.contain(width, height, options);
+        if (backgroundColor !== 0) result.fill(backgroundColor);
+        this.resize(...insideSize(this.width, this.height, width, height), resizeOpts);
         const x = (width - this.width) / 2 | 0, y = (height - this.height) / 2 | 0;
         result.composite(this, { x, y });
         this.__gain_map__?.__transform__(this.width, this.height, result.width, result.height, (X, Y) => [X - x, Y - y]);
@@ -1028,7 +1033,8 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __resized_size__(width: number | undefined, height: number | undefined): [width: number, height: number] {
+    protected __resized_size__(width: number | undefined, height: number | undefined, fit: 'fill' | 'inside' = 'fill'): [width: number, height: number] {
+        if (fit === 'inside' && width !== undefined && height !== undefined) return insideSize(this.width, this.height, width, height);
         // a side left out follows the other one, keeping the aspect ratio
         if (width === undefined) return [Math.max(1, Math.round(this.width / this.height * Math.floor(height as number))), height as number];
         if (height === undefined) return [width, Math.max(1, Math.round(this.height / this.width * Math.floor(width)))];
@@ -3035,16 +3041,28 @@ interface HSLA {
  * The width, height and mode of resize()'s signatures: a side left out of the options is `undefined`
  * @internal
  */
-export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, options?: ResizeOptions): [width: number | undefined, height: number | undefined, options: ResizeOptions | undefined] {
+export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, options?: ResizeOptions): [width: number | undefined, height: number | undefined, options: ResizeOptions | undefined, fit: 'fill' | 'inside'] {
     if (!isOptions(widthOrOptions)) {
         checkOptions(options, 'resize(width, height, { mode: \'area\' })');
         // without a height, the aspect ratio would be kept silently (3.x refused that call)
         if (height === undefined) throw new TypeError(`resize() needs a height or the options form, like resize({ width: ${widthOrOptions} }) to keep the aspect ratio`);
-        return [finite(widthOrOptions, 'width'), finite(height, 'height'), options];
+        return [finite(widthOrOptions, 'width'), finite(height, 'height'), options, 'fill'];
     }
-    const { width, height: optionsHeight, ...rest } = widthOrOptions;
+    const { width, height: optionsHeight, fit = 'fill', ...rest } = widthOrOptions;
     if (width === undefined && optionsHeight === undefined) throw new TypeError('resize() needs a width, a height or both');
-    return [width, optionsHeight, rest];
+    if (fit !== 'fill' && fit !== 'inside') throw new TypeError(`fit must be 'fill' or 'inside', not ${String(fit)}`);
+    return [width === undefined ? undefined : finite(width, 'width'), optionsHeight === undefined ? undefined : finite(optionsHeight, 'height'), rest, fit];
+}
+
+/**
+ * The size of an image of `width` x `height` resized to fit inside a box of `boxWidth` x `boxHeight`, keeping its aspect
+ * ratio: the limiting side matches the box exactly (rounded instead of floored), the other one is at least 1 pixel
+ */
+export function insideSize(width: number, height: number, boxWidth: number, boxHeight: number): [width: number, height: number] {
+    boxWidth = Math.floor(boxWidth);
+    boxHeight = Math.floor(boxHeight);
+    const scale = Math.min(boxWidth / width, boxHeight / height);
+    return [Math.max(1, Math.min(boxWidth, Math.round(width * scale))), Math.max(1, Math.min(boxHeight, Math.round(height * scale)))];
 }
 
 function resizeOptions(options?: ResizeOptions): { mode: ResizeMode, fast: boolean } {

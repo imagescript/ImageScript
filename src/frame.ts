@@ -232,11 +232,11 @@ export class Frame extends Image {
      */
     override resize(options: ResizeToOptions): this;
     override resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
-        const [width, height, options] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
+        const [width, height, options, fit] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
         const originalWidth = this.width;
         const originalHeight = this.height;
 
-        super.resize(...this.__resized_size__(width, height), options);
+        super.resize(...this.__resized_size__(width, height, fit), options);
 
         this.xOffset = Math.round(this.xOffset * this.width / originalWidth);
         this.yOffset = Math.round(this.yOffset * this.height / originalHeight);

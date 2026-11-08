@@ -21,10 +21,10 @@ const sameImage = (image, reference, label) => {
 (async () => {
 	const photo = new Image(20, 12).fill((x, y) => 0x336699ff + x * 0x01000000 + y * 0x00010000 >>> 0);
 
-	// resize, scale, contain, fit and cover take the resizing mode in the options only
+	// resize, scale, contain and cover take the resizing mode in the options only
 	const modes = {'a mode name': ResizeModes.AREA, 'a string': 'bilinear', 'an unknown mode': 'Area', 'null': null};
 	for (const [label, mode] of Object.entries(modes)) {
-		for (const method of ['resize', 'contain', 'fit', 'cover']) {
+		for (const method of ['resize', 'contain', 'cover']) {
 			const image = photo.clone();
 			const error = await rejects(() => image[method](10, 6, mode), `${method}(10, 6, ${label})`);
 			if (!/takes an options object/.test(error.message)) panic(`${method}(10, 6, ${label}): the message should name the options form, got ${error.message}`);
@@ -164,8 +164,8 @@ const sameImage = (image, reference, label) => {
 	if (photo.clone().resize(10, 6).height !== 6) panic('resize(10, 6)');
 	if (photo.clone().resize(10, 6, undefined).height !== 6) panic('resize(10, 6, undefined)');
 	if (photo.clone().scale(0.5, {mode: ResizeModes.AREA}).width !== 10) panic('scale(0.5, { mode })');
-	if (photo.clone().contain(10, 10, {mode: ResizeModes.AREA}).width !== 10) panic('contain(10, 10, { mode })');
-	if (photo.clone().fit(10, 10, {mode: ResizeModes.AREA}).height !== 10) panic('fit(10, 10, { mode })');
+	if (photo.clone().resize({width: 10, height: 10, fit: 'inside', mode: ResizeModes.AREA}).width !== 10) panic('resize({ width, height, fit: \'inside\', mode })');
+	if (photo.clone().contain(10, 10, {mode: ResizeModes.AREA}).height !== 10) panic('contain(10, 10, { mode })');
 	if (photo.clone().cover(10, 10, {mode: ResizeModes.AREA}).width !== 10) panic('cover(10, 10, { mode })');
 	if (new Frame(20, 12).resize(10, 6, {mode: ResizeModes.AREA}).width !== 10) panic('Frame.resize(10, 6, { mode })');
 	if (new Animation([new Frame(20, 12)]).resize(10, 6, {mode: ResizeModes.AREA}).frames[0].width !== 10) panic('Animation.resize(10, 6, { mode })');

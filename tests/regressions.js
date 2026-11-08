@@ -182,7 +182,9 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
                 const covered = new Image(width, 61).cover(target, 33);
                 assert(covered.width === target && covered.height === 33, `cover(${target}, 33) of ${width}x61 returned ${covered}`);
                 const contained = new Image(width, 61).contain(target, 33);
-                assert((contained.width === target || contained.height === 33) && contained.width <= target && contained.height <= 33, `contain(${target}, 33) of ${width}x61 returned ${contained}`);
+                assert(contained.width === target && contained.height === 33, `contain(${target}, 33) of ${width}x61 returned ${contained}`);
+                const inside = new Image(width, 61).resize({width: target, height: 33, fit: 'inside'});
+                assert((inside.width === target || inside.height === 33) && inside.width <= target && inside.height <= 33, `resize({ width: ${target}, height: 33, fit: 'inside' }) of ${width}x61 returned ${inside}`);
             }
         }
     }
