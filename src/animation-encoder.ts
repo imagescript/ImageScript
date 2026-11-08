@@ -1,4 +1,5 @@
 import * as gifCodec from './codecs/gif.ts';
+import { paletteOptions } from './codecs/quantize.ts';
 import * as png from './codecs/png.ts';
 import * as webp from './codecs/webp.ts';
 import { Image } from './image.ts';
@@ -7,7 +8,7 @@ import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, cov
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { checkOptions, finite, compressionLevel, loopCount, toPlays, fitLoops } from './util/options.ts';
-import type { AnimationOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
+import type { AnimationOptions, WebPAnimationEncodeOptions, GIFAnimationEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
 interface Format {
@@ -121,8 +122,9 @@ export class AnimationEncoder {
     }
 
     /** @internal */
-    static __gif__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, quality: qualityOption = 95 }: GIFEncodeOptions & AnimationOptions): AnimationEncoder {
-        const quality = finite(qualityOption, 'quality');
+    static __gif__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, colors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85 }: GIFAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
+        const checked = paletteOptions(colors, dither, ditherStrength);
+        const palette = { colors: checked.colors as number, dither: checked.dither, strength: checked.strength };
         const loops = fitLoops(loopCount(count), 'GIF');
         canvas(width, height);
         const comments = gifComments(resolveMetadata(metadata));
@@ -139,11 +141,11 @@ export class AnimationEncoder {
                     delay: Math.round(f.duration / 10) };
                 restores ||= gif.dispose === 3;
                 if (!first) first = gif;
-                else rest.push(gifCodec.encodeFrame(gif, quality, gif.dispose === 3));
+                else rest.push(gifCodec.encodeFrame(gif, palette, gif.dispose === 3));
             },
             file() {
                 const f = first as gifCodec.GIFFrame;
-                return concat([gifCodec.header(width, height, loops, comments), gifCodec.encodeFrame(f, quality, f.dispose === 3 || restores), ...rest, new Uint8Array([0x3b])]);
+                return concat([gifCodec.header(width, height, loops, comments), gifCodec.encodeFrame(f, palette, f.dispose === 3 || restores), ...rest, new Uint8Array([0x3b])]);
             }
         }, optimize);
     }

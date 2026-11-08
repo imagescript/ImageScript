@@ -44,11 +44,13 @@ const rejects = async (name, fn, Type, pattern) => {
         await rejects(`encodeAVIF subsampling ${subsampling}`, () => image.encodeAVIF({subsampling}), TypeError, /subsampling must be/);
 
     // GIF quality and APNG compression are clamped (like PNG's), but have to be numbers
-    await rejects('encodeGIF quality NaN', () => animation().encodeGIF({quality: NaN}), RangeError, /quality/);
-    await rejects('gifEncoder quality NaN', () => encoded(Animation.gifEncoder(8, 8, {quality: NaN})), RangeError, /quality/);
+    await rejects('encodeGIF colors NaN', () => animation().encodeGIF({colors: NaN}), RangeError, /colors/);
+    await rejects('gifEncoder colors NaN', () => encoded(Animation.gifEncoder(8, 8, {colors: NaN})), RangeError, /colors/);
+    await rejects('encodeGIF colors 1', () => animation().encodeGIF({colors: 1}), RangeError, /colors/);
+    await rejects('encodeGIF dither', () => animation().encodeGIF({dither: 'random'}), TypeError, /dither/);
     await rejects('encodeAPNG compression NaN', () => animation().encodeAPNG({compression: NaN}), RangeError, /compression level/);
     await rejects('apngEncoder compression NaN', () => encoded(Animation.apngEncoder(8, 8, {compression: NaN})), RangeError, /compression level/);
-    if (!(await animation().encodeGIF({quality: 1000})).length || !(await animation().encodeAPNG({compression: 12})).length) panic('clamped values rejected');
+    if (!(await animation().encodeAPNG({compression: 12})).length) panic('clamped values rejected');
 
     await rejects('Animation loopCount 1.5', () => new Animation([new Frame(8, 8)], {loopCount: 1.5}), RangeError, /loop count/);
     await rejects('dominantColor threshold NaN', () => image.dominantColor({threshold: NaN}), RangeError, /threshold/);

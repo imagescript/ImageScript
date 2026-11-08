@@ -18,7 +18,7 @@ const panic = message => {
     const gif = new Animation(frames);
 
     if (process.env.OVERWRITE_TEST)
-        await fs.writeFile('./tests/targets/gif.gif', await gif.encodeGIF({quality: 1}));
+        await fs.writeFile('./tests/targets/gif.gif', await gif.encodeGIF({colors: 8}));
 
     {
         const binary = await fs.readFile('./tests/targets/gif.gif');

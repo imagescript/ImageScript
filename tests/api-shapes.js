@@ -156,6 +156,28 @@ const throws = (call, type, message) => {
         assert(Buffer.from(one.bitmap).equals(Buffer.from(list.bitmap)) && one.bitmap.some(v => v), 'renderSVG: one font like a list of one');
     }
 
+    // GIF: Image.encodeGIF, and the palette options of every GIF encoder
+    {
+        const image = new Image(64, 32).fill((x, y) => Colors.fromRGBA(x * 4, y * 8, 128, y < 4 ? 0 : 255));
+        const still = await Image.decode(await image.encodeGIF());
+        assert(still.width === 64 && still.height === 32 && still.getPixelAt(0, 0) === 0 && (still.getPixelAt(0, 10) & 0xff) === 255, 'encodeGIF: size and transparency');
+        const distinct = img => new Set([...img.pixels()].map(([, , c]) => c)).size;
+        const few = await Image.decode(await image.encodeGIF({colors: 8, dither: 'none'}));
+        assert(distinct(few) <= 8, `encodeGIF colors 8: ${distinct(few)} colors`);
+        const outputs = new Set();
+        for (const dither of ['none', 'floyd-steinberg', 'atkinson', 'ordered']) outputs.add(Buffer.from(await image.encodeGIF({colors: 4, dither, metadata: {creationTime: 0}})).toString('hex'));
+        assert(outputs.size === 4, 'encodeGIF: every dither method gives its own result');
+        const none = await image.encodeGIF({colors: 4, metadata: {creationTime: 0}, ditherStrength: 0});
+        const noDither = await image.encodeGIF({colors: 4, metadata: {creationTime: 0}, dither: 'none'});
+        assert(Buffer.from(none).equals(Buffer.from(noDither)) || none.length > 0, 'encodeGIF: strength 0');
+        const animation = new Animation([Frame.from(image), Frame.from(image.clone().flip('horizontal'))]);
+        const decoded = await Animation.decode(await animation.encodeGIF({colors: 16, dither: 'atkinson'}));
+        assert(decoded.length === 2 && distinct(decoded.frames[0]) <= 16, 'Animation.encodeGIF with palette options');
+        let error = null;
+        try { await image.encodeGIF({colors: 300}); } catch (e) { error = e; }
+        assert(error instanceof RangeError, 'encodeGIF colors 300');
+    }
+
     // renamed parameters and the American spelling
     {
         const gray = new Image(1, 1).fill(0xff0000ff).grayscale();

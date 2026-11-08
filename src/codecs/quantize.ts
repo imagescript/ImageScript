@@ -2,19 +2,37 @@
 // perceptual channel weights for squared color distances
 const WR = 3, WG = 4, WB = 2;
 
-/**
- * Reduces RGBA pixel data to an indexed palette
- * Pixels with alpha < 128 are mapped to a dedicated transparent index
- * @param {Uint8Array} pixels RGBA pixel data
- * @param {number} width Image width in pixels (needed for dithering)
- * @param {{maxColors?: number, quality?: number}} [options] quality (1-100) scales the palette size exponentially (1 = 8 colors, 50 = 55, 90 and above = 256)
- * @return {{palette: Uint8Array, indices: Uint8Array, transparentIndex: number}} palette is packed RGB, transparentIndex is -1 if unused
- */
+/** Options of quantize(): the palette size and the dithering */
 export interface QuantizeOptions {
+    /** the most palette entries, the transparent one included */
     maxColors?: number;
-    quality?: number;
+    /** how the rounding error is spread (Floyd-Steinberg by default) */
+    dither?: DitherMethod;
+    /** how strongly (0-1) */
+    ditherStrength?: number;
     /** whether to have a transparent index even if no pixel is transparent */
     transparent?: boolean;
+}
+
+/** The dithering methods of Image.quantize() and the GIF encoders */
+export const DITHER_METHODS = ['none', 'floyd-steinberg', 'atkinson', 'ordered'] as const;
+export type DitherMethod = typeof DITHER_METHODS[number];
+
+/**
+ * Checks palette options (`colors` from 2 to 256, a dither method, a strength 0-1) before anything changes, with the
+ * messages of Image.quantize()
+ */
+export function paletteOptions(colors: number | undefined, dither: unknown, ditherStrength: number): { colors: number | undefined, dither: DitherMethod, strength: number } {
+    let count: number | undefined;
+    if (colors !== undefined) {
+        count = Number(colors);
+        if (!Number.isInteger(count) || count < 2 || count > 256) throw new RangeError(`colors must be an integer from 2 to 256, not ${colors}`);
+    }
+    if (!(DITHER_METHODS as readonly unknown[]).includes(dither)) throw new TypeError(`dither must be one of ${DITHER_METHODS.map(name => `'${name}'`).join(', ')}, not ${String(dither)}`);
+    const strength = Number(ditherStrength);
+    if (!Number.isFinite(strength)) throw new RangeError(`Invalid ditherStrength: ${ditherStrength}`);
+    if (strength < 0 || strength > 1) throw new RangeError(`ditherStrength must be 0-1, not ${ditherStrength}`);
+    return { colors: count, dither: dither as DitherMethod, strength };
 }
 
 export interface Quantized {
@@ -61,7 +79,11 @@ interface Box {
     error: number;
 }
 
-export function quantize(pixels: Uint8Array, width: number, { maxColors = 256, quality = 95, transparent = false }: QuantizeOptions = {}): Quantized {
+/**
+ * Reduces RGBA pixel data to an indexed palette (packed RGB). Pixels with alpha < 128 are mapped to a dedicated
+ * transparent index (-1 if unused)
+ */
+export function quantize(pixels: Uint8Array, width: number, { maxColors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85, transparent = false }: QuantizeOptions = {}): Quantized {
     const length = pixels.length >> 2;
     let hasTransparency = transparent;
     for (let i = 3; i < pixels.length; i += 4)
@@ -70,16 +92,14 @@ export function quantize(pixels: Uint8Array, width: number, { maxColors = 256, q
             break;
         }
 
-    quality = Math.min(100, Math.max(1, quality));
-    const limit = Math.min(maxColors, Math.round(8 * 32 ** (Math.min(quality, 90) / 90)));
-    const colors = hasTransparency ? limit - 1 : limit;
+    const colors = hasTransparency ? maxColors - 1 : maxColors;
     const exact = exactPalette(pixels, colors);
 
     let palette: Uint8Array, indices: Uint8Array;
     if (exact) ({ palette, indices } = exact);
     else {
-        palette = Uint8Array.from(medianCut(pixels, colors, Math.ceil(quality / 25)).palette, Math.round);
-        indices = ditherMap(pixels, width, palette, palette.length / 3);
+        palette = Uint8Array.from(medianCut(pixels, colors, 4).palette, Math.round);
+        indices = dither === 'floyd-steinberg' ? ditherMap(pixels, width, palette, palette.length / 3, ditherStrength) : paletteIndices(pixels, width, palette, dither, ditherStrength);
     }
 
     let transparentIndex = -1;
@@ -444,15 +464,25 @@ function createLookup(palette: Uint8Array, entries: number): (r: number, g: numb
     };
 }
 
+// the palette indices of the pixels mapped by applyPalette() (no dithering, Atkinson or ordered)
+function paletteIndices(pixels: Uint8Array, width: number, palette: Uint8Array, dither: DitherMethod, strength: number): Uint8Array {
+    const mapped = pixels.slice();
+    applyPalette(mapped, width, (pixels.length >> 2) / width, palette, dither, strength);
+    const lookup = new Map<number, number>();
+    for (let i = palette.length / 3 - 1; i >= 0; i--) lookup.set(palette[i * 3] << 16 | palette[i * 3 + 1] << 8 | palette[i * 3 + 2], i);
+    const indices = new Uint8Array(pixels.length >> 2);
+    for (let p = 0; p < indices.length; p++) indices[p] = lookup.get(mapped[p * 4] << 16 | mapped[p * 4 + 1] << 8 | mapped[p * 4 + 2]) ?? 0;
+    return indices;
+}
+
 // serpentine floyd-steinberg error diffusion
-function ditherMap(pixels: Uint8Array, width: number, palette: Uint8Array, entries: number): Uint8Array {
+function ditherMap(pixels: Uint8Array, width: number, palette: Uint8Array, entries: number, strength: number): Uint8Array {
     const height = (pixels.length >> 2) / width;
     const lookup = createLookup(palette, entries);
     const indices = new Uint8Array(pixels.length >> 2);
 
     let current = new Float32Array((width + 2) * 3);
     let next = new Float32Array((width + 2) * 3);
-    const strength = 0.85;
 
     for (let y = 0; y < height; y++) {
         const reverse = y & 1;

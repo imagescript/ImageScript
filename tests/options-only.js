@@ -93,7 +93,7 @@ const sameImage = (image, reference, label) => {
 		if (!/takes/.test(error.message)) panic(`${label}: the message should name the form, got ${error.message}`);
 	}
 	if (!Buffer.from(await photo.encodePNG({compression: 1, metadata: {author: 'me'}})).includes('me')) panic('encodePNG({ metadata }): the metadata is missing');
-	if (!(await photo.encodeJPEG({quality: 80})).length || !(await makeAnimation().encodeGIF({quality: 10})).length) panic('encoders with options');
+	if (!(await photo.encodeJPEG({quality: 80})).length || !(await makeAnimation().encodeGIF({colors: 16})).length) panic('encoders with options');
 	if (!(await gainMap.encode({quality: 70})).length || !(await gainMap.encode()).length) panic('GainMap.encode with options');
 
 	// renderSVG takes its size and mode in the options object only

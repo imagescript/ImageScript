@@ -27,7 +27,7 @@ import { BinaryData, view } from './util/mem.ts';
 import { cicpTransform, colorSpaceTransform, profileTransform } from './util/icc.ts';
 import { ImageType } from './image-type.ts';
 import { TextLayout, TextLayoutOptions } from './text-layout.ts';
-import { Metadata, resolveMetadata, pngText, exifData } from './metadata.ts';
+import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
@@ -121,8 +121,14 @@ export interface SharpenOptions {
     radius?: number;
 }
 
-// the dithering methods of Image.quantize()
-const DITHER_METHODS = ['none', 'floyd-steinberg', 'atkinson', 'ordered'] as const;
+/**
+ * How the rounding error of each pixel is handled when colors are reduced to a palette ({@link Image.quantize},
+ * {@link Image.encodeGIF}): `'none'` (each pixel takes its nearest color), `'floyd-steinberg'` (the error goes to the next
+ * pixels, 7/16, 3/16, 5/16 and 1/16), `'atkinson'` (the error goes to six neighbors, 1/8 each: lighter, more contrast),
+ * `'ordered'` (a regular 4x4 pattern of thresholds, no error spreading). Rows alternate direction for the error
+ * diffusions
+ */
+export type DitherMethod = 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered';
 
 /** Options of {@link Image.quantize}: either `colors` or `palette`, and the dithering */
 export interface QuantizeOptions {
@@ -139,13 +145,10 @@ export interface QuantizeOptions {
      */
     palette?: Color[];
     /**
-     * How the rounding error of each pixel is handled, which makes gradients look smooth with few colors:
-     * `'none'` (each pixel takes its nearest color), `'floyd-steinberg'` (the error goes to the next pixels, 7/16, 3/16,
-     * 5/16 and 1/16), `'atkinson'` (the error goes to six neighbors, 1/8 each: lighter, more contrast), `'ordered'` (a
-     * regular 4x4 pattern of thresholds, no error spreading). Rows alternate direction for the error diffusions.
-     * Default: `'none'`
+     * How the rounding error of each pixel is handled, which makes gradients look smooth with few colors, see
+     * {@link DitherMethod}. Default: `'none'`
      */
-    dither?: 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered';
+    dither?: DitherMethod;
     /**
      * How strongly to dither, from `0` (no spreading or threshold, the same as `'none'`) to `1` (the full error or
      * threshold). Default: `1`
@@ -273,6 +276,19 @@ export interface PNGEncodeOptions extends EncodeOptions {
 
 /** Options of {@link Image.encodeTGA} */
 export type TGAEncodeOptions = EncodeOptions;
+
+/** Options of {@link Image.encodeGIF}, and of {@link Animation.encodeGIF} with {@link GIFAnimationEncodeOptions} */
+export interface GIFEncodeOptions extends EncodeOptions {
+    /**
+     * The most colors in the palette (of each frame), an integer from 2 to 256, a transparent one included. Images with
+     * no more colors keep them exactly, others get a palette by median cut. Default: `256`
+     */
+    colors?: number;
+    /** How the rounding error is spread when the colors don't fit the palette, see {@link DitherMethod}. Default: `'floyd-steinberg'` */
+    dither?: DitherMethod;
+    /** How strongly to dither, from `0` (like `'none'`) to `1` (the full error). Default: `0.85` */
+    ditherStrength?: number;
+}
 
 /** Options of {@link Image.encodeJPEG} */
 export interface JPEGEncodeOptions extends EncodeOptions {
@@ -1700,13 +1716,10 @@ export class Image {
                 packed[i * 3 + 2] = value >>> 8 & 255;
             });
             fixed = packed;
-        } else if (colors !== undefined) {
-            count = finite(colors, 'colors');
-            if (!Number.isInteger(count) || count < 2 || count > 256) throw new RangeError(`colors must be an integer from 2 to 256, not ${colors}`);
         }
-        if (!(DITHER_METHODS as readonly unknown[]).includes(dither)) throw new TypeError(`dither must be one of ${DITHER_METHODS.map(name => `'${name}'`).join(', ')}, not ${String(dither)}`);
-        const strength = finite(ditherStrength, 'ditherStrength');
-        if (strength < 0 || strength > 1) throw new RangeError(`ditherStrength must be 0-1, not ${ditherStrength}`);
+        const checked = quantize.paletteOptions(palette === undefined ? colors : undefined, dither, ditherStrength);
+        if (checked.colors !== undefined) count = checked.colors;
+        const strength = checked.strength;
 
         const reduce = (image: Image): void => {
             const bytes = image.__bytes__();
@@ -2450,6 +2463,20 @@ export class Image {
         const { metadata = {} } = options;
         const { author, comment, creationTime: time, software } = resolveMetadata(metadata);
         return tga.encode(this.__bytes__(), this.width, this.height, { author, comment, time, software });
+    }
+
+    /**
+     * Encodes the image as a GIF (one frame): at most 256 colors, transparency only on or off (pixels with an alpha below
+     * 128 become transparent). For animations, see {@link Animation.encodeGIF}
+     * @param options The palette size, the dithering and the metadata, see {@link GIFEncodeOptions}
+     */
+    async encodeGIF(options: GIFEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
+        checkOptions(options, 'image.encodeGIF({ colors: 64 })');
+        const { colors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85, metadata = {} } = options;
+        const palette = quantize.paletteOptions(colors, dither, ditherStrength);
+        if (this.width > 0xffff || this.height > 0xffff) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${this.width}x${this.height}`);
+        const frame = { x: 0, y: 0, width: this.width, height: this.height, delay: 0, dispose: 1, pixels: this.__bytes__() };
+        return gif.encode({ width: this.width, height: this.height, loopCount: 0, frames: [frame] }, { colors: palette.colors as number, dither: palette.dither, strength: palette.strength }, gifComments(resolveMetadata(metadata)));
     }
 
     /**

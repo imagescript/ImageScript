@@ -1,5 +1,5 @@
 import { ByteWriter } from '../util/bytes.ts';
-import { quantize } from './quantize.ts';
+import { quantize, type DitherMethod } from './quantize.ts';
 import { MAX_PIXELS, PixelBudget, checkPixels } from '../util/limits.ts';
 
 // ImageScript disposal modes (any, keep, previous, background) <-> GIF disposal methods (unspecified, none, background, previous)
@@ -60,22 +60,24 @@ interface GraphicControl {
     transparentIndex: number;
 }
 
+/** The palette of every frame: its size (at most 256 colors, the transparent one included) and the dithering */
+export interface GIFPalette {
+    colors: number;
+    dither: DitherMethod;
+    strength: number;
+}
+
 /**
- * Encodes frames into a GIF
- * @param {{width: number, height: number, loopCount?: number, frames: GIFFrame[]}} gif loopCount Infinity loops forever, 0 plays once, n repeats n times
- * @param {number} [quality=95] 1-100, scales the palette size (1 = 8 colors, 50 = 55, 90 and above = 256)
- * @return {Uint8Array}
+ * Encodes frames into a GIF. `loopCount`: Infinity loops forever, 0 plays once (no loop extension), n repeats n times;
+ * `comments` are written as comment extensions
  */
-/**
- * @param comments written as comment extensions
- */
-export function encode({ width, height, loopCount = Infinity, frames }: Omit<GIFData, 'loopCount'> & { loopCount?: number }, quality = 95, comments: Uint8Array[] = []): Uint8Array {
+export function encode({ width, height, loopCount = Infinity, frames }: Omit<GIFData, 'loopCount'> & { loopCount?: number }, palette: GIFPalette, comments: Uint8Array[] = []): Uint8Array {
     // frames that restore the background have a transparent index: decoders like Pillow and ffmpeg restore to it
     // (browsers to transparent), otherwise to the background color. So does the first frame then: Pillow decides by it
     // whether the animation has transparency at all
     const restores = frames.some(frame => frame.dispose === 3);
     const parts = [header(width, height, loopCount, comments)];
-    for (const [i, frame] of frames.entries()) parts.push(encodeFrame(frame, quality, frame.dispose === 3 || (i === 0 && restores)));
+    for (const [i, frame] of frames.entries()) parts.push(encodeFrame(frame, palette, frame.dispose === 3 || (i === 0 && restores)));
     parts.push(new Uint8Array([0x3b]));
     const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
     let offset = 0;
@@ -111,9 +113,9 @@ export function header(width: number, height: number, loopCount: number, comment
 }
 
 /** A frame (its graphic control extension, image descriptor, color table and pixels), with a transparent index if asked */
-export function encodeFrame(frame: GIFFrame, quality: number, transparent: boolean): Uint8Array {
+export function encodeFrame(frame: GIFFrame, colors: GIFPalette, transparent: boolean): Uint8Array {
     const out = new GIFWriter();
-    const { palette, indices, transparentIndex } = quantize(frame.pixels, frame.width, { quality, transparent });
+    const { palette, indices, transparentIndex } = quantize(frame.pixels, frame.width, { maxColors: colors.colors, dither: colors.dither, ditherStrength: colors.strength, transparent });
     const entries = palette.length / 3;
     const bits = Math.max(1, Math.ceil(Math.log2(entries)));
 

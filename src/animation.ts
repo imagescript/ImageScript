@@ -6,11 +6,12 @@ import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
-import { Image, DecodeOptions, ContainOptions, ResizeOptions, ResizeToOptions, resizeArguments, insideSize } from './image.ts';
+import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ContainOptions, ResizeOptions, ResizeToOptions, resizeArguments, insideSize } from './image.ts';
 import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
-import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
+import { paletteOptions } from './codecs/quantize.ts';
+import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { checkOptions, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
@@ -47,9 +48,7 @@ export interface AnimationCanvasOptions extends AnimationOptions {
 }
 
 /** The options all animation encoders have */
-export interface AnimationEncodeOptions {
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
+export interface AnimationEncodeOptions extends EncodeOptions {
     /**
      * Whether to store each frame as the area that changed since the frame before and merge identical frames, which
      * usually makes files a lot smaller. The file shows the same animation either way, but only decodes to the same
@@ -74,11 +73,8 @@ export interface WebPAnimationEncodeOptions extends AnimationEncodeOptions {
     alphaQuality?: number;
 }
 
-/** Options of {@link Animation.encodeGIF} */
-export interface GIFEncodeOptions extends AnimationEncodeOptions {
-    /** 1-100, scales the palette size from 8 colors (1) to 256 colors (90 and above). Default: `95` */
-    quality?: number;
-}
+/** Options of {@link Animation.encodeGIF} and {@link Animation.gifEncoder}: the palette of {@link GIFEncodeOptions} and the animation options */
+export interface GIFAnimationEncodeOptions extends GIFEncodeOptions, AnimationEncodeOptions {}
 
 /** Options of {@link Animation.encodeAPNG} */
 export interface APNGEncodeOptions extends AnimationEncodeOptions {
@@ -350,12 +346,13 @@ export class Animation {
      * before and merges identical frames (unless the `optimize` option is false), so the file decodes to what the
      * animation shows, but not necessarily to the same frames. Semi-transparent pixels become opaque or transparent
      * after the frames are composited
-     * @param options See {@link GIFEncodeOptions}
+     * @param options See {@link GIFAnimationEncodeOptions}
      */
-    encodeGIF(options?: GIFEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
-    async encodeGIF(options: GIFEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
-        checkOptions(options, 'encodeGIF({ quality: 80 })');
-        const { quality = 95, metadata = {}, optimize = true } = options;
+    encodeGIF(options?: GIFAnimationEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
+    async encodeGIF(options: GIFAnimationEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
+        checkOptions(options, 'encodeGIF({ colors: 64 })');
+        const { colors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85, metadata = {}, optimize = true } = options;
+        const palette = paletteOptions(colors, dither, ditherStrength);
         const loops = fitLoops(this.loopCount, 'GIF');
         this.__validate__();
         const frames = optimize
@@ -372,7 +369,7 @@ export class Animation {
         // gifs store centiseconds; rounding keeps e.g. 16 ms (60 fps) from becoming 10 ms
         const gifFrames = frames.map(({ duration, ...f }) => ({ ...f, delay: Math.round(duration / 10) }));
 
-        return gifCodec.encode({ width: this.width, height: this.height, loopCount: loops, frames: gifFrames }, finite(quality, 'quality'), gifComments(resolveMetadata(metadata)));
+        return gifCodec.encode({ width: this.width, height: this.height, loopCount: loops, frames: gifFrames }, { colors: palette.colors as number, dither: palette.dither, strength: palette.strength }, gifComments(resolveMetadata(metadata)));
     }
 
     /**
@@ -489,10 +486,10 @@ export class Animation {
      * without keeping the frames in memory: `await encoder.add(frame)` for each frame, then `await encoder.finish()`
      * @param width The canvas width
      * @param height The canvas height
-     * @param options See {@link GIFEncodeOptions}, and {@link AnimationOptions.loopCount}
+     * @param options See {@link GIFAnimationEncodeOptions}, and {@link AnimationOptions.loopCount}
      */
-    static gifEncoder(width: number, height: number, options: GIFEncodeOptions & AnimationOptions = {}): AnimationEncoder {
-        checkOptions(options, 'Animation.gifEncoder(width, height, { quality: 80 })');
+    static gifEncoder(width: number, height: number, options: GIFAnimationEncodeOptions & AnimationOptions = {}): AnimationEncoder {
+        checkOptions(options, 'Animation.gifEncoder(width, height, { colors: 64 })');
         return AnimationEncoder.__gif__(width, height, options);
     }
 
