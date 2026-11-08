@@ -27,6 +27,8 @@
 
 - **The positional arguments of `composite()`, `rotate()`, `sharpen()`, `dominantColor()`, `roundCorners()`, `fisheye()`, `trim()` and `colorToAlpha()` are removed**: the values go in the options object, which is the only second argument now. `image.composite(logo, 10, 20, { opacity: 0.5 })` is `image.composite(logo, { x: 10, y: 20, opacity: 0.5 })`, `image.sharpen(2, 3)` is `image.sharpen({ amount: 2, radius: 3 })`, `image.rotate(45, false)` is `image.rotate(45, { resize: false })`, `image.dominantColor(true, true, 15)` is `image.dominantColor({ ignoreBlack: true, ignoreWhite: true, threshold: 15 })`, `image.roundCorners(8)` is `image.roundCorners({ radius: 8 })` and `image.fisheye(3)` is `image.fisheye({ strength: 3 })`. `trim(color, options)` and `colorToAlpha(color, options)` take the color as `color` in the options (`trim({ color, tolerance })`, `colorToAlpha({ color, transparencyThreshold })`), and `Frame.trim()` works the same way. A value in the old position throws a `TypeError`.
 
+- **The positional arguments of the encoders are removed**: `encodePNG(compression, metadata)` and `encodePNG(metadata)` are `encodePNG({ compression, metadata })`, `encodeJPEG(quality)` is `encodeJPEG({ quality })`, `Animation.encodeGIF(quality)` is `encodeGIF({ quality })` and `Animation.encodeAPNG(compression)` is `encodeAPNG({ compression })`, and `GainMap.encode(quality)` is `encode({ quality })`. For example, `image.encodePNG(1, { author })` is `image.encodePNG({ compression: 1, metadata: { author } })`, and the metadata alone, `image.encodePNG({ author })`, throws a `TypeError` naming `{ metadata }`, because it would be ignored otherwise.
+
 ## 3.20.1
 
 ### Performance

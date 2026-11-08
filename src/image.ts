@@ -2566,28 +2566,12 @@ export class Image {
      * @return The encoded data
      */
     encodePNG(options?: PNGEncodeOptions): Promise<Uint8Array>;
-    /**
-     * Encodes the image into a PNG
-     * @param compression The compression level (0-9). Default: `4`
-     * @param metadata Metadata to include, see {@link Metadata}
-     * @return The encoded data
-     * @deprecated Pass {@link PNGEncodeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    encodePNG(compression?: number, metadata?: Metadata): Promise<Uint8Array>;
-    /**
-     * Encodes the image into a PNG with compression level 4
-     * @param metadata Metadata to include, see {@link Metadata}
-     * @return The encoded data
-     * @deprecated Pass {@link PNGEncodeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    encodePNG(metadata?: Metadata): Promise<Uint8Array>;
-    async encodePNG(compressionOrOptions: number | PNGEncodeOptions | Metadata = 4, metadataArgument: Metadata = {}): Promise<Uint8Array> {
-        let compression = 4, metadata = metadataArgument;
-        if (!isOptions(compressionOrOptions)) compression = compressionOrOptions;
-        // the options and the metadata have no key in common: an object with neither is empty, the same either way
-        else if ('compression' in compressionOrOptions || 'metadata' in compressionOrOptions)
-            ({ compression = 4, metadata = {} } = compressionOrOptions);
-        else metadata = compressionOrOptions as Metadata;
+    async encodePNG(options: PNGEncodeOptions = {}): Promise<Uint8Array> {
+        checkOptions(options, 'encodePNG({ compression: 9, metadata: { author: \'me\' } })');
+        // the metadata of 3.x passed as the only argument would be ignored: it has to go in { metadata }
+        for (const key of Object.keys(options))
+            if (key !== 'compression' && key !== 'metadata') throw new TypeError(`encodePNG() takes the metadata in { metadata }, like encodePNG({ metadata: { ${key}: ... } }), not ${key} at the top level`);
+        const { compression = 4, metadata = {} } = options;
 
         return png.encodeRGBA(this.__bytes__(), this.width, this.height, compressionLevel(compression), pngText(resolveMetadata(metadata)));
     }
@@ -2597,14 +2581,9 @@ export class Image {
      * @param options See {@link JPEGEncodeOptions}
      */
     encodeJPEG(options?: JPEGEncodeOptions): Promise<Uint8Array>;
-    /**
-     * Encodes the image into a JPEG
-     * @param [quality=90] The JPEG quality to use (1-100), chroma subsampling is disabled above 90
-     * @deprecated Pass {@link JPEGEncodeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    encodeJPEG(quality?: number): Promise<Uint8Array>;
-    async encodeJPEG(qualityOrOptions: number | JPEGEncodeOptions = 90): Promise<Uint8Array> {
-        const { quality = 90, metadata = {}, gainMap: gainMapOption = true } = isOptions(qualityOrOptions) ? qualityOrOptions : { quality: qualityOrOptions };
+    async encodeJPEG(options: JPEGEncodeOptions = {}): Promise<Uint8Array> {
+        checkOptions(options, 'encodeJPEG({ quality: 80 })');
+        const { quality = 90, metadata = {}, gainMap: gainMapOption = true } = options;
         const m = resolveMetadata(metadata);
         const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined };
         const gainMap = this.__gain_map__;

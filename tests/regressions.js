@@ -81,9 +81,9 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // gradients return unsigned colors like rgbaToColor
     assert(Colors.gradient({0: 0xff0000ff, 1: 0xff0000ff})(0.5) === 0xff0000ff, 'gradient: signed color');
 
-    // PNG metadata as the only argument
+    // PNG metadata in { metadata }
     {
-        const encoded = await new Image(1, 1).encodePNG({title: 'regression'});
+        const encoded = await new Image(1, 1).encodePNG({metadata: {title: 'regression'}});
         assert(Buffer.from(encoded).includes(Buffer.from('regression')), 'encode(metadata): title missing');
     }
 
@@ -313,7 +313,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const gradient = new Image(512, 512).fill((x, y) => Colors.fromRGB(x / 2, y / 2, (x + y) / 4));
         const size = (await gradient.encodePNG()).length;
         assert(size < 20000, `PNG: gradient should compress well with row filters, got ${size} bytes`);
-        assert(Buffer.from((await Image.decode(await gradient.encodePNG(9))).bitmap).equals(Buffer.from(gradient.bitmap)), 'PNG: filtered roundtrip failed');
+        assert(Buffer.from((await Image.decode(await gradient.encodePNG({compression: 9}))).bitmap).equals(Buffer.from(gradient.bitmap)), 'PNG: filtered roundtrip failed');
     }
 
     // invertValue inverts HSV value and invertLightness HSL lightness
@@ -567,8 +567,6 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(frame().trim({color: 0x102030ff}).xOffset === 5, 'Frame.trim({color}) moves the offsets');
         assert(same(bordered().colorToAlpha(), bordered().colorToAlpha(undefined)) && same(bordered().colorToAlpha(), bordered().colorToAlpha({})), 'colorToAlpha() without arguments');
         const map = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
-        const a = await map.encode({quality: 70}), b = await map.encode(70);
-        assert(Buffer.from(a).equals(Buffer.from(b)), 'GainMap.encode({quality}) vs encode(quality)');
         assert(Buffer.from(await map.encode()).equals(Buffer.from(await map.encode({}))), 'GainMap.encode() without arguments');
     }
 
@@ -1042,7 +1040,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             cropCircle: v => image().cropCircle({ feathering: v }), opacity: v => image().opacity(v), red: v => image().red(v), lightness: v => image().lightness(v),
             composite: v => image().composite(image(), {x: v, y: 0}), hueShift: v => image().hueShift(v), brightness: v => image().brightness(v), gamma: v => image().gamma(v),
             colorToAlpha: v => image().colorToAlpha({color: v}), rotate: v => image().rotate(v, {resize: false}), gradient: v => Colors.gradient({0: v, 1: 0}),
-            roundCorners: v => image().roundCorners({radius: v}), fisheye: v => image().fisheye({strength: v}), encodePNG: v => image().encodePNG(v), encodeJPEG: v => image().encodeJPEG(v),
+            roundCorners: v => image().roundCorners({radius: v}), fisheye: v => image().fisheye({strength: v}), encodePNG: v => image().encodePNG({compression: v}), encodeJPEG: v => image().encodeJPEG({quality: v}),
             frame: v => new Frame(4, 4, v), animation: v => new Animation([new Frame(4, 4)], v),
         };
         for (const [name, call] of Object.entries(calls))

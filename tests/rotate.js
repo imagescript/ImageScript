@@ -12,7 +12,7 @@ const panic = msg => {
         const image = await Image.decode(binary);
         image.rotate(45);
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/rotate-45.png', encoded);
@@ -25,7 +25,7 @@ const panic = msg => {
         const image = await Image.decode(binary);
         image.rotate(45, {resize: false});
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/rotate-45-noresize.png', encoded);
@@ -39,7 +39,7 @@ const panic = msg => {
         const image = await Image.decode(binary);
         image.rotate(90);
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/rotate-90.png', encoded);
@@ -52,7 +52,7 @@ const panic = msg => {
         const image = await Image.decode(binary);
         image.rotate(180);
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/rotate-180.png', encoded);
@@ -65,7 +65,7 @@ const panic = msg => {
         const image = await Image.decode(binary);
         image.rotate(270);
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/rotate-270.png', encoded);

@@ -34,7 +34,7 @@ export class GIF extends Animation {
      * @deprecated Use {@link Animation.encodeGIF}
      */
     async encode(qualityOrOptions?: number | GIFEncodeOptions): Promise<Uint8Array> {
-        return this.encodeGIF(qualityOrOptions as number);
+        return this.encodeGIF(isOptions(qualityOrOptions) || qualityOrOptions === undefined ? qualityOrOptions : { quality: qualityOrOptions });
     }
 
     /**

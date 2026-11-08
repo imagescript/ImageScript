@@ -12,7 +12,7 @@ import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { isOptions, finite, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
@@ -276,17 +276,9 @@ export class Animation extends Array<Frame> {
      * @param options See {@link GIFEncodeOptions}
      */
     encodeGIF(options?: GIFEncodeOptions): Promise<Uint8Array>;
-    /**
-     * Encodes the animation as GIF. Like all encoders, it stores each frame as the area that changed since the frame
-     * before and merges identical frames (unless the `optimize` option is false), so the file decodes to what the
-     * animation shows, but not necessarily to the same frames. Semi-transparent pixels become opaque or transparent
-     * after the frames are composited
-     * @param quality 1-100, scales the palette size from 8 colors (1) to 256 colors (90 and above)
-     * @deprecated Pass {@link GIFEncodeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    encodeGIF(quality?: number): Promise<Uint8Array>;
-    async encodeGIF(qualityOrOptions: number | GIFEncodeOptions = 95): Promise<Uint8Array> {
-        const { quality = 95, metadata = {}, optimize = true } = isOptions(qualityOrOptions) ? qualityOrOptions : { quality: qualityOrOptions };
+    async encodeGIF(options: GIFEncodeOptions = {}): Promise<Uint8Array> {
+        checkOptions(options, 'encodeGIF({ quality: 80 })');
+        const { quality = 95, metadata = {}, optimize = true } = options;
         this.__validate__();
         const frames = optimize
             ? this.__optimized__({ replace: false, even: false, alpha: 'frame', palette: 256, cover: true }).map(f => ({ ...f, dispose: f.dispose ? 3 : 1 }))
@@ -313,17 +305,9 @@ export class Animation extends Array<Frame> {
      * @param options See {@link APNGEncodeOptions}
      */
     encodeAPNG(options?: APNGEncodeOptions): Promise<Uint8Array>;
-    /**
-     * Encodes the animation as APNG (animated PNG, lossless and with full alpha). Viewers without APNG support show
-     * the first frame. Each frame is stored as the area that changed since the frame before, identical frames are
-     * merged (unless the `optimize` option is false): the file shows exactly the same animation, but doesn't
-     * necessarily decode to the same frames
-     * @param compression The zlib compression level (0-9), higher is smaller but slower. Default: `4`
-     * @deprecated Pass {@link APNGEncodeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    encodeAPNG(compression?: number): Promise<Uint8Array>;
-    async encodeAPNG(compressionOrOptions: number | APNGEncodeOptions = 4): Promise<Uint8Array> {
-        const { compression = 4, metadata = {}, optimize = true } = isOptions(compressionOrOptions) ? compressionOrOptions : { compression: compressionOrOptions };
+    async encodeAPNG(options: APNGEncodeOptions = {}): Promise<Uint8Array> {
+        checkOptions(options, 'encodeAPNG({ compression: 9 })');
+        const { compression = 4, metadata = {}, optimize = true } = options;
         this.__validate__();
         if (!this.length) throw new Error('An animation needs at least one frame');
 

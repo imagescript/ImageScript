@@ -12,7 +12,7 @@ const panic = message => {
         const image = new Image(512, 512);
         image.fill(0xff8000ff);
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/fill-static.png', encoded);
@@ -25,7 +25,7 @@ const panic = message => {
         const image = new Image(512, 512);
         image.fill((x, y) => Colors.fromHSL((x + y) / (image.width + image.height), 1, .5));
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/fill-func.png', encoded);

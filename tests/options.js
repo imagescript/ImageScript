@@ -24,13 +24,9 @@ const same = (name, a, b) => {
     same('roundCorners default', tile().roundCorners(), tile().roundCorners({}));
     same('fisheye default', tile().fisheye(), tile().fisheye({}));
 
-    // encoders: decoded, since the metadata has a creation time
-    const pixelsOf = async data => (await Image.decode(data)).bitmap;
-    same('encode', await pixelsOf(await tile().encodePNG(9)), await pixelsOf(await tile().encodePNG({compression: 9})));
-    same('encodeJPEG', await pixelsOf(await tile().encodeJPEG(40)), await pixelsOf(await tile().encodeJPEG({quality: 40})));
-    // metadata as the first argument (3.x), and in the options
+    // the metadata goes in { metadata }
     const author = 'options test';
-    for (const data of [await tile().encodePNG({author}), await tile().encodePNG({metadata: {author}}), await tile().encodePNG(1, {author})])
+    for (const data of [await tile().encodePNG({metadata: {author}}), await tile().encodePNG({compression: 1, metadata: {author}})])
         if (!Buffer.from(data).includes(author)) panic('encode: metadata missing');
     if (!Buffer.from(await tile().encodeJPEG({metadata: {author}})).includes(author)) panic('encodeJPEG: metadata missing');
     for (const method of ['encodeWebP', 'encodeTGA'])
@@ -50,13 +46,6 @@ const same = (name, a, b) => {
     const frames = () => [Frame.from(tile(), {duration: 50}), Frame.from(tile().invert(), {duration: 50})];
     if (new Animation(frames(), {loopCount: 2}).loopCount !== 2 || new GIF(frames(), {loopCount: 2}).loopCount !== 2) panic('Animation: loopCount not applied');
     const animation = new Animation(frames());
-    const sameFrames = async (name, x, y) => {
-        const fx = await Animation.decode(x), fy = await Animation.decode(y);
-        if (fx.length !== fy.length) panic(`${name}: options object and positional arguments differ`);
-        fx.forEach((f, i) => same(`${name} frame ${i}`, f, fy[i]));
-    };
-    await sameFrames('encodeGIF', await animation.encodeGIF(10), await animation.encodeGIF({quality: 10}));
-    await sameFrames('encodeAPNG', await animation.encodeAPNG(9), await animation.encodeAPNG({compression: 9}));
     // (GIFs only store comments)
     for (const method of ['encodeGIF', 'encodeAPNG', 'encodeWebP'])
         if (!Buffer.from(await animation[method]({metadata: {author, comment: author}})).includes(author)) panic(`${method}: metadata missing`);

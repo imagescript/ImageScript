@@ -46,7 +46,7 @@ const withoutExif = data => {
 	for (const [key, hash] of Object.entries(encoded)) {
 		const [name, quality] = key.split('@');
 		const file = name === 'external' ? './tests/targets/external.jpg' : `./tests/jpegs/${name}.jpg`;
-		const data = withoutExif(await (await Image.decode(await fs.readFile(file))).encodeJPEG(Number(quality)));
+		const data = withoutExif(await (await Image.decode(await fs.readFile(file))).encodeJPEG({quality: Number(quality)}));
 		if (crypto.createHash('sha256').update(data).digest('hex') !== hash)
 			panic(`${key}: encoded bytes don't match cjpeg's`);
 	}
@@ -94,7 +94,7 @@ const withoutExif = data => {
 	// encoding: higher quality must be larger and closer to the source
 	let previous = null;
 	for (const quality of [10, 50, 90, 100]) {
-		const encoded = await image.encodeJPEG(quality);
+		const encoded = await image.encodeJPEG({quality: quality});
 		const decoded = await Image.decode(encoded);
 		if (decoded.width !== image.width || decoded.height !== image.height)
 			panic(`q${quality}: dimensions don't match`);

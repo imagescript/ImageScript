@@ -7,7 +7,7 @@ const samePixels = require('./util/pixels');
     image.fill((x, y) => Colors.fromHSL((x + y) / (image.width + image.height), 1, .5));
     image.crop(128, 128, 128, 128);
 
-    const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+    const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
     if (process.env.OVERWRITE_TEST)
         await fs.writeFile('./tests/targets/crop.png', encoded);
@@ -23,7 +23,7 @@ const samePixels = require('./util/pixels');
     const source = new Image(512, 512).fill((x, y) => Colors.fromHSL((x + y) / 1024, 1, .5));
     const before = Buffer.from(source.bitmap);
     const region = source.region(128, 128, 128, 128);
-    if (!await samePixels(target, await region.encodePNG(1, {creationTime: 0, software: ''}))) panic('region: wrong pixels');
+    if (!await samePixels(target, await region.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}}))) panic('region: wrong pixels');
     if (!Buffer.from(source.bitmap).equals(before)) panic('region: changed the source');
     region.fill(0);
     if (!Buffer.from(source.bitmap).equals(before)) panic('region: shares memory with the source');

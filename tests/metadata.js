@@ -15,7 +15,7 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
     const animation = new Animation([Frame.from(image, 100), Frame.from(new Image(8, 4).fill(0x00ff00ff), 100)]);
 
     const encoders = {
-        png: m => image.encodePNG(m),
+        png: m => image.encodePNG({metadata: m}),
         jpeg: m => image.encodeJPEG({quality: 90, metadata: m}),
         webp: m => image.encodeWebP({metadata: m}),
         tga: m => image.encodeTGA({metadata: m}),
@@ -41,7 +41,7 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
 
     // PNG: tEXt is Latin-1, other text goes into iTXt (UTF-8), before the image data
     {
-        const png = Buffer.from(await image.encodePNG(metadata));
+        const png = Buffer.from(await image.encodePNG({metadata: metadata}));
         if (!latin1(png, 'Author\0Jörg')) panic('png: Latin-1 text should be a tEXt chunk');
         if (!has(png, 'iTXtCopyright\0\0\0\0\0Ⓒ someone')) panic('png: other text should be an iTXt chunk');
         if (png.indexOf('tEXt') > png.indexOf('IDAT')) panic('png: text chunks should come before the image data');
@@ -80,5 +80,5 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
         if (tga[area + 494] !== 3) panic('tga: attributes type should be "useful alpha"');
     }
 
-    if (await image.encodePNG({creationTime: 'not a date'}).then(() => true, () => false)) panic('an invalid creation time should throw');
+    if (await image.encodePNG({metadata: {creationTime: 'not a date'}}).then(() => true, () => false)) panic('an invalid creation time should throw');
 })();

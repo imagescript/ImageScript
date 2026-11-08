@@ -1,4 +1,4 @@
-const {Image, Frame, Animation, ResizeModes} = require('..');
+const {Image, Frame, Animation, GainMap, ResizeModes} = require('..');
 
 const panic = message => {
 	console.error(message);
@@ -77,6 +77,25 @@ const sameImage = (image, reference, label) => {
 	if (solid.clone().sharpen({amount: 0}).getPixelAt(2, 2) !== 0x000000ff) panic('sharpen({ amount: 0 }) should not change the pixels');
 	if (solid.clone().roundCorners({radius: 0}).getPixelAt(0, 0) !== 0xffffffff) panic('roundCorners({ radius: 0 }) should not change the pixels');
 	if (solid.clone().rotate(90, {resize: false}).width !== 6) panic('rotate(90, { resize: false })');
+
+	// the encoders take their values in the options object only; the metadata goes in { metadata }
+	const makeAnimation = () => new Animation([new Frame(4, 4)]);
+	const gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
+	for (const [label, call] of Object.entries({
+		'encodePNG(1)': () => photo.encodePNG(1),
+		'encodePNG(1, { author })': () => photo.encodePNG(1, {author: 'me'}),
+		'encodePNG({ author }) (3.x metadata)': () => photo.encodePNG({author: 'me'}),
+		'encodeJPEG(80)': () => photo.encodeJPEG(80),
+		'encodeGIF(10)': () => makeAnimation().encodeGIF(10),
+		'encodeAPNG(9)': () => makeAnimation().encodeAPNG(9),
+		'GainMap.encode(70)': () => gainMap.encode(70)
+	})) {
+		const error = await rejects(call, label);
+		if (!/takes/.test(error.message)) panic(`${label}: the message should name the form, got ${error.message}`);
+	}
+	if (!Buffer.from(await photo.encodePNG({compression: 1, metadata: {author: 'me'}})).includes('me')) panic('encodePNG({ metadata }): the metadata is missing');
+	if (!(await photo.encodeJPEG({quality: 80})).length || !(await makeAnimation().encodeGIF({quality: 10})).length) panic('encoders with options');
+	if (!(await gainMap.encode({quality: 70})).length || !(await gainMap.encode()).length) panic('GainMap.encode with options');
 
 	// the options form still resizes; undefined stays fine
 	if (photo.clone().resize(10, 6, {mode: ResizeModes.AREA}).width !== 10) panic('resize(10, 6, { mode })');

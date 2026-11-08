@@ -12,7 +12,7 @@ const panic = message => {
         const image = new Image(512, 512);
         image.drawCircle(256, 256, 128, 0xffffffff);
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/circle.png', encoded);
@@ -25,7 +25,7 @@ const panic = message => {
         const image = new Image(512, 512);
         image.drawCircle(256, 256, 320, 0x000000ff);
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/circle2.png', encoded);
@@ -39,7 +39,7 @@ const panic = message => {
         image.fill(0x000000ff);
         image.cropCircle();
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/circle3.png', encoded);
@@ -53,7 +53,7 @@ const panic = message => {
         image.fill(0x000000ff);
         image.cropCircle({ size: 'cover', feathering: .5 });
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/circle4.png', encoded);

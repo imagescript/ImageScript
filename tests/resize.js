@@ -6,7 +6,7 @@ const samePixels = require('./util/pixels');
         const image = await Image.decode(binary);
         image.resize({width: image.width / 4});
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
                 await fs.writeFile('./tests/targets/resize.png', encoded);

@@ -49,7 +49,7 @@ const meanValue = (image, left, top, right, bottom) => {
 	// out
 	for (const name of ['single-channel', 'multi-channel']) {
 		const image = await Image.decode(files[name]);
-		const encoded = await image.encodeJPEG(90);
+		const encoded = await image.encodeJPEG({quality: 90});
 		const plain = await image.encodeJPEG({quality: 90, gainMap: false});
 		const back = await Image.decode(encoded);
 		if (!back.gainMap || !close(back.gainMap.gainMapMax, image.gainMap.gainMapMax) || !close(back.gainMap.gainMapMin, image.gainMap.gainMapMin) || back.gainMap.hdrCapacityMax !== image.gainMap.hdrCapacityMax)
@@ -91,7 +91,7 @@ const meanValue = (image, left, top, right, bottom) => {
 	{
 		const image = new Image(64, 48).fill(0x808080ff);
 		image.gainMap = new GainMap(new Image(16, 12).fill((x, y) => Colors.fromRGBA(x * 16, y * 20, 255 - x * 16, 255)), {gainMapMax: [2, 3, 4], gainMapMin: -1, gamma: 2});
-		const back = await Image.decode(await image.encodeJPEG(95));
+		const back = await Image.decode(await image.encodeJPEG({quality: 95}));
 		const map = back.gainMap;
 		if (!map || map.channels !== 3 || !close(map.gainMapMax, [2, 3, 4]) || !close(map.gainMapMin, [-1, -1, -1]) || !close(map.gamma, [2, 2, 2]) || map.hdrCapacityMax !== 4 || map.width !== 16)
 			panic(`hand made map: ${map ? [map.channels, map.gainMapMin, map.gainMapMax, map.gamma, map.hdrCapacityMax, map.width] : 'none'}`);
@@ -182,7 +182,7 @@ const meanValue = (image, left, top, right, bottom) => {
 				+ '<HDRGainMap:HDRGainMapVersion>131072</HDRGainMap:HDRGainMapVersion>'
 				+ (headroomXMP ? `<HDRGainMap:HDRGainMapHeadroom>${headroomXMP}</HDRGainMap:HDRGainMapHeadroom>` : '')
 				+ '<apdi:AuxiliaryImageType>urn:com:apple:photo:2020:aux:hdrgainmap</apdi:AuxiliaryImageType></rdf:Description></rdf:RDF></x:xmpmeta>';
-			return Promise.all([new Image(128, 64).fill(0x808080ff).encodeJPEG(90), ramp.encodeJPEG(100)]).then(([base, map]) => {
+			return Promise.all([new Image(128, 64).fill(0x808080ff).encodeJPEG({quality: 90}), ramp.encodeJPEG({quality: 100})]).then(([base, map]) => {
 				map = afterSOI(Buffer.from(map), segment(0xe1, Buffer.concat([Buffer.from('http://ns.adobe.com/xap/1.0/\0'), Buffer.from(xmp)])));
 				// the primary's MPF index (big endian), offsets from its TIFF header
 				const mpf = Buffer.alloc(4 + 82);
@@ -227,7 +227,7 @@ const meanValue = (image, left, top, right, bottom) => {
 				if (Math.abs(want - got) > 0.03) panic(`Apple, ${name}: value ${x * 4} gives ${got} stops, not ${want}`);
 			}
 			// written as an Ultra HDR JPEG (ISO 21496-1 and hdrgm), the same boosts
-			const back = (await Image.decode(await image.encodeJPEG(90))).gainMap;
+			const back = (await Image.decode(await image.encodeJPEG({quality: 90}))).gainMap;
 			if (!back || !close(back.gainMapMax, map.gainMapMax)) panic(`Apple, ${name}: not written back`);
 		}
 	}

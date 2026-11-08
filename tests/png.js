@@ -52,7 +52,7 @@ const expected = {
     // encode/decode roundtrip
     const image = new Image(97, 61);
     image.fill((x, y) => Colors.fromRGBA(x * 2, y * 4, (x * y) & 0xff, (x + y) & 0xff));
-    const decoded = await Image.decode(await image.encodePNG(3));
+    const decoded = await Image.decode(await image.encodePNG({compression: 3}));
     if (!Buffer.from(decoded.bitmap).equals(Buffer.from(image.bitmap))) panic('roundtrip failed');
 
     // a file cut off after its image data (in IEND) still decodes

@@ -8,7 +8,7 @@ const samePixels = require('./util/pixels');
         image.fill(0xff8000ff);
         image.invert();
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/invert.png', encoded);
@@ -22,7 +22,7 @@ const samePixels = require('./util/pixels');
         image.fill(0xff8000ff);
         image.invertLightness();
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/invert-lightness.png', encoded);
@@ -36,7 +36,7 @@ const samePixels = require('./util/pixels');
         image.fill((x, y) => Colors.fromRGB(x / 2, y / 2, 255 - x / 2));
         image.invertValue();
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/invert-value.png', encoded);
@@ -50,7 +50,7 @@ const samePixels = require('./util/pixels');
         image.fill(0xff8000ff);
         image.hueShift(180);
 
-        const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/invert-hueshift.png', encoded);

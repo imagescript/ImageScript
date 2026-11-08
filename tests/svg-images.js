@@ -47,11 +47,11 @@ const crc32 = bytes => {
     const logo = new Image(4, 3).fill((x, y) => Colors.fromRGBA(x * 60, y * 80, 128, x === 0 ? 0 : 255));
     const other = new Image(4, 3).fill((x, y) => Colors.fromRGBA(255 - x * 60, y * 40, 200, 255));
     const opaque = new Image(4, 3).fill((x, y) => Colors.fromRGBA(x * 60, y * 80, 128, 255));
-    const png = await logo.encodePNG(1);
+    const png = await logo.encodePNG({compression: 1});
     const webp = await logo.encodeWebP();
-    const jpeg = await opaque.encodeJPEG(90);
+    const jpeg = await opaque.encodeJPEG({quality: 90});
     const gif = await new Animation([Frame.from(opaque)]).encodeGIF();
-    const otherPNG = await other.encodePNG(1);
+    const otherPNG = await other.encodePNG({compression: 1});
 
     // images given by href render exactly like the same images as data URIs, in every format and placement
     const formats = [['image/png', png], ['image/webp', webp], ['image/jpeg', jpeg], ['image/gif', gif]];
@@ -152,7 +152,7 @@ const crc32 = bytes => {
 
     // a huge declared image doesn't get around the decoding limit: it draws nothing, like a broken image
     {
-        const tiny = await new Image(1, 1).fill(0xffffffff).encodePNG(1);
+        const tiny = await new Image(1, 1).fill(0xffffffff).encodePNG({compression: 1});
         const huge = Uint8Array.from(tiny);
         const view = new DataView(huge.buffer);
         view.setUint32(16, 20000);
@@ -165,7 +165,7 @@ const crc32 = bytes => {
 
     // quantized images can be given too (the palette of an SVG's image)
     {
-        const reduced = await new Image(4, 3).fill((x, y) => Colors.fromRGBA(x * 60, y * 80, 128, 255)).quantize({colors: 4}).encodePNG(1);
+        const reduced = await new Image(4, 3).fill((x, y) => Colors.fromRGBA(x * 60, y * 80, 128, 255)).quantize({colors: 4}).encodePNG({compression: 1});
         const result = await Image.renderSVG(svg('<image href="logo.png" width="4" height="3"/>'), {images: {'logo.png': reduced}});
         if (transparent(result)) panic('a reduced image was not drawn');
     }

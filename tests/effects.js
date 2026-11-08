@@ -20,7 +20,7 @@ const samePixels = require('./util/pixels');
     tiles.forEach((t, i) => image.composite(t, {x: (i % 5) * 128, y: (i / 5 | 0) * 128}));
     image.composite(await Image.renderText('Outlined', { font, size: 56, color: 0xffffffff, strokeWidth: 5 }), {x: 8, y: 4 * 128 + 4});
 
-    const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
+    const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
     if (process.env.OVERWRITE_TEST)
         await fs.writeFile('./tests/targets/effects.png', encoded);

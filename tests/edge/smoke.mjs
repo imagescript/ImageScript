@@ -21,7 +21,7 @@ export async function smoke() {
         return `${data.length} B`;
     };
     await step('png', async () => back(await alpha.encodePNG()));
-    await step('jpeg', async () => back(await photo.encodeJPEG(80)));
+    await step('jpeg', async () => back(await photo.encodeJPEG({quality: 80})));
     await step('webp lossless', async () => back(await alpha.encodeWebP()));
     await step('webp lossy', async () => back(await alpha.encodeWebP({ quality: 75 })));
     await step('avif', async () => back(await alpha.encodeAVIF({ effort: 0 })));
