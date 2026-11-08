@@ -1,7 +1,7 @@
 # Migrating to 4.0
 
-ImageScript 4.0 removes everything 3.x deprecated, and changes three behaviours. Most of the removals are mechanical:
-the compiler points at them. The three behaviour changes are not deprecations, nothing warns about them, and code can
+ImageScript 4.0 removes everything 3.x deprecated, and changes five behaviors. Most of the removals are mechanical:
+the compiler points at them. The five behavior changes are not deprecations, nothing warns about them, and code can
 keep compiling while it does something else. Read the first section even if your build is clean.
 
 Node.js 22.13 or newer is required, as it was for 3.x (`engines` in `package.json`).
@@ -12,7 +12,7 @@ The recommended path:
    strikethrough, and the deprecation text names the replacement. `tsc` doesn't fail on them, so use the editor's
    problems list, or a lint rule for deprecated APIs (typescript-eslint has `no-deprecated`), to get the full list.
 2. Fix every deprecation hint, using the tables below.
-3. Switch to 4.0 and go through the three behaviour changes. The [checklist](#checklist) at the end has grep patterns
+3. Switch to 4.0 and go through the five behavior changes. The [checklist](#checklist) at the end has grep patterns
    for finding the code they affect.
 
 ## Behavior changes
@@ -108,10 +108,33 @@ forever.) `Infinity` is always fine.
 
 Search your code for: `loopCount: -1`, `loopCount = -1`, `loopCount === -1` and `loopCount < 0`.
 
+### `contain()` pads to the box
+
+`image.contain(width, height)` now works like CSS' `object-fit: contain`: the image is resized to fit inside the box
+and centered on a canvas of exactly that size, with transparent bars (or the `background` color). That is what
+`fit()` did in 3.x; `fit()` is removed. 3.x's `contain()`, which only resized and could return a smaller image, is
+`resize({ width, height, fit: 'inside' })`.
+
+| 3.x | 4.0 |
+| --- | --- |
+| `image.contain(800, 600)` (at most 800x600, no bars) | `image.resize({ width: 800, height: 600, fit: 'inside' })` |
+| `image.fit(800, 600)` (exactly 800x600, transparent bars) | `image.contain(800, 600)`, or `image.contain(800, 600, { background: 0x000000ff })` for black bars |
+
+### Hues are in degrees
+
+`Colors.fromHSL()`, `Colors.fromHSLA()` and `Colors.toHSLA()` take and return the hue in degrees (0-360, like CSS'
+`hsl()` and like `hueShift()`), no longer as a fraction (0-1). Saturation, lightness and alpha stay 0-1. An old hue
+still works without an error, but gives a different color: `Colors.fromHSL(0.5, 1, 0.5)` was cyan and is now red.
+
+| 3.x | 4.0 |
+| --- | --- |
+| `Colors.fromHSL(h, s, l)` with `h` in 0-1 | `Colors.fromHSL(h * 360, s, l)` |
+| `Colors.toHSLA(color)[0]` in 0-1 | `Colors.toHSLA(color)[0] / 360` for the old value |
+
 ## Removed APIs
 
 Each table maps a 3.x API to its 4.0 replacement. The deprecation hint in 3.x gives the same mapping. The replacements
-are documented on their own pages: {@link ResizeModes}, {@link SVGScaleModes}, {@link FrameDisposalModes},
+are documented on their own pages: {@link ResizeModes}, {@link FrameDisposalModes},
 {@link Colors}, {@link Frame}, {@link Animation}, {@link AnimationEncoder} and {@link Metadata}.
 
 ### Constants and modes
@@ -124,15 +147,15 @@ are documented on their own pages: {@link ResizeModes}, {@link SVGScaleModes}, {
 | `Image.RESIZE_AREA` | `ResizeModes.AREA` (`'area'`) |
 | `Image.RESIZE_AUTO`, `ResizeModes.AUTO` | Pass only the width or the height: `image.resize({ width: 256 })` |
 | The upper-case mode strings, `'RESIZE_BILINEAR'` and the others | The lower-case names, `'bilinear'` and the others |
-| The `ResizeMode` and `SVGScaleMode` types, with the upper-case strings or the numbers 1-3 | Narrowed to the lower-case names: `ResizeMode` is `'nearest-neighbor'`, `'bilinear'`, `'bicubic'` or `'area'`, `SVGScaleMode` is `'scale'`, `'width'` or `'height'` |
-| `Image.SVG_MODE_SCALE` (or `1`) | `SVGScaleModes.SCALE` (`'scale'`) |
-| `Image.SVG_MODE_WIDTH` (or `2`) | `SVGScaleModes.WIDTH` (`'width'`) |
-| `Image.SVG_MODE_HEIGHT` (or `3`) | `SVGScaleModes.HEIGHT` (`'height'`) |
+| The `ResizeMode` type, with the upper-case strings or the numbers 1-3 | Narrowed to the lower-case names: `'nearest-neighbor'`, `'bilinear'`, `'bicubic'` or `'area'` |
+| The `SVGScaleMode` type | Removed with the SVG modes, see [renamed APIs](#renamed-and-reshaped-apis) |
+| `Image.SVG_MODE_SCALE` (or `1`) | `Image.renderSVG(svg, { scale: 2 })`, see [renamed APIs](#renamed-and-reshaped-apis) |
+| `Image.SVG_MODE_WIDTH` (or `2`) | `Image.renderSVG(svg, { width: 512 })`, see [renamed APIs](#renamed-and-reshaped-apis) |
+| `Image.SVG_MODE_HEIGHT` (or `3`) | `Image.renderSVG(svg, { height: 512 })`, see [renamed APIs](#renamed-and-reshaped-apis) |
 | `Frame.DISPOSAL_ANY`, `Frame.DISPOSAL_KEEP`, `Frame.DISPOSAL_PREVIOUS`, `Frame.DISPOSAL_BACKGROUND` | `FrameDisposalModes.ANY`, `.KEEP`, `.PREVIOUS`, `.BACKGROUND` |
 | Numeric disposal ids: `frame.disposalMode = 3`, `disposalMode: 3` in the frame options | The names: `frame.disposalMode = 'background'`, `disposalMode: 'background'`. `FrameDisposalModeId` is removed |
 
-The old string and number values are not accepted any more, so `image.resize(256, 256, 'RESIZE_BICUBIC')` and
-`renderSVG(svg, { mode: 2 })` throw.
+The old string and number values are not accepted any more, so `image.resize(256, 256, 'RESIZE_BICUBIC')` throws.
 
 ### Colors, pixels and encoding on `Image`
 
@@ -217,7 +240,7 @@ The option types of the animation encoders are renamed, and each one takes `loop
 | `Image.renderText(font, size, text, color, layout, style)` | `Image.renderText(text, { font, size, color, layout, ...style })` |
 | `Image.renderText(font, size, text, options)` | `Image.renderText(text, { font, size, ...options })` |
 | `TextOptions` (type) | `RenderTextOptions` |
-| `new TextLayout({ verticalAlign: 'right' })`, `horizontalAlign: 'bottom'` (the other axis' values) | `horizontalAlign` takes `'left'`, `'center'` or `'right'`, `verticalAlign` takes `'top'`, `'middle'` or `'bottom'`. Other values throw a `TypeError` |
+| `layout: { verticalAlign: 'right' }`, `horizontalAlign: 'bottom'` (the other axis' values) | `horizontalAlign` takes `'left'`, `'center'` or `'right'`, `verticalAlign` takes `'top'`, `'middle'` or `'bottom'`. Other values throw a `TypeError` |
 | `image.cropCircle(true)` | `image.cropCircle({ size: 'cover' })` |
 | `image.cropCircle(true, feathering)` | `image.cropCircle({ size: 'cover', feathering })` |
 | `image.cropCircle(false)` | `image.cropCircle()`, the default `size: 'contain'` |
@@ -225,7 +248,7 @@ The option types of the animation encoders are renamed, and each one takes `loop
 | `PNGMetadata` (type) | `Metadata`, which all encoders take |
 
 `renderText()` takes the text first. The font, the size, the color and the layout are all in the options object, and
-`layout` takes a {@link TextLayout} instance or its options. The options are documented in {@link RenderTextOptions}.
+`layout` takes the layout options (a plain object, see {@link TextLayoutOptions}). The options are documented in {@link RenderTextOptions}.
 Crop options are in {@link CropCircleOptions}. A key that is not an option is ignored without an error, so
 `cropCircle({ max: true })` quietly becomes the default `contain`: change it to `size: 'cover'`.
 
@@ -237,17 +260,17 @@ object under the names of their options. The options of each method are on its o
 {@link DominantColorOptions}, {@link RoundCornersOptions}, {@link FisheyeOptions}, {@link TrimOptions},
 {@link ColorToAlphaOptions}, {@link PNGEncodeOptions}, {@link JPEGEncodeOptions}, {@link SVGOptions} and
 {@link FrameOptions}. The animation options are {@link GIFEncodeOptions}, {@link APNGEncodeOptions},
-{@link AnimationDecodeOptions} and {@link GainMapEncodeOptions} for `GainMap.encode()`.
+{@link DecodeOptions} and {@link GainMapEncodeOptions} for `GainMap.encode()`.
 
 | 3.x | 4.0 |
 | --- | --- |
 | `image.resize(256, 256, 'bicubic')`, `image.resize(256, 256, ResizeModes.AREA)` | `image.resize(256, 256, { mode: 'bicubic' })` |
 | `image.scale(0.5, 'area')`, `image.scale(0.5, ResizeModes.AREA)` | `image.scale(0.5, { mode: 'area' })` |
 | `image.resize(100)` (width only, the height left out) | `image.resize({ width: 100 })`, which keeps the aspect ratio. The positional form throws a `TypeError` without a height |
-| `image.contain(w, h, mode)`, `image.fit(w, h, mode)`, `image.cover(w, h, mode)` | `image.contain(w, h, { mode })`, and the same for `fit` and `cover` |
+| `image.contain(w, h, mode)`, `image.fit(w, h, mode)`, `image.cover(w, h, mode)` | `image.resize({ width: w, height: h, fit: 'inside', mode })`, `image.contain(w, h, { mode })` and `image.cover(w, h, { mode })`, see [`contain()` pads to the box](#contain-pads-to-the-box) |
 | `Frame` and `Animation`: `resize(w, h, mode)` | `resize(w, h, { mode })` |
 | `image.composite(logo, 10, 20, { opacity: 0.5 })` | `image.composite(logo, { x: 10, y: 20, opacity: 0.5 })` |
-| `image.rotate(45, false)` | `image.rotate(45, { resize: false })` |
+| `image.rotate(45, false)` | `image.rotate(45, { expand: false })` |
 | `image.sharpen(2, 3)` | `image.sharpen({ amount: 2, radius: 3 })` |
 | `image.dominantColor(true, true, 15)` | `image.dominantColor({ ignoreBlack: true, ignoreWhite: true, threshold: 15 })` |
 | `image.roundCorners(8)` | `image.roundCorners({ radius: 8 })` |
@@ -260,7 +283,7 @@ object under the names of their options. The options of each method are on its o
 | `animation.encodeGIF(90)` | `animation.encodeGIF({ quality: 90 })` |
 | `animation.encodeAPNG(9)` | `animation.encodeAPNG({ compression: 9 })` |
 | `gainMap.encode(90)` | `gainMap.encode({ quality: 90 })` |
-| `Image.renderSVG(svg, 2, 'width')` | `Image.renderSVG(svg, { size: 2, mode: 'width' })` |
+| `Image.renderSVG(svg, 512, 'width')` | `Image.renderSVG(svg, { width: 512 })` (and `{ height }`, `{ scale }`) |
 | `new Frame(w, h, duration, x, y, disposal)` | `new Frame(w, h, { duration, xOffset, yOffset, disposalMode })` |
 | `Frame.from(image, duration, x, y, disposal)` | `Frame.from(image, { duration, xOffset, yOffset, disposalMode })` |
 | `new Animation(frames, loopCount)` | `new Animation(frames, { loopCount })` |
@@ -273,6 +296,40 @@ object under the names of their options. The options of each method are on its o
 `encodePNG()` also throws when the metadata is passed without `metadata`. In 3.x, `image.encodePNG({ author })` was
 read as metadata; in 4.0 it would be ignored, so it throws a `TypeError` that names `{ metadata }`.
 
+## Renamed and reshaped APIs
+
+These changed in 4.0 without a deprecation in 3.x. Most are compile errors in TypeScript; in JavaScript, and for
+options objects that aren't written inline, an old option key is ignored without an error (`rotate(45, { resize:
+false })` grows the image again), so search for them too.
+
+| 3.x | 4.0 |
+| --- | --- |
+| `image.rotate(angle, { resize: false })` | `image.rotate(angle, { expand: false })`, like `transform()`, `outline()` and `dropShadow()` |
+| `Image.renderSVG(svg, { size: 512, mode: 'width' })`, `{ mode: 'height' }` | `Image.renderSVG(svg, { width: 512 })`, `{ height: 512 }` |
+| `Image.renderSVG(svg, { size: 2 })`, `{ size: 2, mode: 'scale' }` | `Image.renderSVG(svg, { scale: 2 })` |
+| `SVGScaleModes`, `SVGScaleMode` | Removed, see the two rows above |
+| `image.drawBox(x, y, w, h, color)` | `image.composite(new Image(w, h).fill(color), { x, y })`. It blends a translucent color over the image; `drawBox()` replaced the pixels |
+| `image.drawCircle(x, y, r, color)` | `image.composite(new Image(2 * r, 2 * r).fill(color).cropCircle(), { x: x - r, y: y - r })` |
+| `image.greyscale()` | `image.grayscale()` (the whole API spells American English) |
+| `new TextLayout(options)`, `layout: new TextLayout(options)` | `layout: options`, a plain object ({@link TextLayoutOptions}); the class isn't exported |
+| `AnimationDecodeOptions` (type) | `DecodeOptions`, which `Image.decode()`, `Animation.decode()` and `decode()` all take |
+| `EncodeOptions` (type) as the options of `encodeTGA()` | `TGAEncodeOptions`. `EncodeOptions` is now the `metadata` that all encoder options extend |
+| `new GainMap(image, { gainMapMin, gainMapMax })`, `map.gainMapMin`, `map.gainMapMax` | `new GainMap(image, { min, max })`, `map.min`, `map.max` |
+| `setPixelAt(x, y, pixelColor)`, `lightness(value)`, `saturation(value)` (parameter names only) | `setPixelAt(x, y, color)`, `lightness(factor)`, `saturation(factor)` |
+
+Values that were only checked when they were used are now checked when they are set: `frame.duration`,
+`frame.xOffset` and `frame.yOffset` (a finite number, a duration from 0), and the parameters of a `GainMap` (finite,
+1 or 3 values per channel, a gamma above 0, `hdrCapacityMin` from 0, `useBaseColorSpace` a boolean). An invalid value
+throws a `RangeError` (a `TypeError` for `useBaseColorSpace`) and the old value stays.
+
+An `Animation` now has a canvas size of its own: `animation.width` and `animation.height` are the decoded file's, the
+one given as `new Animation(frames, { width, height })`, or the one `resize()`, `crop()`, `contain()` and `cover()` set.
+Without one, they are the frames' right and bottom edge, as in 3.x. Frames, or the parts of them, outside the canvas
+aren't encoded.
+
+The encoders return `Promise<Uint8Array<ArrayBuffer>>`, so their output goes into `new Blob()`, `new Response()` and
+`crypto.subtle` without a cast. This needs TypeScript 5.7 or newer.
+
 ## Methods that take options refuse other arguments
 
 A method that takes options now throws a `TypeError` when its argument is anything other than an object (or left out).
@@ -284,7 +341,7 @@ TypeError: cropCircle() takes an options object, like cropCircle({ size: 'cover'
 
 This is how the positional calls you missed show up at runtime. It applies to every method that took options in 3.x,
 including `cropCircle()`, `Image.renderText()`, `quantize()`, `transform()`, `dropShadow()`, `outline()`, the
-gradients, `Image.decode()`, the encoders, `Animation.decode()`, `new GainMap()` and `new TextLayout()`.
+gradients, `Image.decode()`, the encoders, `Animation.decode()`, `new GainMap()` and the `layout` of `Image.renderText()`.
 
 ## Checklist
 
@@ -320,6 +377,10 @@ grep -rnE '\.(composite|rotate|sharpen|dominantColor|roundCorners|fisheye|trim|c
 grep -rnE 'renderSVG\(|renderText\(|cropCircle\(' src
 grep -rnE '\.(red|green|blue|opacity|lightness|saturation)\([^)]*,' src
 
+# renamed and reshaped in 4.0
+grep -rnE '\.(contain|fit)\(|greyscale|drawBox|drawCircle|SVGScaleMode|TextLayout|AnimationDecodeOptions|gainMapM(in|ax)' src
+grep -rnE 'fromHSLA?\(|toHSLA\(|rotate\([^)]*resize|renderSVG\([^)]*(size|mode)' src
+
 # GainMap
 grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
 ```
@@ -327,5 +388,6 @@ grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
 Also search for the variables that hold animations, and for `[0]`, `.map(`, `.filter(` and `.forEach(` on them: the
 search can't tell an animation from an array, so check the type of each receiver.
 
-Then compile with `tsc`, and run the tests that cover your decode and encode paths. The three behaviour changes need
-runtime checks: a file with several frames, a one-frame GIF, and any `loopCount: -1` in your code.
+Then compile with `tsc`, and run the tests that cover your decode and encode paths. The five behavior changes need
+runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every `contain()` and every HSL
+hue in your code.

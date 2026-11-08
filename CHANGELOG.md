@@ -57,6 +57,31 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Removed and narrowed exported types**: `TextOptions` is `RenderTextOptions`, `FrameDisposalModeId` is removed (`FrameDisposalModeName` has the names), `AdjustOptions` is removed with `absolute`, `PNGMetadata` is `Metadata`, and `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and `APNGAnimationEncoderOptions` are `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`, `GIFEncodeOptions` and `APNGEncodeOptions`. `ResizeMode` and `SVGScaleMode` are narrowed to the lower-case names (`'area'`, `'scale'`, ...): the `RESIZE_*` strings and the numbers 1-3 are no longer part of the types.
 
+- **`contain()` pads to the box, `fit()` is removed**: `image.contain(w, h)` resizes the image to fit inside the box and centers it on a canvas of exactly that size, like CSS' `object-fit: contain` (what `fit()` did), with transparent bars or a `background` color. The resize without bars, which `contain()` did, is `resize({ width, height, fit: 'inside' })`.
+
+- **Hues are in degrees**: `Colors.fromHSL()`, `Colors.fromHSLA()` and `Colors.toHSLA()` take and return the hue in degrees (0-360, like CSS' `hsl()` and `hueShift()`) instead of 0-1.
+
+- **`drawBox()` and `drawCircle()` are removed**: `image.composite(new Image(w, h).fill(color), { x, y })` draws a box, with `.cropCircle()` a circle. Compositing blends a translucent color over the image, where `drawBox()` replaced the pixels.
+
+- **`renderSVG()` takes `width`, `height` or `scale`**: `{ size: 512, mode: 'width' }` is `{ width: 512 }`, `{ size: 2 }` is `{ scale: 2 }`; `SVGScaleModes` and `SVGScaleMode` are removed. More than one of them throws a `TypeError`.
+
+- **Renamed**: `greyscale()` is `grayscale()` (American spelling throughout), the `resize` option of `rotate()` is `expand` (like `transform()`, `outline()` and `dropShadow()`), `GainMap`'s `gainMapMin` and `gainMapMax` (properties and options) are `min` and `max`, and the parameters of `setPixelAt()`, `lightness()` and `saturation()` are `color` and `factor`.
+
+- **Fewer types and classes**: `TextLayout` isn't exported, `renderText()` takes the layout as a plain object (`layout: { maxWidth: 300 }`). `AnimationDecodeOptions` is `DecodeOptions`, which all decode functions take. `encodeTGA()` takes `TGAEncodeOptions`; `EncodeOptions` is the `metadata` that every encoder's options extend, and the `gainMap` option of the JPEG, AVIF and JPEG XL encoders is `boolean | GainMapEmbedOptions`.
+
+- **Values are checked when they are set**: `frame.duration`, `frame.xOffset`, `frame.yOffset` and the parameters of a `GainMap` throw for invalid values (instead of failing in a later encode) and keep their value.
+
+- **An animation has its own canvas size**: decoded animations keep the file's, `new Animation(frames, { width, height })` sets one, and `resize()` sets the new one. Without one it is the frames' extent, as before. Frames (or their parts) outside the canvas aren't encoded.
+
+- **The encoders return `Promise<Uint8Array<ArrayBuffer>>`**, which `new Blob()`, `new Response()` and `crypto.subtle` take without a cast in TypeScript 5.9 and newer (needs TypeScript 5.7).
+
+### New
+
+- `Animation.clone()`, `Animation.crop()`, `Animation.contain()` and `Animation.cover()`, working on the canvas like their `Image` counterparts (`contain()` with a `background` makes full canvas frames of the composited animation).
+- `resize({ width, height, fit: 'inside' })` on images, frames and animations: as large as fits inside the box, keeping the aspect ratio.
+- `encodeJPEG({ subsampling: '4:4:4' | '4:2:0' })`; the default stays 4:2:0 up to quality 90 and 4:4:4 above.
+- `Colors.gradient()` takes an array of evenly spaced colors, like the `stops` of the gradient functions.
+
 ## 3.20.1
 
 ### Performance
