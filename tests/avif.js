@@ -68,7 +68,7 @@ const references = {
 
     // image sequences decode as their first frame
     const animation = await Animation.decode(await fs.readFile('./tests/avif/sequence.avif'));
-    if (animation.length !== 1 || sha(animation[0]) !== references.sequence) panic('sequence: Animation.decode should give its first frame');
+    if (animation.length !== 1 || sha(animation.frames[0]) !== references.sequence) panic('sequence: Animation.decode should give its first frame');
 
     // invalid data throws
     const binary = await fs.readFile('./tests/avif/yuv420.avif');

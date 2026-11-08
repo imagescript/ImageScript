@@ -55,7 +55,7 @@ const panic = message => {
         const cases = [
             ['image/png', await source.encodePNG({compression: 1}), source],
             ['image/webp', await source.encodeWebP(), source],
-            ['image/gif', gif, (await Animation.decode(gif))[0]],
+            ['image/gif', gif, (await Animation.decode(gif)).frames[0]],
             ['image/jpeg', jpeg, await Image.decode(jpeg)],
             ['image/svg+xml', require('zlib').gzipSync(rect), await Image.renderSVG(rect)]
         ];

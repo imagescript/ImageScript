@@ -42,9 +42,9 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
             const animation = await Animation.decode(binary);
             const references = await Animation.decode(await fs.readFile(`./tests/jxl/${name}.png`));
             if (animation.length !== references.length) panic(`${name}: ${animation.length} frames instead of ${references.length}`);
-            animation.forEach((frame, i) => {
-                if (frame.duration !== references[i].duration) panic(`${name}: frame ${i} lasts ${frame.duration} ms instead of ${references[i].duration}`);
-                max = Math.max(max, difference(frame.bitmap, frame.width, frame.height, references[i]));
+            animation.frames.forEach((frame, i) => {
+                if (frame.duration !== references.frames[i].duration) panic(`${name}: frame ${i} lasts ${frame.duration} ms instead of ${references.frames[i].duration}`);
+                max = Math.max(max, difference(frame.bitmap, frame.width, frame.height, references.frames[i]));
             });
         }
         if (max > (premultiplied ? 2 : 1)) panic(`${name}: differs by ${max} from djxl's`);
@@ -54,7 +54,7 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
     const first = await Animation.decode(await fs.readFile('./tests/jxl/animation.jxl'), {onlyFirstFrame: true});
     if (first.length !== 1) panic(`onlyFirstFrame: ${first.length} frames`);
     const still = await Animation.decode(await fs.readFile('./tests/jxl/lossy.jxl'));
-    if (still.length !== 1 || still[0].width !== 64) panic('a still JPEG XL as an animation');
+    if (still.length !== 1 || still.frames[0].width !== 64) panic('a still JPEG XL as an animation');
 
     // truncated or corrupted data throws
     const lossy = await fs.readFile('./tests/jxl/lossy.jxl');
@@ -75,7 +75,7 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
         // (not in shared memory, which some APIs reject)
         if (four.bitmap.buffer instanceof SharedArrayBuffer) panic('threads: the bitmap is in shared memory');
         const animation = await Animation.decode(data, {threads: 4});
-        if (Buffer.compare(Buffer.from(animation[0].bitmap), Buffer.from(one.bitmap))) panic('threads, Animation.decode: different pixels');
+        if (Buffer.compare(Buffer.from(animation.frames[0].bitmap), Buffer.from(one.bitmap))) panic('threads, Animation.decode: different pixels');
     }
     for (const threads of [0, 1.5]) if (!await Image.decode(lossy, {threads}).then(() => false, e => e instanceof RangeError)) panic(`threads ${threads} should throw`);
 })();

@@ -38,7 +38,7 @@ const sameImage = (image, reference, label) => {
 		if (frame.width !== 20 || frame.height !== 12) panic(`Frame.resize(10, 6, ${label}): the frame should keep its size`);
 		const animation = new Animation([new Frame(20, 12)]);
 		await rejects(() => animation.resize(10, 6, mode), `Animation.resize(10, 6, ${label})`);
-		if (animation[0].width !== 20 || animation[0].height !== 12) panic(`Animation.resize(10, 6, ${label}): the frames should keep their size`);
+		if (animation.frames[0].width !== 20 || animation.frames[0].height !== 12) panic(`Animation.resize(10, 6, ${label}): the frames should keep their size`);
 	}
 
 	// the image operations take their values in the options object only
@@ -141,5 +141,5 @@ const sameImage = (image, reference, label) => {
 	if (photo.clone().fit(10, 10, {mode: ResizeModes.AREA}).height !== 10) panic('fit(10, 10, { mode })');
 	if (photo.clone().cover(10, 10, {mode: ResizeModes.AREA}).width !== 10) panic('cover(10, 10, { mode })');
 	if (new Frame(20, 12).resize(10, 6, {mode: ResizeModes.AREA}).width !== 10) panic('Frame.resize(10, 6, { mode })');
-	if (new Animation([new Frame(20, 12)]).resize(10, 6, {mode: ResizeModes.AREA})[0].width !== 10) panic('Animation.resize(10, 6, { mode })');
+	if (new Animation([new Frame(20, 12)]).resize(10, 6, {mode: ResizeModes.AREA}).frames[0].width !== 10) panic('Animation.resize(10, 6, { mode })');
 })().catch(error => panic(error.stack || String(error)));

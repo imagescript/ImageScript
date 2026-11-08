@@ -39,7 +39,7 @@ const metadata = {creationTime: 0, software: ''};
                 const a = await Animation.decode(file), b = await Animation.decode(expected);
                 const differs = (f, g) => options.quality === undefined ? f.bitmap.some((v, k) => Math.abs(v - g.bitmap[k]) > 1)
                     : f.bitmap.reduce((sum, v, k) => sum + Math.abs(v - g.bitmap[k]), 0) / f.bitmap.length > 4;
-                if (a.length !== b.length || a.some((f, i) => f.duration !== b[i].duration || differs(f, b[i])))
+                if (a.length !== b.length || a.frames.some((f, i) => f.duration !== b.frames[i].duration || differs(f, b.frames[i])))
                     panic(`${name} ${format} ${JSON.stringify(options)}: doesn't show the same animation`);
             }
 

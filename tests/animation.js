@@ -35,8 +35,8 @@ const square = (color, w, h) => new Image(w, h).fill((x, y) => (x + y) % 5 === 0
             const bytes = await animation[`encode${format}`]();
             const back = await Animation.decode(bytes);
             if (back.length !== 4 || back.loopCount !== 2) panic(`${format}: wrong frame or loop count`);
-            if (back.map(f => f.duration).join() !== '100,50,70,30') panic(`${format}: wrong durations`);
-            back.forEach((frame, i) => {
+            if (back.frames.map(f => f.duration).join() !== '100,50,70,30') panic(`${format}: wrong durations`);
+            back.frames.forEach((frame, i) => {
                 if (!Buffer.from(frame.bitmap).equals(Buffer.from(reference[i].bitmap))) panic(`${format} variant ${variant}: frame ${i} differs`);
             });
         }
@@ -53,17 +53,17 @@ const square = (color, w, h) => new Image(w, h).fill((x, y) => (x + y) % 5 === 0
     if (single.length !== 1 || single.width !== 8) panic('Animation.decode should accept still images');
     const gif = await Animation.decode(await new Animation([Frame.from(still)]).encodeGIF());
     if (!(gif instanceof Animation) || gif.length !== 1) panic('Animation.decode should decode GIFs');
-    if (!(gif.slice(0, 1) instanceof Animation)) panic('slice should keep the class');
+    if (!(new Animation(gif.frames.slice(0, 1), {loopCount: gif.loopCount}) instanceof Animation)) panic('a new animation of some frames');
 
     // frames: the animation's frames, changing them changes the animation
     {
         const animation = new Animation([Frame.from(still)]);
-        if (animation.frames.length !== 1 || animation.frames[0] !== animation[0]) panic('frames should hold the frames');
+        if (animation.frames.length !== 1) panic('frames should hold the frames');
         animation.frames.push(Frame.from(still, {duration: 50}));
         if (animation.length !== 2 || animation.duration !== 150) panic('frames.push should add a frame');
         if (!Array.isArray(animation.frames.map(f => f.duration))) panic('frames.map should return an array');
         animation.frames = animation.frames.filter(f => f.duration === 50);
-        if (animation.length !== 1 || animation[0].duration !== 50) panic('setting frames should replace them');
+        if (animation.length !== 1 || animation.frames[0].duration !== 50) panic('setting frames should replace them');
         let threw = false;
         try { animation.frames = [still]; } catch { threw = true; }
         if (!threw || animation.length !== 1) panic('frames should only take frames');

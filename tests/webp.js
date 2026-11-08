@@ -47,8 +47,8 @@ const animated = [
     const animation = await Animation.decode(data);
     if (!(await decode(data) instanceof Animation)) panic('decode() should return an Animation for animated WebPs');
     if (animation.length !== 4 || animation.loopCount !== -1) panic('animated WebP: wrong frame or loop count');
-    if (animation.map(f => f.duration).join() !== '80,120,80,200') panic('animated WebP: wrong durations');
-    animation.forEach((frame, i) => {
+    if (animation.frames.map(f => f.duration).join() !== '80,120,80,200') panic('animated WebP: wrong durations');
+    animation.frames.forEach((frame, i) => {
         if (sha256(frame.bitmap) !== animated[i]) panic(`animated WebP: frame ${i} doesn't match libwebp`);
     });
 

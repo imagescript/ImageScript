@@ -150,8 +150,8 @@ const alphaReferences = {
     // (the last frame is half transparent: it's blended over the one before)
     const lossless = await Animation.decode(await animation.encodeWebP());
     for (let f = 0; f < 3; f++) {
-        const [r, g, b, a] = Colors.toRGBA(decoded[f].getPixelAt(1, 1));
-        const [er, eg, eb, ea] = Colors.toRGBA(lossless[f].getPixelAt(1, 1));
+        const [r, g, b, a] = Colors.toRGBA(decoded.frames[f].getPixelAt(1, 1));
+        const [er, eg, eb, ea] = Colors.toRGBA(lossless.frames[f].getPixelAt(1, 1));
         if (Math.abs(r - er) + Math.abs(g - eg) + Math.abs(b - eb) > 12 || a !== ea) panic(`lossy animation: frame ${f} decodes to ${[r, g, b, a]}`);
     }
     if (!await animation.encodeWebP({quality: 200}).then(() => false, e => e instanceof RangeError)) panic('animation quality 200 should throw');

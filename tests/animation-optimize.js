@@ -101,7 +101,7 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
         const animation = new Animation([new Frame(10, 10, {duration: 40}), dot, dot.clone(), Frame.from(dot, {duration: 25}), new Frame(10, 10, {duration: 30})]);
         await check('empty and identical frames', animation);
         const decoded = await Animation.decode(await animation.encodeAPNG());
-        if (decoded.length !== 2 || decoded[0].duration !== 40 || decoded[1].duration !== 255) panic(`identical frames: ${decoded.length} frames, durations ${Array.from(decoded, f => f.duration)}`);
+        if (decoded.length !== 2 || decoded.frames[0].duration !== 40 || decoded.frames[1].duration !== 255) panic(`identical frames: ${decoded.length} frames, durations ${Array.from(decoded.frames, f => f.duration)}`);
     }
 
     // an opaque animation whose frames are smaller sparse, but not by enough to pay for an alpha channel in every APNG
@@ -131,8 +131,8 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
         };
         const animation = new Animation([Frame.from(grid(0), {duration: 100}), Frame.from(grid(1), {duration: 100})]);
         const decoded = await Animation.decode(await animation.encodeGIF());
-        decoded.forEach((frame, i) => {
-            if (frame.bitmap.some((v, k) => v !== animation[i].bitmap[k])) panic(`palette: GIF frame ${i} lost colors`);
+        decoded.frames.forEach((frame, i) => {
+            if (frame.bitmap.some((v, k) => v !== animation.frames[i].bitmap[k])) panic(`palette: GIF frame ${i} lost colors`);
         });
     }
 
@@ -144,7 +144,7 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
             const plain = await Animation.decode(await animation[`encode${format}`]({optimize: false}));
             if (plain.length !== 4) panic(`optimize false: ${format} has ${plain.length} frames instead of 4`);
             const expected = await composite(animation);
-            if (format === 'APNG' && plain.some((f, i) => f.bitmap.some((v, k) => v !== expected[i].bitmap[k]))) panic('optimize false: APNG frames differ');
+            if (format === 'APNG' && plain.frames.some((f, i) => f.bitmap.some((v, k) => v !== expected.frames[i].bitmap[k]))) panic('optimize false: APNG frames differ');
         }
         await check('optimize false', animation);
     }
@@ -197,7 +197,7 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
         const png = await import('../dist/codecs/png.js');
         const shown = png.compositeAnimation({width: 100, height: 60, frames: frames.map(f => ({...f, dispose: f.dispose ? 1 : 0}))});
         shown.forEach(({pixels}, i) => {
-            const expected = animation[i].bitmap;
+            const expected = animation.frames[i].bitmap;
             for (let k = 0; k < pixels.length; k++)
                 if (Math.abs(pixels[k] - expected[k]) > tolerance) panic(`lossy WebP: frame ${i} differs by ${Math.abs(pixels[k] - expected[k])} at pixel ${k >> 2}`);
         });

@@ -37,6 +37,8 @@
 
 - **The `GIF` class is removed**: `new GIF(frames, loopCount)` is `new Animation(frames, { loopCount })`, `GIF.decode(data)` is `Animation.decode(data)` and `gif.encode(quality)` is `animation.encodeGIF({ quality })`. `Animation` decodes and encodes GIFs the same way it does APNGs and WebPs.
 
+- **`Animation` holds its frames instead of extending `Array`**: `animation.frames` is the array the animation uses, and `animation[0]`, `animation.push(frame)`, `animation.map(...)` and the other array methods are `animation.frames[0]`, `animation.frames.push(frame)`, `animation.frames.map(...)`, and so on. `animation.slice(start, end)` is `new Animation(animation.frames.slice(start, end), { loopCount: animation.loopCount })`. `for (const frame of animation)`, `animation.length` and the methods of `Animation` work as before, and `Array.isArray(animation)` is `false`.
+
 ## 3.20.1
 
 ### Performance

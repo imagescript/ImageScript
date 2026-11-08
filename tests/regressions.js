@@ -97,20 +97,20 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(resized === frame && frame.duration === 500 && frame.xOffset === 1 && frame.yOffset === 2, 'Frame.resize lost metadata');
     }
 
-    // GIFs behave like arrays
+    // the frames are the array: the animation's frames have the array methods, the animation itself none
     {
         const gif = new Animation([new Frame(4, 4), new Frame(4, 4), new Frame(4, 4)], {loopCount: 2});
-        assert(gif.slice(1).length === 2 && gif.slice(1).loopCount === 2, 'GIF.slice(start)');
-        assert(gif.slice(-1).length === 1, 'GIF.slice(negative)');
-        assert(gif.map(frame => frame.width).join() === '4,4,4', 'GIF.map');
-        assert(gif.filter(() => true).length === 3, 'GIF.filter');
+        assert(new Animation(gif.frames.slice(1), {loopCount: gif.loopCount}).length === 2, 'frames.slice(start)');
+        assert(gif.frames.slice(-1).length === 1, 'frames.slice(negative)');
+        assert(gif.frames.map(frame => frame.width).join() === '4,4,4', 'frames.map');
+        assert(gif.frames.filter(() => true).length === 3, 'frames.filter');
     }
 
     // resizing GIFs scales partial frames proportionally
     {
         const gif = new Animation([new Frame(10, 10), new Frame(4, 4, {duration: 100, xOffset: 6, yOffset: 6})]).resize(5, 5);
         assert(gif.width === 5 && gif.height === 5, `GIF.resize: canvas is ${gif.width}x${gif.height}`);
-        assert(gif[1].width === 2 && gif[1].xOffset === 3, 'GIF.resize: partial frame not scaled');
+        assert(gif.frames[1].width === 2 && gif.frames[1].xOffset === 3, 'GIF.resize: partial frame not scaled');
     }
 
     // coordinates are 0-based everywhere
@@ -329,7 +329,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         // (different frames: identical ones are merged)
         const gif = new Animation([new Frame(2, 2, {duration: 16}), new Frame(2, 2, {duration: 14}).fill(0xff0000ff)]);
         const decoded = await Animation.decode(await gif.encodeGIF());
-        assert(decoded[0].duration === 20 && decoded[1].duration === 10, `gif durations should round, got ${decoded[0].duration}, ${decoded[1].duration}`);
+        assert(decoded.frames[0].duration === 20 && decoded.frames[1].duration === 10, `gif durations should round, got ${decoded.frames[0].duration}, ${decoded.frames[1].duration}`);
     }
 
     // jpegs are rotated as their exif orientation says (fixtures written by Pillow, checked against ImageOps.exif_transpose)
@@ -415,7 +415,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const other = new Animation([Frame.from(photo.clone(), {duration: 100}), Frame.from(photo.clone().invert(), {duration: 100})]);
         animation.resize({height: 4});
         other.resize(6, 4);
-        assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f, other[i])), 'Animation.resize({height})');
+        assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f, other.frames[i])), 'Animation.resize({height})');
     }
 
     // coordinates() and pixels() yield every pixel row by row
@@ -514,7 +514,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
                 const oriented = await Animation.decode(data, options);
                 assert(oriented.width === 2 && oriented.height === 3 && oriented.length === 2, `${name}: rotated (${JSON.stringify(options)})`);
                 for (let i = 0; i < 2; i++)
-                    assert(pixel(oriented[i], 1, 0).join() === pixel(stored[i], 0, 0).join() && pixel(oriented[i], 0, 2).join() === pixel(stored[i], 2, 1).join(), `${name}: frame ${i} not oriented like Image.decode`);
+                    assert(pixel(oriented.frames[i], 1, 0).join() === pixel(stored.frames[i], 0, 0).join() && pixel(oriented.frames[i], 0, 2).join() === pixel(stored.frames[i], 2, 1).join(), `${name}: frame ${i} not oriented like Image.decode`);
             }
         }
         // (without an orientation tag nothing changes)
@@ -546,9 +546,9 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const plain = await Animation.decode(container, {gainMap: false});
         const withMap = await Animation.decode(container);
         assert(plain.length > 1 && withMap.length === plain.length, 'JPEG XL animation with a jhgm box decodes');
-        assert(plain.every(f => f.gainMap === null) && (await Animation.decode(codestream)).every(f => f.gainMap === null), 'JPEG XL: gainMap false, or no jhgm box');
-        assert(withMap.every(f => f.gainMap && f.gainMap.width === 4 && f.gainMap.gainMapMax[0] === 2), 'JPEG XL: every frame has the gain map');
-        assert(withMap[0].gainMap !== withMap[1].gainMap && withMap.every((f, i) => Buffer.from(f.bitmap).equals(Buffer.from(plain[i].bitmap))), 'JPEG XL: the frames are the same with the map, with maps of their own');
+        assert(plain.frames.every(f => f.gainMap === null) && (await Animation.decode(codestream)).frames.every(f => f.gainMap === null), 'JPEG XL: gainMap false, or no jhgm box');
+        assert(withMap.frames.every(f => f.gainMap && f.gainMap.width === 4 && f.gainMap.gainMapMax[0] === 2), 'JPEG XL: every frame has the gain map');
+        assert(withMap.frames[0].gainMap !== withMap.frames[1].gainMap && withMap.frames.every((f, i) => Buffer.from(f.bitmap).equals(Buffer.from(plain.frames[i].bitmap))), 'JPEG XL: the frames are the same with the map, with maps of their own');
 
         // toneMapping is checked
         let threw = false;

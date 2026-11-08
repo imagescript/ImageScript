@@ -33,7 +33,7 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
         if (has(await encode({software: ''}), 'ImageScript')) panic(`${format}: software: '' should leave it out`);
         if (!has(await encode({software: 'custom tool'}), 'custom tool')) panic(`${format}: custom software missing`);
 
-        const decoded = /gif|apng|animated/.test(format) ? (await Animation.decode(tagged))[0] : await Image.decode(tagged);
+        const decoded = /gif|apng|animated/.test(format) ? (await Animation.decode(tagged)).frames[0] : await Image.decode(tagged);
         if (decoded.width !== 8 || decoded.height !== 4) panic(`${format}: doesn't decode with metadata`);
     }
 

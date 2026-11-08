@@ -112,19 +112,19 @@ export interface APNGEncodeOptions extends AnimationEncodeOptions {
 }
 
 /**
- * An animation: frames ({@link Animation.frames}) that can be decoded from and encoded to GIF, APNG and WebP.
- *
- * The animation itself is an array of its frames too (`animation[0]`, `animation.map(...)`), which is deprecated: in 4.0
- * it won't extend `Array` anymore, use {@link Animation.frames} instead. Array methods like map and filter return
- * plain arrays.
+ * An animation: frames ({@link Animation.frames}) that can be decoded from and encoded to GIF, APNG and WebP. It can be
+ * iterated (`for (const frame of animation)`), and its `length` is the number of frames.
  */
-export class Animation extends Array<Frame> {
+export class Animation {
     /**
      * How many times to repeat the animation (`Infinity` = forever, 0 = play once, 1 = play twice, ...). `-1` still
      * means forever, it will be removed in 4.0, when `Infinity` is what animations that loop forever have (animations
      * that loop forever have `-1` until then, also the decoded ones)
      */
     loopCount: number;
+
+    /** @internal @ignore */
+    private __frames__: Frame[] = [];
 
     /**
      * Creates a new animation
@@ -133,15 +133,9 @@ export class Animation extends Array<Frame> {
      */
     constructor(frames: Frame[], options?: AnimationOptions);
     constructor(frames: Frame[], options: AnimationOptions = {}) {
-        super();
         checkOptions(options, 'Animation(frames, { loopCount: 2 })');
         const { loopCount = -1 } = options;
-        // push instead of super(...frames), so a single frame isn't taken as a length
-        for (const frame of frames) this.push(frame);
-
-        for (let i = 0; i < this.length; i++)
-            if (!(this[i] instanceof Frame))
-                throw new TypeError(`Frame ${i} is not an instance of Frame`);
+        this.frames = frames;
 
         if (loopCount !== Infinity && (finite(loopCount, 'loop count') < -1 || !Number.isInteger(Number(loopCount))))
             throw new RangeError(`Invalid loop count: ${loopCount}`);
@@ -150,19 +144,12 @@ export class Animation extends Array<Frame> {
     }
 
     /**
-     * @internal
-     * @ignore
-     */
-    static override get [Symbol.species](): ArrayConstructor {
-        return Array;
-    }
-
-    /**
-     * The animation's frames: an array that changes the animation when it's changed (e.g. `push()`, `splice()`, or
-     * setting an index), and can be replaced as a whole
+     * The animation's frames: the array the animation uses, so changing it (`push()`, `splice()`, setting an index)
+     * changes the animation. Assigning replaces them: the frames are copied into a new array, which is then the one
+     * the animation uses
      */
     get frames(): Frame[] {
-        return this;
+        return this.__frames__;
     }
 
     /**
@@ -170,52 +157,48 @@ export class Animation extends Array<Frame> {
      * @param frames The new frames (copied into the animation, the array itself isn't kept)
      */
     set frames(frames: Frame[]) {
-        frames = Array.from(frames);
-        frames.forEach((frame, i) => {
-            if (!(frame instanceof Frame)) throw new TypeError(`Frame ${i} is not an instance of Frame`);
-        });
-        this.length = 0;
-        for (const frame of frames) this.push(frame);
+        const copy: Frame[] = [];
+        for (const frame of frames) {
+            if (!(frame instanceof Frame)) throw new TypeError(`Frame ${copy.length} is not an instance of Frame`);
+            copy.push(frame);
+        }
+        this.__frames__ = copy;
+    }
+
+    /** The number of frames */
+    get length(): number {
+        return this.__frames__.length;
+    }
+
+    /** Iterates over the frames, `for (const frame of animation)` */
+    [Symbol.iterator](): IterableIterator<Frame> {
+        return this.__frames__[Symbol.iterator]();
     }
 
     /** The animation's width */
     get width(): number {
         let max = 0;
-        for (const frame of this) max = Math.max(max, frame.width + frame.xOffset);
+        for (const frame of this.frames) max = Math.max(max, frame.width + frame.xOffset);
         return max;
     }
 
     /** The animation's height */
     get height(): number {
         let max = 0;
-        for (const frame of this) max = Math.max(max, frame.height + frame.yOffset);
+        for (const frame of this.frames) max = Math.max(max, frame.height + frame.yOffset);
         return max;
     }
 
     /** The animation's duration (in ms) */
     get duration(): number {
         let duration = 0;
-        for (const frame of this) duration += frame.duration;
+        for (const frame of this.frames) duration += frame.duration;
         return duration;
     }
 
     /** A short description for debugging, e.g. `Animation<64x64x1000ms>` */
-    override toString(): string {
+    toString(): string {
         return `Animation<${this.width}x${this.height}x${this.duration}ms>`;
-    }
-
-    /**
-     * Returns a new animation of the same class containing a range of this one's frames
-     * (same semantics as Array.prototype.slice)
-     * @param start The index of the first frame (negative counts from the end). Default: `0`
-     * @param end The index after the last frame (negative counts from the end). Default: the frame count
-     * @deprecated Use `new Animation(animation.frames.slice(start, end), { loopCount: animation.loopCount })`: in 4.0 animations
-     *     aren't arrays anymore
-     * @group Deprecated
-     */
-    override slice(start?: number, end?: number): this {
-        const Class = this.constructor as new (frames: Frame[], options: AnimationOptions) => this;
-        return new Class(Array.prototype.slice.call(this, start, end) as Frame[], { loopCount: this.loopCount });
     }
 
     /**
@@ -240,7 +223,7 @@ export class Animation extends Array<Frame> {
         const height = givenHeight ?? originalHeight / originalWidth * width;
 
         const sx = width / originalWidth, sy = height / originalHeight;
-        for (const frame of this) {
+        for (const frame of this.frames) {
             // scale both edges so adjacent frames stay aligned
             const left = Math.round(frame.xOffset * sx), top = Math.round(frame.yOffset * sy);
             const right = Math.round((frame.xOffset + frame.width) * sx), bottom = Math.round((frame.yOffset + frame.height) * sy);
@@ -258,7 +241,7 @@ export class Animation extends Array<Frame> {
      * @ignore
      */
     protected __validate__(): void {
-        for (const frame of this)
+        for (const frame of this.frames)
             if (!(frame instanceof Frame)) throw new Error('Animation contains invalid frames');
     }
 
@@ -276,7 +259,7 @@ export class Animation extends Array<Frame> {
         this.__validate__();
         const frames = optimize
             ? this.__optimized__({ replace: false, even: false, alpha: 'frame', palette: 256, cover: true }).map(f => ({ ...f, dispose: f.dispose ? 3 : 1 }))
-            : Array.from(this, frame => ({
+            : Array.from(this.frames, frame => ({
                 x: frame.xOffset,
                 y: frame.yOffset,
                 width: frame.width,
@@ -336,12 +319,12 @@ export class Animation extends Array<Frame> {
     __webpFrames__(): webp.WebPEncodeFrame[] {
         const width = this.width, height = this.height;
         // WebP knows no "previous" disposal and stores offsets halved: such animations are stored as full frames
-        const fullFrames = this.some(f => f.disposalMode === 'previous' || (f.disposalMode === 'background' && (f.xOffset & 1 || f.yOffset & 1)));
+        const fullFrames = this.frames.some(f => f.disposalMode === 'previous' || (f.disposalMode === 'background' && (f.xOffset & 1 || f.yOffset & 1)));
         if (fullFrames)
             return png.compositeAnimation({ width, height, frames: this.__apngFrames__() })
                 .map(c => ({ x: 0, y: 0, width, height, duration: c.duration, dispose: true, pixels: c.pixels }));
 
-        return Array.from(this, frame => {
+        return Array.from(this.frames, frame => {
             let { xOffset: x, yOffset: y, width: w, height: h } = frame;
             let pixels = new Uint8Array(frame.bitmap.buffer, frame.bitmap.byteOffset, frame.bitmap.byteLength);
             // odd offsets: one transparent pixel more on the left/top (blending makes it invisible)
@@ -372,7 +355,7 @@ export class Animation extends Array<Frame> {
      */
     __apngFrames__(): png.APNGFrame[] {
         const dispose = [0, 0, 2, 1];
-        return Array.from(this, frame => ({
+        return Array.from(this.frames, frame => ({
             x: frame.xOffset,
             y: frame.yOffset,
             width: frame.width,
