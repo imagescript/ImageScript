@@ -6,12 +6,12 @@ import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
-import { Image, DecodeOptions, ResizeOptions, ResizeToOptions, resizeArguments } from './image.ts';
+import { Image, DecodeOptions, ContainOptions, ResizeOptions, ResizeToOptions, resizeArguments, insideSize } from './image.ts';
 import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops } from './util/options.ts';
+import { checkOptions, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
@@ -97,18 +97,24 @@ export class Animation {
     /** @internal @ignore */
     private __frames__: Frame[] = [];
 
+    /** @internal @ignore the canvas size, once set (else the frames' extent) */
+    private __canvas__: [width: number, height: number] | null = null;
+
     /**
      * Creates a new animation
      * @param frames The frames to create the animation from
-     * @param options See {@link AnimationOptions}
+     * @param options The canvas size and the loop count, see {@link AnimationCanvasOptions}
      */
-    constructor(frames: Frame[], options?: AnimationOptions);
-    constructor(frames: Frame[], options: AnimationOptions = {}) {
+    constructor(frames: Frame[], options?: AnimationCanvasOptions);
+    constructor(frames: Frame[], options: AnimationCanvasOptions = {}) {
         checkOptions(options, 'Animation(frames, { loopCount: 2 })');
-        const { loopCount: count = Infinity } = options;
+        const { loopCount: count = Infinity, width, height } = options;
         const loops = loopCount(count);
+        if ((width === undefined) !== (height === undefined)) throw new TypeError('Animation() takes both a canvas width and height, or neither');
+        const canvas = width === undefined ? null : canvasSize(width, height as number);
         this.frames = frames;
         this.__loopCount__ = loops;
+        this.__canvas__ = canvas;
     }
 
     /**
@@ -160,18 +166,30 @@ export class Animation {
         return this.__frames__[Symbol.iterator]();
     }
 
-    /** The animation's width */
+    /**
+     * The canvas width: the one given to the constructor, the decoded file's, or the one {@link Animation.resize},
+     * {@link Animation.crop}, {@link Animation.contain} and {@link Animation.cover} set; else the frames' right edge
+     */
     get width(): number {
+        if (this.__canvas__) return this.__canvas__[0];
         let max = 0;
         for (const frame of this.frames) max = Math.max(max, frame.width + frame.xOffset);
         return max;
     }
 
-    /** The animation's height */
+    /** The canvas height, like {@link Animation.width}; else the frames' bottom edge */
     get height(): number {
+        if (this.__canvas__) return this.__canvas__[1];
         let max = 0;
         for (const frame of this.frames) max = Math.max(max, frame.height + frame.yOffset);
         return max;
+    }
+
+    /** Clones the animation: its frames (with their pixels), canvas size and loop count */
+    clone(): Animation {
+        const copy = new Animation(this.frames.map(frame => frame.clone()), { loopCount: this.loopCount });
+        copy.__canvas__ = this.__canvas__ && [...this.__canvas__];
+        return copy;
     }
 
     /** The animation's duration (in ms) */
@@ -201,11 +219,14 @@ export class Animation {
      */
     resize(options: ResizeToOptions): this;
     resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
-        const [givenWidth, givenHeight, options] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
+        const [givenWidth, givenHeight, options, fit] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
         const originalWidth = this.width, originalHeight = this.height;
+        if (!originalWidth || !originalHeight) throw new RangeError('An animation without frames or canvas can\'t be resized');
         // a side left out follows the other one, keeping the aspect ratio
-        const width = givenWidth ?? originalWidth / originalHeight * (givenHeight as number);
-        const height = givenHeight ?? originalHeight / originalWidth * width;
+        let width = givenWidth ?? originalWidth / originalHeight * (givenHeight as number);
+        let height = givenHeight ?? originalHeight / originalWidth * width;
+        if (fit === 'inside' && givenWidth !== undefined && givenHeight !== undefined) [width, height] = insideSize(originalWidth, originalHeight, givenWidth, givenHeight);
+        const canvas = canvasSize(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
 
         const sx = width / originalWidth, sy = height / originalHeight;
         for (const frame of this.frames) {
@@ -217,8 +238,102 @@ export class Animation {
             frame.xOffset = left;
             frame.yOffset = top;
         }
+        this.__canvas__ = canvas;
 
         return this;
+    }
+
+    /**
+     * Crops the canvas to the given region: the frames move with it and are cut to the new canvas. The region is
+     * clipped to the canvas, so the result can be smaller than the requested size
+     * @param x The x offset (0-based)
+     * @param y The y offset (0-based)
+     * @param width The new canvas width
+     * @param height The new canvas height
+     */
+    crop(x: number, y: number, width: number, height: number): this {
+        x = Math.max(0, Math.floor(finite(x, 'x')));
+        y = Math.max(0, Math.floor(finite(y, 'y')));
+        width = Math.min(Math.floor(finite(width, 'width')), this.width - x);
+        height = Math.min(Math.floor(finite(height, 'height')), this.height - y);
+        if (!(width >= 1 && height >= 1)) throw new RangeError('The crop region has to overlap the canvas');
+        for (const frame of this.frames) {
+            frame.xOffset -= x;
+            frame.yOffset -= y;
+        }
+        this.__canvas__ = [width, height];
+        this.frames = this.__clipped_frames__();
+        return this;
+    }
+
+    /**
+     * Resizes the animation to fit inside the given box, keeping its aspect ratio, and centers it on a canvas of
+     * exactly that size, like {@link Image.contain}. With a `background` color, the frames become full canvas frames
+     * (the composited animation) on that color
+     * @param width The width of the box
+     * @param height The height of the box
+     * @param options The background and how to resize, see {@link ContainOptions}
+     */
+    contain(width: number, height: number, options?: ContainOptions): this;
+    contain(width: number, height: number, options?: ContainOptions): this {
+        checkOptions(options, 'contain(width, height, { background: 0x000000ff })');
+        const { background = 0x00000000, ...resizeOpts } = options ?? {};
+        const backgroundColor = checkColor(background, 'background');
+        const [boxWidth, boxHeight] = canvasSize(Math.floor(finite(width, 'width')), Math.floor(finite(height, 'height')));
+        this.resize({ width: boxWidth, height: boxHeight, fit: 'inside', ...resizeOpts });
+        const x = (boxWidth - this.width) / 2 | 0, y = (boxHeight - this.height) / 2 | 0;
+        for (const frame of this.frames) {
+            frame.xOffset += x;
+            frame.yOffset += y;
+        }
+        this.__canvas__ = [boxWidth, boxHeight];
+        if (backgroundColor !== 0) {
+            const composited = png.compositeAnimation({ width: boxWidth, height: boxHeight, frames: this.__apngFrames__() });
+            this.frames = composited.map(({ pixels, duration }) => {
+                const frame = new Frame(boxWidth, boxHeight, { duration, disposalMode: FrameDisposalModes.BACKGROUND }).fill(backgroundColor);
+                const content = new Image(boxWidth, boxHeight);
+                content.bitmap = pixels;
+                return frame.composite(content);
+            });
+        }
+        return this;
+    }
+
+    /**
+     * Resizes the animation to cover the given box, keeping its aspect ratio, and crops the overflowing edges, like
+     * {@link Image.cover}: the canvas gets exactly that size
+     * @param width The width of the box
+     * @param height The height of the box
+     * @param options See {@link ResizeOptions}
+     */
+    cover(width: number, height: number, options?: ResizeOptions): this;
+    cover(width: number, height: number, options?: ResizeOptions): this {
+        checkOptions(options, 'cover(width, height, { mode: \'area\' })');
+        const [boxWidth, boxHeight] = canvasSize(Math.floor(finite(width, 'width')), Math.floor(finite(height, 'height')));
+        const scale = Math.max(boxWidth / this.width, boxHeight / this.height);
+        this.resize(Math.max(boxWidth, Math.round(this.width * scale)), Math.max(boxHeight, Math.round(this.height * scale)), options);
+        return this.crop((this.width - boxWidth) / 2, (this.height - boxHeight) / 2, boxWidth, boxHeight);
+    }
+
+    /**
+     * The frames cut to the canvas: frames that lie inside it as they are, the others cropped (copies), and frames
+     * entirely outside as a transparent pixel (they show nothing, their duration counts)
+     * @internal
+     * @ignore
+     */
+    __clipped_frames__(): Frame[] {
+        const width = this.width, height = this.height;
+        return this.frames.map(frame => {
+            const { xOffset: x, yOffset: y } = frame;
+            if (x >= 0 && y >= 0 && x + frame.width <= width && y + frame.height <= height) return frame;
+            const left = Math.max(0, x), top = Math.max(0, y);
+            const right = Math.min(width, x + frame.width), bottom = Math.min(height, y + frame.height);
+            const options = { duration: frame.duration, disposalMode: frame.disposalMode };
+            if (right <= left || bottom <= top) return new Frame(1, 1, { ...options, disposalMode: 'keep' });
+            const clipped = Frame.from(frame.region(left - x, top - y, right - left, bottom - top), { ...options, xOffset: left, yOffset: top });
+            clipped.gainMap = null;
+            return clipped;
+        });
     }
 
     /**
@@ -245,7 +360,7 @@ export class Animation {
         this.__validate__();
         const frames = optimize
             ? this.__optimized__({ replace: false, even: false, alpha: 'frame', palette: 256, cover: true }).map(f => ({ ...f, dispose: f.dispose ? 3 : 1 }))
-            : Array.from(this.frames, frame => ({
+            : Array.from(this.__clipped_frames__(), frame => ({
                 x: frame.xOffset,
                 y: frame.yOffset,
                 width: frame.width,
@@ -307,12 +422,13 @@ export class Animation {
     __webpFrames__(): webp.WebPEncodeFrame[] {
         const width = this.width, height = this.height;
         // WebP knows no "previous" disposal and stores offsets halved: such animations are stored as full frames
-        const fullFrames = this.frames.some(f => f.disposalMode === 'previous' || (f.disposalMode === 'background' && (f.xOffset & 1 || f.yOffset & 1)));
+        const clipped = this.__clipped_frames__();
+        const fullFrames = clipped.some(f => f.disposalMode === 'previous' || (f.disposalMode === 'background' && (f.xOffset & 1 || f.yOffset & 1)));
         if (fullFrames)
             return png.compositeAnimation({ width, height, frames: this.__apngFrames__() })
                 .map(c => ({ x: 0, y: 0, width, height, duration: c.duration, dispose: true, pixels: c.pixels }));
 
-        return Array.from(this.frames, frame => {
+        return Array.from(clipped, frame => {
             let { xOffset: x, yOffset: y, width: w, height: h } = frame;
             let pixels = new Uint8Array(frame.bitmap.buffer, frame.bitmap.byteOffset, frame.bitmap.byteLength);
             // odd offsets: one transparent pixel more on the left/top (blending makes it invisible)
@@ -343,7 +459,7 @@ export class Animation {
      */
     __apngFrames__(): png.APNGFrame[] {
         const dispose = [0, 0, 2, 1];
-        return Array.from(this.frames, frame => ({
+        return Array.from(this.__clipped_frames__(), frame => ({
             x: frame.xOffset,
             y: frame.yOffset,
             width: frame.width,
@@ -433,18 +549,18 @@ export class Animation {
         if (type === 'webp') {
             const decoded = webp.decodeAnimation(data, false, maxPixels);
             const frames = orient(profile(canvasFrames(decoded.width, decoded.height, webp.composite(decoded)), decoded.icc), decoded.orientation);
-            return new Animation(frames, { loopCount: fromPlays(decoded.loopCount) });
+            return new Animation(frames, { loopCount: fromPlays(decoded.loopCount), width: frames[0]?.width ?? decoded.width, height: frames[0]?.height ?? decoded.height });
         }
 
         // (still PNGs decode like images)
         if (type === 'png' && !png.isAnimated(data)) {
             const image = await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile });
-            return new Animation(canvasFrames(image.width, image.height, [{ pixels: image.bitmap, duration: 0 }]), { loopCount: Infinity });
+            return new Animation(canvasFrames(image.width, image.height, [{ pixels: image.bitmap, duration: 0 }]), { loopCount: Infinity, width: image.width, height: image.height });
         }
         if (type === 'png') {
             const decoded = await png.decodeAnimation(data, false, maxPixels);
             const frames = orient(profile(canvasFrames(decoded.width, decoded.height, png.compositeAnimation(decoded)), decoded.icc), decoded.orientation);
-            return new Animation(frames, { loopCount: decoded.frames.length > 1 ? fromPlays(decoded.plays) : Infinity });
+            return new Animation(frames, { loopCount: decoded.frames.length > 1 ? fromPlays(decoded.plays) : Infinity, width: frames[0]?.width ?? decoded.width, height: frames[0]?.height ?? decoded.height });
         }
 
         if (type === 'jxl') {
@@ -476,10 +592,13 @@ export class Animation {
                     frame.gainMap = null;
                 }
             }
-            return new Animation(frames, { loopCount: frames.length > 1 ? loops : Infinity });
+            return new Animation(frames, { loopCount: frames.length > 1 ? loops : Infinity, ...(frames.length ? { width: frames[0].width, height: frames[0].height } : {}) });
         }
 
-        if (type) return new Animation([Frame.from(await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile, toneMapping, gainMap, threads }), { duration: 0 })]);
+        if (type) {
+            const image = await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile, toneMapping, gainMap, threads });
+            return new Animation([Frame.from(image, { duration: 0 })], { width: image.width, height: image.height });
+        }
         throw new Error('Unsupported image type');
     }
 
@@ -490,6 +609,12 @@ export class Animation {
     private static __gifFrames__(data: Uint8Array, maxPixels: number): Animation {
         const decoded = gifCodec.decode(data, false, maxPixels);
         const frames = gifCodec.composite(decoded).map(({ pixels, delay }) => ({ pixels, duration: 10 * delay }));
-        return new Animation(canvasFrames(decoded.width, decoded.height, frames), { loopCount: decoded.loopCount });
+        return new Animation(canvasFrames(decoded.width, decoded.height, frames), { loopCount: decoded.loopCount, width: decoded.width, height: decoded.height });
     }
+}
+
+// a canvas size: positive integers
+function canvasSize(width: number, height: number): [width: number, height: number] {
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`Invalid canvas size: ${width}x${height}`);
+    return [width, height];
 }
