@@ -56,11 +56,11 @@ if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
     const pixel = image.getPixelAt(0, 0);
     if (pixel !== 0xff8000ff) panic('getPixelAt fails');
 
-    const rgba = image.getRGBAAt(0, 0);
+    const rgba = Colors.toRGBA(image.getPixelAt(0, 0));
     const target = [0xff, 0x80, 0x00, 0xff];
     for (let i = 0; i < 4; i++)
         if (rgba[i] !== target[i])
-            panic('colorToRGB failed');
+            panic('Colors.toRGBA failed');
 }
 
 {

@@ -800,7 +800,7 @@ export class Image {
     }
 
     /**
-     * Gets the pixel color at the specified position (0-based)
+     * Gets the pixel color at the specified position (0-based). {@link Colors.toRGBA} splits it into its channels
      * @param x The x coordinate
      * @param y The y coordinate
      * @returns The color value (`0xRRGGBBAA`)
@@ -810,20 +810,6 @@ export class Image {
         y = ~~finite(y, 'y');
         this.__check_boundaries__(x, y);
         return this.__view__.getUint32((y * this.width + x) * 4, false);
-    }
-
-    /**
-     * Gets a view of the RGBA components of the pixel at the specified position (0-based)
-     * @param x The x coordinate
-     * @param y The y coordinate
-     * @returns The pixel's 4 bytes in {@link Image.bitmap}: writing to them changes the pixel
-     */
-    getRGBAAt(x: number, y: number): Uint8ClampedArray {
-        x = ~~finite(x, 'x');
-        y = ~~finite(y, 'y');
-        this.__check_boundaries__(x, y);
-        const idx = (y * this.width + x) * 4;
-        return this.bitmap.subarray(idx, idx + 4);
     }
 
     /**

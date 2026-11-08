@@ -12,7 +12,7 @@ function tga({type, depth, width, height, descriptor = 0, map = null, mapFirst =
     return Uint8Array.from([...header, ...id, ...(map || []), ...data]);
 }
 
-const rgba = (image, x, y) => image.getRGBAAt(x, y).join();
+const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y)).join();
 
 (async () => {
     // uncompressed 24 bit, default bottom left origin: the first stored row is the bottom one

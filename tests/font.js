@@ -14,7 +14,7 @@
  */
 
 const fs = require('fs').promises;
-const {Image} = require('..');
+const {Image, Colors} = require('..');
 const samePixels = require('./util/pixels');
 
 const panic = message => {
@@ -221,7 +221,7 @@ const panic = message => {
             return count;
         };
         // the alpha of each column, as a string per column
-        const columns = image => Array.from({length: image.width}, (_, x) => Array.from({length: image.height}, (_, y) => image.getRGBAAt(x, y)[3]).join());
+        const columns = image => Array.from({length: image.width}, (_, x) => Array.from({length: image.height}, (_, y) => Colors.toRGBA(image.getPixelAt(x, y))[3]).join());
         const repeats = image => {
             const cols = columns(image).filter(c => c.split(',').some(v => +v));
             return new Set(cols).size;
@@ -296,10 +296,10 @@ const panic = message => {
 
         // the linear gradient runs from red (left) to blue (right), the last glyph's square is in the text color
         const linear = await Image.renderText('\ue000', { font, size: 100 });
-        const [lr, , lb] = linear.getRGBAAt(Math.round(linear.width * 0.15), linear.height >> 1), [rr, , rb] = linear.getRGBAAt(Math.round(linear.width * 0.85), linear.height >> 1);
+        const [lr, , lb] = Colors.toRGBA(linear.getPixelAt(Math.round(linear.width * 0.15), linear.height >> 1)), [rr, , rb] = Colors.toRGBA(linear.getPixelAt(Math.round(linear.width * 0.85), linear.height >> 1));
         if (!(lr > 150 && lb < 100 && rb > 150 && rr < 100)) panic(`colrv1: linear gradient should go from red to blue (${lr},${lb} -> ${rr},${rb})`);
         const foreground = await Image.renderText('\ue010', { font, size: 100, color: 0x00aaaaff });
-        const [fr, fg, fb, fa] = foreground.getRGBAAt(Math.round(foreground.width * 0.12), foreground.height >> 1);
+        const [fr, fg, fb, fa] = Colors.toRGBA(foreground.getPixelAt(Math.round(foreground.width * 0.12), foreground.height >> 1));
         if (fr > 2 || Math.abs(fg - 0xaa) > 2 || Math.abs(fb - 0xaa) > 2 || fa < 253) panic(`colrv1: layers in the text color should take it (${fr},${fg},${fb},${fa})`);
 
         // the other blend modes: a disc (source) over a square (backdrop), both opaque, where they overlap (the center,
@@ -329,18 +329,18 @@ const panic = message => {
         let glyph = 0xe011;
         for (const [name, blend] of Object.entries(blends)) {
             const image = await Image.renderText(String.fromCodePoint(glyph++), { font, size: 100 });
-            const actual = image.getRGBAAt(image.width >> 1, 50), expected = blend(backdrop, source).map(v => Math.round(v * 255));
+            const actual = Colors.toRGBA(image.getPixelAt(image.width >> 1, 50)), expected = blend(backdrop, source).map(v => Math.round(v * 255));
             if (expected.some((v, i) => Math.abs(v - actual[i]) > 1) || actual[3] !== 255) panic(`colrv1 ${name}: ${actual} instead of ${expected}`);
         }
 
         // a radial gradient whose circles touch (red at the left edge of the inner one, blue around the outer one), a
         // solid paint (green) inside a disc, and a glyph without a clip box sized by its outlines
         const touching = await Image.renderText('\ue01a', { font, size: 100 });
-        const [tr, , tb] = touching.getRGBAAt(31, 50), [, , ob] = touching.getRGBAAt(88, 50);
+        const [tr, , tb] = Colors.toRGBA(touching.getPixelAt(31, 50)), [, , ob] = Colors.toRGBA(touching.getPixelAt(88, 50));
         if (!(tr > 200 && tb < 50 && ob > 200)) panic(`colrv1: touching radial gradient (${tr},${tb} / ${ob})`);
         const solidFill = await Image.renderText('\ue01b', { font, size: 100 });
-        if (solidFill.getRGBAAt(solidFill.width >> 1, 50).join() !== '0,153,0,255' || solidFill.getRGBAAt(12, 85)[3] !== 0)
-            panic(`colrv1: a solid paint should fill the disc only (${solidFill.getRGBAAt(solidFill.width >> 1, 50)})`);
+        if (Colors.toRGBA(solidFill.getPixelAt(solidFill.width >> 1, 50)).join() !== '0,153,0,255' || Colors.toRGBA(solidFill.getPixelAt(12, 85))[3] !== 0)
+            panic(`colrv1: a solid paint should fill the disc only (${Colors.toRGBA(solidFill.getPixelAt(solidFill.width >> 1, 50))})`);
         const unclipped = await Image.renderText('\ue01c', { font, size: 100 });
         if (unclipped.width < 80 || unclipped.width > 110) panic(`colrv1: a glyph without a clip box should be sized by its outlines (${unclipped.width})`);
     }
@@ -351,9 +351,9 @@ const panic = message => {
         const square = await Image.renderText('\ue000', { font, size: 64 }), dupe = await Image.renderText('\ue001', { font, size: 64 });
         if (!Buffer.from(square.bitmap).equals(Buffer.from(dupe.bitmap))) panic('sbix: a dupe should render as the glyph it refers to');
         // the baseline is at the ascender (0.9 em), the bitmap's bottom 4 pixels below it, its left edge at 8
-        const [r, g, b] = square.getRGBAAt(8 + 24, Math.ceil(0.9 * 64) + 4 - 24), [cr, , cb] = square.getRGBAAt(8 + 4, Math.ceil(0.9 * 64) + 4 - 44);
+        const [r, g, b] = Colors.toRGBA(square.getPixelAt(8 + 24, Math.ceil(0.9 * 64) + 4 - 24)), [cr, , cb] = Colors.toRGBA(square.getPixelAt(8 + 4, Math.ceil(0.9 * 64) + 4 - 44));
         if (!(r > 200 && g < 50 && b < 50 && cb > 200 && cr < 50)) panic(`sbix: the bitmap should be placed by its origin offset (${r},${g},${b} / ${cr},${cb})`);
-        if (square.getRGBAAt(8 - 2, 30)[3] !== 0) panic('sbix: nothing left of the bitmap');
+        if (Colors.toRGBA(square.getPixelAt(8 - 2, 30))[3] !== 0) panic('sbix: nothing left of the bitmap');
     }
 
     {

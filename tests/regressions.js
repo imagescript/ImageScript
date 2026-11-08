@@ -848,10 +848,10 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         // (an antialiased edge pixel of the circle: the first one on the diagonal that is neither the color nor red)
         let ex = 8;
         while ((image.getPixelAt(ex, ex) & 0xffffff00) >>> 0 === 0xffffff00) ex++;
-        const edge = cut.getRGBAAt(ex, ex);
+        const edge = Colors.toRGBA(cut.getPixelAt(ex, ex));
         assert(edge[3] > 0 && edge[3] < 255 && edge[0] === 255 && edge[1] === 0, `colorToAlpha: antialiased edges should become translucent red (${edge})`);
         const loose = image.clone().colorToAlpha({color: 0xffffffff, transparencyThreshold: 0.5});
-        assert(loose.getRGBAAt(ex, ex)[3] < edge[3], 'colorToAlpha: the threshold should make more of the edge transparent');
+        assert(Colors.toRGBA(loose.getPixelAt(ex, ex))[3] < edge[3], 'colorToAlpha: the threshold should make more of the edge transparent');
     }
 
     // slice-by-16 crc32 matches zlib for every length around the 16 byte steps and for unaligned views (#12)
@@ -1001,7 +1001,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
         start = Date.now();
         const dashed = await Image.renderSVG(`<svg ${NS} width="100" height="100"><path d="M0 50 L100000000 50" stroke="black" stroke-width="4" stroke-dasharray="0.0001"/></svg>`, {width: 100});
-        assert(Date.now() - start < 3000 && dashed.getRGBAAt(50, 50)[3] === 255, 'a dash pattern too fine to dash should stroke solid, quickly');
+        assert(Date.now() - start < 3000 && Colors.toRGBA(dashed.getPixelAt(50, 50))[3] === 255, 'a dash pattern too fine to dash should stroke solid, quickly');
 
         const nested = await Image.renderSVG(`<svg ${NS} width="100" height="100">${'<g>'.repeat(100000)}<rect width="10" height="10"/>${'</g>'.repeat(100000)}</svg>`, {width: 100});
         assert(nested.width === 100, 'deeply nested elements should render');
