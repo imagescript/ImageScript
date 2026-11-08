@@ -1,5 +1,5 @@
 const {Image, Frame, Animation} = require('..');
-const {ResizeModes, FrameDisposalModes, Colors} = require('..');
+const {Colors} = require('..');
 const zlib = require('zlib');
 // (encoders stamp the current time into the metadata: tests that compare two encodes freeze it, or they differ when a second ends in between)
 const withFrozenTime = async run => {
@@ -82,7 +82,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // frames keep their metadata
     {
-        const frame = new Frame(10, 10, {duration: 500, xOffset: 2, yOffset: 4, disposalMode: FrameDisposalModes.BACKGROUND});
+        const frame = new Frame(10, 10, {duration: 500, xOffset: 2, yOffset: 4, disposalMode: 'background'});
         const clone = frame.clone();
         assert(clone instanceof Frame && clone.duration === 500 && clone.xOffset === 2 && clone.disposalMode === 'background', 'Frame.clone lost metadata');
 
@@ -236,7 +236,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // resizing filters average instead of skipping pixels, in premultiplied alpha
     {
         const checker = new Image(64, 64).fill((x, y) => (x + y) & 1 ? 0xffffffff : 0x000000ff);
-        for (const mode of [ResizeModes.BILINEAR, ResizeModes.BICUBIC, ResizeModes.AREA]) {
+        for (const mode of ['bilinear', 'bicubic', 'area']) {
             const small = checker.clone().resize(8, 8, {mode});
             for (const [x, y, color] of small.pixels())
                 assert(Math.abs((color >>> 24) - 128) <= 2, `${mode}: checkerboard should average to grey at ${x},${y}, got ${color >>> 24}`);
@@ -246,7 +246,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const half = new Image(4, 1).fill((x) => x < 2 ? 0xff000000 : 0x0000ffff).resize(2, 1);
         assert(rgba(half, 0, 0).slice(0, 3).join() === '0,0,255', 'resize: transparent pixels bled into the result: ' + rgba(half, 0, 0));
 
-        const nearest = new Image(4, 1).fill((x) => Colors.fromRGB(x, 0, 0)).resize(2, 1, {mode: ResizeModes.NEAREST_NEIGHBOR});
+        const nearest = new Image(4, 1).fill((x) => Colors.fromRGB(x, 0, 0)).resize(2, 1, {mode: 'nearest-neighbor'});
         assert(rgba(nearest, 0, 0)[0] === 1 && rgba(nearest, 1, 0)[0] === 3, 'nearest neighbor should sample pixel centers');
 
         // (the upper case names of the removed Image.RESIZE_* constants are unknown modes too)
@@ -342,7 +342,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // disposal modes read back as the names they are set with
     {
-        const frame = new Frame(1, 1, {duration: 100, xOffset: 0, yOffset: 0, disposalMode: FrameDisposalModes.PREVIOUS});
+        const frame = new Frame(1, 1, {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'previous'});
         assert(frame.disposalMode === 'previous', 'disposalMode should be a name, got ' + frame.disposalMode);
         // the numeric ids (0-3) are not accepted any more, the names are
         let threw = false;
@@ -352,10 +352,8 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(decoded.length === 2, 'gif with disposal modes should roundtrip');
     }
 
-    // the constant classes hold the names of the modes (the deprecated Image/Frame constants were removed in 4.0)
+    // SVG sizes and resize modes
     {
-        assert(ResizeModes.NEAREST_NEIGHBOR === 'nearest-neighbor' && ResizeModes.BILINEAR === 'bilinear' && ResizeModes.BICUBIC === 'bicubic' && ResizeModes.AREA === 'area', 'ResizeModes values');
-        assert(FrameDisposalModes.ANY === 'any' && FrameDisposalModes.KEEP === 'keep' && FrameDisposalModes.PREVIOUS === 'previous' && FrameDisposalModes.BACKGROUND === 'background', 'FrameDisposalModes values');
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="5"><rect width="7" height="3" fill="red"/></svg>';
         for (const [size, width, height] of [[{scale: 2}, 20, 10], [{width: 20}, 20, 10], [{height: 20}, 40, 20], [{}, 10, 5]]) {
             const rendered = await Image.renderSVG(svg, size);
@@ -364,7 +362,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         let twoSizes = null;
         try { await Image.renderSVG(svg, {width: 20, height: 20}); } catch (e) { twoSizes = e; }
         assert(twoSizes instanceof TypeError, 'renderSVG: width and height together should throw a TypeError');
-        assert(new Image(8, 4).resize({width: 4, mode: ResizeModes.AREA}).height === 2, 'resize({width}) with a mode keeps the aspect ratio');
+        assert(new Image(8, 4).resize({width: 4, mode: 'area'}).height === 2, 'resize({width}) with a mode keeps the aspect ratio');
         const photo = new Image(9, 7).fill((x, y) => Colors.fromRGBA(x * 28, y * 36, (x ^ y) * 16, 255 - x * 10));
         let threw = false;
         try { photo.clone().resize(4, 4, {mode: 'Area'}); } catch { threw = true; }
@@ -378,7 +376,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
         assert(same(photo.clone().resize({width: 6}), photo.clone().resize(6, 4)), 'resize({width})');
         assert(photo.clone().resize({width: 6}).height === 4, 'resize({width}) keeps the aspect ratio');
-        assert(same(photo.clone().resize({height: 4, mode: 'bicubic'}), photo.clone().resize(6, 4, {mode: ResizeModes.BICUBIC})), 'resize({height, mode})');
+        assert(same(photo.clone().resize({height: 4, mode: 'bicubic'}), photo.clone().resize(6, 4, {mode: 'bicubic'})), 'resize({height, mode})');
         assert(same(photo.clone().resize({width: 5, height: 9, fast: false}), photo.clone().resize(5, 9, {fast: false})), 'resize({width, height, fast})');
         let threw = false;
         try { photo.clone().resize({}); } catch (e) { threw = e instanceof TypeError; }

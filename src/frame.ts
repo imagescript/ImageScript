@@ -1,30 +1,19 @@
 import { Image, ResizeOptions, ResizeToOptions, TrimOptions, resizeArguments } from './image.ts';
 import { checkOptions, finite } from './util/options.ts';
 
-/** Names of the frame disposal modes, see {@link Frame.disposalMode} */
+/**
+ * What happens to a frame's area before the next frame is drawn, see {@link Frame.disposalMode}:
+ * - `'keep'` (the default): the frame stays, the next one is drawn over it
+ * - `'background'`: the frame's area is cleared to transparent
+ * - `'previous'`: the frame's area goes back to what it was before the frame
+ * - `'any'`: the decoder decides (in practice like `'keep'`)
+ */
 export type FrameDisposalModeName = 'any' | 'keep' | 'previous' | 'background';
 
 // the ids the library stores the modes as (0 any, 1 keep, 2 previous, 3 background, like GIFs)
 type DisposalId = 0 | 1 | 2 | 3;
 
 const DISPOSAL_MODES: readonly FrameDisposalModeName[] = ['any', 'keep', 'previous', 'background'];
-
-/** What happens to a frame's area before the next frame is drawn, see {@link Frame.disposalMode} */
-export class FrameDisposalModes {
-    /** The decoder decides (in practice like {@link FrameDisposalModes.KEEP}) */
-    static readonly ANY = 'any';
-
-    /** The frame stays, the next one is drawn over it (the default) */
-    static readonly KEEP = 'keep';
-
-    /** The frame's area goes back to what it was before the frame */
-    static readonly PREVIOUS = 'previous';
-
-    /** The frame's area is cleared to transparent */
-    static readonly BACKGROUND = 'background';
-
-    private constructor() {}
-}
 
 /** Options of {@link Frame} and {@link Frame.from} */
 export interface FrameOptions {
@@ -76,7 +65,7 @@ export class Frame extends Image {
     constructor(width: number, height: number, options?: FrameOptions);
     constructor(width: number, height: number, options: FrameOptions = {}) {
         checkOptions(options, 'Frame(width, height, { duration: 100 })');
-        const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = FrameDisposalModes.KEEP } = options;
+        const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = 'keep' } = options;
         if (finite(duration, 'frame duration') < 0)
             throw new RangeError('Invalid frame duration');
         finite(x, 'x offset');

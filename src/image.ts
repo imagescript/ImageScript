@@ -47,36 +47,17 @@ export type Color = number;
 /** Called with a pixel's (0-based) coordinates, returns its color */
 export type ColorFunction = (x: number, y: number) => Color;
 
-/** Resampling filters for {@link Image.resize} and the other scaling functions, see {@link ResizeModes} */
-export type ResizeMode = 'nearest-neighbor' | 'bilinear' | 'bicubic' | 'area';
-
 /**
- * The resampling filters of {@link Image.resize} and the other scaling functions:
- * `image.resize({ width: 256, mode: ResizeModes.BICUBIC })`
+ * The resampling filters of {@link Image.resize} and the other scaling functions (`image.resize({ width: 256, mode:
+ * 'bicubic' })`):
+ * - `'nearest-neighbor'`: each output pixel takes the nearest source pixel (hard pixels, for pixel art)
+ * - `'bilinear'` (the default): when shrinking, the filter widens with the scale factor, so every source pixel
+ *   contributes
+ * - `'bicubic'`: Catmull-Rom, sharper than bilinear, especially when enlarging
+ * - `'area'`: area averaging (box filter), every output pixel is the average of the source pixels it covers. Meant for
+ *   shrinking
  */
-export class ResizeModes {
-    /**
-     * Use {@link https://en.wikipedia.org/wiki/Image_scaling#Nearest-neighbor_interpolation Nearest-neighbor} resizing
-     */
-    static readonly NEAREST_NEIGHBOR = 'nearest-neighbor';
-
-    /**
-     * Bilinear resizing (the default). When shrinking, the filter widens with the scale factor, so every source pixel
-     * contributes
-     */
-    static readonly BILINEAR = 'bilinear';
-
-    /** Bicubic (Catmull-Rom) resizing, sharper than bilinear, especially when enlarging */
-    static readonly BICUBIC = 'bicubic';
-
-    /**
-     * Area averaging (box filter): every output pixel is the average of the source pixels it covers. Meant for
-     * shrinking
-     */
-    static readonly AREA = 'area';
-
-    private constructor() {}
-}
+export type ResizeMode = 'nearest-neighbor' | 'bilinear' | 'bicubic' | 'area';
 
 /** Blend modes of {@link Image.composite}, named like CSS' mix-blend-mode values */
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn'
@@ -120,14 +101,14 @@ export interface ContainOptions extends ResizeOptions {
 
 /** Options of {@link Image.scale}, {@link Image.resize}, {@link Image.contain} and {@link Image.cover} */
 export interface ResizeOptions {
-    /** The resizing mode. Default: {@link ResizeModes.BILINEAR} */
+    /** The resizing mode. Default: `'bilinear'` */
     mode?: ResizeMode;
     /**
      * Whether to round to 8 bits between the two passes, so two channels share the multiplications of both: about
      * 15-25% faster for opaque images, with 10-25% of the channel values a step off the precise result (instead of
      * about 1%, never more than 1). Transparent images are premultiplied to 8 bits like browsers do, which makes them
      * about twice as fast: what shows once they're composited differs by up to about 2 steps, pixels that are almost
-     * transparent keep less of their color. Only affects {@link ResizeModes.BILINEAR} and {@link ResizeModes.AREA},
+     * transparent keep less of their color. Only affects `'bilinear'` and `'area'`,
      * down to about a third of the size. Default: `true`
      */
     fast?: boolean;
@@ -937,7 +918,7 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __scale__(factor: number, mode: ResizeMode = ResizeModes.BILINEAR, fast = true): Image {
+    protected __scale__(factor: number, mode: ResizeMode = 'bilinear', fast = true): Image {
         if (factor === 1) return this;
         return this.__resize__(this.width * factor, this.height * factor, mode, fast);
     }
@@ -1017,7 +998,7 @@ export class Image {
         const scale = Math.max(width / this.width, height / this.height);
         const resizedWidth = Math.max(width, Math.round(this.width * scale)), resizedHeight = Math.max(height, Math.round(this.height * scale));
         // only the part the crop keeps is resampled (the same pixels as resizing the whole image, then cropping)
-        if (resizeOpts.mode !== ResizeModes.NEAREST_NEIGHBOR && width >= 1 && height >= 1) {
+        if (resizeOpts.mode !== 'nearest-neighbor' && width >= 1 && height >= 1) {
             const region = { x: ~~((resizedWidth - width) / 2), y: ~~((resizedHeight - height) / 2), width, height };
             this.__rescaled__?.(resizedWidth, resizedHeight);
             const fx = resizedWidth / this.width, fy = resizedHeight / this.height;
@@ -1046,7 +1027,7 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __resize__(width: number, height: number, mode: ResizeMode = ResizeModes.BILINEAR, fast = true, region?: Region): Image {
+    protected __resize__(width: number, height: number, mode: ResizeMode = 'bilinear', fast = true, region?: Region): Image {
         width = Math.floor(width);
         height = Math.floor(height);
         if (width < 1)
@@ -1054,9 +1035,9 @@ export class Image {
         if (height < 1)
             throw new RangeError('Image has to be at least 1 pixel high');
 
-        if (mode === ResizeModes.NEAREST_NEIGHBOR) return this.__resize_nearest_neighbor__(width, height);
+        if (mode === 'nearest-neighbor') return this.__resize_nearest_neighbor__(width, height);
 
-        const filter = mode === ResizeModes.BILINEAR ? TRIANGLE : mode === ResizeModes.BICUBIC ? CUBIC : mode === ResizeModes.AREA ? BOX : null;
+        const filter = mode === 'bilinear' ? TRIANGLE : mode === 'bicubic' ? CUBIC : mode === 'area' ? BOX : null;
         if (!filter) throw new Error('Invalid resize mode');
 
         const image = new Image(region?.width ?? width, region?.height ?? height);
@@ -2948,7 +2929,7 @@ export function insideSize(width: number, height: number, boxWidth: number, boxH
 }
 
 function resizeOptions(options?: ResizeOptions): { mode: ResizeMode, fast: boolean } {
-    return { mode: options?.mode ?? ResizeModes.BILINEAR, fast: options?.fast ?? true };
+    return { mode: options?.mode ?? 'bilinear', fast: options?.fast ?? true };
 }
 
 // separable blend functions of normalized channel values (W3C Compositing and Blending Level 1)

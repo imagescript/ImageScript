@@ -1,4 +1,4 @@
-const {Image, Frame, Animation, GainMap, ResizeModes, decode} = require('..');
+const {Image, Frame, Animation, GainMap, decode} = require('..');
 
 const panic = message => {
 	console.error(message);
@@ -22,7 +22,7 @@ const sameImage = (image, reference, label) => {
 	const photo = new Image(20, 12).fill((x, y) => 0x336699ff + x * 0x01000000 + y * 0x00010000 >>> 0);
 
 	// resize, scale, contain and cover take the resizing mode in the options only
-	const modes = {'a mode name': ResizeModes.AREA, 'a string': 'bilinear', 'an unknown mode': 'Area', 'null': null};
+	const modes = {'a mode name': 'area', 'a string': 'bilinear', 'an unknown mode': 'Area', 'null': null};
 	for (const [label, mode] of Object.entries(modes)) {
 		for (const method of ['resize', 'contain', 'cover']) {
 			const image = photo.clone();
@@ -137,13 +137,13 @@ const sameImage = (image, reference, label) => {
 	if (!(nanError instanceof RangeError)) panic(`resize(NaN, 6) should throw a RangeError, got ${nanError}`);
 
 	// the options form still resizes; undefined stays fine
-	if (photo.clone().resize(10, 6, {mode: ResizeModes.AREA}).width !== 10) panic('resize(10, 6, { mode })');
+	if (photo.clone().resize(10, 6, {mode: 'area'}).width !== 10) panic('resize(10, 6, { mode })');
 	if (photo.clone().resize(10, 6).height !== 6) panic('resize(10, 6)');
 	if (photo.clone().resize(10, 6, undefined).height !== 6) panic('resize(10, 6, undefined)');
-	if (photo.clone().scale(0.5, {mode: ResizeModes.AREA}).width !== 10) panic('scale(0.5, { mode })');
-	if (photo.clone().resize({width: 10, height: 10, fit: 'inside', mode: ResizeModes.AREA}).width !== 10) panic('resize({ width, height, fit: \'inside\', mode })');
-	if (photo.clone().contain(10, 10, {mode: ResizeModes.AREA}).height !== 10) panic('contain(10, 10, { mode })');
-	if (photo.clone().cover(10, 10, {mode: ResizeModes.AREA}).width !== 10) panic('cover(10, 10, { mode })');
-	if (new Frame(20, 12).resize(10, 6, {mode: ResizeModes.AREA}).width !== 10) panic('Frame.resize(10, 6, { mode })');
-	if (new Animation([new Frame(20, 12)]).resize(10, 6, {mode: ResizeModes.AREA}).frames[0].width !== 10) panic('Animation.resize(10, 6, { mode })');
+	if (photo.clone().scale(0.5, {mode: 'area'}).width !== 10) panic('scale(0.5, { mode })');
+	if (photo.clone().resize({width: 10, height: 10, fit: 'inside', mode: 'area'}).width !== 10) panic('resize({ width, height, fit: \'inside\', mode })');
+	if (photo.clone().contain(10, 10, {mode: 'area'}).height !== 10) panic('contain(10, 10, { mode })');
+	if (photo.clone().cover(10, 10, {mode: 'area'}).width !== 10) panic('cover(10, 10, { mode })');
+	if (new Frame(20, 12).resize(10, 6, {mode: 'area'}).width !== 10) panic('Frame.resize(10, 6, { mode })');
+	if (new Animation([new Frame(20, 12)]).resize(10, 6, {mode: 'area'}).frames[0].width !== 10) panic('Animation.resize(10, 6, { mode })');
 })().catch(error => panic(error.stack || String(error)));

@@ -7,7 +7,7 @@ import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
 import { Image, DecodeOptions, ContainOptions, ResizeOptions, ResizeToOptions, resizeArguments, insideSize } from './image.ts';
-import { Frame, FrameDisposalModes } from './frame.ts';
+import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
@@ -18,7 +18,7 @@ import { AnimationEncoder } from './animation-encoder.ts';
 // frames decoded fully composited, as full canvas frames
 function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uint8Array | Uint8ClampedArray, duration: number }>): Frame[] {
     return frames.map(({ pixels, duration }) => {
-        const frame = new Frame(width, height, { duration, disposalMode: FrameDisposalModes.BACKGROUND });
+        const frame = new Frame(width, height, { duration, disposalMode: 'background' });
         // the composited frames are copies already, the frame can keep them
         frame.bitmap = pixels;
         return frame;
@@ -290,7 +290,7 @@ export class Animation {
         if (backgroundColor !== 0) {
             const composited = png.compositeAnimation({ width: boxWidth, height: boxHeight, frames: this.__apngFrames__() });
             this.frames = composited.map(({ pixels, duration }) => {
-                const frame = new Frame(boxWidth, boxHeight, { duration, disposalMode: FrameDisposalModes.BACKGROUND }).fill(backgroundColor);
+                const frame = new Frame(boxWidth, boxHeight, { duration, disposalMode: 'background' }).fill(backgroundColor);
                 const content = new Image(boxWidth, boxHeight);
                 content.bitmap = pixels;
                 return frame.composite(content);
@@ -568,7 +568,7 @@ export class Animation {
             let loops = Infinity, icc: Uint8Array | undefined, space: jxl.ColorSpace | undefined;
             let orientation = 1;
             for await (const decoded of jxl.frames(data, maxPixels, toneMapping, threads)) {
-                const frame = new Frame(decoded.width, decoded.height, { duration: decoded.duration, disposalMode: FrameDisposalModes.BACKGROUND });
+                const frame = new Frame(decoded.width, decoded.height, { duration: decoded.duration, disposalMode: 'background' });
                 frame.bitmap = decoded.pixels;
                 frames.push(frame);
                 orientation = decoded.orientation;
