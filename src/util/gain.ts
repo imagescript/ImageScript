@@ -12,14 +12,17 @@ export const encodeSRGB = (v: number): number => 255 * (v <= 0.0031308 ? 12.92 *
 // the luma weights (BT.709, linear) a single channel map's ratio uses
 const LUMA = [0.2126, 0.7152, 0.0722];
 
+// per channel: the log2 gain of a stored value
+const gainTables = (map: GainMap): Float32Array[] => [0, 1, 2].map(c => {
+    const min = map.gainMapMin[c], max = map.gainMapMax[c], gamma = map.gamma[c];
+    return new Float32Array(256).map((_, v) => min + (max - min) * (v / 255) ** (1 / gamma));
+});
+
 /** The map's log2 gains, 3 per pixel */
 export function decodeGains(map: GainMap): Float32Array {
     const { bitmap } = map.image;
     const gains = new Float32Array(bitmap.length / 4 * 3);
-    const tables = [0, 1, 2].map(c => {
-        const min = map.gainMapMin[c], max = map.gainMapMax[c], gamma = map.gamma[c];
-        return new Float32Array(256).map((_, v) => min + (max - min) * (v / 255) ** (1 / gamma));
-    });
+    const tables = gainTables(map);
     for (let i = 0, g = 0; i < bitmap.length; i += 4, g += 3) {
         gains[g] = tables[0][bitmap[i]];
         gains[g + 1] = tables[1][bitmap[i + 1]];
@@ -101,18 +104,24 @@ export function redraw(image: Image, map: GainMap, left: number, top: number, ri
     if (right <= left || bottom <= top) return;
     const mapWidth = map.width, mapHeight = map.height;
     const sx = mapWidth / width, sy = mapHeight / height;
-    const gains = decodeGains(map);
     const oS = map.offsetSDR, oH = map.offsetHDR;
     const lo = Math.min(0, ...map.gainMapMin), hi = Math.max(0, ...map.gainMapMax, extraMax);
     const S = [0, 0, 0], H = [0, 0, 0], sumS = [0, 0, 0], sumH = [0, 0, 0];
     const i0 = Math.max(0, Math.floor(left * sx)), i1 = Math.min(mapWidth, Math.ceil(right * sx));
     const j0 = Math.max(0, Math.floor(top * sy)), j1 = Math.min(mapHeight, Math.ceil(bottom * sy));
+    if (i1 <= i0 || j1 <= j0) return;
+
+    // only the map pixels the drawing covers are read and recomputed (a small box on a large image shouldn't cost the
+    // whole map)
+    const tables = gainTables(map), stored = map.image.bitmap;
+    const regionWidth = i1 - i0;
+    const next = new Float32Array(regionWidth * (j1 - j0) * 3);
     for (let j = j0; j < j1; j++) {
         const y0 = Math.max(0, Math.floor(j / sy)), y1 = Math.min(height, Math.max(y0 + 1, Math.floor((j + 1) / sy)));
         for (let i = i0; i < i1; i++) {
             const x0 = Math.max(0, Math.floor(i / sx)), x1 = Math.min(width, Math.max(x0 + 1, Math.floor((i + 1) / sx)));
-            const g = 3 * (j * mapWidth + i);
-            const boost = [2 ** gains[g], 2 ** gains[g + 1], 2 ** gains[g + 2]];
+            const m = 4 * (j * mapWidth + i), g = 3 * ((j - j0) * regionWidth + (i - i0));
+            const boost = [2 ** tables[0][stored[m]], 2 ** tables[1][stored[m + 1]], 2 ** tables[2][stored[m + 2]]];
             sumS.fill(0);
             sumH.fill(0);
             for (let y = y0; y < y1; y++)
@@ -132,10 +141,35 @@ export function redraw(image: Image, map: GainMap, left: number, top: number, ri
                     s += LUMA[c] * (sumS[c] / n + oS[c]);
                     h += LUMA[c] * (sumH[c] / n + oH[c]);
                 }
-                gains[g] = gains[g + 1] = gains[g + 2] = ratio(h, s, lo, hi);
-            } else for (let c = 0; c < 3; c++) gains[g + c] = ratio(sumH[c] / n + oH[c], sumS[c] / n + oS[c], lo, hi);
+                next[g] = next[g + 1] = next[g + 2] = ratio(h, s, lo, hi);
+            } else for (let c = 0; c < 3; c++) next[g + c] = ratio(sumH[c] / n + oH[c], sumS[c] / n + oS[c], lo, hi);
         }
     }
+
+    // when the new gains are in the map's range (usual: drawing seldom brightens beyond the highlights), only those
+    // pixels are stored and the others stay as they are
+    const { gainMapMin: min, gainMapMax: max, gamma } = map;
+    let fits = !single || (min[0] === min[1] && min[1] === min[2] && max[0] === max[1] && max[1] === max[2] && gamma[0] === gamma[1] && gamma[1] === gamma[2]);
+    for (let g = 0; fits && g < next.length; g += 3)
+        for (let c = 0; c < 3; c++) if (!(next[g + c] >= min[c] && next[g + c] <= max[c])) fits = false;
+    if (fits) {
+        for (let j = j0; j < j1; j++)
+            for (let i = i0, g = 3 * (j - j0) * regionWidth, m = 4 * (j * mapWidth + i0); i < i1; i++, g += 3, m += 4)
+                for (let c = 0; c < 3; c++) {
+                    const t = max[c] > min[c] ? (next[g + c] - min[c]) / (max[c] - min[c]) : 0;
+                    stored[m + c] = 255 * Math.min(1, Math.max(0, t)) ** gamma[c];
+                }
+        return;
+    }
+
+    // otherwise the range grows, and every stored value is recomputed for it
+    const gains = decodeGains(map);
+    for (let j = j0; j < j1; j++)
+        for (let i = i0, g = 3 * (j - j0) * regionWidth, m = 3 * (j * mapWidth + i0); i < i1; i++, g += 3, m += 3) {
+            gains[m] = next[g];
+            gains[m + 1] = next[g + 1];
+            gains[m + 2] = next[g + 2];
+        }
     encodeGains(map, gains, mapWidth, mapHeight, single);
 }
 

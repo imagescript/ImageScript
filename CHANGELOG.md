@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.20.1
+
+### Performance
+
+- Drawing on an image with a gain map (an HDR photo) is much faster: `drawBox()` and `drawCircle()` only recompute the part of the map they cover, instead of the whole map for every call. 400 scanlines over a 1820x1820 Ultra HDR photo take 0.3 s instead of 5.8 s, with the same result.
+
 ## 3.20.0
 
 ### New
