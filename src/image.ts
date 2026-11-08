@@ -2577,8 +2577,8 @@ export class Image {
      * @param options See {@link PNGEncodeOptions}
      * @return The encoded data
      */
-    encodePNG(options?: PNGEncodeOptions): Promise<Uint8Array>;
-    async encodePNG(options: PNGEncodeOptions = {}): Promise<Uint8Array> {
+    encodePNG(options?: PNGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
+    async encodePNG(options: PNGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encodePNG({ compression: 9, metadata: { author: \'me\' } })');
         // the metadata of 3.x passed as the only argument would be ignored: it has to go in { metadata }
         for (const key of Object.keys(options))
@@ -2592,8 +2592,8 @@ export class Image {
      * Encodes the image into a JPEG
      * @param options See {@link JPEGEncodeOptions}
      */
-    encodeJPEG(options?: JPEGEncodeOptions): Promise<Uint8Array>;
-    async encodeJPEG(options: JPEGEncodeOptions = {}): Promise<Uint8Array> {
+    encodeJPEG(options?: JPEGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
+    async encodeJPEG(options: JPEGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encodeJPEG({ quality: 80 })');
         const { quality = 90, metadata = {}, gainMap: gainMapOption = true } = options;
         const m = resolveMetadata(metadata);
@@ -2621,7 +2621,7 @@ export class Image {
      * quality
      * @param options See {@link WebPEncodeOptions}
      */
-    async encodeWebP(options: WebPEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeWebP(options: WebPEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'image.encodeWebP({ quality: 80 })');
         const { quality, effort = 2, sharpYuv = false, alphaQuality = 100, threads = defaultThreads(), metadata = {} } = options;
         checkThreads(threads);
@@ -2646,14 +2646,14 @@ export class Image {
      * Encodes the image as BMP: with a palette if it is opaque and has at most 256 colors, else with 24 bit pixels, or
      * 32 bit ones if it has transparency
      */
-    async encodeBMP(): Promise<Uint8Array> {
+    async encodeBMP(): Promise<Uint8Array<ArrayBuffer>> {
         return bmp.encode(this.__bytes__(), this.width, this.height);
     }
 
     /**
      * Encodes the image as QOI (3 channels if the image is opaque)
      */
-    async encodeQOI(): Promise<Uint8Array> {
+    async encodeQOI(): Promise<Uint8Array<ArrayBuffer>> {
         return qoi.encode(this.__bytes__(), this.width, this.height);
     }
 
@@ -2661,7 +2661,7 @@ export class Image {
      * Encodes the image as AVIF (AV1, with an alpha image if the image has transparency)
      * @param options See {@link AVIFEncodeOptions}
      */
-    async encodeAVIF(options: AVIFEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeAVIF(options: AVIFEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'image.encodeAVIF({ quality: 60 })');
         const { quality = 60, alphaQuality = 100, subsampling = '4:4:4', effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true } = options;
         checkEffort(effort, 2);
@@ -2704,7 +2704,7 @@ export class Image {
      * container, with the metadata as Exif
      * @param options See {@link JXLEncodeOptions}
      */
-    async encodeJXL(options: JXLEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeJXL(options: JXLEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'image.encodeJXL({ quality: 90 })');
         const { quality, effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true } = options;
         checkEffort(effort, 2);
@@ -2720,7 +2720,7 @@ export class Image {
      * Encodes the image as the smallest fitting Netpbm format: PBM for black and white images, PGM for greyscale ones,
      * PPM for others, PAM if the image has transparency
      */
-    async encodePNM(): Promise<Uint8Array> {
+    async encodePNM(): Promise<Uint8Array<ArrayBuffer>> {
         return netpbm.encode(this.__bytes__(), this.width, this.height);
     }
 

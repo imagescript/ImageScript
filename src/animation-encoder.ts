@@ -13,7 +13,7 @@ import type { AnimationOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, AP
 interface Format {
     readonly optimize: OptimizeOptions;
     frame(f: OptimizedFrame | InputFrame, optimized: boolean): Promise<void>;
-    file(optimizer: Optimizer | null): Promise<Uint8Array> | Uint8Array;
+    file(optimizer: Optimizer | null): Promise<Uint8Array<ArrayBuffer>> | Uint8Array;
 }
 
 /**
@@ -79,7 +79,7 @@ export class AnimationEncoder {
     }
 
     /** Encodes the rest and returns the file. The encoder can't be used afterwards */
-    async finish(): Promise<Uint8Array> {
+    async finish(): Promise<Uint8Array<ArrayBuffer>> {
         if (this.finished) throw new Error('The animation encoder is finished');
         this.finished = true;
         await this.queue;

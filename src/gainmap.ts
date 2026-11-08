@@ -270,8 +270,8 @@ export class GainMap {
      * Ultra HDR JPEG
      * @param options See {@link GainMapEncodeOptions}
      */
-    encode(options?: GainMapEncodeOptions): Promise<Uint8Array>;
-    async encode(options?: GainMapEncodeOptions): Promise<Uint8Array> {
+    encode(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
+    async encode(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encode({ quality: 80 })');
         let quality = options?.quality;
         if (quality !== undefined) quality = Math.max(1, checkQuality(quality));

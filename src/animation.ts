@@ -257,8 +257,8 @@ export class Animation {
      * after the frames are composited
      * @param options See {@link GIFEncodeOptions}
      */
-    encodeGIF(options?: GIFEncodeOptions): Promise<Uint8Array>;
-    async encodeGIF(options: GIFEncodeOptions = {}): Promise<Uint8Array> {
+    encodeGIF(options?: GIFEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
+    async encodeGIF(options: GIFEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encodeGIF({ quality: 80 })');
         const { quality = 95, metadata = {}, optimize = true } = options;
         const loops = fitLoops(this.loopCount, 'GIF');
@@ -287,8 +287,8 @@ export class Animation {
      * necessarily decode to the same frames
      * @param options See {@link APNGEncodeOptions}
      */
-    encodeAPNG(options?: APNGEncodeOptions): Promise<Uint8Array>;
-    async encodeAPNG(options: APNGEncodeOptions = {}): Promise<Uint8Array> {
+    encodeAPNG(options?: APNGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
+    async encodeAPNG(options: APNGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encodeAPNG({ compression: 9 })');
         const { compression = 4, metadata = {}, optimize = true } = options;
         const loops = fitLoops(this.loopCount, 'APNG');
@@ -307,7 +307,7 @@ export class Animation {
      * shows the same animation, but doesn't necessarily decode to the same frames
      * @param options See {@link WebPAnimationEncodeOptions}
      */
-    async encodeWebP(options: WebPAnimationEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeWebP(options: WebPAnimationEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'animation.encodeWebP({ quality: 80 })');
         const { metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 } = options;
         const loops = fitLoops(this.loopCount, 'WebP');
