@@ -50,6 +50,19 @@ export const toPlays = (count: number): number => count === Infinity ? 0 : count
 /** The loop count of a plays field (0 = forever, which is Infinity), the inverse of {@link toPlays} */
 export const fromPlays = (plays: number): number => plays === 0 ? Infinity : plays - 1;
 
+/** The largest finite loop count each format stores: GIF 16 bits, WebP 16 bits of plays, APNG 31 bits of plays */
+const LOOP_LIMITS = { GIF: 65535, WebP: 65534, APNG: 2 ** 31 - 2 };
+
+/**
+ * A loop count for a format's header: `Infinity` always fits, a finite count above the format's limit would wrap
+ * silently (65536 stored as 0 is forever), so it throws a RangeError
+ */
+export function fitLoops(count: number, format: keyof typeof LOOP_LIMITS): number {
+    const max = LOOP_LIMITS[format];
+    if (count !== Infinity && count > max) throw new RangeError(`refuse loop counts that don't fit the format: ${format} loop counts go up to ${max}, not ${count}`);
+    return count;
+}
+
 /** A quality argument (0-100) of the encoders that take one, finite and in range */
 export function quality(value: number, name = 'quality'): number {
     const q = finite(value, name);

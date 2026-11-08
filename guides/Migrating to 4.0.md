@@ -97,6 +97,11 @@ The finite counts are the same: `0` plays once, `2` plays three times. The valid
 throw a `TypeError`. The check applies to the constructor, to the setter `animation.loopCount = ...` (which keeps the
 old count when it throws), and to the encoders `Animation.gifEncoder()`, `webpEncoder()` and `apngEncoder()`.
 
+The formats store a finite count in fixed-size fields: a GIF up to `65535`, a WebP up to `65534` and an APNG up to
+`2147483646` (2^31 - 2). A larger count throws a `RangeError` before anything is encoded, from `encodeGIF()`,
+`encodeWebP()`, `encodeAPNG()` and the streaming encoders. (Before, a GIF with `65536` loops wrapped to `0`, which is
+forever.) `Infinity` is always fine.
+
 Search your code for: `loopCount: -1`, `loopCount = -1`, `loopCount === -1` and `loopCount < 0`.
 
 ## Removed APIs

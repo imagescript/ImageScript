@@ -6,7 +6,7 @@ import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel, loopCount, toPlays } from './util/options.ts';
+import { checkOptions, finite, compressionLevel, loopCount, toPlays, fitLoops } from './util/options.ts';
 import type { AnimationOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
@@ -92,7 +92,7 @@ export class AnimationEncoder {
 
     /** @internal */
     static __webp__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
-        const loops = loopCount(count);
+        const loops = fitLoops(loopCount(count), 'WebP');
         canvas(width, height);
         if (width > 1 << 24 || height > 1 << 24) throw new RangeError('WebP: canvas too large');
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
@@ -123,7 +123,7 @@ export class AnimationEncoder {
     /** @internal */
     static __gif__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, quality: qualityOption = 95 }: GIFEncodeOptions & AnimationOptions): AnimationEncoder {
         const quality = finite(qualityOption, 'quality');
-        const loops = loopCount(count);
+        const loops = fitLoops(loopCount(count), 'GIF');
         canvas(width, height);
         const comments = gifComments(resolveMetadata(metadata));
         // (the first frame is encoded last: it needs a transparent index if any frame restores the background)
@@ -151,7 +151,7 @@ export class AnimationEncoder {
     /** @internal */
     static __apng__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, compression: compressionOption = 4 }: APNGEncodeOptions & AnimationOptions): AnimationEncoder {
         const compression = compressionLevel(compressionOption);
-        const loops = loopCount(count);
+        const loops = fitLoops(loopCount(count), 'APNG');
         canvas(width, height);
         const text = pngText(resolveMetadata(metadata));
         // the frames are kept compressed (quickly): the pixel format, and whether opaque animations are stored without

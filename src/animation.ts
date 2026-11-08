@@ -12,7 +12,7 @@ import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel, loopCount, toPlays, fromPlays } from './util/options.ts';
+import { checkOptions, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
@@ -263,6 +263,7 @@ export class Animation {
     async encodeGIF(options: GIFEncodeOptions = {}): Promise<Uint8Array> {
         checkOptions(options, 'encodeGIF({ quality: 80 })');
         const { quality = 95, metadata = {}, optimize = true } = options;
+        const loops = fitLoops(this.loopCount, 'GIF');
         this.__validate__();
         const frames = optimize
             ? this.__optimized__({ replace: false, even: false, alpha: 'frame', palette: 256, cover: true }).map(f => ({ ...f, dispose: f.dispose ? 3 : 1 }))
@@ -278,7 +279,7 @@ export class Animation {
         // gifs store centiseconds; rounding keeps e.g. 16 ms (60 fps) from becoming 10 ms
         const gifFrames = frames.map(({ duration, ...f }) => ({ ...f, delay: Math.round(duration / 10) }));
 
-        return gifCodec.encode({ width: this.width, height: this.height, loopCount: this.loopCount, frames: gifFrames }, finite(quality, 'quality'), gifComments(resolveMetadata(metadata)));
+        return gifCodec.encode({ width: this.width, height: this.height, loopCount: loops, frames: gifFrames }, finite(quality, 'quality'), gifComments(resolveMetadata(metadata)));
     }
 
     /**
@@ -292,13 +293,14 @@ export class Animation {
     async encodeAPNG(options: APNGEncodeOptions = {}): Promise<Uint8Array> {
         checkOptions(options, 'encodeAPNG({ compression: 9 })');
         const { compression = 4, metadata = {}, optimize = true } = options;
+        const loops = fitLoops(this.loopCount, 'APNG');
         this.__validate__();
         if (!this.length) throw new Error('An animation needs at least one frame');
 
         const frames = optimize
             ? this.__optimized__({ replace: true, even: false, alpha: frames => png.alphaCost(frames.map(f => f.pixels)) }).map(f => ({ ...f, dispose: f.dispose ? 1 : 0 }))
             : this.__apngFrames__().map(({ blend: _, ...f }) => f); // blended, the encoder's default
-        return png.encodeAnimation(frames, this.width, this.height, toPlays(this.loopCount), compressionLevel(compression), pngText(resolveMetadata(metadata)));
+        return png.encodeAnimation(frames, this.width, this.height, toPlays(loops), compressionLevel(compression), pngText(resolveMetadata(metadata)));
     }
 
     /**
@@ -310,13 +312,14 @@ export class Animation {
     async encodeWebP(options: WebPAnimationEncodeOptions = {}): Promise<Uint8Array> {
         checkOptions(options, 'animation.encodeWebP({ quality: 80 })');
         const { metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 } = options;
+        const loops = fitLoops(this.loopCount, 'WebP');
         this.__validate__();
         if (!this.length) throw new Error('An animation needs at least one frame');
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
 
         const tolerance = lossy ? webp.lossyTolerance(lossy.quality) : undefined;
         const frames = optimize ? this.__optimized__({ replace: true, even: true, alpha: 'frame', tolerance }) : this.__webpFrames__();
-        return webp.encodeAnimation(frames, this.width, this.height, toPlays(this.loopCount), exifData(resolveMetadata(metadata)), lossy, effort);
+        return webp.encodeAnimation(frames, this.width, this.height, toPlays(loops), exifData(resolveMetadata(metadata)), lossy, effort);
     }
 
     /**

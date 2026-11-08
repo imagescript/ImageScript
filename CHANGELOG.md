@@ -51,6 +51,8 @@ Upgrading from 3.x? Upgrade to 3.20.1 first, fix the deprecation hints, then swi
 
 - **`resize()` needs a height in the positional form**: `image.resize(100)` throws a `TypeError` that names `resize({ width: 100 })`, which keeps the aspect ratio. The positional form takes both sides as finite numbers, `Image`, `Frame` and `Animation` alike.
 
+- **Loop counts a format can't store throw a `RangeError`**: a GIF stores up to 65535 loops, a WebP up to 65534 and an APNG up to 2147483646 (2^31 - 2). A larger count used to wrap around silently (65536 as a GIF was forever). The encoders and the streaming encoders refuse it before encoding; `Infinity` is always fine.
+
 ## 3.20.1
 
 ### Performance

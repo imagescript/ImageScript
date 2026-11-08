@@ -70,6 +70,26 @@ const netscape = bytes => {
     // a single frame has no loop count of its own: it's the default, forever
     if ((await Animation.decode(await new Animation([frames()[0]]).encodeAPNG())).loopCount !== Infinity) panic('a still APNG should decode as Infinity');
 
+    // the largest count each format stores round-trips (GIF's 16 bits, WebP's 16 bits of plays, APNG's 31 bits of plays);
+    // one more would wrap around (65536 as a GIF is forever), so every entry point throws a RangeError instead
+    const limits = {GIF: 65535, WebP: 65534, APNG: 2 ** 31 - 2};
+    for (const [format, max] of Object.entries(limits)) {
+        const [encode, factory] = formats[format];
+        const bytes = await new Animation(frames(), {loopCount: max})[encode]();
+        if (format === 'GIF' && netscape(bytes) !== max) panic(`GIF: the largest count ${max} is stored as ${netscape(bytes)}`);
+        const back = await Animation.decode(bytes);
+        if (back.loopCount !== max) panic(`${format}: the largest count ${max} decodes as ${back.loopCount}`);
+        const encoder = Animation[factory](4, 4, {loopCount: max});
+        for (const frame of frames()) await encoder.add(frame);
+        if (!Buffer.from(await encoder.finish()).equals(Buffer.from(bytes))) panic(`${format}: the encoder with the largest count ${max} differs`);
+
+        const over = max + 1;
+        let error = null;
+        try { await new Animation(frames(), {loopCount: over})[encode](); } catch (e) { error = e; }
+        if (!(error instanceof RangeError) || !error.message.includes(`${format} loop counts go up to ${max}, not ${over}`)) panic(`${format}: ${over} should throw a RangeError naming ${max}, got ${error}`);
+        throwsA(() => Animation[factory](4, 4, {loopCount: over}), RangeError, `${format} encoder with ${over}`);
+    }
+
     // what isn't a loop count is refused by every entry point, with a RangeError for numbers and a TypeError for the rest,
     // and a refused value changes nothing
     const numbers = [-1, -5, NaN, 1.5];
