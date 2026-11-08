@@ -23,6 +23,8 @@
 
 - **The deprecated animation encoder option types and `AnimationEncoder.frames` are removed**: `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and `APNGAnimationEncoderOptions` are `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`, `GIFEncodeOptions` and `APNGEncodeOptions`, each with `AnimationOptions` for the `loopCount`, and `encoder.frames` is `encoder.frameCount`.
 
+- **The positional mode of `scale()`, `resize()`, `contain()`, `fit()` and `cover()` is removed**, on `Image`, `Frame` and `Animation`: `image.resize(width, height, 'area')` and `image.resize(width, height, ResizeModes.AREA)` are now `image.resize(width, height, { mode: 'area' })`, and `image.scale(0.5, { mode })` takes the mode in the same way. Other values in the position throw a `TypeError`, and `fast` goes in the same object.
+
 ## 3.20.1
 
 ### Performance

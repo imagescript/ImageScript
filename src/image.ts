@@ -919,15 +919,9 @@ export class Image {
      * @param options See {@link ResizeOptions}
      */
     scale(factor: number, options?: ResizeOptions): this;
-    /**
-     * Resizes the image by the given factor
-     * @param factor The factor to resize the image with
-     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    scale(factor: number, mode?: ResizeMode): this;
-    scale(factor: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
-        const { mode, fast } = resizeOptions(modeOrOptions);
+    scale(factor: number, options?: ResizeOptions): this {
+        checkOptions(options, 'scale(factor, { mode: \'area\' })');
+        const { mode, fast } = resizeOptions(options);
         const image = this.__scale__(factor, mode, fast);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         return this.__apply__(image);
@@ -953,24 +947,14 @@ export class Image {
      */
     resize(width: number, height: number, options?: ResizeOptions): this;
     /**
-     * Resizes the image to the given dimensions.
-     * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
-     * @param width The new width
-     * @param height The new height
-     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
-     * @returns The resized image
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    resize(width: number, height: number, mode?: ResizeMode): this;
-    /**
      * Resizes the image: to the given width or height (the other side keeps the aspect ratio), or to both
      * @param options The size and how to resize, see {@link ResizeToOptions}
      * @returns The resized image
      */
     resize(options: ResizeToOptions): this;
-    resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, modeArgument?: ResizeMode | ResizeOptions): this {
-        const [width, height, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
-        const { mode, fast } = resizeOptions(modeOrOptions);
+    resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
+        const [width, height, options] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
+        const { mode, fast } = resizeOptions(options);
         const image = this.__resize__(...this.__resized_size__(width, height), mode, fast);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         return this.__apply__(image);
@@ -985,23 +969,14 @@ export class Image {
      * @returns The resized image
      */
     contain(width: number, height: number, options?: ResizeOptions): this;
-    /**
-     * Resizes the image so it is contained in the given bounding box.
-     * Can return an image with one axis smaller than the given bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
-     * @returns The resized image
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    contain(width: number, height: number, mode?: ResizeMode): this;
-    contain(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
-        const options = resizeOptions(modeOrOptions);
+    contain(width: number, height: number, options?: ResizeOptions): this {
+        checkOptions(options, 'contain(width, height, { mode: \'area\' })');
+        const resizeOpts = resizeOptions(options);
         width = Math.floor(finite(width, 'width'));
         height = Math.floor(finite(height, 'height'));
         // round instead of flooring the scaled size, so the limiting axis matches the box exactly
         const scale = Math.min(width / this.width, height / this.height);
-        return this.resize(Math.max(1, Math.min(width, Math.round(this.width * scale))), Math.max(1, Math.min(height, Math.round(this.height * scale))), options);
+        return this.resize(Math.max(1, Math.min(width, Math.round(this.width * scale))), Math.max(1, Math.min(height, Math.round(this.height * scale))), resizeOpts);
     }
 
     /**
@@ -1013,18 +988,8 @@ export class Image {
      * @returns The resized image
      */
     fit(width: number, height: number, options?: ResizeOptions): this;
-    /**
-     * Resizes the image so it is contained in the given bounding box, placing it in the center of the given bounding box.
-     * Always returns the exact dimensions of the bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
-     * @returns The resized image
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    fit(width: number, height: number, mode?: ResizeMode): this;
-    fit(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
-        const options = resizeOptions(modeOrOptions);
+    fit(width: number, height: number, options?: ResizeOptions): this {
+        checkOptions(options, 'fit(width, height, { mode: \'area\' })');
         const result = new Image(width, height);
         this.contain(width, height, options);
         const x = (width - this.width) / 2 | 0, y = (height - this.height) / 2 | 0;
@@ -1042,18 +1007,9 @@ export class Image {
      * @returns The resized image
      */
     cover(width: number, height: number, options?: ResizeOptions): this;
-    /**
-     * Resizes the image so it covers the given bounding box, cropping the overflowing edges.
-     * Always returns the exact dimensions of the bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
-     * @returns The resized image
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    cover(width: number, height: number, mode?: ResizeMode): this;
-    cover(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
-        const options = resizeOptions(modeOrOptions);
+    cover(width: number, height: number, options?: ResizeOptions): this {
+        checkOptions(options, 'cover(width, height, { mode: \'area\' })');
+        const resizeOpts = resizeOptions(options);
         width = Math.floor(width);
         height = Math.floor(height);
         // (checked before anything changes: a box below a pixel used to resize the image, then fail to crop it)
@@ -1064,14 +1020,14 @@ export class Image {
         const scale = Math.max(width / this.width, height / this.height);
         const resizedWidth = Math.max(width, Math.round(this.width * scale)), resizedHeight = Math.max(height, Math.round(this.height * scale));
         // only the part the crop keeps is resampled (the same pixels as resizing the whole image, then cropping)
-        if (options.mode !== ResizeModes.NEAREST_NEIGHBOR && width >= 1 && height >= 1) {
+        if (resizeOpts.mode !== ResizeModes.NEAREST_NEIGHBOR && width >= 1 && height >= 1) {
             const region = { x: ~~((resizedWidth - width) / 2), y: ~~((resizedHeight - height) / 2), width, height };
             this.__rescaled__?.(resizedWidth, resizedHeight);
             const fx = resizedWidth / this.width, fy = resizedHeight / this.height;
             this.__gain_map__?.__transform__(this.width, this.height, width, height, (X, Y) => [(X + region.x) / fx, (Y + region.y) / fy], Math.min(fx, fy));
-            return this.__apply__(this.__resize__(resizedWidth, resizedHeight, options.mode, options.fast, region));
+            return this.__apply__(this.__resize__(resizedWidth, resizedHeight, resizeOpts.mode, resizeOpts.fast, region));
         }
-        this.resize(resizedWidth, resizedHeight, options);
+        this.resize(resizedWidth, resizedHeight, resizeOpts);
         return this.crop((this.width - width) / 2, (this.height - height) / 2, width, height);
     }
 
@@ -3146,17 +3102,18 @@ interface HSLA {
  * The width, height and mode of resize()'s signatures: a side left out of the options is `undefined`
  * @internal
  */
-export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, modeOrOptions?: ResizeMode | ResizeOptions): [width: number | undefined, height: number | undefined, modeOrOptions: ResizeMode | ResizeOptions | undefined] {
-    if (!isOptions(widthOrOptions)) return [widthOrOptions, height, modeOrOptions];
-    const { width, height: optionsHeight, ...options } = widthOrOptions;
+export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, options?: ResizeOptions): [width: number | undefined, height: number | undefined, options: ResizeOptions | undefined] {
+    if (!isOptions(widthOrOptions)) {
+        checkOptions(options, 'resize(width, height, { mode: \'area\' })');
+        return [widthOrOptions, height, options];
+    }
+    const { width, height: optionsHeight, ...rest } = widthOrOptions;
     if (width === undefined && optionsHeight === undefined) throw new TypeError('resize() needs a width, a height or both');
-    return [width, optionsHeight, options];
+    return [width, optionsHeight, rest];
 }
 
-function resizeOptions(modeOrOptions?: ResizeMode | ResizeOptions): { mode: ResizeMode, fast: boolean } {
-    const options = isOptions(modeOrOptions) ? modeOrOptions : { mode: modeOrOptions };
-    const mode = options.mode ?? ResizeModes.BILINEAR;
-    return { mode, fast: options.fast ?? true };
+function resizeOptions(options?: ResizeOptions): { mode: ResizeMode, fast: boolean } {
+    return { mode: options?.mode ?? ResizeModes.BILINEAR, fast: options?.fast ?? true };
 }
 
 // separable blend functions of normalized channel values (W3C Compositing and Blending Level 1)

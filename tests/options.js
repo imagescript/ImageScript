@@ -17,9 +17,6 @@ const same = (name, a, b) => {
     const tile = () => photo.clone().resize(64, 48);
     const logo = new Image(16, 16).fill(0xff000080);
 
-    same('scale', tile().scale(0.5, ResizeModes.NEAREST_NEIGHBOR), tile().scale(0.5, {mode: ResizeModes.NEAREST_NEIGHBOR}));
-    for (const method of ['resize', 'contain', 'fit', 'cover'])
-        same(method, tile()[method](30, 40, ResizeModes.BICUBIC), tile()[method](30, 40, {mode: ResizeModes.BICUBIC}));
     // the default mode
     same('resize default', tile().resize(30, 40), tile().resize(30, 40, {}));
 
@@ -67,9 +64,6 @@ const same = (name, a, b) => {
     // (GIFs only store comments)
     for (const method of ['encodeGIF', 'encodeAPNG', 'encodeWebP'])
         if (!Buffer.from(await animation[method]({metadata: {author, comment: author}})).includes(author)) panic(`${method}: metadata missing`);
-
-    same('Animation.resize', (await Animation.decode(await animation.encodeAPNG())).resize(20, 10, ResizeModes.NEAREST_NEIGHBOR)[1],
-        (await Animation.decode(await animation.encodeAPNG())).resize(20, 10, {mode: ResizeModes.NEAREST_NEIGHBOR})[1]);
 
     const gif = await animation.encodeGIF();
     for (const decoded of [await Animation.decode(gif, {onlyFirstFrame: true}), await GIF.decode(gif, {onlyFirstFrame: true}), await decode(gif, {onlyFirstFrame: true})])

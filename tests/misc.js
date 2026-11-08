@@ -128,7 +128,7 @@ if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
     } catch {
     }
     try {
-        image.resize(1, 1, 'garbage');
+        image.resize(1, 1, {mode: 'garbage'});
         panic('resize with invalid mode failed');
     } catch {
     }

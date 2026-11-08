@@ -1,4 +1,4 @@
-import { Image, ResizeMode, ResizeOptions, ResizeToOptions, Color, TrimOptions, resizeArguments } from './image.ts';
+import { Image, ResizeOptions, ResizeToOptions, Color, TrimOptions, resizeArguments } from './image.ts';
 import { isOptions, finite } from './util/options.ts';
 
 /** Names of the frame disposal modes, see {@link Frame.disposalMode} */
@@ -211,25 +211,17 @@ export class Frame extends Image {
      */
     override resize(width: number, height: number, options?: ResizeOptions): this;
     /**
-     * Resizes the frame, scaling its offsets along with it.
-     * @param width The new width
-     * @param height The new height
-     * @param mode The resizing mode (default: {@link ResizeModes.BILINEAR})
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    override resize(width: number, height: number, mode?: ResizeMode): this;
-    /**
      * Resizes the frame, scaling its offsets along with it: to the given width or height (the other side keeps the
      * aspect ratio), or to both
      * @param options The size and how to resize, see {@link ResizeToOptions}
      */
     override resize(options: ResizeToOptions): this;
-    override resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, modeArgument?: ResizeMode | ResizeOptions): this {
-        const [width, height, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
+    override resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
+        const [width, height, options] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
         const originalWidth = this.width;
         const originalHeight = this.height;
 
-        super.resize(...this.__resized_size__(width, height), modeOrOptions as ResizeMode);
+        super.resize(...this.__resized_size__(width, height), options);
 
         this.xOffset = Math.round(this.xOffset * this.width / originalWidth);
         this.yOffset = Math.round(this.yOffset * this.height / originalHeight);

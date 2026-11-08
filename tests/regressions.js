@@ -242,7 +242,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     {
         const checker = new Image(64, 64).fill((x, y) => (x + y) & 1 ? 0xffffffff : 0x000000ff);
         for (const mode of [ResizeModes.BILINEAR, ResizeModes.BICUBIC, ResizeModes.AREA]) {
-            const small = checker.clone().resize(8, 8, mode);
+            const small = checker.clone().resize(8, 8, {mode});
             for (const [x, y, color] of small.pixels())
                 assert(Math.abs((color >>> 24) - 128) <= 2, `${mode}: checkerboard should average to grey at ${x},${y}, got ${color >>> 24}`);
         }
@@ -251,13 +251,13 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const half = new Image(4, 1).fill((x) => x < 2 ? 0xff000000 : 0x0000ffff).resize(2, 1);
         assert(rgba(half, 0, 0).slice(0, 3).join() === '0,0,255', 'resize: transparent pixels bled into the result: ' + rgba(half, 0, 0));
 
-        const nearest = new Image(4, 1).fill((x) => Colors.fromRGB(x, 0, 0)).resize(2, 1, ResizeModes.NEAREST_NEIGHBOR);
+        const nearest = new Image(4, 1).fill((x) => Colors.fromRGB(x, 0, 0)).resize(2, 1, {mode: ResizeModes.NEAREST_NEIGHBOR});
         assert(rgba(nearest, 0, 0)[0] === 1 && rgba(nearest, 1, 0)[0] === 3, 'nearest neighbor should sample pixel centers');
 
         // (the upper case names of the removed Image.RESIZE_* constants are unknown modes too)
         for (const unknown of ['RESIZE_FOO', 'RESIZE_BILINEAR', 'RESIZE_AREA']) {
             let threw = false;
-            try { checker.clone().resize(8, 8, unknown); } catch { threw = true; }
+            try { checker.clone().resize(8, 8, {mode: unknown}); } catch { threw = true; }
             assert(threw, `resize should reject unknown mode ${unknown}`);
         }
     }
@@ -390,7 +390,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(new Image(8, 4).resize({width: 4, mode: ResizeModes.AREA}).height === 2, 'resize({width}) with a mode keeps the aspect ratio');
         const photo = new Image(9, 7).fill((x, y) => Colors.fromRGBA(x * 28, y * 36, (x ^ y) * 16, 255 - x * 10));
         let threw = false;
-        try { photo.clone().resize(4, 4, 'Area'); } catch { threw = true; }
+        try { photo.clone().resize(4, 4, {mode: 'Area'}); } catch { threw = true; }
         assert(threw, 'resize modes are case sensitive');
     }
 

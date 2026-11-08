@@ -7,7 +7,7 @@ import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
 import type { ToneMapping } from './codecs/hdr.ts';
-import { Image, ResizeMode, ResizeOptions, ResizeToOptions, resizeArguments } from './image.ts';
+import { Image, ResizeOptions, ResizeToOptions, resizeArguments } from './image.ts';
 import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
@@ -233,22 +233,13 @@ export class Animation extends Array<Frame> {
      */
     resize(width: number, height: number, options?: ResizeOptions): this;
     /**
-     * Resizes the animation to the given dimensions, scaling every frame and its offsets proportionally.
-     * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
-     * @param width The new width
-     * @param height The new height
-     * @param mode The resizing mode to use. Default: {@link ResizeModes.BILINEAR}
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    resize(width: number, height: number, mode?: ResizeMode): this;
-    /**
      * Resizes the animation, scaling every frame and its offsets proportionally: to the given width or height (the
      * other side keeps the aspect ratio), or to both
      * @param options The size and how to resize, see {@link ResizeToOptions}
      */
     resize(options: ResizeToOptions): this;
-    resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, modeArgument?: ResizeMode | ResizeOptions): this {
-        const [givenWidth, givenHeight, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
+    resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
+        const [givenWidth, givenHeight, options] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
         const originalWidth = this.width, originalHeight = this.height;
         // a side left out follows the other one, keeping the aspect ratio
         const width = givenWidth ?? originalWidth / originalHeight * (givenHeight as number);
@@ -259,8 +250,8 @@ export class Animation extends Array<Frame> {
             // scale both edges so adjacent frames stay aligned
             const left = Math.round(frame.xOffset * sx), top = Math.round(frame.yOffset * sy);
             const right = Math.round((frame.xOffset + frame.width) * sx), bottom = Math.round((frame.yOffset + frame.height) * sy);
-            (Image.prototype.resize as (width: number, height: number, mode?: ResizeMode | ResizeOptions) => Image)
-                .call(frame, Math.max(1, right - left), Math.max(1, bottom - top), modeOrOptions);
+            (Image.prototype.resize as (width: number, height: number, options?: ResizeOptions) => Image)
+                .call(frame, Math.max(1, right - left), Math.max(1, bottom - top), options);
             frame.xOffset = left;
             frame.yOffset = top;
         }
