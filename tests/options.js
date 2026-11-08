@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image, Frame, Animation, GIF, decode} = require('..');
+const {Image, Frame, Animation, decode} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -42,15 +42,14 @@ const same = (name, a, b) => {
     if (new Frame(1, 1, {}).duration !== 100 || new Frame(1, 1, {}).disposalMode !== 'keep') panic('Frame: wrong defaults');
 
     const frames = () => [Frame.from(tile(), {duration: 50}), Frame.from(tile().invert(), {duration: 50})];
-    if (new Animation(frames(), {loopCount: 2}).loopCount !== 2 || new GIF(frames(), {loopCount: 2}).loopCount !== 2) panic('Animation: loopCount not applied');
+    if (new Animation(frames(), {loopCount: 2}).loopCount !== 2) panic('Animation: loopCount not applied');
     const animation = new Animation(frames());
     // (GIFs only store comments)
     for (const method of ['encodeGIF', 'encodeAPNG', 'encodeWebP'])
         if (!Buffer.from(await animation[method]({metadata: {author, comment: author}})).includes(author)) panic(`${method}: metadata missing`);
 
     const gif = await animation.encodeGIF();
-    for (const decoded of [await Animation.decode(gif, {onlyFirstFrame: true}), await GIF.decode(gif, {onlyFirstFrame: true})])
-        if (decoded.length !== 1) panic('decode: onlyFirstFrame not applied');
+    if ((await Animation.decode(gif, {onlyFirstFrame: true})).length !== 1) panic('decode: onlyFirstFrame not applied');
     if (!(await decode(gif, {onlyFirstFrame: true}) instanceof Image)) panic('decode: onlyFirstFrame should return an Image');
     if ((await decode(gif, {})).length !== 2) panic('decode: wrong default');
 

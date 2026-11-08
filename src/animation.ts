@@ -456,7 +456,7 @@ export class Animation extends Array<Frame> {
         const data = view(input);
         const type = ImageType.getType(data);
 
-        if (type === 'gif') return Animation.__fromGIF__(data, onlyExtractFirstFrame, Animation, maxPixels);
+        if (type === 'gif') return Animation.__gifFrames__(data, onlyExtractFirstFrame, maxPixels);
 
         if (type === 'webp') {
             const decoded = webp.decodeAnimation(data, onlyExtractFirstFrame, maxPixels);
@@ -516,17 +516,9 @@ export class Animation extends Array<Frame> {
      * @internal
      * @ignore
      */
-    static __fromGIF__<T extends Animation>(data: Uint8Array, onlyExtractFirstFrame: boolean, Class: new (frames: Frame[], options: AnimationOptions) => T, maxPixels = MAX_PIXELS): Promise<T> {
-        return decoding(() => Animation.__gifFrames__(data, onlyExtractFirstFrame, Class, maxPixels));
-    }
-
-    /**
-     * @internal
-     * @ignore
-     */
-    private static __gifFrames__<T extends Animation>(data: Uint8Array, onlyExtractFirstFrame: boolean, Class: new (frames: Frame[], options: AnimationOptions) => T, maxPixels: number): T {
+    private static __gifFrames__(data: Uint8Array, onlyExtractFirstFrame: boolean, maxPixels: number): Animation {
         const decoded = gifCodec.decode(data, onlyExtractFirstFrame, maxPixels);
         const frames = gifCodec.composite(decoded).map(({ pixels, delay }) => ({ pixels, duration: 10 * delay }));
-        return new Class(canvasFrames(decoded.width, decoded.height, frames), { loopCount: decoded.loopCount });
+        return new Animation(canvasFrames(decoded.width, decoded.height, frames), { loopCount: decoded.loopCount });
     }
 }

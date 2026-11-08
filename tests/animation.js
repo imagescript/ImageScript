@@ -1,4 +1,4 @@
-const {Image, Frame, Animation, GIF, Colors} = require('..');
+const {Image, Frame, Animation, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -51,7 +51,7 @@ const square = (color, w, h) => new Image(w, h).fill((x, y) => (x + y) % 5 === 0
     // still images decode to a single frame; GIFs stay GIFs
     const single = await Animation.decode(await still.encodePNG());
     if (single.length !== 1 || single.width !== 8) panic('Animation.decode should accept still images');
-    const gif = await Animation.decode(await new GIF([Frame.from(still)]).encode());
+    const gif = await Animation.decode(await new Animation([Frame.from(still)]).encodeGIF());
     if (!(gif instanceof Animation) || gif.length !== 1) panic('Animation.decode should decode GIFs');
     if (!(gif.slice(0, 1) instanceof Animation)) panic('slice should keep the class');
 

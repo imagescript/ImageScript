@@ -1,4 +1,4 @@
-const {Image, Frame, Animation, GIF, GainMap, ResizeModes} = require('..');
+const {Image, Frame, Animation, GainMap, ResizeModes} = require('..');
 
 const panic = message => {
 	console.error(message);
@@ -118,7 +118,6 @@ const sameImage = (image, reference, label) => {
 	if (new Animation([new Frame(4, 4)], {loopCount: 2}).loopCount !== 2 || new Animation([new Frame(4, 4)]).loopCount !== -1) panic('new Animation(frames, options)');
 	const encodedGIF = await new Animation([new Frame(4, 4)]).encodeGIF();
 	if ((await Animation.decode(encodedGIF, {onlyFirstFrame: true})).length !== 1) panic('Animation.decode(data, { onlyFirstFrame })');
-	if (new GIF([new Frame(4, 4)], 2).loopCount !== 2) panic('GIF keeps its 3.x loop count argument');
 	const oldFrames = {
 		'new Frame(4, 4, 100)': () => new Frame(4, 4, 100),
 		'new Frame(4, 4, 100, 1, 1, "keep")': () => new Frame(4, 4, 100, 1, 1, 'keep'),

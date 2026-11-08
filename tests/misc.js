@@ -1,4 +1,4 @@
-const {Image, Frame, GIF, Colors} = require('..');
+const {Image, Frame, Animation, Colors} = require('..');
 const panic = msg => {
     console.error(msg);
     process.exit(1);
@@ -192,14 +192,14 @@ if (new Frame(1, 2, {duration: 3}).toString() !== 'Frame<1x2x3ms>') panic('frame
 }
 
 try {
-    new GIF([{}]);
-    panic('gif frame instanceof failed');
+    new Animation([{}]);
+    panic('animation frame instanceof failed');
 } catch {
 }
 
 {
     const frame = new Frame(512, 128, {duration: 123});
-    const gif = new GIF([frame]);
-    if (gif.toString() !== 'GIF<512x128x123ms>') panic('gif tostring failed');
-    if (gif.duration !== 123) panic('gif duration failed');
+    const animation = new Animation([frame]);
+    if (animation.toString() !== 'Animation<512x128x123ms>') panic('animation tostring failed');
+    if (animation.duration !== 123) panic('animation duration failed');
 }

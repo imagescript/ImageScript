@@ -1,4 +1,4 @@
-const {Image, Frame, GIF, Animation, TextLayout} = require('..');
+const {Image, Frame, Animation, TextLayout} = require('..');
 const {ResizeModes, SVGScaleModes, FrameDisposalModes, Colors} = require('..');
 const zlib = require('zlib');
 // (encoders stamp the current time into the metadata: tests that compare two encodes freeze it, or they differ when a second ends in between)
@@ -99,7 +99,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // GIFs behave like arrays
     {
-        const gif = new GIF([new Frame(4, 4), new Frame(4, 4), new Frame(4, 4)], 2);
+        const gif = new Animation([new Frame(4, 4), new Frame(4, 4), new Frame(4, 4)], {loopCount: 2});
         assert(gif.slice(1).length === 2 && gif.slice(1).loopCount === 2, 'GIF.slice(start)');
         assert(gif.slice(-1).length === 1, 'GIF.slice(negative)');
         assert(gif.map(frame => frame.width).join() === '4,4,4', 'GIF.map');
@@ -108,7 +108,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // resizing GIFs scales partial frames proportionally
     {
-        const gif = new GIF([new Frame(10, 10), new Frame(4, 4, {duration: 100, xOffset: 6, yOffset: 6})]).resize(5, 5);
+        const gif = new Animation([new Frame(10, 10), new Frame(4, 4, {duration: 100, xOffset: 6, yOffset: 6})]).resize(5, 5);
         assert(gif.width === 5 && gif.height === 5, `GIF.resize: canvas is ${gif.width}x${gif.height}`);
         assert(gif[1].width === 2 && gif[1].xOffset === 3, 'GIF.resize: partial frame not scaled');
     }
@@ -327,8 +327,8 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // gif frame durations are rounded to centiseconds
     {
         // (different frames: identical ones are merged)
-        const gif = new GIF([new Frame(2, 2, {duration: 16}), new Frame(2, 2, {duration: 14}).fill(0xff0000ff)]);
-        const decoded = await GIF.decode(await gif.encode());
+        const gif = new Animation([new Frame(2, 2, {duration: 16}), new Frame(2, 2, {duration: 14}).fill(0xff0000ff)]);
+        const decoded = await Animation.decode(await gif.encodeGIF());
         assert(decoded[0].duration === 20 && decoded[1].duration === 10, `gif durations should round, got ${decoded[0].duration}, ${decoded[1].duration}`);
     }
 
@@ -373,7 +373,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         let threw = false;
         try { frame.disposalMode = 0; } catch (e) { threw = e instanceof RangeError; }
         assert(threw && frame.disposalMode === 'previous', 'disposalMode should only take names');
-        const decoded = await GIF.decode(await new GIF([new Frame(2, 2, {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'background'}), new Frame(2, 2).fill(0xff0000ff)]).encode());
+        const decoded = await Animation.decode(await new Animation([new Frame(2, 2, {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'background'}), new Frame(2, 2).fill(0xff0000ff)]).encodeGIF());
         assert(decoded.length === 2, 'gif with disposal modes should roundtrip');
     }
 
@@ -985,8 +985,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         await tooLarge('jpeg', () => Image.decode(jpeg));
         await tooLarge('tiff samples', () => Image.decode(tiff));
         await tooLarge('gif frames', () => Animation.decode(gif, {maxPixels: 4000 * 4000 * 10}));
-        await tooLarge('gif frames through GIF.decode', () => GIF.decode(gif, {maxPixels: 4000 * 4000 * 10}));
-        await tooLarge('maxPixels', () => Image.decode(png(100, 100), {maxPixels: 9999}));
+                await tooLarge('maxPixels', () => Image.decode(png(100, 100), {maxPixels: 9999}));
 
         // without a limit, the PNG gets as far as its data (which is too short)
         let error = null;

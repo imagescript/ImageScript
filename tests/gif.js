@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Frame, FrameDisposalModes, GIF, Colors} = require('..');
+const {Frame, FrameDisposalModes, Animation, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -15,14 +15,14 @@ const panic = message => {
         frames.push(frame);
     }
 
-    const gif = new GIF(frames);
+    const gif = new Animation(frames);
 
     if (process.env.OVERWRITE_TEST)
-        await fs.writeFile('./tests/targets/gif.gif', await gif.encode(1));
+        await fs.writeFile('./tests/targets/gif.gif', await gif.encodeGIF({quality: 1}));
 
     {
         const binary = await fs.readFile('./tests/targets/gif.gif');
-        const decoded = await GIF.decode(binary);
+        const decoded = await Animation.decode(binary);
         if (decoded.width !== gif.width)
             panic('decode: incorrect width');
         if (decoded.height !== gif.height)
@@ -35,14 +35,14 @@ const panic = message => {
                 panic('decode: incorrect frame bitmap length');
         }
 
-        const first = await GIF.decode(binary, true);
+        const first = await Animation.decode(binary, {onlyFirstFrame: true});
         if (first.length !== 1)
             panic('decode: onlyExtractFirstFrame returned more than one frame');
     }
 
     {
         // frames with <= 256 colors survive a roundtrip losslessly
-        const decoded = await GIF.decode(await gif.encode());
+        const decoded = await Animation.decode(await gif.encodeGIF());
         for (let i = 0; i < gif.length; i++)
             if (!Buffer.from(decoded[i].bitmap).equals(Buffer.from(gif[i].bitmap)))
                 panic(`roundtrip: frame ${i} differs`);
@@ -66,7 +66,7 @@ const panic = message => {
         const last = new Frame(1, 1, {duration: 100, xOffset: 0, yOffset: 0});
         last.fill(white);
 
-        const decoded = await GIF.decode(await new GIF([background, dot, hole, last], 2).encode());
+        const decoded = await Animation.decode(await new Animation([background, dot, hole, last], {loopCount: 2}).encodeGIF());
         if (decoded.loopCount !== 2)
             panic('disposal: incorrect loop count');
 
@@ -88,7 +88,7 @@ const panic = message => {
 
     // interlaced: written by Pillow (scripts/gif-fixtures.py), the sha256 of its RGBA pixels as Pillow decodes them
     {
-        const [frame] = await GIF.decode(await fs.readFile('./tests/gifs/interlaced.gif'));
+        const [frame] = await Animation.decode(await fs.readFile('./tests/gifs/interlaced.gif'));
         if (frame.width !== 80 || frame.height !== 37) panic('interlaced: dimensions don\'t match');
         if (crypto.createHash('sha256').update(new Uint8Array(frame.bitmap)).digest('hex') !== '854e5e98f2124a6009d5bc28748772ede25af244a2503021ef4f52e323309d46')
             panic('interlaced: pixels don\'t match');
@@ -97,10 +97,10 @@ const panic = message => {
     // damaged files keep the frames decoded so far: cut off, or an unknown block before the trailer
     {
         const binary = await fs.readFile('./tests/targets/gif.gif');
-        const cut = await GIF.decode(binary.subarray(0, binary.length >> 1));
+        const cut = await Animation.decode(binary.subarray(0, binary.length >> 1));
         if (!cut.length || cut.length >= 30) panic(`truncated: ${cut.length} frames decoded`);
 
-        const unknown = await GIF.decode(Buffer.concat([binary.subarray(0, -1), Buffer.from([0x99, 0x3b])]));
+        const unknown = await Animation.decode(Buffer.concat([binary.subarray(0, -1), Buffer.from([0x99, 0x3b])]));
         if (unknown.length !== 30) panic(`unknown block: ${unknown.length} frames decoded`);
     }
 })();

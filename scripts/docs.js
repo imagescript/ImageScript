@@ -63,7 +63,7 @@ for (const page of pages) {
 const redirects = {
     'Image.html': ['classes/Image.html', true],
     'Frame.html': ['classes/Frame.html', true],
-    'GIF.html': ['classes/GIF.html', true],
+    'GIF.html': ['classes/Animation.html', true],
     'TextLayout.html': ['classes/TextLayout.html', true],
     'global.html': ['functions/decode.html', false]
 };

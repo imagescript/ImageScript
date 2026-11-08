@@ -15,7 +15,6 @@ export { Frame, FrameDisposalModes } from './frame.ts';
 export type { FrameDisposalModeName, FrameOptions } from './frame.ts';
 export { GainMap } from './gainmap.ts';
 export type { GainMapOptions, GainMapEncodeOptions } from './gainmap.ts';
-export { GIF } from './gif.ts';
 export { Animation } from './animation.ts';
 export type { AnimationOptions, AnimationDecodeOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
 export { AnimationEncoder } from './animation-encoder.ts';

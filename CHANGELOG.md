@@ -31,9 +31,11 @@
 
 - **The positional arguments of `Image.renderSVG()` are removed**: `Image.renderSVG(svg, size, mode)` is `Image.renderSVG(svg, { size, mode })`, which takes the same `fonts` and `images` as before: `Image.renderSVG(svg, 2, 'width')` is now `Image.renderSVG(svg, { size: 2, mode: 'width' })`.
 
-- **The positional arguments of `new Frame()`, `Frame.from()` and `new Animation()` are removed, and `Animation.decode()` takes no flag**: `new Frame(width, height, duration, xOffset, yOffset, disposalMode)` is `new Frame(width, height, { duration, xOffset, yOffset, disposalMode })`, `Frame.from(image, duration, xOffset, yOffset, disposalMode)` is `Frame.from(image, { duration, xOffset, yOffset, disposalMode })`, `new Animation(frames, loopCount)` is `new Animation(frames, { loopCount })`, and `Animation.decode(data, true)` is `Animation.decode(data, { onlyFirstFrame: true })`. The `GIF` class keeps its arguments until it is removed.
+- **The positional arguments of `new Frame()`, `Frame.from()` and `new Animation()` are removed, and `Animation.decode()` takes no flag**: `new Frame(width, height, duration, xOffset, yOffset, disposalMode)` is `new Frame(width, height, { duration, xOffset, yOffset, disposalMode })`, `Frame.from(image, duration, xOffset, yOffset, disposalMode)` is `Frame.from(image, { duration, xOffset, yOffset, disposalMode })`, `new Animation(frames, loopCount)` is `new Animation(frames, { loopCount })`, and `Animation.decode(data, true)` is `Animation.decode(data, { onlyFirstFrame: true })`.
 
 - **`decode()` returns an `Animation` only for files with several frames**: a GIF, APNG, animated WebP or JPEG XL with more than one frame is an `Animation` (`decode(gif)` used to be a `GIF`), and one with a single frame is an `Image`, like a still image (a one-frame GIF used to be a `GIF`). With `onlyFirstFrame`, the first frame comes back as an `Image`, since the frame count isn't read.
+
+- **The `GIF` class is removed**: `new GIF(frames, loopCount)` is `new Animation(frames, { loopCount })`, `GIF.decode(data)` is `Animation.decode(data)` and `gif.encode(quality)` is `animation.encodeGIF({ quality })`. `Animation` decodes and encodes GIFs the same way it does APNGs and WebPs.
 
 ## 3.20.1
 
