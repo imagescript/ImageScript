@@ -5,6 +5,7 @@
 ### Performance
 
 - Drawing on an image with a gain map (an HDR photo) is much faster: `drawBox()` and `drawCircle()` only recompute the part of the map they cover, instead of the whole map for every call. 400 scanlines over a 1820x1820 Ultra HDR photo take 0.3 s instead of 5.8 s, with the same result.
+- `composite()` onto or from an image with a gain map is up to twice as fast: 1820x1820 with a blend mode like `'add'` takes 0.22 s instead of 0.48 s, with the same result. Gain maps stay in sync with the pixels as before.
 
 ## 3.20.0
 

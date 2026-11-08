@@ -1895,24 +1895,46 @@ export class Image {
         const sourceOS = sourceMap?.offsetSDR ?? [0, 0, 0], sourceOH = sourceMap?.offsetHDR ?? [0, 0, 0];
         const oS = map.offsetSDR, oH = map.offsetHDR;
         const src = source.bitmap, Gs = [0, 0, 0];
+        let lastGain = NaN, lastPower = 1;
         gain.redraw(this, map, left, top, right, bottom, (px, py, S, boost, out) => {
             const s = 4 * ((py - y) * source.width + px - x), b = 4 * ((py - top) * beforeWidth + px - left);
             const as = src[s + 3] / 255 * opacity, ab = before[b + 3] / 255;
             const ao = as + ab * (1 - as);
-            if (sample) sample(px - x, py - y, Gs);
+            // (blend modes over an opaque backdrop keep the backdrop's boost on the blended color: no source light needed)
+            if (blend && ab === 1) {
+                for (let c = 0; c < 3; c++) out[c] = (S[c] + oS[c]) * boost[c] - oH[c];
+                return;
+            }
+            if (ao <= 0) {
+                out[0] = out[1] = out[2] = 0;
+                return;
+            }
+            let sampled = false;
             for (let c = 0; c < 3; c++) {
                 const Sd = gain.LINEAR[before[b + c]], Ss = gain.LINEAR[src[s + c]];
                 const Hd = (Sd + oS[c]) * boost[c] - oH[c];
-                const Hs = sample ? (Ss + sourceOS[c]) * 2 ** Gs[c] - sourceOH[c] : Ss;
-                if (blend && ab === 1) {
-                    // (blend modes keep the backdrop's boost on the blended color)
-                    out[c] = (S[c] + oS[c]) * boost[c] - oH[c];
-                    continue;
-                }
                 // the source's share of the result as the pixels got it (composited in sRGB, not linear light): the
                 // HDR light is mixed alike, so it looks like the SDR result, boosted
-                const share = Math.abs(Ss - Sd) > 1e-4 ? Math.min(1, Math.max(0, (S[c] - Sd) / (Ss - Sd))) : ao > 0 ? as / ao : 0;
-                out[c] = ao > 0 ? share * Hs + (1 - share) * Hd : 0;
+                const share = Math.abs(Ss - Sd) > 1e-4 ? Math.min(1, Math.max(0, (S[c] - Sd) / (Ss - Sd))) : as / ao;
+                if (share === 0) {
+                    // (nothing of the source is in the result: its light isn't needed)
+                    out[c] = Hd;
+                    continue;
+                }
+                let Hs = Ss;
+                if (sample) {
+                    if (!sampled) {
+                        sample(px - x, py - y, Gs);
+                        sampled = true;
+                    }
+                    // (the same gain as the one before has the same power: single channel maps have one in all three)
+                    if (Gs[c] !== lastGain) {
+                        lastGain = Gs[c];
+                        lastPower = 2 ** lastGain;
+                    }
+                    Hs = (Ss + sourceOS[c]) * lastPower - sourceOH[c];
+                }
+                out[c] = share * Hs + (1 - share) * Hd;
             }
         }, map.channels === 1 && (!sourceMap || sourceMap.channels === 1), Math.max(0, ...(sourceMap?.gainMapMax ?? [0])));
         return this;
