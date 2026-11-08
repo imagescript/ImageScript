@@ -101,9 +101,9 @@ export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' 
 
 /** Options of {@link Image.composite} */
 export interface CompositeOptions {
-    /** The x position to place the source at, if the options are the second argument. Default: `0` */
+    /** The x position to place the source at. Default: `0` */
     x?: number;
-    /** The y position to place the source at, if the options are the second argument. Default: `0` */
+    /** The y position to place the source at. Default: `0` */
     y?: number;
     /** Opacity of the source (0..1). Default: `1` */
     opacity?: number;
@@ -993,7 +993,7 @@ export class Image {
         const result = new Image(width, height);
         this.contain(width, height, options);
         const x = (width - this.width) / 2 | 0, y = (height - this.height) / 2 | 0;
-        result.composite(this, x, y);
+        result.composite(this, { x, y });
         this.__gain_map__?.__transform__(this.width, this.height, result.width, result.height, (X, Y) => [X - x, Y - y]);
         return this.__apply__(result);
     }
@@ -1159,19 +1159,10 @@ export class Image {
      * @param options See {@link TrimOptions}
      */
     trim(options?: TrimOptions): this;
-    /**
-     * Removes borders of one color, e.g. the empty space around rendered text or around a logo on a solid background.
-     * Frames keep their position: their offsets move by the trimmed amount. An image that only has the color stays
-     * unchanged
-     * @param color The border color, by default the color of the top left pixel. Fully transparent pixels count as the
-     *     same color whatever their RGB values
-     * @param options See {@link TrimOptions}
-     * @deprecated Pass {@link TrimOptions} instead, the positional arguments will be removed in 4.0
-     */
-    trim(color?: Color, options?: TrimOptions): this;
-    trim(colorOrOptions?: Color | TrimOptions, optionsArgument: TrimOptions = {}): this {
-        const { color, ...options } = isOptions(colorOrOptions) ? colorOrOptions : { ...optionsArgument, color: colorOrOptions ?? optionsArgument.color };
-        const bounds = this.__trim_bounds__(color, options);
+    trim(options: TrimOptions = {}): this {
+        checkOptions(options, 'trim({ tolerance: 0.1 })');
+        const { color, ...rest } = options;
+        const bounds = this.__trim_bounds__(color, rest);
         if (!bounds) return this;
         this.__crop_gain_map__(this, ...bounds);
         return this.__apply__(this.__crop__(...bounds));
@@ -1512,19 +1503,10 @@ export class Image {
      * @param options Position, opacity and blend mode, see {@link CompositeOptions}
      */
     composite(source: Image, options?: CompositeOptions): this;
-    /**
-     * Composites (overlays) the source onto this image at the specified coordinates
-     * @param source The image to place
-     * @param [x=0] The x position to place the image at
-     * @param [y=0] The y position to place the image at
-     * @param options Opacity and blend mode, see {@link CompositeOptions}
-     * @deprecated Pass {@link CompositeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    composite(source: Image, x?: number, y?: number, options?: CompositeOptions): this;
-    composite(source: Image, xOrOptions: number | CompositeOptions = 0, yArgument = 0, optionsArgument: CompositeOptions = {}): this {
-        const options = isOptions(xOrOptions) ? xOrOptions : optionsArgument;
+    composite(source: Image, options: CompositeOptions = {}): this {
+        checkOptions(options, 'composite(source, { x: 10, y: 20 })');
         const { opacity = 1, mode = 'normal' } = options;
-        let x = isOptions(xOrOptions) ? xOrOptions.x ?? 0 : xOrOptions, y = isOptions(xOrOptions) ? xOrOptions.y ?? 0 : yArgument;
+        let x = options.x ?? 0, y = options.y ?? 0;
         x = finite(x, 'x') | 0;
         y = finite(y, 'y') | 0;
 
@@ -1585,7 +1567,7 @@ export class Image {
         const ownMap = this.__gain_map__, sourceMap = source.__gain_map__;
         this.__gain_map__ = source.__gain_map__ = null;
         try {
-            this.composite(source, x, y, { opacity, mode });
+            this.composite(source, { x, y, opacity, mode });
         } finally {
             this.__gain_map__ = ownMap;
             source.__gain_map__ = sourceMap;
@@ -2118,15 +2100,9 @@ export class Image {
      * @param options See {@link SharpenOptions}
      */
     sharpen(options?: SharpenOptions): this;
-    /**
-     * Sharpens the image with an unsharp mask: the difference to a blurred copy is amplified
-     * @param [amount=1] How strongly to sharpen (0 does nothing)
-     * @param [radius=1] The radius of the blur the image is compared with (larger values sharpen coarser details)
-     * @deprecated Pass {@link SharpenOptions} instead, the positional arguments will be removed in 4.0
-     */
-    sharpen(amount?: number, radius?: number): this;
-    sharpen(amountOrOptions: number | SharpenOptions = 1, radiusArgument = 1): this {
-        const { amount = 1, radius = 1 } = isOptions(amountOrOptions) ? amountOrOptions : { amount: amountOrOptions, radius: radiusArgument };
+    sharpen(options: SharpenOptions = {}): this {
+        checkOptions(options, 'sharpen({ amount: 0.5 })');
+        const { amount = 1, radius = 1 } = options;
         if (!Number.isFinite(amount) || amount < 0)
             throw new RangeError('Invalid sharpen amount');
         if (!Number.isFinite(radius) || radius <= 0)
@@ -2221,19 +2197,9 @@ export class Image {
      * @param options See {@link ColorToAlphaOptions}
      */
     colorToAlpha(options?: ColorToAlphaOptions): this;
-    /**
-     * Makes a color transparent, like GIMP's "Color to Alpha": the color is removed from every pixel and replaced by
-     * transparency, so pixels that are partly the color (e.g. antialiased edges against a background) become
-     * semi-transparent instead of keeping a fringe of it.
-     * The color is removed everywhere in the image, not only from a connected background: removing a white
-     * background also makes white areas inside the subject (e.g. eyes in a logo) transparent
-     * @param color The color to remove, by default the color of the top left pixel (e.g. a background)
-     * @param options See {@link ColorToAlphaOptions}
-     * @deprecated Pass {@link ColorToAlphaOptions} instead, the positional arguments will be removed in 4.0
-     */
-    colorToAlpha(color?: Color, options?: ColorToAlphaOptions): this;
-    colorToAlpha(colorOrOptions?: Color | ColorToAlphaOptions, optionsArgument: ColorToAlphaOptions = {}): this {
-        const { color: colorOption, transparencyThreshold = 0, opacityThreshold = 1 } = isOptions(colorOrOptions) ? colorOrOptions : { ...optionsArgument, color: colorOrOptions ?? optionsArgument.color };
+    colorToAlpha(options: ColorToAlphaOptions = {}): this {
+        checkOptions(options, 'colorToAlpha({ color: 0xffffffff })');
+        const { color: colorOption, transparencyThreshold = 0, opacityThreshold = 1 } = options;
         let color = colorOption;
         if (!(transparencyThreshold >= 0 && opacityThreshold <= 1 && transparencyThreshold < opacityThreshold))
             throw new RangeError('Invalid thresholds, they have to satisfy 0 <= transparencyThreshold < opacityThreshold <= 1');
@@ -2307,18 +2273,9 @@ export class Image {
      *     If every pixel is ignored as black or white, the filter is dropped
      */
     dominantColor(options?: DominantColorOptions): Color;
-    /**
-     * Gets the image's dominant color, see {@link Image.dominantColor | the variant with options}
-     * @param ignoreBlack Whether to ignore dark colors (all channels below the threshold). Default: `true`
-     * @param ignoreWhite Whether to ignore light colors (all channels above 255 minus the threshold). Default: `true`
-     * @param bwThreshold The black/white threshold (0-64, in steps of 4 channel values). Default: `15`
-     * @return The image's dominant color (fully opaque)
-     * @deprecated Pass {@link DominantColorOptions} instead, the positional arguments will be removed in 4.0
-     */
-    dominantColor(ignoreBlack?: boolean, ignoreWhite?: boolean, bwThreshold?: number): Color;
-    dominantColor(ignoreBlackOrOptions: boolean | DominantColorOptions = true, ignoreWhiteArgument = true, thresholdArgument = 0xf): Color {
-        const { ignoreBlack = true, ignoreWhite = true, threshold: bwThreshold = 0xf } = typeof ignoreBlackOrOptions === 'object' && ignoreBlackOrOptions !== null
-            ? ignoreBlackOrOptions : { ignoreBlack: ignoreBlackOrOptions, ignoreWhite: ignoreWhiteArgument, threshold: thresholdArgument };
+    dominantColor(options: DominantColorOptions = {}): Color {
+        checkOptions(options, 'dominantColor({ ignoreBlack: false })');
+        const { ignoreBlack = true, ignoreWhite = true, threshold: bwThreshold = 0xf } = options;
         const threshold = Math.min(64, Math.max(0, finite(bwThreshold, 'threshold'))) * 4;
         const pixels = this.__bytes__();
 
@@ -2335,15 +2292,9 @@ export class Image {
      * @param options See {@link RotateOptions}
      */
     rotate(angle: number, options?: RotateOptions): this;
-    /**
-     * Rotates the image counterclockwise by the given amount of degrees
-     * @param angle The angle to rotate the image for (in degrees)
-     * @param resize Whether to resize the image so it fits all pixels or just ignore outlying pixels. Default: `true`
-     * @deprecated Pass {@link RotateOptions} instead, the positional arguments will be removed in 4.0
-     */
-    rotate(angle: number, resize?: boolean): this;
-    rotate(angle: number, resizeOrOptions: boolean | RotateOptions = true): this {
-        const { resize = true, fast = true } = typeof resizeOrOptions === 'object' && resizeOrOptions !== null ? resizeOrOptions : { resize: resizeOrOptions };
+    rotate(angle: number, options: RotateOptions = {}): this {
+        checkOptions(options, 'rotate(angle, { resize: false })');
+        const { resize = true, fast = true } = options;
         angle = ((finite(angle, 'angle') % 360) + 360) % 360;
         if (angle === 0) return this;
 
@@ -2541,14 +2492,9 @@ export class Image {
      * @param options See {@link RoundCornersOptions}
      */
     roundCorners(options?: RoundCornersOptions): this;
-    /**
-     * Rounds the images corners, with antialiased edges
-     * @param [radius=min(width,height)/4] The radius of the corners
-     * @deprecated Pass {@link RoundCornersOptions} instead, the positional arguments will be removed in 4.0
-     */
-    roundCorners(radius?: number): this;
-    roundCorners(radiusOrOptions?: number | RoundCornersOptions): this {
-        let radius = (isOptions(radiusOrOptions) ? radiusOrOptions.radius : radiusOrOptions) ?? Math.min(this.width, this.height) / 4;
+    roundCorners(options: RoundCornersOptions = {}): this {
+        checkOptions(options, 'roundCorners({ radius: 10 })');
+        let radius = options.radius ?? Math.min(this.width, this.height) / 4;
         radius = finite(radius, 'radius');
         radius = Math.max(0, Math.min(radius, this.width / 2, this.height / 2));
         const size = Math.ceil(radius);
@@ -2573,14 +2519,9 @@ export class Image {
      * @param options See {@link FisheyeOptions}
      */
     fisheye(options?: FisheyeOptions): this;
-    /**
-     * Applies a fisheye (barrel distortion) effect
-     * @param [strength=2] The distortion strength (exponent of the radial mapping), higher values bulge the center more
-     * @deprecated Pass {@link FisheyeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    fisheye(strength?: number): this;
-    fisheye(strengthOrOptions?: number | FisheyeOptions): this {
-        const strength = finite((isOptions(strengthOrOptions) ? strengthOrOptions.strength : strengthOrOptions) ?? 2, 'strength');
+    fisheye(options: FisheyeOptions = {}): this {
+        checkOptions(options, 'fisheye({ strength: 3 })');
+        const strength = finite(options.strength ?? 2, 'strength');
         const r = new Image(this.width, this.height);
 
         const w = this.width;

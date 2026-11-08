@@ -55,7 +55,7 @@ const mapBytes = image => Buffer.from(image.gainMap.image.bitmap);
 		source.gainMap = (await Image.decode(file)).gainMap.clone();
 		source.gainMap.gainMapMax = [max + 2, max + 2, max + 2];
 		source.gainMap.image.fill(0xffffffff);
-		image.composite(source, 10, 10);
+		image.composite(source, {x: 10, y: 10});
 		if (!(map.gainMapMax[0] > max)) panic(`composite: the range should have grown beyond ${max}, it is ${map.gainMapMax[0]}`);
 		for (let i = 0; i < 20; i++) {
 			const x = i * 7 % map.width, y = i * 11 % map.height;

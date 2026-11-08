@@ -23,7 +23,7 @@ const panic = msg => {
     {
         const binary = await fs.readFile('./tests/targets/image.png');
         const image = await Image.decode(binary);
-        image.rotate(45, false);
+        image.rotate(45, {resize: false});
 
         const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
 

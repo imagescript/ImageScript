@@ -32,7 +32,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // free rotation keeps the edges
     {
-        const image = new Image(4, 4).fill(0xff0000ff).rotate(0.001, false);
+        const image = new Image(4, 4).fill(0xff0000ff).rotate(0.001, {resize: false});
         for (const [x, y, color] of image.pixels()) assert((color & 0xff) > 250, `rotate: edge pixel ${x},${y} lost`);
     }
 
@@ -131,10 +131,10 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const box = new Image(3, 3).drawBox(1, 1, 1, 1, 0xffffffff);
         assert(box.getPixelAt(1, 1) === 0xffffffff && box.getPixelAt(0, 0) === 0, 'drawBox should be 0-based');
 
-        const target = new Image(3, 3).composite(new Image(1, 1).fill(0xffffffff), 1, 1);
+        const target = new Image(3, 3).composite(new Image(1, 1).fill(0xffffffff), {x: 1, y: 1});
         assert(target.getPixelAt(1, 1) === 0xffffffff, 'composite and getPixelAt should agree');
 
-        const corners = new Image(8, 8).fill(0xffffffff).roundCorners(3);
+        const corners = new Image(8, 8).fill(0xffffffff).roundCorners({radius: 3});
         const alpha = (x, y) => corners.getPixelAt(x, y) & 0xff;
         for (let y = 0; y < 8; y++)
             for (let x = 0; x < 8; x++)
@@ -557,19 +557,14 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert((await Animation.decode(codestream, {toneMapping: 'clamp'})).length === plain.length, 'Animation.decode with toneMapping clamp');
     }
 
-    // trim, colorToAlpha and GainMap.encode take their values in options too (the positional color and quality are deprecated, removed in 4.0)
+    // trim and colorToAlpha take their color in the options too
     {
         const {GainMap} = require('..');
         const bordered = () => new Image(6, 5).fill(0x102030ff).setPixelAt(2, 2, 0xffffffff).setPixelAt(3, 2, 0x00000000);
         const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
-        assert(same(bordered().trim({color: 0x102030ff}), bordered().trim(0x102030ff)), 'trim({color}) vs trim(color)');
-        assert(same(bordered().trim({color: 0x102030ff, tolerance: 0.1}), bordered().trim(0x102030ff, {tolerance: 0.1})), 'trim({color, tolerance})');
-        assert(same(bordered().trim({tolerance: 0.1}), bordered().trim(undefined, {tolerance: 0.1})), 'trim({tolerance}) keeps the top left color');
         assert(same(bordered().trim(), bordered().trim(undefined)) && same(bordered().trim(), bordered().trim({})), 'trim() without arguments');
         const frame = () => Frame.from(bordered(), 100, 3, 4);
-        assert(same(frame().trim({color: 0x102030ff}), frame().trim(0x102030ff)) && frame().trim({color: 0x102030ff}).xOffset === 5, 'Frame.trim({color}) moves the offsets');
-        assert(same(bordered().colorToAlpha({color: 0x102030ff}), bordered().colorToAlpha(0x102030ff)), 'colorToAlpha({color}) vs colorToAlpha(color)');
-        assert(same(bordered().colorToAlpha({transparencyThreshold: 0.2}), bordered().colorToAlpha(undefined, {transparencyThreshold: 0.2})), 'colorToAlpha({transparencyThreshold})');
+        assert(frame().trim({color: 0x102030ff}).xOffset === 5, 'Frame.trim({color}) moves the offsets');
         assert(same(bordered().colorToAlpha(), bordered().colorToAlpha(undefined)) && same(bordered().colorToAlpha(), bordered().colorToAlpha({})), 'colorToAlpha() without arguments');
         const map = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
         const a = await map.encode({quality: 70}), b = await map.encode(70);
@@ -727,7 +722,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const base = new Image(20, 20).fill(0xff0000ff);
         assert(base.clone().rotate(45, {resize: false}).width === 20 && base.clone().rotate(45).width > 20, 'rotate options');
         const navy = new Image(10, 10).fill(0x00002aff).drawBox(0, 0, 3, 3, 0xc8c800ff);
-        assert(navy.dominantColor({threshold: 0}) === 0x00002aff && navy.dominantColor({ignoreBlack: true}) === navy.dominantColor(true), 'dominantColor options');
+        assert(navy.dominantColor({threshold: 0}) === 0x00002aff, 'dominantColor options');
     }
 
     // type checks take any binary data
@@ -740,9 +735,9 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // blur and sharpen: uniform images stay as they are, transparent pixels don't bleed their color
     {
         const flat = new Image(16, 16).fill(0x336699ff);
-        for (const [name, op] of [['blur', i => i.blur(3)], ['blur small', i => i.blur(0.8)], ['sharpen', i => i.sharpen(2, 1.5)]])
+        for (const [name, op] of [['blur', i => i.blur(3)], ['blur small', i => i.blur(0.8)], ['sharpen', i => i.sharpen({amount: 2, radius: 1.5})]])
             assert(Buffer.from(op(flat.clone()).bitmap).equals(Buffer.from(flat.bitmap)), `${name} changed a uniform image`);
-        assert(Buffer.from(flat.clone().blur(0).bitmap).equals(Buffer.from(flat.bitmap)) && Buffer.from(flat.clone().sharpen(0).bitmap).equals(Buffer.from(flat.bitmap)), 'blur(0)/sharpen(0) should do nothing');
+        assert(Buffer.from(flat.clone().blur(0).bitmap).equals(Buffer.from(flat.bitmap)) && Buffer.from(flat.clone().sharpen({amount: 0}).bitmap).equals(Buffer.from(flat.bitmap)), 'blur(0)/sharpen(0) should do nothing');
 
         const half = new Image(16, 16).fill((x) => x < 8 ? 0xff000000 : 0x0000ffff).blur(2);
         for (let x = 0; x < 16; x++) {
@@ -751,10 +746,10 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         }
 
         const edge = new Image(16, 1).fill((x) => x < 8 ? 0x000000ff : 0xffffffff);
-        const sharpened = edge.clone().sharpen(1, 1);
+        const sharpened = edge.clone().sharpen({amount: 1, radius: 1});
         assert(rgba(sharpened, 7, 0)[0] === 0 && rgba(sharpened, 8, 0)[0] === 255, 'sharpen should keep a hard edge hard');
         const soft = new Image(16, 1).fill((x) => Colors.fromRGB(x * 16, x * 16, x * 16)).blur(1);
-        const sharp = soft.clone().sharpen(3, 2);
+        const sharp = soft.clone().sharpen({amount: 3, radius: 2});
         assert(rgba(sharp, 15, 0)[0] >= rgba(soft, 15, 0)[0] && rgba(sharp, 0, 0)[0] <= rgba(soft, 0, 0)[0], 'sharpen should increase contrast');
     }
 
@@ -772,7 +767,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(rgba(px(0xffffff80).sepia(), 0, 0).join() === '255,255,239,128', 'sepia, got ' + rgba(px(0xffffff80).sepia(), 0, 0));
 
         let threw = 0;
-        for (const op of [i => i.brightness(-1), i => i.contrast(NaN), i => i.gamma(0), i => i.blur(-1), i => i.sharpen(1, 0)])
+        for (const op of [i => i.brightness(-1), i => i.contrast(NaN), i => i.gamma(0), i => i.blur(-1), i => i.sharpen({amount: 1, radius: 0})])
             try { op(px(0)); } catch { threw++; }
         assert(threw === 5, 'invalid adjustment arguments should throw');
     }
@@ -781,13 +776,13 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     {
         const base = new Image(2, 1).fill((x) => x ? 0x808080ff : 0x00000000);
         const top = new Image(2, 1).fill(0x4080c0ff);
-        assert(Buffer.from(base.clone().composite(top, 0, 0, {opacity: 0}).bitmap).equals(Buffer.from(base.bitmap)), 'opacity 0 should change nothing');
-        assert(rgba(base.clone().composite(top, 0, 0, {opacity: 0.5}), 1, 0).join() === '96,128,160,255', 'opacity 0.5');
-        assert(rgba(base.clone().composite(top, 0, 0, {mode: 'multiply'}), 1, 0).join() === '32,64,96,255', 'multiply');
-        assert(rgba(base.clone().composite(top, 0, 0, {mode: 'screen'}), 1, 0).join() === '160,192,224,255', 'screen');
+        assert(Buffer.from(base.clone().composite(top, {x: 0, y: 0, opacity: 0}).bitmap).equals(Buffer.from(base.bitmap)), 'opacity 0 should change nothing');
+        assert(rgba(base.clone().composite(top, {x: 0, y: 0, opacity: 0.5}), 1, 0).join() === '96,128,160,255', 'opacity 0.5');
+        assert(rgba(base.clone().composite(top, {x: 0, y: 0, mode: 'multiply'}), 1, 0).join() === '32,64,96,255', 'multiply');
+        assert(rgba(base.clone().composite(top, {x: 0, y: 0, mode: 'screen'}), 1, 0).join() === '160,192,224,255', 'screen');
         // over a transparent backdrop blend modes draw the plain source
-        assert(rgba(base.clone().composite(top, 0, 0, {mode: 'multiply'}), 0, 0).join() === '64,128,192,255', 'blend over transparency');
-        assert(Buffer.from(base.clone().composite(top, 0, 0, {mode: 'normal', opacity: 1}).bitmap).equals(Buffer.from(base.clone().composite(top).bitmap)), 'normal mode');
+        assert(rgba(base.clone().composite(top, {x: 0, y: 0, mode: 'multiply'}), 0, 0).join() === '64,128,192,255', 'blend over transparency');
+        assert(Buffer.from(base.clone().composite(top, {x: 0, y: 0, mode: 'normal', opacity: 1}).bitmap).equals(Buffer.from(base.clone().composite(top).bitmap)), 'normal mode');
 
         // normal mode with an opacity (source over with the source alpha scaled) matches the general compositing model,
         // also for translucent pixels, off the edges
@@ -797,13 +792,13 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const backdrop = new Image(24, 16).fill(pixel), source = new Image(16, 24).fill(pixel);
         for (const opacity of [0.3, 0.85, 0.999]) {
             const expected = backdrop.clone().__blend__(source, 12, -4, opacity, (_, s) => s).bitmap;
-            const actual = backdrop.clone().composite(source, 12, -4, {opacity}).bitmap;
+            const actual = backdrop.clone().composite(source, {x: 12, y: -4, opacity}).bitmap;
             assert(actual.every((v, i) => Math.abs(v - expected[i]) <= 1), `normal mode with opacity ${opacity} differs from the compositing model`);
         }
 
         let threw = 0;
         for (const options of [{mode: 'foo'}, {mode: 'toString'}, {opacity: 2}, {opacity: NaN}])
-            try { base.clone().composite(top, 0, 0, options); } catch { threw++; }
+            try { base.clone().composite(top, {x: 0, y: 0, ...options}); } catch { threw++; }
         assert(threw === 4, 'invalid composite options should throw');
     }
 
@@ -879,7 +874,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(Buffer.from(back.bitmap).equals(Buffer.from(image.bitmap)), 'colorToAlpha: compositing over the color should give the original');
         const edge = cut.getRGBAAt(32, 20);
         assert(edge[3] > 0 && edge[3] < 255 && edge[0] === 255 && edge[1] === 0, 'colorToAlpha: antialiased edges should become translucent red');
-        const loose = image.clone().colorToAlpha(0xffffffff, {transparencyThreshold: 0.5});
+        const loose = image.clone().colorToAlpha({color: 0xffffffff, transparencyThreshold: 0.5});
         assert(loose.getRGBAAt(32, 20)[3] < edge[3], 'colorToAlpha: the threshold should make more of the edge transparent');
     }
 
@@ -1043,11 +1038,11 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const calls = {
             rgbaToColor: v => Colors.fromRGBA(v, 0, 0, 255), hslaToColor: v => Colors.fromHSLA(v, 0.5, 0.5, 1), colorToRGBA: v => Colors.toRGBA(v),
             getPixelAt: v => image().getPixelAt(v, 1), setPixelAt: v => image().setPixelAt(1, 1, v), fill: v => image().fill(v), contain: v => image().contain(v, 4),
-            crop: v => image().crop(v, 0, 2, 2), trim: v => image().trim(v), drawBox: v => image().drawBox(0, 0, v, 2, 0), drawCircle: v => image().drawCircle(2, 2, v, 0),
+            crop: v => image().crop(v, 0, 2, 2), trim: v => image().trim({color: v}), drawBox: v => image().drawBox(0, 0, v, 2, 0), drawCircle: v => image().drawCircle(2, 2, v, 0),
             cropCircle: v => image().cropCircle({ feathering: v }), opacity: v => image().opacity(v), red: v => image().red(v), lightness: v => image().lightness(v),
-            composite: v => image().composite(image(), v, 0), hueShift: v => image().hueShift(v), brightness: v => image().brightness(v), gamma: v => image().gamma(v),
-            colorToAlpha: v => image().colorToAlpha(v), rotate: v => image().rotate(v, false), gradient: v => Colors.gradient({0: v, 1: 0}),
-            roundCorners: v => image().roundCorners(v), fisheye: v => image().fisheye(v), encodePNG: v => image().encodePNG(v), encodeJPEG: v => image().encodeJPEG(v),
+            composite: v => image().composite(image(), {x: v, y: 0}), hueShift: v => image().hueShift(v), brightness: v => image().brightness(v), gamma: v => image().gamma(v),
+            colorToAlpha: v => image().colorToAlpha({color: v}), rotate: v => image().rotate(v, {resize: false}), gradient: v => Colors.gradient({0: v, 1: 0}),
+            roundCorners: v => image().roundCorners({radius: v}), fisheye: v => image().fisheye({strength: v}), encodePNG: v => image().encodePNG(v), encodeJPEG: v => image().encodeJPEG(v),
             frame: v => new Frame(4, 4, v), animation: v => new Animation([new Frame(4, 4)], v),
         };
         for (const [name, call] of Object.entries(calls))
@@ -1069,7 +1064,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         // (no limit is a valid layout)
         new TextLayout({maxWidth: Infinity, maxHeight: Infinity});
 
-        const strings = image().crop('1', '1', '4', '4').rotate('45').opacity('0.5').composite(image(), '1', '2');
+        const strings = image().crop('1', '1', '4', '4').rotate('45').opacity('0.5').composite(image(), {x: '1', y: '2'});
         if (strings.width !== 6) panic('numeric strings should keep working');
     }
     {

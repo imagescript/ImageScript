@@ -166,11 +166,11 @@ if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
 {
     const image = new Image(512, 256);
     const overlay = new Image(1024, 512);
-    image.composite(overlay, -512, -256);
+    image.composite(overlay, {x: -512, y: -256});
     overlay.fill(0x80);
-    image.composite(overlay, -512, -256);
+    image.composite(overlay, {x: -512, y: -256});
     overlay.fill(0xff);
-    image.composite(overlay, -512, -256);
+    image.composite(overlay, {x: -512, y: -256});
 }
 
 try {

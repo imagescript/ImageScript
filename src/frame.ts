@@ -1,5 +1,5 @@
-import { Image, ResizeOptions, ResizeToOptions, Color, TrimOptions, resizeArguments } from './image.ts';
-import { isOptions, finite } from './util/options.ts';
+import { Image, ResizeOptions, ResizeToOptions, TrimOptions, resizeArguments } from './image.ts';
+import { isOptions, checkOptions, finite } from './util/options.ts';
 
 /** Names of the frame disposal modes, see {@link Frame.disposalMode} */
 export type FrameDisposalModeName = 'any' | 'keep' | 'previous' | 'background';
@@ -186,16 +186,10 @@ export class Frame extends Image {
      * @param options See {@link TrimOptions}
      */
     override trim(options?: TrimOptions): this;
-    /**
-     * Removes borders of one color, moving the frame's offsets so the remaining pixels stay in place
-     * @param color The border color, by default the color of the top left pixel
-     * @param options See {@link TrimOptions}
-     * @deprecated Pass {@link TrimOptions} instead, the positional arguments will be removed in 4.0
-     */
-    override trim(color?: Color, options?: TrimOptions): this;
-    override trim(colorOrOptions?: Color | TrimOptions, optionsArgument: TrimOptions = {}): this {
-        const { color, ...options } = isOptions(colorOrOptions) ? colorOrOptions : { ...optionsArgument, color: colorOrOptions ?? optionsArgument.color };
-        const bounds = this.__trim_bounds__(color, options);
+    override trim(options: TrimOptions = {}): this {
+        checkOptions(options, 'trim({ tolerance: 0.1 })');
+        const { color, ...rest } = options;
+        const bounds = this.__trim_bounds__(color, rest);
         if (!bounds) return this;
         this.xOffset += bounds[0];
         this.yOffset += bounds[1];

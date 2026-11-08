@@ -71,7 +71,7 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
 (async () => {
     // a sticker: an antialiased disc moving over a transparent background (pixels become transparent again)
     await check('moving sticker', new Animation(Array.from({length: 8}, (_, i) =>
-        Frame.from(new Image(48, 32).composite(disc(16, 0xff8800ff), i * 4, 4 + (i & 1)), 60))));
+        Frame.from(new Image(48, 32).composite(disc(16, 0xff8800ff), {x: i * 4, y: 4 + (i & 1)}), 60))));
 
     // fading out: pixels get more transparent
     await check('fade out', new Animation(Array.from({length: 6}, (_, i) =>

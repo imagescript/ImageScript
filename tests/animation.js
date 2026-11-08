@@ -11,7 +11,7 @@ function expected(animation) {
     let canvas = new Image(width, height);
     return Array.from(animation, frame => {
         const previous = canvas.clone();
-        canvas.composite(frame, frame.xOffset, frame.yOffset);
+        canvas.composite(frame, {x: frame.xOffset, y: frame.yOffset});
         const shown = canvas.clone();
         if (frame.disposalMode === 'background') canvas.drawBox(frame.xOffset, frame.yOffset, frame.width, frame.height, 0);
         else if (frame.disposalMode === 'previous') canvas = previous;

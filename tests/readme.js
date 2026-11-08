@@ -30,15 +30,15 @@ const font = name => fs.readFileSync('./tests/fonts/' + name);
     // a frosted glass card: the background behind it, blurred and lightened, with a soft shadow
     const card = {x: 40, y: 40, width: 520, height: 520, radius: 28};
     const shadow = new Image(card.width + 80, card.height + 80).drawBox(40, 48, card.width, card.height, 0x00000060).blur(16);
-    image.composite(shadow, card.x - 40, card.y - 40);
+    image.composite(shadow, {x: card.x - 40, y: card.y - 40});
     const glass = image.region(card.x, card.y, card.width, card.height).blur(24)
-        .composite(new Image(card.width, card.height).fill(0xffffffff), 0, 0, {opacity: 0.18})
-        .roundCorners(card.radius);
-    image.composite(glass, card.x, card.y);
+        .composite(new Image(card.width, card.height).fill(0xffffffff), {opacity: 0.18})
+        .roundCorners({radius: card.radius});
+    image.composite(glass, {x: card.x, y: card.y});
 
     const text = async (fonts, size, string, color, x, y) => {
         const rendered = await Image.renderText(string, { font: fonts, size, color });
-        image.composite(rendered, x, y);
+        image.composite(rendered, {x, y});
         return rendered;
     };
     const left = card.x + 40;
@@ -53,7 +53,7 @@ const font = name => fs.readFileSync('./tests/fonts/' + name);
         <circle cx="62" cy="48" r="34" fill="url(#s)"/>
         <path d="M44 108 a26 26 0 0 1 4 -52 a34 34 0 0 1 64 8 a22 22 0 0 1 6 44 Z" fill="url(#c)"/>
     </svg>`);
-    image.composite(icon, card.x + card.width - 40 - icon.width, card.y + 150);
+    image.composite(icon, {x: card.x + card.width - 40 - icon.width, y: card.y + 150});
 
     // the week: bars from the lowest to the highest temperature, in a gradient from cool to warm
     const days = [['Mon', 14, 21], ['Tue', 13, 19], ['Wed', 15, 23], ['Thu', 16, 25], ['Fri', 14, 22], ['Sat', 12, 18], ['Sun', 13, 20]];
@@ -64,20 +64,20 @@ const font = name => fs.readFileSync('./tests/fonts/' + name);
         const cx = left + step * i + step / 2;
         const y0 = chart.top + chart.height * (1 - (high - chart.min) / (chart.max - chart.min));
         const y1 = chart.top + chart.height * (1 - (low - chart.min) / (chart.max - chart.min));
-        const track = new Image(14, chart.height).fill(0xffffff30).roundCorners(7);
-        image.composite(track, cx - 7, chart.top);
+        const track = new Image(14, chart.height).fill(0xffffff30).roundCorners({radius: 7});
+        image.composite(track, {x: cx - 7, y: chart.top});
         const bar = new Image(14, y1 - y0).fill((x, y) => gradient((chart.max - (y0 + y - chart.top) / chart.height * (chart.max - chart.min) - chart.min) / (chart.max - chart.min)));
-        image.composite(bar.roundCorners(7), cx - 7, y0);
+        image.composite(bar.roundCorners({radius: 7}), {x: cx - 7, y: y0});
         const label = await Image.renderText(day, { font: regular, size: 20, color: 0xffffffc0 });
-        image.composite(label, cx - label.width / 2, chart.top + chart.height + 10);
+        image.composite(label, {x: cx - label.width / 2, y: chart.top + chart.height + 10});
     }
 
     // a divider, then greetings in a few scripts
     image.drawBox(left, card.y + 446, card.width - 80, 1, 0xffffff40);
     const greeting = await Image.renderText('Bom dia · مرحبا · नमस्ते 😀', { font: scripts, size: 26, color: 0xffffffe0 });
-    image.composite(greeting, left, card.y + 446 + (card.height - 446 - greeting.height) / 2);
+    image.composite(greeting, {x: left, y: card.y + 446 + (card.height - 446 - greeting.height) / 2});
 
-    image.roundCorners(24);
+    image.roundCorners({radius: 24});
     const encoded = await image.encodePNG({metadata: {creationTime: 0, software: ''}});
 
     if (process.env.OVERWRITE_TEST)

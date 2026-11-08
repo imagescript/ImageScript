@@ -45,7 +45,7 @@ import { Image } from 'imagescript';
 import { readFile, writeFile } from 'node:fs/promises';
 
 const image = await Image.decode(await readFile('input.jpg'));
-image.resize({ width: 256 }).roundCorners(16);
+image.resize({ width: 256 }).roundCorners({ radius: 16 });
 await writeFile('output.png', await image.encodePNG());
 ```
 

@@ -148,7 +148,7 @@ const meanValue = (image, left, top, right, bottom) => {
 	// drawing over it: no boost where something without one went, the rest as it was
 	{
 		const image = single.clone();
-		image.composite(new Image(100, 100).fill(0x336699ff), 200, 100);
+		image.composite(new Image(100, 100).fill(0x336699ff), {x: 200, y: 100});
 		const neutral = stored(image.gainMap, 0);
 		if (Math.abs(meanValue(image, 204, 104, 296, 196) - neutral) > 1.5) panic(`composite: ${meanValue(image, 204, 104, 296, 196)} under the box, no boost is ${neutral}`);
 		// (the range can grow: compared as gains)
@@ -158,7 +158,7 @@ const meanValue = (image, left, top, right, bottom) => {
 		const boxed = single.clone().drawBox(0, 0, 64, 64, 0xffffffff);
 		if (Math.abs(meanValue(boxed, 0, 0, 60, 60) - stored(boxed.gainMap, 0)) > 1.5) panic('drawBox: boost left under the box');
 		// (an image with a map composited onto one without: the canvas gets one, its own part as the source's)
-		const canvas = new Image(600, 500).fill(0x000000ff).composite(single, 40, 60);
+		const canvas = new Image(600, 500).fill(0x000000ff).composite(single, {x: 40, y: 60});
 		if (!canvas.gainMap || Math.abs(meanValue(canvas, 50, 70, 540, 150) - meanValue(single, 10, 10, 500, 90)) > 6) panic('composite onto a canvas: the map');
 	}
 
