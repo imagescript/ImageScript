@@ -97,9 +97,9 @@ new Animation(frames, { loopCount: Infinity });
 animation.loopCount === Infinity;
 ```
 
-The finite counts are the same: `0` plays once, `2` plays three times. The valid values are `Infinity` and integers from
-0 ({@link AnimationOptions.loopCount}). `-1` throws a `RangeError`, like other negative numbers, `NaN` and fractions. Numeric strings, `null` and booleans
-throw a `TypeError`. The check applies to the constructor, to the setter `animation.loopCount = ...` (which keeps the
+The finite counts are the same: `0` plays once, `2` plays three times. The valid values are `Infinity` and integers
+from 0 ({@link AnimationOptions.loopCount}). `-1` throws a `RangeError`, like other negative numbers, `NaN` and
+fractions. Numeric strings, `null` and booleans throw a `TypeError`. The check applies to the constructor, to the setter `animation.loopCount = ...` (which keeps the
 old count when it throws), and to the encoders `Animation.gifEncoder()`, `webpEncoder()` and `apngEncoder()`.
 
 The formats store a finite count in fixed-size fields: a GIF up to `65535`, a WebP up to `65534` and an APNG up to
@@ -178,9 +178,10 @@ scaled them. Now:
 - `frame.rotate(angle)` keeps the frame's middle in place.
 - `frame.cover(w, h)` scales the offsets and then moves them by the cropped amount.
 
-`transform()`, `dropShadow()` and `outline()` moved the offsets in 3.x too, but only as far as they allowed (a frame at
-`xOffset: 0` grew to the right instead). Now the offsets can become negative: the frame grows evenly, and the part
-outside the animation's canvas isn't encoded.
+`transform()`, `dropShadow()` and `outline()` moved the offsets in 3.x too, but only as far as they allowed: a frame at
+`xOffset: 0` couldn't grow to the left, so a shadow or outline was cut off on that side and a transform grew to the
+right instead. Now the frame grows the same way an image does and the offsets can become negative; the part outside the
+animation's canvas isn't encoded.
 
 To keep a frame's offsets as they are, call the method on its image: `frame.image.crop(x, y, w, h)`. See
 [frames hold an image](#frames-hold-an-image) for the other frame changes.
@@ -264,8 +265,8 @@ for (let i = 0; i < image.bitmap.length; i += 4) image.bitmap[i] = 0.5 * 255;
 ```
 
 `bitmap` is RGBA, four bytes per pixel. Writing it directly skips the gain map of an HDR image, so do not use it on
-images that have one. `absolute` on `lightness()` and `saturation()` sets the value of every pixel and keeps its hue. Do it per pixel:
-read the color with `Colors.toHSLA()`, set the lightness or saturation, and write the pixel back with
+images that have one. `absolute` on `lightness()` and `saturation()` sets the value of every pixel and keeps its hue.
+Do it per pixel: read the color with `Colors.toHSLA()`, set the lightness or saturation, and write the pixel back with
 `Colors.fromHSLA()`.
 
 ### Animations and GIF
@@ -333,7 +334,7 @@ object under the names of their options. The options of each method are on its o
 | `image.dominantColor(true, true, 15)` | `image.dominantColor({ ignoreBlack: true, ignoreWhite: true, threshold: 15 })` |
 | `image.roundCorners(8)` | `image.roundCorners({ radius: 8 })` |
 | `image.fisheye(3)` | `image.fisheye({ strength: 3 })` |
-| `image.trim(color, options)`, `frame.trim(color, options)` | `image.trim({ color, ...options })` |
+| `image.trim(color, options)`, `frame.trim(color, options)` | `image.trim({ color, ...options })`, `frame.trim({ color, ...options })` |
 | `image.colorToAlpha(color, options)` | `image.colorToAlpha({ color, ...options })` |
 | `image.encodePNG(1, { author })` | `image.encodePNG({ compression: 1, metadata: { author } })` |
 | `image.encodePNG({ author })` (metadata alone) | `image.encodePNG({ metadata: { author } })`. The old form is ignored, see below |
@@ -402,8 +403,8 @@ The methods that change the size stay on the frame: `resize()`, `scale()`, `cont
 animation (resizing scales the offsets, as if the whole animation was resized); see
 [frames move their offsets](#frames-move-their-offsets-when-their-size-changes) for how that differs from 3.x.
 `width`, `height`, `clone()` and `toString()` work as before. Everything else goes through `frame.image`. The image's
-own methods don't know about the frame and leave the offsets alone, so `frame.image.rotate(90)` turns the frame around
-its top left corner.
+own methods don't know about the frame and leave the offsets alone: after `frame.image.rotate(90)`, the frame's top
+left corner stays where it was, and the turned image hangs from it.
 
 ### Checked values and the canvas
 
@@ -474,8 +475,11 @@ grep -rnE '\.(contain|fit)\(|greyscale|drawBox|drawCircle|SVGScaleMode|TextLayou
 grep -rnE 'fromHSLA?\(|toHSLA\(|\.rotate\(|renderSVG\([^)]*(size|mode)|layout:|getRGBAAt|\.region\(' src
 grep -rnE 'encodeGIF\(|gifEncoder\(|GIFEncodeOptions|encodeJPEG\(' src
 
-# frames: anything an Image does, on a frame
+# frames: anything an Image does, on a frame, and the size changes that move the offsets now
 grep -rnE 'new Frame\(|Frame\.from\(|frame\w*\.[a-zA-Z]+\(' src
+
+# behavior changes without a compile error
+grep -rnE '\.(rotate|quantize|contain|encodeJPEG)\(|from(HSLA?)\(|toHSLA\(' src
 
 # GainMap
 grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src

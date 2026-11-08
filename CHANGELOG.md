@@ -7,6 +7,7 @@
 Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://imagescript.dev/documents/Migrating_to_4.0.html) lists every change and the nine behavior changes that don't show up as deprecations or compile errors.
 
 - **Methods that take options refuse anything else than an object**: a stray number, string, boolean or `null` as the options of `cropCircle()`, `Image.renderText()`, the encoders (`encodeWebP()`, `encodeAVIF()`, `encodeJXL()`, ...), `quantize()`, `transform()`, `dropShadow()`, `outline()`, the gradients, `Image.decode()`, the animation encoders, and `new GainMap()` throws a `TypeError` that names the working form (e.g. `cropCircle({ size: 'cover' })`), so the 3.x calls that are gone like `cropCircle(true)` or `Image.renderText(font, 32, 'Hi')` fail instead of being ignored. Only the type of the argument is checked: a key that isn't an option is still ignored, so a typo like `{ maxWith: 300 }` isn't caught.
+
 - **The mode constants are removed, modes are plain strings**: `Image.RESIZE_*`, `Image.SVG_MODE_*`, `Frame.DISPOSAL_*` and the `ResizeModes`, `SVGScaleModes` and `FrameDisposalModes` classes are gone. Resize modes are `'nearest-neighbor'`, `'bilinear'`, `'bicubic'` and `'area'` (the `ResizeMode` type), disposal modes `'any'`, `'keep'`, `'previous'` and `'background'` (`FrameDisposalModeName`), and the SVG modes became options of `renderSVG()` (below). `Image.RESIZE_AUTO`/`ResizeModes.AUTO` is `image.resize({ width: 256 })`. The old values are no longer accepted either: `'RESIZE_BILINEAR'`, the numbers 1-3 for SVG scale modes and the numeric disposal ids 0-3.
 
 - **`absolute` is removed from `opacity()`, `red()`, `green()`, `blue()`, `lightness()` and `saturation()`**: they only scale now, `image.red(0.5)` (and `AdjustOptions`, the type of their options, is removed). For a fixed color, use `image.recolor()`. In JavaScript a leftover `image.red(0.5, true)` scales the channel instead of setting it.
@@ -83,7 +84,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **An animation has its own canvas size**: decoded animations keep the file's, `new Animation(frames, { width, height })` sets one, and `resize()` sets the new one. Without one it is the frames' extent, as before. Frames (or their parts) outside the canvas aren't encoded.
 
-- **The encoders return `Promise<Uint8Array<ArrayBuffer>>`**, which `new Blob()`, `new Response()` and `crypto.subtle` take without a cast in TypeScript 5.9 and newer (needs TypeScript 5.7).
+- **The encoders return `Promise<Uint8Array<ArrayBuffer>>`** instead of `Promise<Uint8Array>`, so `new Blob()`, `new Response()` and `crypto.subtle` take the output without a cast, also with the stricter DOM types of TypeScript 5.9 and newer. The type needs TypeScript 5.7 or newer.
 
 ### New
 
@@ -93,7 +94,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `Colors.gradient()` takes an array of evenly spaced colors, like the `stops` of the gradient functions.
 - `Animation.scale()`, `Animation.trim()`, `Animation.rotate()`, `Animation.transform()`, `Animation.dropShadow()` and `Animation.outline()`. `scale()` and `trim()` keep the frames; the others work on the composited animation (full canvas frames) and resize the canvas.
 - `Frame.contain()`, `Frame.cover()`, `Frame.rotate()`, `Frame.transform()`, `Frame.dropShadow()` and `Frame.outline()`, which move the offsets like `Frame.resize()` and `Frame.crop()`.
-- `Image.encodeGIF()` for single images, with `colors`, `dither` and `ditherStrength` (also on the animation encoders).
+- `Image.encodeGIF()` for single images, with `colors`, `dither` and `ditherStrength` (also on the animation encoders), and the `DitherMethod` type that `quantize()` and the GIF encoders share.
 - `renderSVG({ fonts })` takes a single font without an array.
 
 ## 3.20.1
