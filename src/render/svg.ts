@@ -286,11 +286,11 @@ function nestedSvg(href: string): NestedSvg | null {
 }
 
 /**
- * The raster images an SVG embeds as data URIs (also in the SVGs it embeds), for render()'s caller to decode: their
- * hrefs and bytes
+ * The hrefs of the images an SVG references (also in the SVGs it embeds as data URIs), once each, for render()'s
+ * caller to decode: the bytes are given for the raster images in data URIs, the others must come from the caller
  */
-export function embeddedImages(source: string | Uint8Array): Array<{ href: string, data: Uint8Array }> {
-    const found: Array<{ href: string, data: Uint8Array }> = [], seen = new Set<string>();
+export function imageReferences(source: string | Uint8Array): Array<{ href: string, data?: Uint8Array }> {
+    const found: Array<{ href: string, data?: Uint8Array }> = [], seen = new Set<string>();
     const visit = (text: () => string, depth: number): void => {
         let root: XNode;
         try {
@@ -307,9 +307,15 @@ export function embeddedImages(source: string | Uint8Array): Array<{ href: strin
             if (seen.has(href)) continue;
             seen.add(href);
             const uri = dataURI(href);
-            if (!uri) continue;
+            if (!uri) {
+                found.push({ href });
+                continue;
+            }
             if (RASTER_TYPES.test(uri.type) || (uri.type === 'text/plain' && isRaster(uri.data))) found.push({ href, data: uri.data });
-            else if ((uri.type === 'image/svg+xml' || uri.type === 'text/plain') && depth < 8) visit(() => svgText(uri.data), depth + 1);
+            else {
+                found.push({ href });
+                if ((uri.type === 'image/svg+xml' || uri.type === 'text/plain') && depth < 8) visit(() => svgText(uri.data), depth + 1);
+            }
         }
     };
     visit(() => typeof source === 'string' ? source : decodeUTF8(source), 0);

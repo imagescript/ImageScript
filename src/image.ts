@@ -367,6 +367,14 @@ export interface SVGOptions {
      * before these for their family names. Without any fonts text isn't rendered. Default: `[]`
      */
     fonts?: BinaryData[];
+    /**
+     * Images for the `<image>` elements (and `feImage`) by their `href`, the same string the SVG uses: with
+     * `images: { 'logo.png': bytes }`, `<image href="logo.png" .../>` draws the image. Values are encoded images (PNG,
+     * JPEG, WebP, GIF's first frame, ...) or {@link Image}s, decoded like data URI images are, and only for the hrefs
+     * the SVG references. Nothing else is read: no files and no URLs, so an href that isn't given (and isn't a data URI)
+     * draws nothing. SVG documents can't be given this way, use a data URI for them. Default: `{}`
+     */
+    images?: Record<string, BinaryData | Image>;
 }
 
 /** Options of {@link Image.renderText}: the text color and layout, and its style (see {@link TextStyle}) */
@@ -3073,7 +3081,15 @@ export class Image {
      * Creates a new image from the given SVG
      * Supports shapes, paths, transforms, use/symbol, CSS styles, gradients, patterns, strokes, markers, clip paths,
      * masks, opacity, blend modes, filters (all primitives and the filter functions) and images embedded as data URIs
-     * (PNG, JPEG, GIF, WebP, SVG), and text with the given or embedded fonts (see {@link SVGOptions.fonts})
+     * (PNG, JPEG, GIF, WebP, SVG) or given with {@link SVGOptions.images}, and text with the given or embedded fonts
+     * (see {@link SVGOptions.fonts}). Hrefs are resolved from the options and the data URIs only, never from files or URLs.
+     * @example
+     * ```ts
+     * const logo = await Image.renderSVG(
+     *     '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><image href="logo.png" width="64" height="64"/></svg>',
+     *     { images: { 'logo.png': logoPNG } } // (the PNG's bytes, e.g. from a fetch or a file you read)
+     * );
+     * ```
      * @param svg The SVG content
      * @param options See {@link SVGOptions}
      * @return The rendered SVG graphic
@@ -3089,7 +3105,7 @@ export class Image {
      */
     static renderSVG(svg: string | BinaryData, size?: number, mode?: SVGScaleMode): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, sizeOrOptions: number | SVGOptions = 1, modeArgument: SVGScaleMode = SVGScaleModes.SCALE): Promise<Image> {
-        const { size = 1, mode: givenMode = SVGScaleModes.SCALE, fonts = [] } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
+        const { size = 1, mode: givenMode = SVGScaleModes.SCALE, fonts = [], images: givenImages = {} } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
         const mode = LEGACY_SVG_MODES.get(givenMode) ?? givenMode;
         if (mode !== 'scale' && mode !== 'width' && mode !== 'height')
             throw new Error('Invalid SVG scaling mode');
@@ -3100,18 +3116,33 @@ export class Image {
         if (mode !== SVGScaleModes.SCALE && size < 1)
             throw new RangeError('SVG size must be >= 1');
 
-        // the raster images it embeds are decoded first (decoding can be asynchronous), the SVG is rendered at once
+        // the images given by href, checked before anything is decoded
+        if (typeof givenImages !== 'object' || givenImages === null || Array.isArray(givenImages) || givenImages instanceof Map)
+            throw new TypeError('SVG images must be an object of hrefs to image data');
+        const given = new Map<string, BinaryData | Image>();
+        for (const href of Object.keys(givenImages)) {
+            const value = givenImages[href];
+            if (!(value instanceof Image) && !(value instanceof ArrayBuffer || ArrayBuffer.isView(value)))
+                throw new TypeError(`SVG image ${JSON.stringify(href)} must be BinaryData or an Image`);
+            given.set(href, value);
+        }
+
+        // the raster images it references are decoded first (decoding can be asynchronous), the SVG is rendered at once.
+        // A given image wins over a data URI with the same href; each is decoded once, and only if the SVG uses it
         const source = typeof svg === 'string' ? svg : view(svg);
         const images = new Map<string, svgRenderer.RasterImage>();
-        for (const { href, data } of svgRenderer.embeddedImages(source)) {
-            if (images.has(href)) continue;
+        for (const { href, data } of svgRenderer.imageReferences(source)) {
+            const value = given.get(href) ?? data;
+            if (!value) continue;
             try {
-                if (ImageType.getType(data) === 'gif') {
+                if (value instanceof Image) {
+                    images.set(href, { width: value.width, height: value.height, pixels: value.bitmap });
+                } else if (ImageType.getType(value) === 'gif') {
                     // (a GIF's first frame)
-                    const decoded = gif.decode(data, true);
+                    const decoded = gif.decode(view(value), true);
                     images.set(href, { width: decoded.width, height: decoded.height, pixels: gif.composite(decoded)[0].pixels });
                 } else {
-                    const image = await Image.decode(data);
+                    const image = await Image.decode(value);
                     images.set(href, { width: image.width, height: image.height, pixels: image.bitmap });
                 }
             } catch {
