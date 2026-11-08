@@ -1103,7 +1103,7 @@ export class Image {
     }
 
     /**
-     * Copies a region of the image into a new image, this one stays unchanged (like {@link Image.crop} on a clone,
+     * Copies a region of the image into a new image and leaves the image unchanged (like {@link Image.crop} on a clone,
      * without copying the whole image). The region is clipped to the image, so the result can be smaller than the
      * requested size
      * @param x The x offset (0-based)
@@ -1111,7 +1111,7 @@ export class Image {
      * @param width The region's width
      * @param height The region's height
      */
-    region(x: number, y: number, width: number, height: number): Image {
+    extract(x: number, y: number, width: number, height: number): Image {
         const bounds = this.__crop_bounds__(x, y, width, height);
         const image = this.__crop__(...bounds);
         this.__crop_gain_map__(image, ...bounds);

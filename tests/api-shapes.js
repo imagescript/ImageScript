@@ -241,6 +241,6 @@ const throws = (call, type, message) => {
     {
         const gray = new Image(1, 1).fill(0xff0000ff).grayscale();
         assert(gray.getPixelAt(0, 0) === 0x4c4c4cff, `grayscale: ${gray.getPixelAt(0, 0).toString(16)}`);
-        assert(new Image(1, 1).greyscale === undefined && new Image(1, 1).drawBox === undefined && new Image(1, 1).fit === undefined && new Image(1, 1).getRGBAAt === undefined, 'removed methods');
+        assert(new Image(1, 1).greyscale === undefined && new Image(1, 1).drawBox === undefined && new Image(1, 1).fit === undefined && new Image(1, 1).getRGBAAt === undefined && new Image(1, 1).region === undefined, 'removed methods');
     }
 })();

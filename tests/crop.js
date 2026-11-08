@@ -15,25 +15,25 @@ const samePixels = require('./util/pixels');
     const target = await fs.readFile('./tests/targets/crop.png');
     if (!await samePixels(target, encoded)) process.exit(1);
 
-    // region: the same pixels as a new image, the source unchanged; clipped like crop
+    // extract: the same pixels as a new image, the source unchanged; clipped like crop
     const panic = message => {
         console.error(message);
         process.exit(1);
     };
     const source = new Image(512, 512).fill((x, y) => Colors.fromHSL((x + y) / 1024 * 360, 1, .5));
     const before = Buffer.from(source.bitmap);
-    const region = source.region(128, 128, 128, 128);
-    if (!await samePixels(target, await region.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}}))) panic('region: wrong pixels');
-    if (!Buffer.from(source.bitmap).equals(before)) panic('region: changed the source');
+    const region = source.extract(128, 128, 128, 128);
+    if (!await samePixels(target, await region.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}}))) panic('extract: wrong pixels');
+    if (!Buffer.from(source.bitmap).equals(before)) panic('extract: changed the source');
     region.fill(0);
-    if (!Buffer.from(source.bitmap).equals(before)) panic('region: shares memory with the source');
+    if (!Buffer.from(source.bitmap).equals(before)) panic('extract: shares memory with the source');
 
-    const clipped = source.region(-10, 500, 30, 30);
-    if (clipped.width !== 20 || clipped.height !== 12) panic(`region: clipped to ${clipped.width}x${clipped.height} instead of 20x12`);
-    if (clipped.getPixelAt(1, 1) !== source.getPixelAt(1, 501)) panic('region: clipped region has wrong pixels');
+    const clipped = source.extract(-10, 500, 30, 30);
+    if (clipped.width !== 20 || clipped.height !== 12) panic(`extract: clipped to ${clipped.width}x${clipped.height} instead of 20x12`);
+    if (clipped.getPixelAt(1, 1) !== source.getPixelAt(1, 501)) panic('extract: clipped region has wrong pixels');
     let threw = false;
-    try { source.region(600, 0, 10, 10); } catch (err) { threw = err instanceof RangeError; }
-    if (!threw) panic('region: a region outside the image should throw a RangeError');
+    try { source.extract(600, 0, 10, 10); } catch (err) { threw = err instanceof RangeError; }
+    if (!threw) panic('extract: a region outside the image should throw a RangeError');
 
     // a frame's crop moves its offsets, so the pixels stay where they are in the animation
     const frame = new Frame(source.clone(), {duration: 100, xOffset: 4, yOffset: 6});

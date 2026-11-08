@@ -127,7 +127,7 @@ const meanValue = (image, left, top, right, bottom) => {
 		const quarter = await Image.decode(await multi.encodeJPEG({gainMap: {scale: 0.25}}));
 		quarter.crop(100, 40, 200, 160).resize(100, 80);
 		if (quarter.gainMap.width !== 25 || quarter.gainMap.height !== 20) panic(`crop + resize: map ${quarter.gainMap.width}x${quarter.gainMap.height}`);
-		const region = multi.region(10, 20, 100, 50);
+		const region = multi.extract(10, 20, 100, 50);
 		if (region.gainMap.width !== 100 || multi.gainMap.width !== 512) panic('region: the map');
 	}
 

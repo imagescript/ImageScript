@@ -324,7 +324,7 @@ export class Animation {
             const right = Math.min(width, x + frame.width), bottom = Math.min(height, y + frame.height);
             const options = { duration: frame.duration, disposalMode: frame.disposalMode };
             if (right <= left || bottom <= top) return new Frame(new Image(1, 1), { ...options, disposalMode: 'keep' });
-            const clipped = frame.image.region(left - x, top - y, right - left, bottom - top);
+            const clipped = frame.image.extract(left - x, top - y, right - left, bottom - top);
             clipped.gainMap = null;
             return new Frame(clipped, { ...options, xOffset: left, yOffset: top });
         });

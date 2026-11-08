@@ -31,7 +31,7 @@ const font = name => fs.readFileSync('./tests/fonts/' + name);
     const card = {x: 40, y: 40, width: 520, height: 520, radius: 28};
     const shadow = new Image(card.width + 80, card.height + 80).composite(new Image(card.width, card.height).fill(0x00000060), {x: 40, y: 48}).blur(16);
     image.composite(shadow, {x: card.x - 40, y: card.y - 40});
-    const glass = image.region(card.x, card.y, card.width, card.height).blur(24)
+    const glass = image.extract(card.x, card.y, card.width, card.height).blur(24)
         .composite(new Image(card.width, card.height).fill(0xffffffff), {opacity: 0.18})
         .roundCorners({radius: card.radius});
     image.composite(glass, {x: card.x, y: card.y});
