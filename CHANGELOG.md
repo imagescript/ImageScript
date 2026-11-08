@@ -29,6 +29,9 @@
 
 - **The positional arguments of the encoders are removed**: `encodePNG(compression, metadata)` and `encodePNG(metadata)` are `encodePNG({ compression, metadata })`, `encodeJPEG(quality)` is `encodeJPEG({ quality })`, `Animation.encodeGIF(quality)` is `encodeGIF({ quality })` and `Animation.encodeAPNG(compression)` is `encodeAPNG({ compression })`, and `GainMap.encode(quality)` is `encode({ quality })`. For example, `image.encodePNG(1, { author })` is `image.encodePNG({ compression: 1, metadata: { author } })`, and the metadata alone, `image.encodePNG({ author })`, throws a `TypeError` naming `{ metadata }`, because it would be ignored otherwise.
 
+- **The positional arguments of `Image.renderSVG()` are removed**: `Image.renderSVG(svg, size, mode)` is `Image.renderSVG(svg, { size, mode })`, which takes the same `fonts` and `images` as before: `Image.renderSVG(svg, 2, 'width')` is now `Image.renderSVG(svg, { size: 2, mode: 'width' })`.
+
+
 ## 3.20.1
 
 ### Performance

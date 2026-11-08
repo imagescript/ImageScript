@@ -1081,7 +1081,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         };
         for (const [name, content] of Object.entries(svgs)) {
             const start = Date.now();
-            await Image.renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4">${content}</svg>`, 1).catch(() => {});
+            await Image.renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4">${content}</svg>`, {size: 1}).catch(() => {});
             if (Date.now() - start > 1000) panic(`SVG ${name}: took ${Date.now() - start} ms`);
         }
     }

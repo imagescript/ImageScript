@@ -2839,17 +2839,9 @@ export class Image {
      * @return The rendered SVG graphic
      */
     static renderSVG(svg: string | BinaryData, options?: SVGOptions): Promise<Image>;
-    /**
-     * Creates a new image from the given SVG
-     * @param svg The SVG content
-     * @param size The size to use
-     * @param mode The SVG resizing mode to use (one of {@link SVGScaleModes.SCALE}, {@link SVGScaleModes.WIDTH}, {@link SVGScaleModes.HEIGHT})
-     * @return The rendered SVG graphic
-     * @deprecated Pass {@link SVGOptions} instead, the positional arguments will be removed in 4.0
-     */
-    static renderSVG(svg: string | BinaryData, size?: number, mode?: SVGScaleMode): Promise<Image>;
-    static async renderSVG(svg: string | BinaryData, sizeOrOptions: number | SVGOptions = 1, modeArgument: SVGScaleMode = SVGScaleModes.SCALE): Promise<Image> {
-        const { size = 1, mode = SVGScaleModes.SCALE, fonts = [], images: givenImages = {} } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
+    static async renderSVG(svg: string | BinaryData, options: SVGOptions = {}): Promise<Image> {
+        checkOptions(options, 'renderSVG(svg, { size: 2, mode: \'width\' })');
+        const { size = 1, mode = SVGScaleModes.SCALE, fonts = [], images: givenImages = {} } = options;
         if (mode !== 'scale' && mode !== 'width' && mode !== 'height')
             throw new Error('Invalid SVG scaling mode');
 

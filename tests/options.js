@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image, Frame, Animation, GIF, decode, ResizeModes, SVGScaleModes} = require('..');
+const {Image, Frame, Animation, GIF, decode, ResizeModes} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -33,7 +33,6 @@ const same = (name, a, b) => {
         if (!Buffer.from(await tile()[method]({metadata: {author}})).includes(author)) panic(`${method}: metadata missing`);
 
     const svg = await fs.readFile('./tests/svgs/crown.svg');
-    same('renderSVG', await Image.renderSVG(svg, 40, SVGScaleModes.WIDTH), await Image.renderSVG(svg, {size: 40, mode: SVGScaleModes.WIDTH}));
 
     // frames and animations
     const a = new Frame(8, 6, 40, 2, 3, 'background'), b = new Frame(8, 6, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});

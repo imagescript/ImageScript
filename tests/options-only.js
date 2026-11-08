@@ -1,4 +1,4 @@
-const {Image, Frame, Animation, GainMap, ResizeModes} = require('..');
+const {Image, Frame, Animation, GIF, GainMap, ResizeModes} = require('..');
 
 const panic = message => {
 	console.error(message);
@@ -96,6 +96,20 @@ const sameImage = (image, reference, label) => {
 	if (!Buffer.from(await photo.encodePNG({compression: 1, metadata: {author: 'me'}})).includes('me')) panic('encodePNG({ metadata }): the metadata is missing');
 	if (!(await photo.encodeJPEG({quality: 80})).length || !(await makeAnimation().encodeGIF({quality: 10})).length) panic('encoders with options');
 	if (!(await gainMap.encode({quality: 70})).length || !(await gainMap.encode()).length) panic('GainMap.encode with options');
+
+	// renderSVG takes its size and mode in the options object only
+	const svgSource = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red"/></svg>';
+	for (const [label, call] of Object.entries({
+		'renderSVG(svg, 2)': () => Image.renderSVG(svgSource, 2),
+		'renderSVG(svg, 2, width)': () => Image.renderSVG(svgSource, 2, 'width'),
+		'renderSVG(svg, width)': () => Image.renderSVG(svgSource, 'width')
+	})) {
+		const error = await rejects(call, label);
+		if (!/renderSVG\(svg, \{/.test(error.message)) panic(`${label}: the message should show the options form, got ${error.message}`);
+	}
+	if ((await Image.renderSVG(svgSource, {size: 2})).width !== 20) panic('renderSVG(svg, { size }) should scale');
+	const byWidth = await Image.renderSVG(svgSource, {size: 30, mode: 'width'});
+	if (byWidth.width !== 30 || byWidth.height !== 30) panic(`renderSVG(svg, { size, mode: 'width' }): ${byWidth.width}x${byWidth.height}`);
 
 	// the options form still resizes; undefined stays fine
 	if (photo.clone().resize(10, 6, {mode: ResizeModes.AREA}).width !== 10) panic('resize(10, 6, { mode })');
