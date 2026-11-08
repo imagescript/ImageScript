@@ -57,13 +57,13 @@ const panic = message => {
         const black = Colors.fromRGBA(0, 0, 0, 255);
         const white = Colors.fromRGBA(255, 255, 255, 255);
 
-        const background = new Frame(4, 4, 100);
+        const background = new Frame(4, 4, {duration: 100});
         background.fill(black);
-        const dot = new Frame(1, 1, 100, 1, 1, FrameDisposalModes.PREVIOUS);
+        const dot = new Frame(1, 1, {duration: 100, xOffset: 1, yOffset: 1, disposalMode: FrameDisposalModes.PREVIOUS});
         dot.fill(white);
-        const hole = new Frame(2, 2, 100, 2, 2, FrameDisposalModes.BACKGROUND);
+        const hole = new Frame(2, 2, {duration: 100, xOffset: 2, yOffset: 2, disposalMode: FrameDisposalModes.BACKGROUND});
         hole.fill((x, y) => x === y ? white : 0);
-        const last = new Frame(1, 1, 100, 0, 0);
+        const last = new Frame(1, 1, {duration: 100, xOffset: 0, yOffset: 0});
         last.fill(white);
 
         const decoded = await GIF.decode(await new GIF([background, dot, hole, last], 2).encode());

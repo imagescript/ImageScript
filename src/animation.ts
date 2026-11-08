@@ -12,7 +12,7 @@ import { Frame, FrameDisposalModes } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { isOptions, checkOptions, finite, compressionLevel } from './util/options.ts';
+import { checkOptions, finite, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
@@ -23,7 +23,7 @@ const fromPlays = (plays: number): number => plays === 0 ? -1 : plays - 1;
 // frames decoded fully composited, as full canvas frames
 function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uint8Array | Uint8ClampedArray, duration: number }>): Frame[] {
     return frames.map(({ pixels, duration }) => {
-        const frame = new Frame(width, height, duration, 0, 0, FrameDisposalModes.BACKGROUND);
+        const frame = new Frame(width, height, { duration, disposalMode: FrameDisposalModes.BACKGROUND });
         // the composited frames are copies already, the frame can keep them
         frame.bitmap = pixels;
         return frame;
@@ -132,16 +132,10 @@ export class Animation extends Array<Frame> {
      * @param options See {@link AnimationOptions}
      */
     constructor(frames: Frame[], options?: AnimationOptions);
-    /**
-     * Creates a new animation
-     * @param frames The frames to create the animation from
-     * @param loopCount How many times to repeat the animation (`Infinity` = forever, 0 = play once, 1 = play twice, ...)
-     * @deprecated Pass {@link AnimationOptions} instead, the positional arguments will be removed in 4.0
-     */
-    constructor(frames: Frame[], loopCount?: number);
-    constructor(frames: Frame[], loopCountOrOptions: number | AnimationOptions = -1) {
+    constructor(frames: Frame[], options: AnimationOptions = {}) {
         super();
-        const { loopCount = -1 } = isOptions(loopCountOrOptions) ? loopCountOrOptions : { loopCount: loopCountOrOptions };
+        checkOptions(options, 'Animation(frames, { loopCount: 2 })');
+        const { loopCount = -1 } = options;
         // push instead of super(...frames), so a single frame isn't taken as a length
         for (const frame of frames) this.push(frame);
 
@@ -215,13 +209,13 @@ export class Animation extends Array<Frame> {
      * (same semantics as Array.prototype.slice)
      * @param start The index of the first frame (negative counts from the end). Default: `0`
      * @param end The index after the last frame (negative counts from the end). Default: the frame count
-     * @deprecated Use `new Animation(animation.frames.slice(start, end), animation.loopCount)`: in 4.0 animations
+     * @deprecated Use `new Animation(animation.frames.slice(start, end), { loopCount: animation.loopCount })`: in 4.0 animations
      *     aren't arrays anymore
      * @group Deprecated
      */
     override slice(start?: number, end?: number): this {
-        const Class = this.constructor as new (frames: Frame[], loopCount: number) => this;
-        return new Class(Array.prototype.slice.call(this, start, end) as Frame[], this.loopCount);
+        const Class = this.constructor as new (frames: Frame[], options: AnimationOptions) => this;
+        return new Class(Array.prototype.slice.call(this, start, end) as Frame[], { loopCount: this.loopCount });
     }
 
     /**
@@ -429,31 +423,23 @@ export class Animation extends Array<Frame> {
      * @param options See {@link AnimationDecodeOptions}
      */
     static decode(input: BinaryData, options?: AnimationDecodeOptions): Promise<Animation>;
-    /**
-     * Decodes an animated GIF, APNG, WebP or JPEG XL into fully composited frames (still images become a single frame)
-     * @param input The binary data to decode
-     * @param onlyExtractFirstFrame Whether to stop decoding after the first frame
-     * @deprecated Pass {@link AnimationDecodeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    static decode(input: BinaryData, onlyExtractFirstFrame?: boolean): Promise<Animation>;
-    static async decode(input: BinaryData, onlyFirstFrameOrOptions: boolean | AnimationDecodeOptions = false): Promise<Animation> {
+    static async decode(input: BinaryData, options: AnimationDecodeOptions = {}): Promise<Animation> {
         // (checked outside of decoding(), which reports RangeErrors as damaged data)
-        if (isOptions(onlyFirstFrameOrOptions)) {
-            const { maxPixels = MAX_PIXELS, threads = 1 } = onlyFirstFrameOrOptions;
-            if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
-            if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
-            const { toneMapping = 'reinhard' } = onlyFirstFrameOrOptions;
-            if (toneMapping !== 'reinhard' && toneMapping !== 'clamp') throw new TypeError(`toneMapping must be 'reinhard' or 'clamp', not ${String(toneMapping)}`);
-        }
-        return decoding(() => Animation.__decode__(input, onlyFirstFrameOrOptions));
+        checkOptions(options, 'Animation.decode(data, { onlyFirstFrame: true })');
+        const { maxPixels = MAX_PIXELS, threads = 1 } = options;
+        if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
+        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
+        const { toneMapping = 'reinhard' } = options;
+        if (toneMapping !== 'reinhard' && toneMapping !== 'clamp') throw new TypeError(`toneMapping must be 'reinhard' or 'clamp', not ${String(toneMapping)}`);
+        return decoding(() => Animation.__decode__(input, options));
     }
 
     /**
      * @internal
      * @ignore
      */
-    private static async __decode__(input: BinaryData, onlyFirstFrameOrOptions: boolean | AnimationDecodeOptions): Promise<Animation> {
-        const { onlyFirstFrame: onlyExtractFirstFrame = false, maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)), applyOrientation = true, toneMapping = 'reinhard', gainMap = true } = isOptions(onlyFirstFrameOrOptions) ? onlyFirstFrameOrOptions : { onlyFirstFrame: onlyFirstFrameOrOptions };
+    private static async __decode__(input: BinaryData, options: AnimationDecodeOptions): Promise<Animation> {
+        const { onlyFirstFrame: onlyExtractFirstFrame = false, maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)), applyOrientation = true, toneMapping = 'reinhard', gainMap = true } = options;
         const orient = (frames: Frame[], orientation: number): Frame[] => {
             if (applyOrientation && orientation > 1) for (const frame of frames) frame.__orient__(orientation);
             return frames;
@@ -471,18 +457,18 @@ export class Animation extends Array<Frame> {
         if (type === 'webp') {
             const decoded = webp.decodeAnimation(data, onlyExtractFirstFrame, maxPixels);
             const frames = orient(profile(canvasFrames(decoded.width, decoded.height, webp.composite(decoded)), decoded.icc), decoded.orientation);
-            return new Animation(frames, fromPlays(decoded.loopCount));
+            return new Animation(frames, { loopCount: fromPlays(decoded.loopCount) });
         }
 
         // (still PNGs decode like images)
         if (type === 'png' && !png.isAnimated(data)) {
             const image = await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile });
-            return new Animation(canvasFrames(image.width, image.height, [{ pixels: image.bitmap, duration: 0 }]), -1);
+            return new Animation(canvasFrames(image.width, image.height, [{ pixels: image.bitmap, duration: 0 }]), { loopCount: -1 });
         }
         if (type === 'png') {
             const decoded = await png.decodeAnimation(data, onlyExtractFirstFrame, maxPixels);
             const frames = orient(profile(canvasFrames(decoded.width, decoded.height, png.compositeAnimation(decoded)), decoded.icc), decoded.orientation);
-            return new Animation(frames, decoded.frames.length > 1 ? fromPlays(decoded.plays) : -1);
+            return new Animation(frames, { loopCount: decoded.frames.length > 1 ? fromPlays(decoded.plays) : -1 });
         }
 
         if (type === 'jxl') {
@@ -490,7 +476,7 @@ export class Animation extends Array<Frame> {
             let loopCount = -1, icc: Uint8Array | undefined, space: jxl.ColorSpace | undefined;
             let orientation = 1;
             for await (const decoded of jxl.frames(data, maxPixels, toneMapping, threads)) {
-                const frame = new Frame(decoded.width, decoded.height, decoded.duration, 0, 0, FrameDisposalModes.BACKGROUND);
+                const frame = new Frame(decoded.width, decoded.height, { duration: decoded.duration, disposalMode: FrameDisposalModes.BACKGROUND });
                 frame.bitmap = decoded.pixels;
                 frames.push(frame);
                 orientation = decoded.orientation;
@@ -515,10 +501,10 @@ export class Animation extends Array<Frame> {
                     frame.gainMap = null;
                 }
             }
-            return new Animation(frames, frames.length > 1 ? loopCount : -1);
+            return new Animation(frames, { loopCount: frames.length > 1 ? loopCount : -1 });
         }
 
-        if (type) return new Animation([Frame.from(await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile, toneMapping, gainMap, threads }), 0)]);
+        if (type) return new Animation([Frame.from(await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile, toneMapping, gainMap, threads }), { duration: 0 })]);
         throw new Error('Unsupported image type');
     }
 
@@ -526,7 +512,7 @@ export class Animation extends Array<Frame> {
      * @internal
      * @ignore
      */
-    static __fromGIF__<T extends Animation>(data: Uint8Array, onlyExtractFirstFrame: boolean, Class: new (frames: Frame[], loopCount: number) => T, maxPixels = MAX_PIXELS): Promise<T> {
+    static __fromGIF__<T extends Animation>(data: Uint8Array, onlyExtractFirstFrame: boolean, Class: new (frames: Frame[], options: AnimationOptions) => T, maxPixels = MAX_PIXELS): Promise<T> {
         return decoding(() => Animation.__gifFrames__(data, onlyExtractFirstFrame, Class, maxPixels));
     }
 
@@ -534,9 +520,9 @@ export class Animation extends Array<Frame> {
      * @internal
      * @ignore
      */
-    private static __gifFrames__<T extends Animation>(data: Uint8Array, onlyExtractFirstFrame: boolean, Class: new (frames: Frame[], loopCount: number) => T, maxPixels: number): T {
+    private static __gifFrames__<T extends Animation>(data: Uint8Array, onlyExtractFirstFrame: boolean, Class: new (frames: Frame[], options: AnimationOptions) => T, maxPixels: number): T {
         const decoded = gifCodec.decode(data, onlyExtractFirstFrame, maxPixels);
         const frames = gifCodec.composite(decoded).map(({ pixels, delay }) => ({ pixels, duration: 10 * delay }));
-        return new Class(canvasFrames(decoded.width, decoded.height, frames), decoded.loopCount);
+        return new Class(canvasFrames(decoded.width, decoded.height, frames), { loopCount: decoded.loopCount });
     }
 }

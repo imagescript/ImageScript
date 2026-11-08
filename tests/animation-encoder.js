@@ -18,7 +18,7 @@ const metadata = {creationTime: 0, software: ''};
         frames.push(f);
     }
     // offsets, every disposal, translucent pixels; a decoded GIF
-    const synthetic = new Animation([new Frame(40, 30, {duration: 20}).fill(0x203040ff), ...frames], 2);
+    const synthetic = new Animation([new Frame(40, 30, {duration: 20}).fill(0x203040ff), ...frames], {loopCount: 2});
     const decoded = await Animation.decode(await fs.readFile('./tests/targets/gif.gif'));
 
     for (const [name, animation] of [['synthetic', synthetic], ['gif.gif', decoded]])

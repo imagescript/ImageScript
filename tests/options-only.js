@@ -111,6 +111,28 @@ const sameImage = (image, reference, label) => {
 	const byWidth = await Image.renderSVG(svgSource, {size: 30, mode: 'width'});
 	if (byWidth.width !== 30 || byWidth.height !== 30) panic(`renderSVG(svg, { size, mode: 'width' }): ${byWidth.width}x${byWidth.height}`);
 
+	// frames and animations take their duration, offsets, disposal mode and loop count in the options object only
+	const frame = new Frame(4, 4, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
+	if (frame.duration !== 40 || frame.xOffset !== 2 || frame.yOffset !== 3 || frame.disposalMode !== 'background') panic('new Frame(width, height, options)');
+	if (Frame.from(photo, {duration: 40, xOffset: 2}).xOffset !== 2 || Frame.from(photo).duration !== 100) panic('Frame.from(image, options)');
+	if (new Animation([new Frame(4, 4)], {loopCount: 2}).loopCount !== 2 || new Animation([new Frame(4, 4)]).loopCount !== -1) panic('new Animation(frames, options)');
+	const encodedGIF = await new Animation([new Frame(4, 4)]).encodeGIF();
+	if ((await Animation.decode(encodedGIF, {onlyFirstFrame: true})).length !== 1) panic('Animation.decode(data, { onlyFirstFrame })');
+	if (new GIF([new Frame(4, 4)], 2).loopCount !== 2) panic('GIF keeps its 3.x loop count argument');
+	const oldFrames = {
+		'new Frame(4, 4, 100)': () => new Frame(4, 4, 100),
+		'new Frame(4, 4, 100, 1, 1, "keep")': () => new Frame(4, 4, 100, 1, 1, 'keep'),
+		'Frame.from(photo, 100)': () => Frame.from(photo, 100),
+		'Frame.from(photo, 100, 1, 1, "keep")': () => Frame.from(photo, 100, 1, 1, 'keep'),
+		'new Animation([frame], 2)': () => new Animation([frame], 2),
+		'new Animation([frame], Infinity)': () => new Animation([frame], Infinity),
+		'Animation.decode(gif, true)': () => Animation.decode(encodedGIF, true)
+	};
+	for (const [label, call] of Object.entries(oldFrames)) {
+		const error = await rejects(call, label);
+		if (!/takes an options object/.test(error.message)) panic(`${label}: the message should name the options form, got ${error.message}`);
+	}
+
 	// the options form still resizes; undefined stays fine
 	if (photo.clone().resize(10, 6, {mode: ResizeModes.AREA}).width !== 10) panic('resize(10, 6, { mode })');
 	if (photo.clone().resize(10, 6).height !== 6) panic('resize(10, 6)');

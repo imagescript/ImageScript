@@ -42,7 +42,7 @@ const size = image => `${image.width}x${image.height}`;
 
     // frames keep their position
     {
-        const frame = new Frame(10, 10, 100, 5, 7);
+        const frame = new Frame(10, 10, {duration: 100, xOffset: 5, yOffset: 7});
         frame.drawBox(2, 3, 4, 4, 0xffffffff);
         frame.trim();
         if (size(frame) !== '4x4' || frame.xOffset !== 7 || frame.yOffset !== 10) panic(`trim: frame ${size(frame)} at ${frame.xOffset},${frame.yOffset}`);

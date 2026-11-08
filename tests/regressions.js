@@ -89,7 +89,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // frames keep their metadata
     {
-        const frame = new Frame(10, 10, 500, 2, 4, FrameDisposalModes.BACKGROUND);
+        const frame = new Frame(10, 10, {duration: 500, xOffset: 2, yOffset: 4, disposalMode: FrameDisposalModes.BACKGROUND});
         const clone = frame.clone();
         assert(clone instanceof Frame && clone.duration === 500 && clone.xOffset === 2 && clone.disposalMode === 'background', 'Frame.clone lost metadata');
 
@@ -108,7 +108,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // resizing GIFs scales partial frames proportionally
     {
-        const gif = new GIF([new Frame(10, 10), new Frame(4, 4, 100, 6, 6)]).resize(5, 5);
+        const gif = new GIF([new Frame(10, 10), new Frame(4, 4, {duration: 100, xOffset: 6, yOffset: 6})]).resize(5, 5);
         assert(gif.width === 5 && gif.height === 5, `GIF.resize: canvas is ${gif.width}x${gif.height}`);
         assert(gif[1].width === 2 && gif[1].xOffset === 3, 'GIF.resize: partial frame not scaled');
     }
@@ -327,7 +327,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // gif frame durations are rounded to centiseconds
     {
         // (different frames: identical ones are merged)
-        const gif = new GIF([new Frame(2, 2, 16), new Frame(2, 2, 14).fill(0xff0000ff)]);
+        const gif = new GIF([new Frame(2, 2, {duration: 16}), new Frame(2, 2, {duration: 14}).fill(0xff0000ff)]);
         const decoded = await GIF.decode(await gif.encode());
         assert(decoded[0].duration === 20 && decoded[1].duration === 10, `gif durations should round, got ${decoded[0].duration}, ${decoded[1].duration}`);
     }
@@ -367,13 +367,13 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // disposal modes read back as the names they are set with
     {
-        const frame = new Frame(1, 1, 100, 0, 0, FrameDisposalModes.PREVIOUS);
+        const frame = new Frame(1, 1, {duration: 100, xOffset: 0, yOffset: 0, disposalMode: FrameDisposalModes.PREVIOUS});
         assert(frame.disposalMode === 'previous', 'disposalMode should be a name, got ' + frame.disposalMode);
         // the numeric ids (0-3) are not accepted any more, the names are
         let threw = false;
         try { frame.disposalMode = 0; } catch (e) { threw = e instanceof RangeError; }
         assert(threw && frame.disposalMode === 'previous', 'disposalMode should only take names');
-        const decoded = await GIF.decode(await new GIF([new Frame(2, 2, 100, 0, 0, 'background'), new Frame(2, 2).fill(0xff0000ff)]).encode());
+        const decoded = await GIF.decode(await new GIF([new Frame(2, 2, {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'background'}), new Frame(2, 2).fill(0xff0000ff)]).encode());
         assert(decoded.length === 2, 'gif with disposal modes should roundtrip');
     }
 
@@ -407,12 +407,12 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         try { photo.clone().resize({}); } catch (e) { threw = e instanceof TypeError; }
         assert(threw, 'resize({}) throws');
 
-        const frame = Frame.from(photo.clone(), 100, 4, 2);
+        const frame = Frame.from(photo.clone(), {duration: 100, xOffset: 4, yOffset: 2});
         frame.resize({width: 6});
         assert(frame.width === 6 && frame.height === 4 && frame.xOffset === 2 && frame.yOffset === 1, `Frame.resize({width}): ${frame.width}x${frame.height}+${frame.xOffset}+${frame.yOffset}`);
 
-        const animation = new Animation([Frame.from(photo.clone(), 100), Frame.from(photo.clone().invert(), 100)]);
-        const other = new Animation([Frame.from(photo.clone(), 100), Frame.from(photo.clone().invert(), 100)]);
+        const animation = new Animation([Frame.from(photo.clone(), {duration: 100}), Frame.from(photo.clone().invert(), {duration: 100})]);
+        const other = new Animation([Frame.from(photo.clone(), {duration: 100}), Frame.from(photo.clone().invert(), {duration: 100})]);
         animation.resize({height: 4});
         other.resize(6, 4);
         assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f, other[i])), 'Animation.resize({height})');
@@ -443,7 +443,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     // the encoders take the options of the encode functions
     await withFrozenTime(async () => {
         const {Animation} = require('..');
-        const frames = () => [Frame.from(new Image(6, 6).fill(0x336699ff), 100), Frame.from(new Image(6, 6).fill(0x996633ff), 100)];
+        const frames = () => [Frame.from(new Image(6, 6).fill(0x336699ff), {duration: 100}), Frame.from(new Image(6, 6).fill(0x996633ff), {duration: 100})];
         for (const [format, options] of [['GIF', {quality: 80, optimize: false}], ['APNG', {compression: 9}], ['WebP', {quality: 70, effort: 1}]]) {
             const animation = new Animation(frames(), {loopCount: 3});
             const encoder = Animation[`${format.toLowerCase()}Encoder`](6, 6, {...options, loopCount: 3});
@@ -456,9 +456,9 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     await withFrozenTime(async () => {
         const {Animation} = require('..');
         const still = new Image(6, 6).fill(0x336699ff);
-        const frames = () => [Frame.from(still.clone(), 100), Frame.from(still.clone().invert(), 100)];
+        const frames = () => [Frame.from(still.clone(), {duration: 100}), Frame.from(still.clone().invert(), {duration: 100})];
         const forever = new Animation(frames(), {loopCount: Infinity}), minusOne = new Animation(frames(), {loopCount: -1});
-        assert(forever.loopCount === Infinity && new Animation(frames(), Infinity).loopCount === Infinity, 'Animation keeps Infinity');
+        assert(forever.loopCount === Infinity && new Animation(frames(), {loopCount: Infinity}).loopCount === Infinity, 'Animation keeps Infinity');
         for (const format of ['GIF', 'APNG', 'WebP']) {
             const a = await forever[`encode${format}`](), b = await minusOne[`encode${format}`]();
             assert(Buffer.from(a).equals(Buffer.from(b)), `${format}: Infinity vs -1`);
@@ -483,10 +483,10 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const fs = require('fs');
         const pixel = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
         const tiff = orientation => Buffer.from([0x4d, 0x4d, 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, orientation, 0, 0, 0, 0, 0, 0, 0, 0]);
-        const source = () => [0, 1].map(i => Frame.from(new Image(3, 2).fill((x, y) => Colors.fromRGBA(x * 100, y * 100, i * 120, 255)), 100));
+        const source = () => [0, 1].map(i => Frame.from(new Image(3, 2).fill((x, y) => Colors.fromRGBA(x * 100, y * 100, i * 120, 255)), {duration: 100}));
 
         // APNG (eXIf) and animated WebP (EXIF): orientation 6 turns the top left into the top right
-        const png = Buffer.from(await new Animation(source(), 2).encodeAPNG({metadata: {software: ''}}));
+        const png = Buffer.from(await new Animation(source(), {loopCount: 2}).encodeAPNG({metadata: {software: ''}}));
         const chunk = (type, body) => {
             const out = Buffer.alloc(12 + body.length);
             out.writeUInt32BE(body.length);
@@ -496,7 +496,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             return out;
         };
         const withExif = Buffer.concat([png.subarray(0, png.length - 12), chunk('eXIf', tiff(6)), png.subarray(png.length - 12)]);
-        const webp = Buffer.from(await new Animation(source(), 2).encodeWebP({metadata: {software: ''}}));
+        const webp = Buffer.from(await new Animation(source(), {loopCount: 2}).encodeWebP({metadata: {software: ''}}));
         const exifChunk = Buffer.concat([Buffer.from('EXIF'), Buffer.from(new Uint8Array(new Uint32Array([tiff(6).length]).buffer)), tiff(6)]);
         // (the encoder's own EXIF chunk, with the creation time, becomes one decoders skip)
         const own = webp.indexOf('EXIF', 12, 'latin1');
@@ -563,7 +563,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const bordered = () => new Image(6, 5).fill(0x102030ff).setPixelAt(2, 2, 0xffffffff).setPixelAt(3, 2, 0x00000000);
         const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
         assert(same(bordered().trim(), bordered().trim(undefined)) && same(bordered().trim(), bordered().trim({})), 'trim() without arguments');
-        const frame = () => Frame.from(bordered(), 100, 3, 4);
+        const frame = () => Frame.from(bordered(), {duration: 100, xOffset: 3, yOffset: 4});
         assert(frame().trim({color: 0x102030ff}).xOffset === 5, 'Frame.trim({color}) moves the offsets');
         assert(same(bordered().colorToAlpha(), bordered().colorToAlpha(undefined)) && same(bordered().colorToAlpha(), bordered().colorToAlpha({})), 'colorToAlpha() without arguments');
         const map = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
@@ -1041,7 +1041,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             composite: v => image().composite(image(), {x: v, y: 0}), hueShift: v => image().hueShift(v), brightness: v => image().brightness(v), gamma: v => image().gamma(v),
             colorToAlpha: v => image().colorToAlpha({color: v}), rotate: v => image().rotate(v, {resize: false}), gradient: v => Colors.gradient({0: v, 1: 0}),
             roundCorners: v => image().roundCorners({radius: v}), fisheye: v => image().fisheye({strength: v}), encodePNG: v => image().encodePNG({compression: v}), encodeJPEG: v => image().encodeJPEG({quality: v}),
-            frame: v => new Frame(4, 4, v), animation: v => new Animation([new Frame(4, 4)], v),
+            frame: v => new Frame(4, 4, {duration: v}), animation: v => new Animation([new Frame(4, 4)], {loopCount: v}),
         };
         for (const [name, call] of Object.entries(calls))
             for (const value of [NaN, Infinity, -Infinity]) {

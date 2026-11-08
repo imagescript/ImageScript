@@ -31,6 +31,7 @@
 
 - **The positional arguments of `Image.renderSVG()` are removed**: `Image.renderSVG(svg, size, mode)` is `Image.renderSVG(svg, { size, mode })`, which takes the same `fonts` and `images` as before: `Image.renderSVG(svg, 2, 'width')` is now `Image.renderSVG(svg, { size: 2, mode: 'width' })`.
 
+- **The positional arguments of `new Frame()`, `Frame.from()` and `new Animation()` are removed, and `Animation.decode()` takes no flag**: `new Frame(width, height, duration, xOffset, yOffset, disposalMode)` is `new Frame(width, height, { duration, xOffset, yOffset, disposalMode })`, `Frame.from(image, duration, xOffset, yOffset, disposalMode)` is `Frame.from(image, { duration, xOffset, yOffset, disposalMode })`, `new Animation(frames, loopCount)` is `new Animation(frames, { loopCount })`, and `Animation.decode(data, true)` is `Animation.decode(data, { onlyFirstFrame: true })`. The `GIF` class keeps its arguments until it is removed.
 
 ## 3.20.1
 

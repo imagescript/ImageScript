@@ -66,7 +66,7 @@ const expected = {
     // browsers do (here a wrong sequence number in the second fcTL)
     {
         const frames = [100, 70000, 100].map((duration, i) => {
-            const frame = new Frame(8, 8, duration);
+            const frame = new Frame(8, 8, {duration});
             frame.fill(0xff0000ff + i * 0x1000);
             return frame;
         });

@@ -174,18 +174,18 @@ if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
 }
 
 try {
-    new Frame(1, 1, -1);
+    new Frame(1, 1, {duration: -1});
     panic('frame duration failed');
 } catch {
 }
 
-if (new Frame(1, 2, 3).toString() !== 'Frame<1x2x3ms>') panic('frame toString failed');
+if (new Frame(1, 2, {duration: 3}).toString() !== 'Frame<1x2x3ms>') panic('frame toString failed');
 
 {
     const image = new Image(512, 512);
-    Frame.from(image, 10);
+    Frame.from(image, {duration: 10});
     try {
-        Frame.from({}, 10);
+        Frame.from({}, {duration: 10});
         panic('frame instanceof image failed');
     } catch {
     }
@@ -198,7 +198,7 @@ try {
 }
 
 {
-    const frame = new Frame(512, 128, 123);
+    const frame = new Frame(512, 128, {duration: 123});
     const gif = new GIF([frame]);
     if (gif.toString() !== 'GIF<512x128x123ms>') panic('gif tostring failed');
     if (gif.duration !== 123) panic('gif duration failed');

@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image, Frame, Animation, GIF, decode, ResizeModes} = require('..');
+const {Image, Frame, Animation, GIF, decode} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -8,10 +8,10 @@ const panic = message => {
 
 const same = (name, a, b) => {
     const x = a.bitmap ?? a, y = b.bitmap ?? b;
-    if (x.length !== y.length || x.some((v, i) => v !== y[i])) panic(`${name}: options object and positional arguments differ`);
+    if (x.length !== y.length || x.some((v, i) => v !== y[i])) panic(`${name}: the results differ`);
 };
 
-// every method with optional arguments takes them as an options object too, with the same result
+// the defaults: leaving out the options and passing an empty object give the same result
 (async () => {
     const photo = await Image.decode(await fs.readFile('./tests/targets/external.jpg'));
     const tile = () => photo.clone().resize(64, 48);
@@ -35,12 +35,11 @@ const same = (name, a, b) => {
     const svg = await fs.readFile('./tests/svgs/crown.svg');
 
     // frames and animations
-    const a = new Frame(8, 6, 40, 2, 3, 'background'), b = new Frame(8, 6, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
+    const b = new Frame(8, 6, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
     const c = Frame.from(logo, {duration: 40, xOffset: 2, yOffset: 3, disposalMode: 'background'});
     for (const frame of [b, c])
         if (frame.duration !== 40 || frame.xOffset !== 2 || frame.yOffset !== 3 || frame.disposalMode !== 'background') panic('Frame: options not applied');
     if (new Frame(1, 1, {}).duration !== 100 || new Frame(1, 1, {}).disposalMode !== 'keep') panic('Frame: wrong defaults');
-    same('Frame', a, b);
 
     const frames = () => [Frame.from(tile(), {duration: 50}), Frame.from(tile().invert(), {duration: 50})];
     if (new Animation(frames(), {loopCount: 2}).loopCount !== 2 || new GIF(frames(), {loopCount: 2}).loopCount !== 2) panic('Animation: loopCount not applied');

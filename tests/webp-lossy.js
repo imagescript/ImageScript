@@ -142,7 +142,7 @@ const alphaReferences = {
         frame.drawBox(i * 10, 5, 10, 10, 0xffffffff);
         return frame;
     });
-    const animation = new Animation(frames.map(f => Frame.from(f, 100)), 0);
+    const animation = new Animation(frames.map(f => Frame.from(f, {duration: 100})), {loopCount: 0});
     const lossy = await animation.encodeWebP({quality: 80});
     const decoded = await Animation.decode(lossy);
     if (decoded.length !== 3) panic(`lossy animation: ${decoded.length} frames instead of 3`);
@@ -157,7 +157,7 @@ const alphaReferences = {
     if (!await animation.encodeWebP({quality: 200}).then(() => false, e => e instanceof RangeError)) panic('animation quality 200 should throw');
 
     // alphaQuality for animations, also encoded a frame at a time
-    const faded = new Animation([0, 1].map(i => Frame.from(new Image(40, 30).fill((x, y) => Colors.fromRGBA(200, 50 * i, 9, x * 6 + y)), 100)), 0);
+    const faded = new Animation([0, 1].map(i => Frame.from(new Image(40, 30).fill((x, y) => Colors.fromRGBA(200, 50 * i, 9, x * 6 + y)), {duration: 100})), {loopCount: 0});
     // (the same creation time: it's written in seconds, two encodes can be a second apart)
     const metadata = {creationTime: 0};
     const fadedWebp = await faded.encodeWebP({quality: 80, alphaQuality: 0, optimize: false, metadata});

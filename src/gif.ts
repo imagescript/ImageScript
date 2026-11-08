@@ -7,7 +7,7 @@ import { isOptions } from './util/options.ts';
 /**
  * Represents a GIF image as an array of frames, an {@link Animation} whose `encode()` and `decode()` work with GIFs.
  * Array methods like map and filter return plain arrays.
- * @deprecated Use {@link Animation}, which works the same and also handles APNG: `new Animation(frames, loopCount)`,
+ * @deprecated Use {@link Animation}, which works the same and also handles APNG: `new Animation(frames, { loopCount })`,
  *     {@link Animation.decode} and {@link Animation.encodeGIF}. `GIF` will be removed in 4.0
  * @group Deprecated
  */
@@ -19,7 +19,7 @@ export class GIF extends Animation {
      *     {@link AnimationOptions}
      */
     constructor(frames: Frame[], loopCountOrOptions?: number | AnimationOptions) {
-        super(frames, loopCountOrOptions as number);
+        super(frames, isOptions(loopCountOrOptions) || loopCountOrOptions === undefined ? loopCountOrOptions : { loopCount: loopCountOrOptions });
     }
 
     /** A short description for debugging, e.g. `GIF<64x64x1000ms>` */

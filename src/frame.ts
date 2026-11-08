@@ -1,5 +1,5 @@
 import { Image, ResizeOptions, ResizeToOptions, TrimOptions, resizeArguments } from './image.ts';
-import { isOptions, checkOptions, finite } from './util/options.ts';
+import { checkOptions, finite } from './util/options.ts';
 
 /** Names of the frame disposal modes, see {@link Frame.disposalMode} */
 export type FrameDisposalModeName = 'any' | 'keep' | 'previous' | 'background';
@@ -77,20 +77,9 @@ export class Frame extends Image {
      * @param options See {@link FrameOptions}
      */
     constructor(width: number, height: number, options?: FrameOptions);
-    /**
-     * Creates a new, blank frame
-     * @param width The width in pixels
-     * @param height The height in pixels
-     * @param duration The frame's duration (in ms)
-     * @param xOffset The frame's offset on the x-axis
-     * @param yOffset The frame's offset on the y-axis
-     * @param disposalMode The frame's disposal mode
-     * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
-     */
-    constructor(width: number, height: number, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName);
-    constructor(width: number, height: number, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName) {
-        const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = FrameDisposalModes.KEEP } =
-            isOptions(durationOrOptions) ? durationOrOptions : { duration: durationOrOptions, xOffset, yOffset, disposalMode };
+    constructor(width: number, height: number, options: FrameOptions = {}) {
+        checkOptions(options, 'Frame(width, height, { duration: 100 })');
+        const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = FrameDisposalModes.KEEP } = options;
         if (finite(duration, 'frame duration') < 0)
             throw new RangeError('Invalid frame duration');
         finite(x, 'x offset');
@@ -136,21 +125,11 @@ export class Frame extends Image {
      * @param options See {@link FrameOptions}
      */
     static from(image: Image, options?: FrameOptions): Frame;
-    /**
-     * Converts an Image instance to a Frame, cloning it in the process
-     * @param image The image to create the frame from
-     * @param duration The frame's duration (in ms)
-     * @param xOffset The frame's offset on the x-axis
-     * @param yOffset The frame's offset on the y-axis
-     * @param disposalMode The frame's disposal mode
-     * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
-     */
-    static from(image: Image, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName): Frame;
-    static from(image: Image, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName): Frame {
+    static from(image: Image, options: FrameOptions = {}): Frame {
         if (!(image instanceof Image))
             throw new TypeError('Invalid image passed');
+        checkOptions(options, 'Frame.from(image, { duration: 100 })');
 
-        const options = isOptions(durationOrOptions) ? durationOrOptions : { duration: durationOrOptions, xOffset, yOffset, disposalMode };
         const frame = new Frame(image.width, image.height, options);
         frame.bitmap.set(image.bitmap);
 
