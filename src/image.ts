@@ -156,7 +156,7 @@ export interface QuantizeOptions {
     ditherStrength?: number;
 }
 
-/** How {@link Image.transform} samples the pixels between the source's */
+/** How {@link Image.transform} and {@link Image.rotate} sample the pixels between the source's */
 export type TransformMode = 'nearest-neighbor' | 'bilinear' | 'bicubic';
 
 // the sampling modes of Image.transform()
@@ -724,14 +724,14 @@ export class Image {
     }
 
     /**
-     * The images width
+     * The image's width
      */
     get width(): number {
         return this.__width__;
     }
 
     /**
-     * The images height
+     * The image's height
      */
     get height(): number {
         return this.__height__;
@@ -1080,8 +1080,8 @@ export class Image {
      * The region is clipped to the image, so the result can be smaller than the requested size
      * @param x The x offset (0-based)
      * @param y The y offset (0-based)
-     * @param width The new images width
-     * @param height The new images height
+     * @param width The new width
+     * @param height The new height
      */
     crop(x: number, y: number, width: number, height: number): this {
         const bounds = this.__crop_bounds__(x, y, width, height);
@@ -1537,7 +1537,7 @@ export class Image {
     }
 
     /**
-     * Inverts the images colors
+     * Inverts the image's colors
      */
     invert(): this {
         if (this.__gain_map__) return this.__unboost__(image => image.invert());
@@ -1552,7 +1552,7 @@ export class Image {
     }
 
     /**
-     * Inverts the images lightness (HSL), keeping hue and saturation: dark colors become light and vice versa
+     * Inverts the image's lightness (HSL), keeping hue and saturation: dark colors become light and vice versa
      */
     invertLightness(): this {
         if (this.__gain_map__) return this.__unboost__(image => image.invertLightness());
@@ -1560,7 +1560,7 @@ export class Image {
     }
 
     /**
-     * Inverts the images value (HSV), keeping hue and saturation: the brightest channel `v` becomes `255 - v`
+     * Inverts the image's value (HSV), keeping hue and saturation: the brightest channel `v` becomes `255 - v`
      * and the others scale along, black becomes white
      */
     invertValue(): this {
@@ -1584,7 +1584,7 @@ export class Image {
     }
 
     /**
-     * Shifts the images hue
+     * Shifts the image's hue
      * @param degrees How many degrees to shift the hue by
      */
     hueShift(degrees: number): this {
@@ -2273,7 +2273,7 @@ export class Image {
     }
 
     /**
-     * Rounds the images corners, with antialiased edges
+     * Rounds the image's corners, with antialiased edges
      * @param options See {@link RoundCornersOptions}
      */
     roundCorners(options?: RoundCornersOptions): this;
@@ -2426,7 +2426,7 @@ export class Image {
 
     /**
      * Encodes the image as run length encoded TGA (32 bit, or 24 bit if the image is opaque)
-     * @param options See {@link EncodeOptions}
+     * @param options See {@link TGAEncodeOptions}
      */
     async encodeTGA(options: TGAEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'image.encodeTGA({ metadata })');
@@ -2659,7 +2659,7 @@ export class Image {
     }
 
     /**
-     * Creates a new image from the given SVG
+     * Creates a new image from the given SVG.
      * Supports shapes, paths, transforms, use/symbol, CSS styles, gradients, patterns, strokes, markers, clip paths,
      * masks, opacity, blend modes, filters (all primitives and the filter functions) and images embedded as data URIs
      * (PNG, JPEG, GIF, WebP, SVG) or given with {@link SVGOptions.images}, and text with the given or embedded fonts

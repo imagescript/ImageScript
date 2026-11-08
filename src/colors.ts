@@ -170,7 +170,7 @@ export class Colors {
     }
 
     /**
-     * Converts a color value to an array of RGB values (ignoring the colors alpha)
+     * Converts a color value to an array of RGB values (ignoring the color's alpha)
      * @param color The color value to convert
      * @returns The RGB values ([R, G, B])
      */
