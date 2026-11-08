@@ -1,4 +1,4 @@
-const {Image, ImageType} = require('..');
+const {Image, ImageType, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -54,10 +54,10 @@ const pixels = image => Array.from({length: image.width * image.height}, (_, i) 
     // encoding: PBM for black and white, PGM for greyscale, PPM, PAM with alpha
     const cases = [
         [new Image(13, 5).fill((x, y) => (x + y) & 1 ? 0xffffffff : 0x000000ff), 'P4'],
-        [new Image(15, 4).fill((x, y) => Image.rgbaToColor(x * 17, x * 17, x * 17, 255)), 'P5'],
-        [new Image(7, 3).fill((x, y) => Image.rgbaToColor(x * 30, y * 80, 7, 255)), 'P6'],
-        [new Image(5, 2).fill((x, y) => Image.rgbaToColor(x * 50, x * 50, x * 50, y * 99)), 'P7', 'GRAYSCALE_ALPHA'],
-        [new Image(5, 2).fill((x, y) => Image.rgbaToColor(x * 50, 3, 9, y * 99)), 'P7', 'RGB_ALPHA'],
+        [new Image(15, 4).fill((x, y) => Colors.fromRGBA(x * 17, x * 17, x * 17, 255)), 'P5'],
+        [new Image(7, 3).fill((x, y) => Colors.fromRGBA(x * 30, y * 80, 7, 255)), 'P6'],
+        [new Image(5, 2).fill((x, y) => Colors.fromRGBA(x * 50, x * 50, x * 50, y * 99)), 'P7', 'GRAYSCALE_ALPHA'],
+        [new Image(5, 2).fill((x, y) => Colors.fromRGBA(x * 50, 3, 9, y * 99)), 'P7', 'RGB_ALPHA'],
     ];
     for (const [image, magic, type] of cases) {
         const encoded = await image.encodePNM();

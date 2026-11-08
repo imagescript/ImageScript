@@ -1,4 +1,4 @@
-const {Image, Frame, GIF} = require('..');
+const {Image, Frame, GIF, Colors} = require('..');
 const panic = msg => {
     console.error(msg);
     process.exit(1);
@@ -25,24 +25,24 @@ for (const [x, y] of new Image(1, 1))
 for (const [x, y, color] of new Image(1, 1).fill(0xff8000ff).iterateWithColors())
     if (x !== 0 || y !== 0 || color !== 0xff8000ff) panic('iterateWithColors failed');
 
-if (Image.rgbToColor(0xff, 0x80, 0x00) !== 0xff8000ff)
+if (Colors.fromRGB(0xff, 0x80, 0x00) !== 0xff8000ff)
     panic('rgbToColor failed');
 
-if (Image.hslaToColor(0, 0, 1, 0xff) !== 0xffffffff)
+if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
     panic('hslaToColor for s=0 failed');
 
 {
-    for (const rgba of [0xff0000ff, 0x00ff00ff, 0x0000ffff, 0x000000ff, 0xffffffff].map(x => Image.colorToRGBA(x))) {
-        const hsla = Image.rgbaToHSLA(...rgba);
-        const rgbaBacktransform = Image.colorToRGBA(Image.hslaToColor(...hsla));
+    for (const rgba of [0xff0000ff, 0x00ff00ff, 0x0000ffff, 0x000000ff, 0xffffffff].map(x => Colors.toRGBA(x))) {
+        const hsla = Colors.toHSLA(Colors.fromRGBA(...rgba));
+        const rgbaBacktransform = Colors.toRGBA(Colors.fromHSLA(...hsla));
         for (let i = 0; i < 4; i++)
             if (rgba[i] !== rgbaBacktransform[i])
-                panic('rgbaToHSLA failed');
+                panic('Colors.toHSLA failed');
     }
 }
 
 {
-    const rgb = Image.colorToRGB(0xff8000ff);
+    const rgb = Colors.toRGB(0xff8000ff);
     const target = [0xff, 0x80, 0x00];
     for (let i = 0; i < 3; i++)
         if (rgb[i] !== target[i])

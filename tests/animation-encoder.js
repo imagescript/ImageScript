@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image, Frame, Animation} = require('..');
+const {Image, Frame, Animation, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -14,7 +14,7 @@ const metadata = {creationTime: 0, software: ''};
     const frames = [];
     for (let i = 0; i < 6; i++) {
         const f = new Frame(20 + i, 15, {duration: 50 + i * 10, xOffset: i * 3, yOffset: i, disposalMode: ['keep', 'previous', 'background', 'keep', 'any', 'background'][i]});
-        f.fill((x, y) => Image.rgbaToColor((x * 30 + i * 40) & 255, y * 15, i * 40, (x + y + i) % 5 ? 255 : 100));
+        f.fill((x, y) => Colors.fromRGBA((x * 30 + i * 40) & 255, y * 15, i * 40, (x + y + i) % 5 ? 255 : 100));
         frames.push(f);
     }
     // offsets, every disposal, translucent pixels; a decoded GIF

@@ -1,4 +1,4 @@
-const {Image, Frame, Animation, GIF} = require('..');
+const {Image, Frame, Animation, GIF, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -24,7 +24,7 @@ const square = (color, w, h) => new Image(w, h).fill((x, y) => (x + y) % 5 === 0
 (async () => {
     for (const variant of [0, 1]) {
         const animation = new Animation([
-            Frame.from(new Image(40, 30).fill((x, y) => Image.rgbaToColor(x * 6, y * 8, 128, 255)), 100),
+            Frame.from(new Image(40, 30).fill((x, y) => Colors.fromRGBA(x * 6, y * 8, 128, 255)), 100),
             Frame.from(square(0xff2040ff, 10, 8), 50, variant ? 3 : 4, variant ? 5 : 6, 'background'),
             Frame.from(square(0x20ff40ff, 12, 10), 70, 10, 10, variant ? 'previous' : 'keep'),
             Frame.from(square(0xc8374fff, 8, 8), 30, 20, 2, 'keep')

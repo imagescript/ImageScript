@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Image, Animation, Frame} = require('..');
+const {Image, Animation, Frame, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -120,7 +120,7 @@ const alphaReferences = {
     // noisy alpha: stored uncompressed (smaller than compressed), still lossless
     let seed = 1;
     const random = () => (seed = seed * 1103515245 + 12345 >>> 0) >>> 24;
-    const noisy = new Image(24, 24).fill((x, y) => Image.rgbaToColor(x * 10, y * 10, 99, random()));
+    const noisy = new Image(24, 24).fill((x, y) => Colors.fromRGBA(x * 10, y * 10, 99, random()));
     const noisyWebp = await noisy.encodeWebP({quality: 50});
     if (chunks(noisyWebp).ALPH[0] !== 0) panic('noisy alpha should be stored uncompressed and unfiltered');
     const noisyBack = await Image.decode(noisyWebp);
@@ -150,14 +150,14 @@ const alphaReferences = {
     // (the last frame is half transparent: it's blended over the one before)
     const lossless = await Animation.decode(await animation.encodeWebP());
     for (let f = 0; f < 3; f++) {
-        const [r, g, b, a] = Image.colorToRGBA(decoded[f].getPixelAt(1, 1));
-        const [er, eg, eb, ea] = Image.colorToRGBA(lossless[f].getPixelAt(1, 1));
+        const [r, g, b, a] = Colors.toRGBA(decoded[f].getPixelAt(1, 1));
+        const [er, eg, eb, ea] = Colors.toRGBA(lossless[f].getPixelAt(1, 1));
         if (Math.abs(r - er) + Math.abs(g - eg) + Math.abs(b - eb) > 12 || a !== ea) panic(`lossy animation: frame ${f} decodes to ${[r, g, b, a]}`);
     }
     if (!await animation.encodeWebP({quality: 200}).then(() => false, e => e instanceof RangeError)) panic('animation quality 200 should throw');
 
     // alphaQuality for animations, also encoded a frame at a time
-    const faded = new Animation([0, 1].map(i => Frame.from(new Image(40, 30).fill((x, y) => Image.rgbaToColor(200, 50 * i, 9, x * 6 + y)), 100)), 0);
+    const faded = new Animation([0, 1].map(i => Frame.from(new Image(40, 30).fill((x, y) => Colors.fromRGBA(200, 50 * i, 9, x * 6 + y)), 100)), 0);
     // (the same creation time: it's written in seconds, two encodes can be a second apart)
     const metadata = {creationTime: 0};
     const fadedWebp = await faded.encodeWebP({quality: 80, alphaQuality: 0, optimize: false, metadata});

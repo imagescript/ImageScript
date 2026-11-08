@@ -1,4 +1,4 @@
-const {Image, Frame, Animation} = require('..');
+const {Image, Frame, Animation, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -107,10 +107,10 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
     // an opaque animation whose frames are smaller sparse, but not by enough to pay for an alpha channel in every APNG
     // frame: they're filled in again
     {
-        const background = new Image(40, 20).fill((x, y) => Image.rgbaToColor(y * 6, 100, 200 - y * 4, 255));
+        const background = new Image(40, 20).fill((x, y) => Colors.fromRGBA(y * 6, 100, 200 - y * 4, 255));
         const animation = new Animation(Array.from({length: 6}, (_, i) => Frame.from(background.clone()
-            .drawBox(1, 1, 6, 6, Image.rgbaToColor(255, i * 40, 0, 255))
-            .drawBox(32, 13, 6, 6, Image.rgbaToColor(0, 255, i * 40, 255)), 100)));
+            .drawBox(1, 1, 6, 6, Colors.fromRGBA(255, i * 40, 0, 255))
+            .drawBox(32, 13, 6, 6, Colors.fromRGBA(0, 255, i * 40, 255)), 100)));
         await check('opaque animation', animation);
         // with transparency for free, the frames are sparse; with an alpha channel that costs as much as RGBA instead of RGB
         // (APNG), they're filled in
@@ -121,7 +121,7 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
     // a GIF frame stays dense when its colors fill the palette and its sparse pixels wouldn't fit (they'd need one more
     // color for the unchanged pixels): it stays lossless. The blocks around the center change color, the center doesn't
     {
-        const color = index => Image.rgbaToColor(index, 255 - index, index * 37 & 255, 255);
+        const color = index => Colors.fromRGBA(index, 255 - index, index * 37 & 255, 255);
         // 24×24 blocks: the ring around the center has all 256 colors in turn, the center some of them
         const ring = (i, j) => i < 4 || i > 19 || j < 4 || j > 19;
         const grid = shift => {
@@ -151,7 +151,7 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
 
     // a mostly static animation (like a screen recording) only stores what changes
     {
-        const background = new Image(160, 120).fill((x, y) => Image.rgbaToColor(x * 7 ^ y * 13, x * y, y * 5, 255));
+        const background = new Image(160, 120).fill((x, y) => Colors.fromRGBA(x * 7 ^ y * 13, x * y, y * 5, 255));
         const animation = new Animation(Array.from({length: 20}, (_, i) =>
             Frame.from(background.clone().drawBox(10 + i * 6, 50, 8, 8, 0xffffffff), 50)));
         await check('screen recording', animation);
@@ -171,12 +171,12 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
         const random = () => (seed = Math.imul(seed, 1103515245) + 12345 >>> 0) / 2 ** 32;
         const map = new Image(100, 60).fill((x, y) => {
             const g = 150 + 40 * Math.sin(x / 9) * Math.cos(y / 13) + (random() - 0.5) * 30;
-            return Image.rgbaToColor(g | 0, g * 0.9 | 0, g * 0.8 | 0, 255);
+            return Colors.fromRGBA(g | 0, g * 0.9 | 0, g * 0.8 | 0, 255);
         });
         const animation = new Animation(Array.from({length: 8}, (_, i) => {
-            const layer = new Image(100, 60).fill(x => x < 80 ? Image.rgbaToColor(i % 4, 180 + i * 7 % 5, 250 + i * 3 % 4, 150) : 0);
+            const layer = new Image(100, 60).fill(x => x < 80 ? Colors.fromRGBA(i % 4, 180 + i * 7 % 5, 250 + i * 3 % 4, 150) : 0);
             return Frame.from(map.clone().composite(layer).drawBox(5 + i * 10, 20, 12, 12, 0xff0000ff)
-                .drawBox(90, 50, 6, 6, Image.rgbaToColor(0, i * 30, 0, 255)), 50);
+                .drawBox(90, 50, 6, 6, Colors.fromRGBA(0, i * 30, 0, 255)), 50);
         }));
 
         const tolerance = 3;

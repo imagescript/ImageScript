@@ -1,10 +1,10 @@
 const fs = require('fs').promises;
-const {Image} = require('..');
+const {Image, Colors} = require('..');
 const samePixels = require('./util/pixels');
 
 module.exports = (async () => {
     const image = new Image(128, 128);
-    image.fill(x => Image.hslToColor(x / image.width, 1, 0.5));
+    image.fill(x => Colors.fromHSL(x / image.width, 1, 0.5));
 
     const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
 

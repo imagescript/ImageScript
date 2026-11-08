@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Image, ImageType} = require('..');
+const {Image, ImageType, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -63,10 +63,10 @@ const expected = {
     // encoding: the smallest bit depth that holds the image, alpha with a version 4 header
     const cases = [
         [new Image(13, 5).fill((x, y) => (x + y) & 1 ? 0xffffffff : 0x000000ff), 1],
-        [new Image(17, 6).fill((x, y) => Image.rgbaToColor(x % 4 * 80, y % 4 * 80, 40, 255)), 4],
-        [new Image(33, 9).fill((x, y) => Image.rgbaToColor(x * 7, y % 7 * 30, 99, 255)), 8],
-        [new Image(31, 9).fill((x, y) => Image.rgbaToColor(x * 8, y * 28, (x * 13 + y * 7) & 255, 255)), 24],
-        [new Image(29, 6).fill((x, y) => Image.rgbaToColor(x * 8, 200 - y * 30, x * y, (x * 9) & 255)), 32],
+        [new Image(17, 6).fill((x, y) => Colors.fromRGBA(x % 4 * 80, y % 4 * 80, 40, 255)), 4],
+        [new Image(33, 9).fill((x, y) => Colors.fromRGBA(x * 7, y % 7 * 30, 99, 255)), 8],
+        [new Image(31, 9).fill((x, y) => Colors.fromRGBA(x * 8, y * 28, (x * 13 + y * 7) & 255, 255)), 24],
+        [new Image(29, 6).fill((x, y) => Colors.fromRGBA(x * 8, 200 - y * 30, x * y, (x * 9) & 255)), 32],
         [new Image(1, 1).fill(0x123456ff), 1],
     ];
     for (const [image, bits] of cases) {

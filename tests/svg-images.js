@@ -1,4 +1,4 @@
-const {Image, Animation, Frame} = require('..');
+const {Image, Animation, Frame, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -44,9 +44,9 @@ const crc32 = bytes => {
 };
 
 (async () => {
-    const logo = new Image(4, 3).fill((x, y) => Image.rgbaToColor(x * 60, y * 80, 128, x === 0 ? 0 : 255));
-    const other = new Image(4, 3).fill((x, y) => Image.rgbaToColor(255 - x * 60, y * 40, 200, 255));
-    const opaque = new Image(4, 3).fill((x, y) => Image.rgbaToColor(x * 60, y * 80, 128, 255));
+    const logo = new Image(4, 3).fill((x, y) => Colors.fromRGBA(x * 60, y * 80, 128, x === 0 ? 0 : 255));
+    const other = new Image(4, 3).fill((x, y) => Colors.fromRGBA(255 - x * 60, y * 40, 200, 255));
+    const opaque = new Image(4, 3).fill((x, y) => Colors.fromRGBA(x * 60, y * 80, 128, 255));
     const png = await logo.encodePNG(1);
     const webp = await logo.encodeWebP();
     const jpeg = await opaque.encodeJPEG(90);
@@ -165,7 +165,7 @@ const crc32 = bytes => {
 
     // quantized images can be given too (the palette of an SVG's image)
     {
-        const reduced = await new Image(4, 3).fill((x, y) => Image.rgbaToColor(x * 60, y * 80, 128, 255)).quantize({colors: 4}).encodePNG(1);
+        const reduced = await new Image(4, 3).fill((x, y) => Colors.fromRGBA(x * 60, y * 80, 128, 255)).quantize({colors: 4}).encodePNG(1);
         const result = await Image.renderSVG(svg('<image href="logo.png" width="4" height="3"/>'), {images: {'logo.png': reduced}});
         if (transparent(result)) panic('a reduced image was not drawn');
     }

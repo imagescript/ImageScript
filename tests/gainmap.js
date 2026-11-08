@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image, GainMap} = require('..');
+const {Image, GainMap, Colors} = require('..');
 
 const panic = message => {
 	console.error(message);
@@ -90,7 +90,7 @@ const meanValue = (image, left, top, right, bottom) => {
 	// made by hand: parameters checked, written and read back; per channel values
 	{
 		const image = new Image(64, 48).fill(0x808080ff);
-		image.gainMap = new GainMap(new Image(16, 12).fill((x, y) => Image.rgbaToColor(x * 16, y * 20, 255 - x * 16, 255)), {gainMapMax: [2, 3, 4], gainMapMin: -1, gamma: 2});
+		image.gainMap = new GainMap(new Image(16, 12).fill((x, y) => Colors.fromRGBA(x * 16, y * 20, 255 - x * 16, 255)), {gainMapMax: [2, 3, 4], gainMapMin: -1, gamma: 2});
 		const back = await Image.decode(await image.encodeJPEG(95));
 		const map = back.gainMap;
 		if (!map || map.channels !== 3 || !close(map.gainMapMax, [2, 3, 4]) || !close(map.gainMapMin, [-1, -1, -1]) || !close(map.gamma, [2, 2, 2]) || map.hdrCapacityMax !== 4 || map.width !== 16)

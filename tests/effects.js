@@ -1,11 +1,11 @@
 const fs = require('fs').promises;
-const {Image} = require('..');
+const {Image, Colors} = require('..');
 const samePixels = require('./util/pixels');
 
 (async () => {
     const photo = await Image.decode(await fs.readFile('./tests/targets/external.jpg'));
     const tile = () => photo.clone().resize(128, 128);
-    const gradient = new Image(128, 128).fill((x, y) => Image.rgbToColor(x * 2, 255 - y * 2, 140));
+    const gradient = new Image(128, 128).fill((x, y) => Colors.fromRGB(x * 2, 255 - y * 2, 140));
     const font = await fs.readFile('./tests/fonts/opensans bold.ttf');
 
     const tiles = [

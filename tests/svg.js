@@ -1,4 +1,4 @@
-const {Image, SVGScaleModes} = require('..');
+const {Image, SVGScaleModes, Colors} = require('..');
 const fs = require('fs').promises;
 const samePixels = require('./util/pixels');
 
@@ -42,7 +42,7 @@ const panic = message => {
     {
         // images embedded as data URIs: placed at their size, the pixels are the decoded image's
         const {Animation, Frame} = require('..');
-        const pixel = (x, y, alpha) => Image.rgbaToColor(x * 10, y * 15, 128, alpha && x > 20 ? 0 : 255);
+        const pixel = (x, y, alpha) => Colors.fromRGBA(x * 10, y * 15, 128, alpha && x > 20 ? 0 : 255);
         const source = new Image(24, 16), opaque = new Image(24, 16);
         for (let y = 0; y < 16; y++)
             for (let x = 0; x < 24; x++) {

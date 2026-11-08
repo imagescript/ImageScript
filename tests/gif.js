@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Frame, FrameDisposalModes, GIF} = require('..');
+const {Frame, FrameDisposalModes, GIF, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -11,7 +11,7 @@ const panic = message => {
     const frames = [];
     for (let i = 0; i < 30; i++) {
         const frame = new Frame(256, 256);
-        frame.fill(x => Frame.hslToColor(x / frame.width + i / 30, 1, 0.5));
+        frame.fill(x => Colors.fromHSL(x / frame.width + i / 30, 1, 0.5));
         frames.push(frame);
     }
 
@@ -54,8 +54,8 @@ const panic = message => {
 
     {
         // offsets, transparency, disposal modes and finite loop counts
-        const black = Frame.rgbaToColor(0, 0, 0, 255);
-        const white = Frame.rgbaToColor(255, 255, 255, 255);
+        const black = Colors.fromRGBA(0, 0, 0, 255);
+        const white = Colors.fromRGBA(255, 255, 255, 255);
 
         const background = new Frame(4, 4, 100);
         background.fill(black);

@@ -1,4 +1,4 @@
-const {Image, Frame, GainMap} = require('..');
+const {Image, Frame, GainMap, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -15,7 +15,7 @@ const throwsA = (fn, type, label) => {
 const px = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
 const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
 // an opaque image where every pixel is different
-const photo = (width, height) => new Image(width, height).fill((x, y) => Image.rgbaToColor((x * 37 + y * 11) % 256, (x * 5 + y * 91) % 256, (x * y + x) % 256, 255));
+const photo = (width, height) => new Image(width, height).fill((x, y) => Colors.fromRGBA((x * 37 + y * 11) % 256, (x * 5 + y * 91) % 256, (x * y + x) % 256, 255));
 const IDENTITY = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
 
 (async () => {

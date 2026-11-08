@@ -10,6 +10,8 @@
 
 - **`Image.encode()` is removed**: use `image.encodePNG()`, which takes the same arguments.
 
+- **The color helpers of `Image` are removed**: `Image.rgbaToColor()`, `Image.rgbToColor()`, `Image.hslaToColor()`, `Image.hslToColor()`, `Image.rgbaToHSLA()`, `Image.colorToRGBA()`, `Image.colorToRGB()` and `Image.gradient()` are now `Colors.fromRGBA()`, `Colors.fromRGB()`, `Colors.fromHSLA()`, `Colors.fromHSL()`, `Colors.toHSLA()`, `Colors.toRGBA()`, `Colors.toRGB()` and `Colors.gradient()`.
+
 ## 3.20.1
 
 ### Performance

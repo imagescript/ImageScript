@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image, ImageType} = require('..');
+const {Image, ImageType, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -21,7 +21,7 @@ const panic = message => {
     // every operation: runs of 62 and longer, the index, small and larger differences, alpha changes
     const image = new Image(97, 3).fill((x, y) => y === 0 ? 0x336699ff
         : y === 1 ? [0x336699ff, 0x346799ff, 0x50779aff, 0x336699ff, 0x33669980, 0xffffff00][x % 6]
-            : Image.rgbaToColor(x * 37 & 255, x * 11 & 255, 255 - x, x & 1 ? 255 : 200));
+            : Colors.fromRGBA(x * 37 & 255, x * 11 & 255, 255 - x, x & 1 ? 255 : 200));
     const back = await Image.decode(await image.encodeQOI());
     if (!Buffer.from(back.bitmap).equals(Buffer.from(image.bitmap))) panic('QOI didn\'t round trip');
     const opaque = await new Image(4, 4).fill(0xff0000ff).encodeQOI();

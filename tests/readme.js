@@ -1,5 +1,5 @@
 // the image in the README: a weather card of frosted glass over an SVG landscape
-const {Image} = require('..');
+const {Image, Colors} = require('..');
 const fs = require('fs');
 const samePixels = require('./util/pixels');
 
@@ -57,7 +57,7 @@ const font = name => fs.readFileSync('./tests/fonts/' + name);
 
     // the week: bars from the lowest to the highest temperature, in a gradient from cool to warm
     const days = [['Mon', 14, 21], ['Tue', 13, 19], ['Wed', 15, 23], ['Thu', 16, 25], ['Fri', 14, 22], ['Sat', 12, 18], ['Sun', 13, 20]];
-    const gradient = Image.gradient({0: 0x5ac8faff, 0.5: 0xffd166ff, 1: 0xff7a59ff});
+    const gradient = Colors.gradient({0: 0x5ac8faff, 0.5: 0xffd166ff, 1: 0xff7a59ff});
     const chart = {top: card.y + 300, height: 100, min: 10, max: 26};
     const step = (card.width - 80) / days.length;
     for (const [i, [day, low, high]] of days.entries()) {

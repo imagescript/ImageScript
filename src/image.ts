@@ -32,7 +32,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { rotateBilinear } from './util/rotate.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
-import { Colors, wrapHue, hue2rgb, rgbaToHSLA } from './colors.ts';
+import { Colors, wrapHue, hue2rgb } from './colors.ts';
 import { isOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
@@ -795,89 +795,6 @@ export class Image {
     }
 
     /**
-     * Converts RGBA components to an RGBA value, values are rounded and clamped to 0..255
-     * @param r red (0..255)
-     * @param g green (0..255)
-     * @param b blue (0..255)
-     * @param a alpha (0..255)
-     * @deprecated Use {@link Colors.fromRGBA}, `Image.rgbaToColor` will be removed in 4.0
-     * @group Deprecated
-     */
-    static rgbaToColor(r: number, g: number, b: number, a: number): Color {
-        return Colors.fromRGBA(r, g, b, a);
-    }
-
-    /**
-     * Converts RGB components to an RGBA value (assuming alpha = 255)
-     * @param r red (0..255)
-     * @param g green (0..255)
-     * @param b blue (0..255)
-     * @deprecated Use {@link Colors.fromRGB}, `Image.rgbToColor` will be removed in 4.0
-     * @group Deprecated
-     */
-    static rgbToColor(r: number, g: number, b: number): Color {
-        return Colors.fromRGB(r, g, b);
-    }
-
-    /**
-     * Converts HSLA colors to RGBA colors
-     * @param h hue (0..1)
-     * @param s saturation (0..1)
-     * @param l lightness (0..1)
-     * @param a opacity (0..1)
-     * @deprecated Use {@link Colors.fromHSLA}, `Image.hslaToColor` will be removed in 4.0
-     * @group Deprecated
-     */
-    static hslaToColor(h: number, s: number, l: number, a: number): Color {
-        return Colors.fromHSLA(h, s, l, a);
-    }
-
-    /**
-     * Converts HSL colors to RGBA colors (assuming an opacity of 255)
-     * @param h hue (0..1)
-     * @param s saturation (0..1)
-     * @param l lightness (0..1)
-     * @deprecated Use {@link Colors.fromHSL}, `Image.hslToColor` will be removed in 4.0
-     * @group Deprecated
-     */
-    static hslToColor(h: number, s: number, l: number): Color {
-        return Colors.fromHSL(h, s, l);
-    }
-
-    /**
-     * Converts an RGBA value to an array of HSLA values
-     * @param r red (0..255)
-     * @param g green (0..255)
-     * @param b blue (0..255)
-     * @param a alpha (0..255)
-     * @deprecated Use {@link Colors.toHSLA}, `Image.rgbaToHSLA` will be removed in 4.0
-     * @group Deprecated
-     */
-    static rgbaToHSLA(r: number, g: number, b: number, a: number): [h: number, s: number, l: number, a: number] {
-        return rgbaToHSLA(r, g, b, a);
-    }
-
-    /**
-     * Converts a color value to an array of RGBA values
-     * @param color The color value to convert
-     * @deprecated Use {@link Colors.toRGBA}, `Image.colorToRGBA` will be removed in 4.0
-     * @group Deprecated
-     */
-    static colorToRGBA(color: Color): [r: number, g: number, b: number, a: number] {
-        return Colors.toRGBA(color);
-    }
-
-    /**
-     * Converts a color value to an array of RGB values (ignoring the colors alpha)
-     * @param color The color value to convert
-     * @deprecated Use {@link Colors.toRGB}, `Image.colorToRGB` will be removed in 4.0
-     * @group Deprecated
-     */
-    static colorToRGB(color: Color): [r: number, g: number, b: number] {
-        return Colors.toRGB(color);
-    }
-
-    /**
      * Creates an image with a linear gradient, like CSS' `linear-gradient()`
      * @param width The image's width
      * @param height The image's height
@@ -919,16 +836,6 @@ export class Image {
             for (let x = 0; x < width; x++, i += 4)
                 bitmap.setUint32(i, color(Math.hypot(x + 0.5 - cx, y + 0.5 - cy) / radius), false);
         return image;
-    }
-
-    /**
-     * Creates a multi-point gradient generator
-     * @param colors The gradient points to use (e.g. `{0: 0xff0000ff, 1: 0x00ff00ff}`)
-     * @deprecated Use {@link Colors.gradient}, `Image.gradient` will be removed in 4.0
-     * @group Deprecated
-     */
-    static gradient(colors: Record<number, Color>): (position: number) => Color {
-        return Colors.gradient(colors);
     }
 
     /**
@@ -1963,7 +1870,7 @@ export class Image {
             hsla.a = bitmap[i + 3] / 255;
             map(hsla);
 
-            // see hslaToColor
+            // see Colors.fromHSLA
             const nh = wrapHue(hsla.h);
             const ns = Math.min(1, Math.max(0, hsla.s));
             const nl = Math.min(1, Math.max(0, hsla.l));

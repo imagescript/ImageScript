@@ -1,4 +1,4 @@
-const {Image, Frame, GainMap} = require('..');
+const {Image, Frame, GainMap, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -19,7 +19,7 @@ const colorsOf = image => {
 };
 
 // pseudo-random colors: many distinct ones
-const photo = (width, height) => new Image(width, height).fill((x, y) => Image.rgbaToColor((x * 37 + y * 11) % 256, (x * 5 + y * 91) % 256, (x * y) % 256, 255));
+const photo = (width, height) => new Image(width, height).fill((x, y) => Colors.fromRGBA((x * 37 + y * 11) % 256, (x * 5 + y * 91) % 256, (x * y) % 256, 255));
 const DITHERS = ['none', 'floyd-steinberg', 'atkinson', 'ordered'];
 
 // the mean absolute error of the red channel between 8x8 block averages of two images
@@ -69,7 +69,7 @@ const blockError = (original, result) => {
     }
 
     // dithering averages out: 8x8 block averages of a gradient with 4 colors are closer to the original than undithered
-    const ramp = new Image(128, 16).fill(x => Image.rgbaToColor(Math.round(x * 255 / 127), Math.round(x * 255 / 127), Math.round(x * 255 / 127), 255));
+    const ramp = new Image(128, 16).fill(x => Colors.fromRGBA(Math.round(x * 255 / 127), Math.round(x * 255 / 127), Math.round(x * 255 / 127), 255));
     const plain = blockError(ramp, ramp.clone().quantize({colors: 4}));
     for (const dither of ['floyd-steinberg', 'atkinson', 'ordered']) {
         const error = blockError(ramp, ramp.clone().quantize({colors: 4, dither}));
@@ -143,14 +143,14 @@ const blockError = (original, result) => {
 
     // frames: quantize their own pixels and return the frame
     {
-        const frame = new Frame(20, 10, {duration: 100}).fill((x, y) => Image.rgbaToColor(x * 12, y * 25, 128, 255));
+        const frame = new Frame(20, 10, {duration: 100}).fill((x, y) => Colors.fromRGBA(x * 12, y * 25, 128, 255));
         if (frame.quantize({colors: 2, dither: 'ordered'}) !== frame) panic('quantize does not return this for a frame');
         if (colorsOf(frame).size > 2) panic('frame quantize');
     }
 
     // an image with a gain map keeps a valid one
     {
-        const hdr = new Image(8, 8).fill((x, y) => Image.rgbaToColor(x * 30, y * 30, 200, 255));
+        const hdr = new Image(8, 8).fill((x, y) => Colors.fromRGBA(x * 30, y * 30, 200, 255));
         hdr.gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
         hdr.quantize({colors: 4, dither: 'floyd-steinberg'});
         if (!(hdr.gainMap instanceof GainMap)) panic('gain map removed by quantize');

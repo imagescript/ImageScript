@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image} = require('..');
+const {Image, Colors} = require('..');
 const samePixels = require('./util/pixels');
 
 (async () => {
@@ -33,7 +33,7 @@ const samePixels = require('./util/pixels');
 
     {
         const image = new Image(512, 512);
-        image.fill((x, y) => Image.rgbToColor(x / 2, y / 2, 255 - x / 2));
+        image.fill((x, y) => Colors.fromRGB(x / 2, y / 2, 255 - x / 2));
         image.invertValue();
 
         const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});

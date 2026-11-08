@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image} = require('..');
+const {Image, Colors} = require('..');
 const samePixels = require('./util/pixels');
 const panic = msg => {
     console.error(msg);
@@ -75,7 +75,7 @@ const panic = msg => {
 
     {
         const image = new Image(512, 512);
-        image.fill((x) => Image.hslToColor(x / image.width, 1, .5));
+        image.fill((x) => Colors.fromHSL(x / image.width, 1, .5));
         if (!Buffer.from(image.bitmap).equals(Buffer.from(image.rotate(360).bitmap)))
             panic('rotate 360 failed');
     }

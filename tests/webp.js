@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Image, Animation, ImageType, decode} = require('..');
+const {Image, Animation, ImageType, decode, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -77,7 +77,7 @@ const animated = [
     const cases = [
         photo,
         new Image(37, 23).fill((x, y) => (x ^ y) & 4 ? 0xff0000ff : 0x00000000),
-        new Image(64, 9).fill((x, y) => Image.rgbaToColor(x * 4, y * 28, 7, (x * 9) & 255)),
+        new Image(64, 9).fill((x, y) => Colors.fromRGBA(x * 4, y * 28, 7, (x * 9) & 255)),
         new Image(1, 1).fill(0x12345678)
     ];
     // (every effort: 0 the fast mode, 1 without comparing the reference searches, 2 and up all of it)
@@ -95,7 +95,7 @@ const animated = [
     for (const effort of [-1, 7, 1.5]) if (!await photo.encodeWebP({effort}).then(() => false, e => e instanceof RangeError)) panic(`effort ${effort} should throw`);
     // threads (the predictors and prefix groups searched in parallel, from 1.5 megapixels on): the same file as without
     {
-        const big = new Image(1448, 1448).fill((x, y) => Image.rgbaToColor(x * 7 + y & 255, (x * x + y * 3) >> 4 & 255, (x ^ y) & 255, 255));
+        const big = new Image(1448, 1448).fill((x, y) => Colors.fromRGBA(x * 7 + y & 255, (x * x + y * 3) >> 4 & 255, (x ^ y) & 255, 255));
         const metadata = {creationTime: 0};
         for (const effort of [0, 1, 2]) {
             const one = await big.encodeWebP({threads: 1, metadata, effort}), four = await big.encodeWebP({threads: 4, metadata, effort});

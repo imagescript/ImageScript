@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image} = require('..');
+const {Image, Colors} = require('..');
 const samePixels = require('./util/pixels');
 
 const panic = message => {
@@ -23,7 +23,7 @@ const panic = message => {
 
     {
         const image = new Image(512, 512);
-        image.fill((x, y) => Image.hslToColor((x + y) / (image.width + image.height), 1, .5));
+        image.fill((x, y) => Colors.fromHSL((x + y) / (image.width + image.height), 1, .5));
 
         const encoded = await image.encodePNG(1, {creationTime: 0, software: ''});
 
