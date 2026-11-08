@@ -1,4 +1,4 @@
-const {Image, Frame, Animation, GainMap, ResizeModes} = require('..');
+const {Image, Frame, Animation, GainMap, ResizeModes, decode} = require('..');
 
 const panic = message => {
 	console.error(message);
@@ -125,8 +125,10 @@ const sameImage = (image, reference, label) => {
 		'Frame.from(photo, 100, 1, 1, "keep")': () => Frame.from(photo, 100, 1, 1, 'keep'),
 		'new Animation([frame], 2)': () => new Animation([frame], 2),
 		'new Animation([frame], Infinity)': () => new Animation([frame], Infinity),
-		'Animation.decode(gif, true)': () => Animation.decode(encodedGIF, true)
+		'Animation.decode(gif, true)': () => Animation.decode(encodedGIF, true),
+		'decode(gif, true)': () => decode(encodedGIF, true)
 	};
+	if (!((await decode(encodedGIF, {onlyFirstFrame: true})) instanceof Image)) panic('decode(data, { onlyFirstFrame }) should return an Image');
 	for (const [label, call] of Object.entries(oldFrames)) {
 		const error = await rejects(call, label);
 		if (!/takes an options object/.test(error.message)) panic(`${label}: the message should name the options form, got ${error.message}`);

@@ -252,8 +252,9 @@ object under the names of their options. The options of each method are on its o
 | `Frame.from(image, duration, x, y, disposal)` | `Frame.from(image, { duration, xOffset, yOffset, disposalMode })` |
 | `new Animation(frames, loopCount)` | `new Animation(frames, { loopCount })` |
 | `Animation.decode(data, true)` | `Animation.decode(data, { onlyFirstFrame: true })` |
+| `decode(data, true)` | `decode(data, { onlyFirstFrame: true })` |
 
-The top-level `decode(data, true)` still takes its boolean. It is `Animation.decode()` that takes options only.
+`decode()` and `Animation.decode()` take options only: a boolean throws a `TypeError` that names the options form.
 
 `encodePNG()` also throws when the metadata is passed without `metadata`. In 3.x, `image.encodePNG({ author })` was
 read as metadata; in 4.0 it would be ignored, so it throws a `TypeError` that names `{ metadata }`.

@@ -45,6 +45,8 @@ Upgrading from 3.x? Upgrade to 3.20.1 first, fix the deprecation hints, then swi
 
 - **Text alignments only take the values of their own axis**: `TextLayout`'s `horizontalAlign` takes `'left'`, `'center'` or `'right'` and `verticalAlign` takes `'top'`, `'middle'` or `'bottom'`. 3.x accepted the other axis' values in either field, which now throws a `TypeError`: `new TextLayout({ verticalAlign: 'right' })` is `new TextLayout({ horizontalAlign: 'right' })`.
 
+- **`decode()` takes options only**: `decode(data, true)` is `decode(data, { onlyFirstFrame: true })`, and a boolean throws a `TypeError` that names the options form.
+
 ## 3.20.1
 
 ### Performance
