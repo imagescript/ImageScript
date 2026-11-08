@@ -205,6 +205,7 @@ The option types of the animation encoders are renamed, and each one takes `loop
 | `Image.renderText(font, size, text, color, layout, style)` | `Image.renderText(text, { font, size, color, layout, ...style })` |
 | `Image.renderText(font, size, text, options)` | `Image.renderText(text, { font, size, ...options })` |
 | `TextOptions` (type) | `RenderTextOptions` |
+| `new TextLayout({ verticalAlign: 'right' })`, `horizontalAlign: 'bottom'` (the other axis' values) | `horizontalAlign` takes `'left'`, `'center'` or `'right'`, `verticalAlign` takes `'top'`, `'middle'` or `'bottom'`. Other values throw a `TypeError` |
 | `image.cropCircle(true)` | `image.cropCircle({ size: 'cover' })` |
 | `image.cropCircle(true, feathering)` | `image.cropCircle({ size: 'cover', feathering })` |
 | `image.cropCircle(false)` | `image.cropCircle()`, the default `size: 'contain'` |

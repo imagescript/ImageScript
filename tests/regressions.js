@@ -142,12 +142,15 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(alpha(0, 0) < 64 && alpha(3, 0) === 255 && alpha(0, 1) > 0 && alpha(0, 1) < 255, 'roundCorners should antialias the arc');
     }
 
-    // text layout accepts the pre 3.0 (swapped) option names
+    // text alignments only take the values of their own axis
     {
-        const legacy = new TextLayout({verticalAlign: 'center', horizontalAlign: 'bottom'});
-        assert(legacy.horizontalAlign === 'center' && legacy.verticalAlign === 'bottom', 'TextLayout: legacy names');
         const current = new TextLayout({horizontalAlign: 'right', verticalAlign: 'middle'});
         assert(current.horizontalAlign === 'right' && current.verticalAlign === 'middle', 'TextLayout: names');
+        for (const options of [{verticalAlign: 'center', horizontalAlign: 'bottom'}, {horizontalAlign: 'top'}, {verticalAlign: 'left'}, {horizontalAlign: 'middle'}]) {
+            let error = null;
+            try { new TextLayout(options); } catch (e) { error = e; }
+            assert(error instanceof TypeError && error.message.includes('text alignments only take the values of their own axis'), `TextLayout ${JSON.stringify(options)} should throw a TypeError, got ${error}`);
+        }
     }
 
     // HSL conversions round instead of truncating, so identity operations keep the image

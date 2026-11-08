@@ -100,7 +100,7 @@ const panic = message => {
         // alignment is relative to the widest line
         const left = await render('Hi\nHello there');
         const center = await render('Hi\nHello there', {horizontalAlign: 'center'});
-        const right = await render('Hi\nHello there', {verticalAlign: 'right'}); // pre 3.0 option name
+        const right = await render('Hi\nHello there', {horizontalAlign: 'right'});
         const row = 30;
         if (!(inkStart(left, row) < inkStart(center, row) && inkStart(center, row) < inkStart(right, row)))
             panic('layout: horizontal alignment has no effect');

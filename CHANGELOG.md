@@ -43,6 +43,8 @@ Upgrading from 3.x? Upgrade to 3.20.1 first, fix the deprecation hints, then swi
 
 - **Loop counts are `Infinity` (forever, the default) or an integer from 0**: `loopCount: -1` is `loopCount: Infinity`, and the encoders and the decoded animations use `Infinity` where they used `-1`. `-1` now throws a `RangeError` like the other negative numbers, `NaN` and fractions do, and numeric strings, `null` and booleans throw a `TypeError`. The check applies to `new Animation(frames, { loopCount })`, `animation.loopCount = ...` (which leaves the count as it was when it throws) and the encoders (`Animation.gifEncoder()`, `webpEncoder()` and `apngEncoder()`). Finite counts are the same as before: `loopCount: 2` still plays three times.
 
+- **Text alignments only take the values of their own axis**: `TextLayout`'s `horizontalAlign` takes `'left'`, `'center'` or `'right'` and `verticalAlign` takes `'top'`, `'middle'` or `'bottom'`. 3.x accepted the other axis' values in either field, which now throws a `TypeError`: `new TextLayout({ verticalAlign: 'right' })` is `new TextLayout({ horizontalAlign: 'right' })`.
+
 ## 3.20.1
 
 ### Performance
