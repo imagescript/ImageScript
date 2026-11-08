@@ -1,8 +1,9 @@
 import { BinaryData } from './util/mem.ts';
 import { Image, DecodeOptions } from './image.ts';
-import { GIF } from './gif.ts';
+import { Frame } from './frame.ts';
 import { Animation, AnimationDecodeOptions } from './animation.ts';
 import { isOptions } from './util/options.ts';
+import * as png from './codecs/png.ts';
 import * as webp from './codecs/webp.ts';
 import { view } from './util/mem.ts';
 import { ImageType } from './image-type.ts';
@@ -27,25 +28,36 @@ export type { BinaryData } from './util/mem.ts';
 export type { Metadata } from './metadata.ts';
 
 /**
- * Decodes any supported image: GIFs are returned as {@link GIF} (an {@link Animation}), animated WebPs as
- * {@link Animation}, everything else (including APNGs, as their default image) as {@link Image}.
- * {@link Animation.decode} decodes the frames of GIFs, APNGs and WebPs
+ * Decodes any supported image. A file with more than one frame (GIF, APNG, animated WebP, animated JPEG XL) is
+ * returned as an {@link Animation} of its frames, and any other file as an {@link Image}: a file with a single frame
+ * (also a GIF, APNG, WebP or JPEG XL with one frame) becomes an Image of that frame, without its offsets and duration.
+ * Static formats (PNG, JPEG, AVIF, ...) are always Images, AVIF image sequences decode to their first frame, as
+ * {@link Image.decode} does. The options are passed on to {@link Animation.decode} or {@link Image.decode}.
  * @param data The image data
- * @param options See {@link AnimationDecodeOptions} (for animations) and {@link DecodeOptions} (for images)
+ * @param options See {@link AnimationDecodeOptions} and {@link DecodeOptions}
  */
-export function decode(data: BinaryData, options?: AnimationDecodeOptions & DecodeOptions): Promise<GIF | Animation | Image>;
+export function decode(data: BinaryData, options?: AnimationDecodeOptions & DecodeOptions): Promise<Image | Animation>;
 /**
- * Decodes any supported image: GIFs are returned as {@link GIF} (an {@link Animation}), animated WebPs as
- * {@link Animation}, everything else (including APNGs, as their default image) as {@link Image}.
- * {@link Animation.decode} decodes the frames of GIFs, APNGs and WebPs
+ * Decodes any supported image. A file with more than one frame is returned as an {@link Animation}, anything else as
+ * an {@link Image} (see the overload with options). With `onlyFirstFrame` the rest of the file isn't decoded, so the
+ * frame count isn't known: the first frame is returned as an Image.
  * @param data The image data
- * @param onlyExtractFirstFrame Whether to end animation decoding after the first frame
+ * @param onlyFirstFrame Whether to end animation decoding after the first frame
  */
-export function decode(data: BinaryData, onlyExtractFirstFrame?: boolean): Promise<GIF | Animation | Image>;
-export function decode(data: BinaryData, onlyFirstFrameOrOptions: boolean | (AnimationDecodeOptions & DecodeOptions) = false): Promise<GIF | Animation | Image> {
-    const { onlyFirstFrame = false, applyOrientation, maxPixels, toneMapping } = isOptions(onlyFirstFrameOrOptions) ? onlyFirstFrameOrOptions : { onlyFirstFrame: onlyFirstFrameOrOptions };
-    const type = ImageType.getType(data);
-    if (type === 'gif') return GIF.decode(data, { onlyFirstFrame, maxPixels });
-    if (type === 'webp' && webp.isAnimated(view(data))) return Animation.decode(data, { onlyFirstFrame, maxPixels });
-    return Image.decode(data, { applyOrientation, maxPixels, toneMapping });
+export function decode(data: BinaryData, onlyFirstFrame?: boolean): Promise<Image | Animation>;
+export async function decode(data: BinaryData, onlyFirstFrameOrOptions: boolean | (AnimationDecodeOptions & DecodeOptions) = false): Promise<Image | Animation> {
+    const options: AnimationDecodeOptions & DecodeOptions = isOptions(onlyFirstFrameOrOptions) ? onlyFirstFrameOrOptions : { onlyFirstFrame: onlyFirstFrameOrOptions };
+    const bytes = view(data);
+    const type = ImageType.getType(bytes);
+    const animated = type === 'gif' || type === 'jxl' || (type === 'webp' && webp.isAnimated(bytes)) || (type === 'png' && png.isAnimated(bytes));
+    if (!animated) return Image.decode(data, options);
+
+    const animation = await Animation.decode(data, options);
+    if (animation.length !== 1) return animation;
+    // the only frame, as an image: its pixels and gain map
+    const frame: Frame = animation.frames[0];
+    const image = new Image(frame.width, frame.height);
+    image.bitmap = frame.bitmap;
+    image.gainMap = frame.gainMap;
+    return image;
 }

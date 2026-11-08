@@ -49,8 +49,9 @@ const same = (name, a, b) => {
         if (!Buffer.from(await animation[method]({metadata: {author, comment: author}})).includes(author)) panic(`${method}: metadata missing`);
 
     const gif = await animation.encodeGIF();
-    for (const decoded of [await Animation.decode(gif, {onlyFirstFrame: true}), await GIF.decode(gif, {onlyFirstFrame: true}), await decode(gif, {onlyFirstFrame: true})])
+    for (const decoded of [await Animation.decode(gif, {onlyFirstFrame: true}), await GIF.decode(gif, {onlyFirstFrame: true})])
         if (decoded.length !== 1) panic('decode: onlyFirstFrame not applied');
+    if (!(await decode(gif, {onlyFirstFrame: true}) instanceof Image)) panic('decode: onlyFirstFrame should return an Image');
     if ((await decode(gif, {})).length !== 2) panic('decode: wrong default');
 
     // decode() passes applyOrientation on to Image.decode()

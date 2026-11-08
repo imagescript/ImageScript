@@ -33,6 +33,8 @@
 
 - **The positional arguments of `new Frame()`, `Frame.from()` and `new Animation()` are removed, and `Animation.decode()` takes no flag**: `new Frame(width, height, duration, xOffset, yOffset, disposalMode)` is `new Frame(width, height, { duration, xOffset, yOffset, disposalMode })`, `Frame.from(image, duration, xOffset, yOffset, disposalMode)` is `Frame.from(image, { duration, xOffset, yOffset, disposalMode })`, `new Animation(frames, loopCount)` is `new Animation(frames, { loopCount })`, and `Animation.decode(data, true)` is `Animation.decode(data, { onlyFirstFrame: true })`. The `GIF` class keeps its arguments until it is removed.
 
+- **`decode()` returns an `Animation` only for files with several frames**: a GIF, APNG, animated WebP or JPEG XL with more than one frame is an `Animation` (`decode(gif)` used to be a `GIF`), and one with a single frame is an `Image`, like a still image (a one-frame GIF used to be a `GIF`). With `onlyFirstFrame`, the first frame comes back as an `Image`, since the frame count isn't read.
+
 ## 3.20.1
 
 ### Performance
