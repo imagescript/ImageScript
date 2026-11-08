@@ -3038,7 +3038,9 @@ interface HSLA {
 export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, options?: ResizeOptions): [width: number | undefined, height: number | undefined, options: ResizeOptions | undefined] {
     if (!isOptions(widthOrOptions)) {
         checkOptions(options, 'resize(width, height, { mode: \'area\' })');
-        return [widthOrOptions, height, options];
+        // without a height, the aspect ratio would be kept silently (3.x refused that call)
+        if (height === undefined) throw new TypeError(`resize() needs a height or the options form, like resize({ width: ${widthOrOptions} }) to keep the aspect ratio`);
+        return [finite(widthOrOptions, 'width'), finite(height, 'height'), options];
     }
     const { width, height: optionsHeight, ...rest } = widthOrOptions;
     if (width === undefined && optionsHeight === undefined) throw new TypeError('resize() needs a width, a height or both');

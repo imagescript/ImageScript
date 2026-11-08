@@ -146,6 +146,20 @@ const sameImage = (image, reference, label) => {
 	}
 	if (new Image(1, 1).fill(0xc80000ff).red(0.5).getPixelAt(0, 0) !== 0x640000ff) panic('red(0.5) should scale the red channel');
 
+	// the positional resize needs a height (3.x refused resize(100)): the message names the options form
+	for (const [label, call] of Object.entries({
+		'image.resize(100)': () => photo.clone().resize(100),
+		'image.resize(100, undefined)': () => photo.clone().resize(100, undefined),
+		'frame.resize(100)': () => new Frame(8, 4).resize(100),
+		'animation.resize(100)': () => new Animation([new Frame(8, 4)]).resize(100)
+	})) {
+		const error = await rejects(call, label);
+		if (!/resize\(\) needs a height or the options form, like resize\(\{ width: 100 \}\)/.test(error.message)) panic(`${label}: the message should name resize({ width: 100 }), got ${error.message}`);
+	}
+	let nanError = null;
+	try { photo.clone().resize(NaN, 6); } catch (e) { nanError = e; }
+	if (!(nanError instanceof RangeError)) panic(`resize(NaN, 6) should throw a RangeError, got ${nanError}`);
+
 	// the options form still resizes; undefined stays fine
 	if (photo.clone().resize(10, 6, {mode: ResizeModes.AREA}).width !== 10) panic('resize(10, 6, { mode })');
 	if (photo.clone().resize(10, 6).height !== 6) panic('resize(10, 6)');

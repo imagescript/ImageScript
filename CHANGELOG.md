@@ -49,6 +49,8 @@ Upgrading from 3.x? Upgrade to 3.20.1 first, fix the deprecation hints, then swi
 
 - **`opacity()`, `red()`, `green()`, `blue()`, `lightness()` and `saturation()` reject a second argument**: 3.x's `absolute` call like `image.red(0.5, true)` would silently scale by 0.5 now, so it throws a `TypeError` before the image is touched. Use `image.red(0.5)` to scale and `image.recolor()` for a fixed color.
 
+- **`resize()` needs a height in the positional form**: `image.resize(100)` throws a `TypeError` that names `resize({ width: 100 })`, which keeps the aspect ratio. The positional form takes both sides as finite numbers, `Image`, `Frame` and `Animation` alike.
+
 ## 3.20.1
 
 ### Performance
