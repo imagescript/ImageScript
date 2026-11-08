@@ -37,6 +37,8 @@ import { isOptions, finite, color as checkColor, quality as checkQuality, effort
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
+import { multiply, invert } from './util/matrix.ts';
+import { sampleAffine } from './util/affine.ts';
 import * as gainMapCodec from './codecs/gainmap.ts';
 
 /** A color as a 32-bit RGBA integer (`0xRRGGBBAA`) */
@@ -201,6 +203,38 @@ export interface QuantizeOptions {
      * threshold). Default: `1`
      */
     ditherStrength?: number;
+}
+
+/** How {@link Image.transform} samples the pixels between the source's */
+export type TransformMode = 'nearest-neighbor' | 'bilinear' | 'bicubic';
+
+// the sampling modes of Image.transform()
+const TRANSFORM_MODES: readonly string[] = ['nearest-neighbor', 'bilinear', 'bicubic'];
+
+/** Options of {@link Image.transform} */
+export interface TransformOptions {
+    /**
+     * The point the transform is applied around, in pixels: a rotation turns around it, a scale grows from it.
+     * Default: the middle of the image. It only decides where the result lies on a canvas that stays as large as the
+     * image (`expand: false`)
+     */
+    origin?: {
+        /** The x position of the point in pixels. Default: half the width */
+        x?: number;
+        /** The y position of the point in pixels. Default: half the height */
+        y?: number;
+    };
+    /**
+     * Whether to make the image as large as the transformed one, which then fills it (a rotated image grows to fit its
+     * corners, a skewed one gets wider). Without it, the image keeps its size and the parts outside are lost. Frames
+     * only grow up and left as far as their offset allows. Default: `true`
+     */
+    expand?: boolean;
+    /**
+     * How the pixels between the source's are sampled: `'nearest-neighbor'` (hard pixels, no smoothing, for pixel art),
+     * `'bilinear'` (smooth), `'bicubic'` (sharper, slower, can overshoot a little at hard edges). Default: `'bilinear'`
+     */
+    mode?: TransformMode;
 }
 
 /** Options of {@link Image.dropShadow} */
@@ -2139,6 +2173,81 @@ export class Image {
             bitmap[i + 2] = m[10] * r + m[11] * g + m[12] * b + m[13] * a + m[14] * 255;
             bitmap[i + 3] = m[15] * r + m[16] * g + m[17] * b + m[18] * a + m[19] * 255;
         }
+        return this;
+    }
+
+    /**
+     * Moves every point of the image with an affine transform, in one resampling: rotation, scaling, skew, flips and
+     * shifts in any mix and around any point. The six numbers are SVG's `matrix(a b c d e f)`: a point (x, y) of the
+     * image ends up at (a x + c y + e, b x + d y + f), with y pointing down.
+     * ```ts
+     * image.transform([1, 0, Math.tan(-0.3), 1, 0, 0]);             // slanted like italics, around the middle
+     * image.transform([0.5, 0, 0, 0.5, 0, 0], { origin: { x: 0, y: 0 } }); // half the size
+     * image.transform([-1, 0, 0, 1, 0, 0]);                         // flipped horizontally
+     * const a = Math.PI / 6;
+     * image.transform([Math.cos(a), Math.sin(a), -Math.sin(a), Math.cos(a), 0, 0]); // turned 30° clockwise
+     * ```
+     * The image grows to hold the result (`expand: false` keeps its size), so a shift only shows with `expand: false`.
+     * The edges fade, like the pixels outside were transparent. A transform that flattens the image (a factor of 0) is
+     * refused. With a gain map (an HDR image), the map moves with the image
+     * @param matrix The six values [a, b, c, d, e, f]
+     * @param options See {@link TransformOptions}
+     */
+    transform(matrix: ArrayLike<number>, options: TransformOptions = {}): this {
+        if (matrix === null || typeof matrix !== 'object' || matrix.length !== 6) throw new RangeError('A transform has 6 values: [a, b, c, d, e, f]');
+        // (numbers only: a string is a mistake in data like this)
+        const values = Array.from({ length: 6 }, (_, i) => finite(typeof matrix[i] === 'number' ? matrix[i] : NaN, 'transform value'));
+        if (typeof options !== 'object' || options === null) throw new TypeError('transform takes an options object');
+        const { origin = {}, expand = true, mode = 'bilinear' } = options;
+        if (!TRANSFORM_MODES.includes(mode)) throw new TypeError(`transform mode must be one of ${TRANSFORM_MODES.map(name => `'${name}'`).join(', ')}, not ${String(mode)}`);
+        const { x: pivotX = this.width / 2, y: pivotY = this.height / 2 } = origin;
+        finite(pivotX, 'origin x');
+        finite(pivotY, 'origin y');
+
+        // around the origin: move it to (0, 0), transform, move it back
+        const around = multiply(multiply([1, 0, 0, 1, pivotX, pivotY], values), [1, 0, 0, 1, -pivotX, -pivotY]);
+        const inverse = invert(around);
+        if (!inverse) throw new RangeError('The transform has to be invertible: it can\'t flatten the image');
+
+        const { width, height } = this;
+        // (the canvas's top left corner in the transformed space, which isn't on a pixel border for a scale around the
+        // middle of an image of odd size: then the grid starts there, so that doubling an image is exactly doubling)
+        let left = 0, top = 0, outWidth = width, outHeight = height;
+        if (expand) {
+            const xs: number[] = [], ys: number[] = [];
+            for (const [x, y] of [[0, 0], [width, 0], [0, height], [width, height]]) {
+                xs.push(around[0] * x + around[2] * y + around[4]);
+                ys.push(around[1] * x + around[3] * y + around[5]);
+            }
+            const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+            // the size rounds, the transformed image is centered on the canvas (a turned image is a bit off a pixel size)
+            outWidth = Math.max(1, Math.round(maxX - minX));
+            outHeight = Math.max(1, Math.round(maxY - minY));
+            left = minX - (outWidth - (maxX - minX)) / 2;
+            top = minY - (outHeight - (maxY - minY)) / 2;
+            // frames only grow as far up and left as their offset allows
+            const room = this.__room__();
+            if (left < -room.left) {
+                left = -room.left;
+                outWidth = Math.max(1, Math.round(maxX - left));
+            }
+            if (top < -room.top) {
+                top = -room.top;
+                outHeight = Math.max(1, Math.round(maxY - top));
+            }
+            if (outWidth * outHeight > MAX_PIXELS) throw new RangeError(`The transformed image would have ${outWidth}x${outHeight} pixels, more than the ${MAX_PIXELS} allowed`);
+        }
+
+        const out = new Image(outWidth, outHeight);
+        sampleAffine(this.bitmap, width, height, out.bitmap, outWidth, outHeight, inverse, left, top, mode);
+        const scale = Math.sqrt(Math.abs(around[0] * around[3] - around[1] * around[2]));
+        this.__gain_map__?.__transform__(width, height, outWidth, outHeight, (X, Y) => {
+            const x = X + left, y = Y + top;
+            return [inverse[0] * x + inverse[2] * y + inverse[4], inverse[1] * x + inverse[3] * y + inverse[5]];
+        }, scale);
+        this.__apply__(out);
+        // (a frame's offsets are whole pixels)
+        if (left || top) this.__grown__(-Math.round(left), -Math.round(top));
         return this;
     }
 
