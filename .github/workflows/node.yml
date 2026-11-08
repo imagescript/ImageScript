@@ -21,8 +21,13 @@ jobs:
 
     strategy:
       matrix:
-        version: [22.13.0, 22.x, 24.x, 26.x]
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        # the oldest supported version, the middle one and the newest on Linux; macOS (arm64) and Windows (line endings,
+        # timers) with the newest only: the library is plain JavaScript, so those are about the tests' files and the CPU
+        version: [22.13.0, 24.x, 26.x]
+        os: [ubuntu-latest]
+        include:
+        - { version: 26.x, os: macos-latest }
+        - { version: 26.x, os: windows-latest }
 
     steps:
     - uses: actions/checkout@v7
@@ -53,7 +58,7 @@ jobs:
     strategy:
       matrix:
         runtime: [deno, bun]
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
 
     steps:
     - uses: actions/checkout@v7
