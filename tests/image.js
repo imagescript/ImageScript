@@ -4,7 +4,7 @@ const samePixels = require('./util/pixels');
 
 module.exports = (async () => {
     const image = new Image(128, 128);
-    image.fill(x => Colors.fromHSL(x / image.width, 1, 0.5));
+    image.fill(x => Colors.fromHSL(x / image.width * 360, 1, 0.5));
 
     const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 

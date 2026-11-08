@@ -23,7 +23,7 @@ const panic = message => {
 
     {
         const image = new Image(512, 512);
-        image.fill((x, y) => Colors.fromHSL((x + y) / (image.width + image.height), 1, .5));
+        image.fill((x, y) => Colors.fromHSL((x + y) / (image.width + image.height) * 360, 1, .5));
 
         const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 

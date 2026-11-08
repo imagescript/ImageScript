@@ -4,7 +4,7 @@ const samePixels = require('./util/pixels');
 
 (async () => {
     const image = new Image(512, 512);
-    image.fill((x, y) => Colors.fromHSL((x + y) / (image.width + image.height), 1, .5));
+    image.fill((x, y) => Colors.fromHSL((x + y) / (image.width + image.height) * 360, 1, .5));
     image.crop(128, 128, 128, 128);
 
     const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
@@ -20,7 +20,7 @@ const samePixels = require('./util/pixels');
         console.error(message);
         process.exit(1);
     };
-    const source = new Image(512, 512).fill((x, y) => Colors.fromHSL((x + y) / 1024, 1, .5));
+    const source = new Image(512, 512).fill((x, y) => Colors.fromHSL((x + y) / 1024 * 360, 1, .5));
     const before = Buffer.from(source.bitmap);
     const region = source.region(128, 128, 128, 128);
     if (!await samePixels(target, await region.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}}))) panic('region: wrong pixels');

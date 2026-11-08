@@ -11,7 +11,7 @@ const panic = message => {
     const frames = [];
     for (let i = 0; i < 30; i++) {
         const frame = new Frame(256, 256);
-        frame.fill(x => Colors.fromHSL(x / frame.width + i / 30, 1, 0.5));
+        frame.fill(x => Colors.fromHSL((x / frame.width + i / 30) * 360, 1, 0.5));
         frames.push(frame);
     }
 

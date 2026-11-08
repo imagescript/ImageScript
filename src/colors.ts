@@ -117,14 +117,14 @@ export class Colors {
 
     /**
      * Converts HSLA colors to RGBA colors
-     * @param h hue (0..1)
+     * @param h hue in degrees (0..360, like CSS' `hsl()`: 0 red, 120 green, 240 blue; other values wrap around)
      * @param s saturation (0..1)
      * @param l lightness (0..1)
      * @param a opacity (0..1)
      * @returns color
      */
     static fromHSLA(h: number, s: number, l: number, a: number): Color {
-        h = wrapHue(finite(h, 'hue'));
+        h = wrapHue(finite(h, 'hue') / 360);
         s = finite(s, 'saturation');
         l = finite(l, 'lightness');
         a = finite(a, 'alpha');
@@ -149,8 +149,8 @@ export class Colors {
     }
 
     /**
-     * Converts HSL colors to RGBA colors (assuming an opacity of 255)
-     * @param h hue (0..1)
+     * Converts HSL colors to RGBA colors (fully opaque)
+     * @param h hue in degrees (0..360, like CSS' `hsl()`; other values wrap around)
      * @param s saturation (0..1)
      * @param l lightness (0..1)
      * @returns color
@@ -182,11 +182,12 @@ export class Colors {
     /**
      * Converts a color to an array of HSLA values
      * @param color The color value to convert
-     * @returns The HSLA values ([H, S, L, A]), H and S and L and A in 0..1
+     * @returns The HSLA values ([H, S, L, A]): H in degrees (0..360, like CSS' `hsl()`), S, L and A in 0..1
      */
     static toHSLA(color: Color): [h: number, s: number, l: number, a: number] {
         const [r, g, b, a] = Colors.toRGBA(color);
-        return rgbaToHSLA(r, g, b, a);
+        const [h, s, l, alpha] = rgbaToHSLA(r, g, b, a);
+        return [h * 360, s, l, alpha];
     }
 
 
