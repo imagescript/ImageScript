@@ -137,18 +137,6 @@ export interface ResizeOptions {
     fast?: boolean;
 }
 
-/**
- * Options of {@link Image.opacity}, {@link Image.red}, {@link Image.green}, {@link Image.blue}, {@link Image.lightness}
- * and {@link Image.saturation}
- */
-export interface AdjustOptions {
-    /**
-     * Whether to set the value (true) or scale the current one (false). Default: `false`
-     * @deprecated Removed in 4.0: scale with a factor, or use {@link Image.recolor} for a fixed color
-     */
-    absolute?: boolean;
-}
-
 /** Options of {@link Image.sharpen} */
 export interface SharpenOptions {
     /** How strongly to sharpen (0 does nothing). Default: `1` */
@@ -1613,23 +1601,13 @@ export class Image {
     /**
      * Scales the opacity of the image
      * @param opacity The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
-     * @param options See {@link AdjustOptions}
      */
-    opacity(opacity: number, options?: AdjustOptions): this;
-    /**
-     * Scales the opacity of the image
-     * @param opacity The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
-     * @param absolute Whether to set the opacity (true) instead of scaling it (false)
-     * @deprecated Use {@link Image.opacity} to scale; for a fixed alpha, `absolute` is removed in 4.0
-     */
-    opacity(opacity: number, absolute?: boolean): this;
-    opacity(opacity: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
+    opacity(opacity: number): this {
         opacity = finite(opacity, 'opacity value');
         if (opacity < 0)
             throw new RangeError('Invalid opacity value');
 
-        this.__set_channel_value__(opacity, absolute, 3);
+        this.__set_channel_value__(opacity, 3);
 
         return this;
     }
@@ -1637,24 +1615,14 @@ export class Image {
     /**
      * Scales the red channel
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param options See {@link AdjustOptions}
      */
-    red(factor: number, options?: AdjustOptions): this;
-    /**
-     * Scales the red channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param absolute Whether to set every pixel's red channel to `factor` * 255 (true) instead of scaling it (false)
-     * @deprecated Use {@link Image.recolor} to set a fixed color; `absolute` is removed in 4.0
-     */
-    red(factor: number, absolute?: boolean): this;
-    red(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.red(factor, absoluteOrOptions as boolean));
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
+    red(factor: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.red(factor));
         factor = finite(factor, 'red factor');
         if (factor < 0)
             throw new RangeError('Invalid red factor');
 
-        this.__set_channel_value__(factor, absolute, 0);
+        this.__set_channel_value__(factor, 0);
 
         return this;
     }
@@ -1662,24 +1630,14 @@ export class Image {
     /**
      * Scales the green channel
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param options See {@link AdjustOptions}
      */
-    green(factor: number, options?: AdjustOptions): this;
-    /**
-     * Scales the green channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param absolute Whether to set every pixel's green channel to `factor` * 255 (true) instead of scaling it (false)
-     * @deprecated Use {@link Image.recolor} to set a fixed color; `absolute` is removed in 4.0
-     */
-    green(factor: number, absolute?: boolean): this;
-    green(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.green(factor, absoluteOrOptions as boolean));
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
+    green(factor: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.green(factor));
         factor = finite(factor, 'green factor');
         if (factor < 0)
             throw new RangeError('Invalid green factor');
 
-        this.__set_channel_value__(factor, absolute, 1);
+        this.__set_channel_value__(factor, 1);
 
         return this;
     }
@@ -1687,24 +1645,14 @@ export class Image {
     /**
      * Scales the blue channel
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param options See {@link AdjustOptions}
      */
-    blue(factor: number, options?: AdjustOptions): this;
-    /**
-     * Scales the blue channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param absolute Whether to set every pixel's blue channel to `factor` * 255 (true) instead of scaling it (false)
-     * @deprecated Use {@link Image.recolor} to set a fixed color; `absolute` is removed in 4.0
-     */
-    blue(factor: number, absolute?: boolean): this;
-    blue(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.blue(factor, absoluteOrOptions as boolean));
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
+    blue(factor: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.blue(factor));
         factor = finite(factor, 'blue factor');
         if (factor < 0)
             throw new RangeError('Invalid blue factor');
 
-        this.__set_channel_value__(factor, absolute, 2);
+        this.__set_channel_value__(factor, 2);
 
         return this;
     }
@@ -1713,55 +1661,35 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __set_channel_value__(value: number, absolute: boolean, offset: number): void {
+    protected __set_channel_value__(value: number, offset: number): void {
         for (let i = offset; i < this.bitmap.length; i += 4)
-            this.bitmap[i] = value * (absolute ? 255 : this.bitmap[i]);
+            this.bitmap[i] = value * this.bitmap[i];
     }
 
     /**
      * Scales the lightness of the image (HSL), keeping its hue and saturation
      * @param value The factor to multiply the lightness with (>= 0, results are clamped)
-     * @param options See {@link AdjustOptions}
      */
-    lightness(value: number, options?: AdjustOptions): this;
-    /**
-     * Scales the lightness of the image (HSL), keeping its hue and saturation
-     * @param value The factor to multiply the lightness with (>= 0, results are clamped)
-     * @param absolute Whether to set the lightness (true) instead of scaling it (false)
-     * @deprecated `absolute` is removed in 4.0: scale with a factor, or use {@link Image.recolor} for a fixed color
-     */
-    lightness(value: number, absolute?: boolean): this;
-    lightness(value: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.lightness(value, absoluteOrOptions as boolean));
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
+    lightness(value: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.lightness(value));
         value = finite(value, 'lightness value');
         if (value < 0)
             throw new RangeError('Invalid lightness value');
 
-        return this.__map_hsla__(c => { c.l = value * (absolute ? 1 : c.l); });
+        return this.__map_hsla__(c => { c.l = value * c.l; });
     }
 
     /**
      * Scales the saturation of the image (HSL), keeping its hue and lightness. 0 makes it greyscale
      * @param value The factor to multiply the saturation with (>= 0, results are clamped)
-     * @param options See {@link AdjustOptions}
      */
-    saturation(value: number, options?: AdjustOptions): this;
-    /**
-     * Scales the saturation of the image (HSL), keeping its hue and lightness. 0 makes it greyscale
-     * @param value The factor to multiply the saturation with (>= 0, results are clamped)
-     * @param absolute Whether to set the saturation (true) instead of scaling it (false)
-     * @deprecated `absolute` is removed in 4.0: scale with a factor, or use {@link Image.recolor} for a fixed color
-     */
-    saturation(value: number, absolute?: boolean): this;
-    saturation(value: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.saturation(value, absoluteOrOptions as boolean), true);
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
+    saturation(value: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.saturation(value), true);
         value = finite(value, 'saturation value');
         if (value < 0)
             throw new RangeError('Invalid saturation value');
 
-        return this.__map_hsla__(c => { c.s = value * (absolute ? 1 : c.s); });
+        return this.__map_hsla__(c => { c.s = value * c.s; });
     }
 
     /**

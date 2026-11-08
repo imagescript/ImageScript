@@ -6,6 +6,8 @@
 
 - **The deprecated resize, SVG and frame disposal constants are removed**: `Image.RESIZE_NEAREST_NEIGHBOR`, `Image.RESIZE_BILINEAR`, `Image.RESIZE_BICUBIC`, `Image.RESIZE_AREA`, `Image.SVG_MODE_SCALE`, `Image.SVG_MODE_WIDTH`, `Image.SVG_MODE_HEIGHT` and `Frame.DISPOSAL_*` are gone: use `ResizeModes`, `SVGScaleModes` and `FrameDisposalModes` instead. `ResizeModes.AUTO` (and `Image.RESIZE_AUTO`) is removed too: pass only the width or the height, `image.resize({ width: 256 })`. The old values are no longer accepted either: `'RESIZE_BILINEAR'`, the numbers 1-3 for SVG scale modes and the numeric disposal ids 0-3.
 
+- **`absolute` is removed from `opacity()`, `red()`, `green()`, `blue()`, `lightness()` and `saturation()`**: they only scale now, `image.red(0.5)` (and `AdjustOptions`, the type of their options, is removed). For a fixed color, use `image.recolor()`.
+
 ## 3.20.1
 
 ### Performance

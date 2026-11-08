@@ -23,11 +23,6 @@ const same = (name, a, b) => {
     // the default mode
     same('resize default', tile().resize(30, 40), tile().resize(30, 40, {}));
 
-    for (const method of ['opacity', 'red', 'green', 'blue', 'lightness', 'saturation']) {
-        same(method, tile()[method](0.5, true), tile()[method](0.5, {absolute: true}));
-        same(`${method} default`, tile()[method](0.5), tile()[method](0.5, {}));
-    }
-
     same('composite', tile().composite(logo, 5, 7, {opacity: 0.5, mode: 'multiply'}), tile().composite(logo, {x: 5, y: 7, opacity: 0.5, mode: 'multiply'}));
     same('composite default', tile().composite(logo), tile().composite(logo, {}));
     same('sharpen', tile().sharpen(2, 3), tile().sharpen({amount: 2, radius: 3}));
