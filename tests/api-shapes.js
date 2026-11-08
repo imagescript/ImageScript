@@ -178,6 +178,31 @@ const throws = (call, type, message) => {
         assert(error instanceof RangeError, 'encodeGIF colors 300');
     }
 
+    // JPEG has no alpha: transparent pixels are composited onto the background (black by default)
+    {
+        const meta = {creationTime: 0, software: ''};
+        const image = new Image(32, 16).fill((x) => x < 16 ? 0xff0000ff : 0xff000000);
+        image.setPixelAt(0, 15, 0xff000080);
+        const decoded = await Image.decode(await image.encodeJPEG({quality: 100, subsampling: '4:4:4', metadata: meta}));
+        const [r1, g1, b1] = Colors.toRGBA(decoded.getPixelAt(4, 4)), [r2, g2, b2] = Colors.toRGBA(decoded.getPixelAt(28, 8));
+        assert(r1 > 240 && g1 < 15 && b1 < 15, `JPEG: opaque red stays red (${r1},${g1},${b1})`);
+        assert(r2 < 15 && g2 < 15 && b2 < 15, `JPEG: transparent red becomes black, not red (${r2},${g2},${b2})`);
+        const white = await Image.decode(await image.encodeJPEG({quality: 100, subsampling: '4:4:4', background: 0xffffff00, metadata: meta}));
+        const [r3, g3, b3] = Colors.toRGBA(white.getPixelAt(28, 8));
+        assert(r3 > 240 && g3 > 240 && b3 > 240, `JPEG: the background color, its alpha ignored (${r3},${g3},${b3})`);
+        const [r4] = Colors.toRGBA(decoded.getPixelAt(0, 15));
+        assert(r4 > 100 && r4 < 160, `JPEG: half transparent red over black is dark red (${r4})`);
+        assert(image.getPixelAt(28, 8) === 0xff000000, 'JPEG: the image itself is unchanged');
+        let error = null;
+        try { await image.encodeJPEG({background: NaN}); } catch (e) { error = e; }
+        assert(error instanceof RangeError, 'JPEG: NaN background');
+        // with a gain map: still an Ultra HDR JPEG
+        const hdr = new Image(32, 16).fill(x => x < 16 ? 0xffffffff : 0xffffff00);
+        hdr.gainMap = new GainMap(new Image(8, 4).fill(0xc0c0c0ff), {min: 0, max: 2});
+        const back = await Image.decode(await hdr.encodeJPEG({metadata: meta}));
+        assert(back.gainMap && back.gainMap.max[0] >= 2 && (back.getPixelAt(28, 8) >>> 8) < 0x101010, 'JPEG: a transparent image with a gain map');
+    }
+
     // renamed parameters and the American spelling
     {
         const gray = new Image(1, 1).fill(0xff0000ff).grayscale();

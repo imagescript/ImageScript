@@ -300,6 +300,11 @@ export interface JPEGEncodeOptions extends EncodeOptions {
      */
     subsampling?: '4:4:4' | '4:2:0';
     /**
+     * The color that transparent and translucent pixels are composited onto, as JPEG has no transparency (its alpha is
+     * ignored: the background is opaque). Opaque images are encoded as they are. Default: `0x000000ff` (black)
+     */
+    background?: Color;
+    /**
      * Whether to write the image's {@link Image.gainMap} (an Ultra HDR JPEG, brighter on HDR displays), or how.
      * Default: `true` (written if there is one)
      */
@@ -2398,18 +2403,23 @@ export class Image {
     }
 
     /**
-     * Encodes the image into a JPEG
+     * Encodes the image into a JPEG. JPEG has no transparency: an image with transparent or translucent pixels is
+     * composited onto the `background` color (black by default) first, the image itself stays unchanged
      * @param options See {@link JPEGEncodeOptions}
      */
     encodeJPEG(options?: JPEGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodeJPEG(options: JPEGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encodeJPEG({ quality: 80 })');
-        const { quality = 90, subsampling, metadata = {}, gainMap: gainMapOption = true } = options;
+        const { quality = 90, subsampling, background = 0x000000ff, metadata = {}, gainMap: gainMapOption = true } = options;
         if (subsampling !== undefined && subsampling !== '4:4:4' && subsampling !== '4:2:0') throw new TypeError(`subsampling must be '4:4:4' or '4:2:0', not ${String(subsampling)}`);
+        const backgroundColor = checkColor(background, 'background');
         const m = resolveMetadata(metadata);
         const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined, subsampling };
-        const gainMap = this.__gain_map__;
-        if (!gainMap || gainMapOption === false) return jpeg.encode(this.__bytes__(), this.width, this.height, finite(quality, 'quality'), base);
+
+        // transparent pixels: composited onto the opaque background (with the gain map, so the HDR light dims alike)
+        const source = this.__flattened__(backgroundColor, gainMapOption !== false) ?? this;
+        const gainMap = source.__gain_map__;
+        if (!gainMap || gainMapOption === false) return jpeg.encode(source.__bytes__(), source.width, source.height, finite(quality, 'quality'), base);
 
         // the gain map's JPEG first: the primary's XMP holds its length
         const { quality: mapQuality, scale } = typeof gainMapOption === 'object' && gainMapOption !== null ? gainMapOption : {} as GainMapEmbedOptions;
@@ -2422,8 +2432,25 @@ export class Image {
         }
         const params = gainMap.__params__();
         const map = gainMapCodec.mapWithMetadata(gainMap.__body__(mapQuality === undefined ? undefined : Math.max(1, checkQuality(mapQuality, 'gain map quality')), width, height), params);
-        const primary = jpeg.encode(this.__bytes__(), this.width, this.height, finite(quality, 'quality'), { ...base, segments: gainMapCodec.primarySegments(map.length) });
+        const primary = jpeg.encode(source.__bytes__(), source.width, source.height, finite(quality, 'quality'), { ...base, segments: gainMapCodec.primarySegments(map.length) });
         return gainMapCodec.finish(primary, map);
+    }
+
+    /**
+     * The image composited onto an opaque color, or null if it is opaque already (formats without alpha)
+     * @internal
+     * @ignore
+     */
+    protected __flattened__(background: Color, withGainMap: boolean): Image | null {
+        const pixels = this.bitmap;
+        let opaque = true;
+        for (let i = 3; i < pixels.length && opaque; i += 4) opaque = pixels[i] === 255;
+        if (opaque) return null;
+        const flat = new Image(this.width, this.height).fill((background | 0xff) >>> 0);
+        if (withGainMap || !this.__gain_map__) return flat.composite(this);
+        const withoutMap = this.clone();
+        withoutMap.gainMap = null;
+        return flat.composite(withoutMap);
     }
 
     /**
