@@ -4,6 +4,8 @@
 
 ### Breaking changes
 
+Upgrading from 3.x? Upgrade to 3.20.1 first, fix the deprecation hints, then switch: the [migration guide](https://imagescript.dev/documents/Migrating_to_4.0.html) lists every change and the three that don't show up as deprecations.
+
 - **Methods that take options refuse anything else than an object**: a stray number, string, boolean or `null` as the options of `cropCircle()`, `Image.renderText()`, the encoders (`encodeWebP()`, `encodeAVIF()`, `encodeJXL()`, ...), `quantize()`, `transform()`, `dropShadow()`, `outline()`, the gradients, `Image.decode()`, the animation encoders, `new GainMap()` and `new TextLayout()` throws a `TypeError` that names the working form (e.g. `cropCircle({ size: 'cover' })`), for the 3.x calls that are gone like `cropCircle(true)` or `Image.renderText(font, 32, 'Hi')` and for typos, instead of ignoring it.
 - **The deprecated resize, SVG and frame disposal constants are removed**: `Image.RESIZE_NEAREST_NEIGHBOR`, `Image.RESIZE_BILINEAR`, `Image.RESIZE_BICUBIC`, `Image.RESIZE_AREA`, `Image.SVG_MODE_SCALE`, `Image.SVG_MODE_WIDTH`, `Image.SVG_MODE_HEIGHT` and `Frame.DISPOSAL_*` are gone: use `ResizeModes`, `SVGScaleModes` and `FrameDisposalModes` instead. `ResizeModes.AUTO` (and `Image.RESIZE_AUTO`) is removed too: pass only the width or the height, `image.resize({ width: 256 })`. The old values are no longer accepted either: `'RESIZE_BILINEAR'`, the numbers 1-3 for SVG scale modes and the numeric disposal ids 0-3.
 

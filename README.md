@@ -23,6 +23,8 @@ npm install imagescript              # Node.js, Bun and bundlers
 deno add jsr:@matmen/imagescript     # Deno
 ```
 
+Upgrading from 3.x? Read [Migrating to 4.0](https://imagescript.dev/documents/Migrating_to_4.0.html) first.
+
 Without a bundler, import it from jsDelivr in the browser:
 
 ```html

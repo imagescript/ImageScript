@@ -480,6 +480,10 @@ a.external[target="_blank"]:has(> img) {
 }
 
 .tsd-typography table {
+    /* a wide table scrolls inside its panel instead of running past the page edge on narrow screens */
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
     border-collapse: collapse;
     font-size: 0.9rem;
 }

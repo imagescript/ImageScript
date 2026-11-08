@@ -6,6 +6,9 @@
   "out": "docs",
   "name": "ImageScript",
   "readme": "README.md",
+  "projectDocuments": [
+    "guides/*.md"
+  ],
   "favicon": "media/favicon.svg",
   "customCss": "media/docs.css",
   "includeVersion": true,
