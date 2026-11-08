@@ -117,7 +117,7 @@ const sameImage = (image, reference, label) => {
 	if (Frame.from(photo, {duration: 40, xOffset: 2}).xOffset !== 2 || Frame.from(photo).duration !== 100) panic('Frame.from(image, options)');
 	if (new Animation([new Frame(4, 4)], {loopCount: 2}).loopCount !== 2 || new Animation([new Frame(4, 4)]).loopCount !== Infinity) panic('new Animation(frames, options)');
 	const encodedGIF = await new Animation([new Frame(4, 4)]).encodeGIF();
-	if ((await Animation.decode(encodedGIF, {onlyFirstFrame: true})).length !== 1) panic('Animation.decode(data, { onlyFirstFrame })');
+	if (!((await Image.decode(encodedGIF)) instanceof Image)) panic('Image.decode(data) should return the first frame as an Image');
 	const oldFrames = {
 		'new Frame(4, 4, 100)': () => new Frame(4, 4, 100),
 		'new Frame(4, 4, 100, 1, 1, "keep")': () => new Frame(4, 4, 100, 1, 1, 'keep'),
@@ -128,7 +128,6 @@ const sameImage = (image, reference, label) => {
 		'Animation.decode(gif, true)': () => Animation.decode(encodedGIF, true),
 		'decode(gif, true)': () => decode(encodedGIF, true)
 	};
-	if (!((await decode(encodedGIF, {onlyFirstFrame: true})) instanceof Image)) panic('decode(data, { onlyFirstFrame }) should return an Image');
 	for (const [label, call] of Object.entries(oldFrames)) {
 		const error = await rejects(call, label);
 		if (!/takes an options object/.test(error.message)) panic(`${label}: the message should name the options form, got ${error.message}`);

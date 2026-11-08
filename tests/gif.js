@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Frame, FrameDisposalModes, Animation, Colors} = require('..');
+const {Image, Frame, FrameDisposalModes, Animation, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -35,9 +35,9 @@ const panic = message => {
                 panic('decode: incorrect frame bitmap length');
         }
 
-        const first = await Animation.decode(binary, {onlyFirstFrame: true});
-        if (first.length !== 1)
-            panic('decode: onlyExtractFirstFrame returned more than one frame');
+        const first = await Image.decode(binary);
+        if (first.constructor !== Image)
+            panic('decode: Image.decode should return the first frame as an Image');
     }
 
     {

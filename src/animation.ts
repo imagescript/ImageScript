@@ -38,8 +38,6 @@ export interface AnimationOptions {
 
 /** Options of {@link Animation.decode} */
 export interface AnimationDecodeOptions {
-    /** Whether to stop decoding after the first frame. Default: `false` */
-    onlyFirstFrame?: boolean;
     /**
      * The most pixels to decode, of all frames together (every frame is a full canvas): larger animations throw a
      * RangeError before anything that size is allocated, so small files declaring huge animations (decompression
@@ -423,7 +421,7 @@ export class Animation {
     static decode(input: BinaryData, options?: AnimationDecodeOptions): Promise<Animation>;
     static async decode(input: BinaryData, options: AnimationDecodeOptions = {}): Promise<Animation> {
         // (checked outside of decoding(), which reports RangeErrors as damaged data)
-        checkOptions(options, 'Animation.decode(data, { onlyFirstFrame: true })');
+        checkOptions(options, 'Animation.decode(data, { maxPixels: 1e8 })');
         const { maxPixels = MAX_PIXELS, threads = 1 } = options;
         if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
         if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
@@ -437,7 +435,7 @@ export class Animation {
      * @ignore
      */
     private static async __decode__(input: BinaryData, options: AnimationDecodeOptions): Promise<Animation> {
-        const { onlyFirstFrame: onlyExtractFirstFrame = false, maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)), applyOrientation = true, toneMapping = 'reinhard', gainMap = true } = options;
+        const { maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)), applyOrientation = true, toneMapping = 'reinhard', gainMap = true } = options;
         const orient = (frames: Frame[], orientation: number): Frame[] => {
             if (applyOrientation && orientation > 1) for (const frame of frames) frame.__orient__(orientation);
             return frames;
@@ -450,10 +448,10 @@ export class Animation {
         const data = view(input);
         const type = ImageType.getType(data);
 
-        if (type === 'gif') return Animation.__gifFrames__(data, onlyExtractFirstFrame, maxPixels);
+        if (type === 'gif') return Animation.__gifFrames__(data, maxPixels);
 
         if (type === 'webp') {
-            const decoded = webp.decodeAnimation(data, onlyExtractFirstFrame, maxPixels);
+            const decoded = webp.decodeAnimation(data, false, maxPixels);
             const frames = orient(profile(canvasFrames(decoded.width, decoded.height, webp.composite(decoded)), decoded.icc), decoded.orientation);
             return new Animation(frames, { loopCount: fromPlays(decoded.loopCount) });
         }
@@ -464,7 +462,7 @@ export class Animation {
             return new Animation(canvasFrames(image.width, image.height, [{ pixels: image.bitmap, duration: 0 }]), { loopCount: Infinity });
         }
         if (type === 'png') {
-            const decoded = await png.decodeAnimation(data, onlyExtractFirstFrame, maxPixels);
+            const decoded = await png.decodeAnimation(data, false, maxPixels);
             const frames = orient(profile(canvasFrames(decoded.width, decoded.height, png.compositeAnimation(decoded)), decoded.icc), decoded.orientation);
             return new Animation(frames, { loopCount: decoded.frames.length > 1 ? fromPlays(decoded.plays) : Infinity });
         }
@@ -481,7 +479,6 @@ export class Animation {
                 loops = fromPlays(decoded.loopCount);
                 icc = decoded.icc;
                 space = decoded.colorSpace;
-                if (onlyExtractFirstFrame) break;
             }
             // (a gain map that can't be read leaves the frames without one, it doesn't fail the decoding)
             const map = gainMap && data[0] !== 0xff ? await jxl.decodeGainMap(data, maxPixels).catch(() => undefined) : undefined;
@@ -510,8 +507,8 @@ export class Animation {
      * @internal
      * @ignore
      */
-    private static __gifFrames__(data: Uint8Array, onlyExtractFirstFrame: boolean, maxPixels: number): Animation {
-        const decoded = gifCodec.decode(data, onlyExtractFirstFrame, maxPixels);
+    private static __gifFrames__(data: Uint8Array, maxPixels: number): Animation {
+        const decoded = gifCodec.decode(data, false, maxPixels);
         const frames = gifCodec.composite(decoded).map(({ pixels, delay }) => ({ pixels, duration: 10 * delay }));
         return new Animation(canvasFrames(decoded.width, decoded.height, frames), { loopCount: decoded.loopCount });
     }

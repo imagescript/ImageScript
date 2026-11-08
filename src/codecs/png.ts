@@ -718,12 +718,12 @@ export function isAnimated(array: Uint8Array): boolean {
  * a single frame
  * @return plays: 0 = forever
  */
-export async function decodeAnimation(array: Uint8Array, onlyFirstFrame = false, maxPixels = MAX_PIXELS): Promise<{ width: number, height: number, plays: number, frames: APNGFrame[], icc?: Uint8Array, orientation: number }> {
+export async function decodeAnimation(array: Uint8Array, firstFrameOnly = false, maxPixels = MAX_PIXELS): Promise<{ width: number, height: number, plays: number, frames: APNGFrame[], icc?: Uint8Array, orientation: number }> {
     const p = parse(array);
     const { width, height } = p.header;
     const orientation = p.exif ? exifOrientation(p.exif) : await textOrientation(p.text);
     // every frame is composited onto a canvas of its own
-    checkPixels(width, height, maxPixels, !p.animation || p.animationError || onlyFirstFrame ? 1 : Math.max(1, p.frames.length));
+    checkPixels(width, height, maxPixels, !p.animation || p.animationError || firstFrameOnly ? 1 : Math.max(1, p.frames.length));
 
     // broken animations show the default image, like browsers do
     if (!p.animation || p.animationError) {
@@ -741,7 +741,7 @@ export async function decodeAnimation(array: Uint8Array, onlyFirstFrame = false,
             blend: c.blend,
             pixels: await decodeImageData(p, data, c.width, c.height)
         });
-        if (onlyFirstFrame) break;
+        if (firstFrameOnly) break;
     }
 
     return { width, height, plays: p.animation.plays, frames, icc: await profile(p.iccp), orientation };

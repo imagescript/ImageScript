@@ -49,8 +49,7 @@ animation. Use `Animation.decode()` for all the frames. An APNG still gives its 
 const first = await Image.decode(data); // the first frame of an animated GIF or WebP
 ```
 
-Search your code for: `decode(` where the result is used for `encode`, `.length`, indexing or `instanceof GIF`, and
-`onlyFirstFrame`.
+Search your code for: `decode(` where the result is used for `encode`, `.length`, indexing or `instanceof GIF`.
 
 ### `Animation` holds its frames instead of extending `Array`
 
@@ -265,8 +264,9 @@ object under the names of their options. The options of each method are on its o
 | `new Frame(w, h, duration, x, y, disposal)` | `new Frame(w, h, { duration, xOffset, yOffset, disposalMode })` |
 | `Frame.from(image, duration, x, y, disposal)` | `Frame.from(image, { duration, xOffset, yOffset, disposalMode })` |
 | `new Animation(frames, loopCount)` | `new Animation(frames, { loopCount })` |
-| `Animation.decode(data, true)` | `Animation.decode(data, { onlyFirstFrame: true })` |
-| `decode(data, true)` | `decode(data, { onlyFirstFrame: true })` |
+| `Animation.decode(data, true)` | `Image.decode(data)` for the first frame, `Animation.decode(data)` for all |
+| `decode(data, true)` | `Image.decode(data)` |
+| `decode(data, { onlyFirstFrame: true })` | `Image.decode(data)` |
 
 `decode()` and `Animation.decode()` take options only: a boolean throws a `TypeError` that names the options form.
 
@@ -306,7 +306,7 @@ grep -rnE 'iterateWithColors|for \(const \[[a-z]+, ?[a-z]+\] of' src
 grep -rnE 'PNGMetadata|AnimationEncoderOptions|AdjustOptions|TextOptions|FrameDisposalModeId|\bGIF\b' src
 
 # decode and animations
-grep -rnE 'decode\(|onlyFirstFrame' src
+grep -rnE 'decode\(.*, *(true|false)\)' src
 grep -rnE 'loopCount\s*(:|=|===)\s*-1|loopCount\s*<\s*0' src
 grep -rnE 'Array\.isArray|\.slice\(|\.frames\b|\.length\s*=' src
 

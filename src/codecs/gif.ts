@@ -219,10 +219,10 @@ function writeSubBlocks(out: GIFWriter, data: Uint8Array): void {
 /**
  * Decodes a GIF into its individual (uncomposited) frames, zero-sized images are skipped
  * @param {Uint8Array} data
- * @param {boolean} [onlyFirstFrame=false]
+ * @param {boolean} [firstFrameOnly=false]
  * @return {{width: number, height: number, loopCount: number, frames: GIFFrame[]}}
  */
-export function decode(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX_PIXELS): DecodedGIF {
+export function decode(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX_PIXELS): DecodedGIF {
     const reader = new ByteReader(data);
 
     const signature = reader.string(6);
@@ -329,7 +329,7 @@ export function decode(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX
             }
 
             frames.push({ x, y, width: fw, height: fh, delay, dispose, indices: ordered, colors, transparentIndex });
-            if (onlyFirstFrame) break;
+            if (firstFrameOnly) break;
         }
     }
 }

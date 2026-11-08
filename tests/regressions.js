@@ -995,7 +995,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         try { await Image.decode(png(30000, 30000), {maxPixels: Infinity}); } catch (err) { error = err; }
         assert(error && /truncated/.test(error.message), `maxPixels: Infinity should lift the limit (${error && error.message})`);
         // the first frame alone fits
-        assert((await Animation.decode(gif, {maxPixels: 4000 * 4000 * 10, onlyFirstFrame: true})).length === 1, 'the first frame should fit the limit');
+        assert((await Image.decode(gif, {maxPixels: 4000 * 4000 * 10})) instanceof Image, 'the first frame should fit the limit');
 
         // damaged data
         error = null;

@@ -51,8 +51,9 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
     }
 
     // the first frame only; Animation.decode of a still image
-    const first = await Animation.decode(await fs.readFile('./tests/jxl/animation.jxl'), {onlyFirstFrame: true});
-    if (first.length !== 1) panic(`onlyFirstFrame: ${first.length} frames`);
+    const animated = await fs.readFile('./tests/jxl/animation.jxl');
+    const first = await Image.decode(animated);
+    if (first.constructor !== Image || !Buffer.from(first.bitmap).equals(Buffer.from((await Animation.decode(animated)).frames[0].bitmap))) panic('Image.decode: the first frame of an animated JPEG XL should be Animation.decode\'s first frame');
     const still = await Animation.decode(await fs.readFile('./tests/jxl/lossy.jxl'));
     if (still.length !== 1 || still.frames[0].width !== 64) panic('a still JPEG XL as an animation');
 

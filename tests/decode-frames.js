@@ -65,10 +65,10 @@ const throwsA = async (fn, type, label) => {
         if (sha256(image.bitmap) !== sha256(reference.bitmap)) panic(`${name}: pixels differ from Image.decode`);
     }
 
-    // options pass through: onlyFirstFrame gives the first frame as an Image, maxPixels applies to both kinds
-    const first = await decode(gif, {onlyFirstFrame: true});
-    if (first instanceof Animation || !(first instanceof Image)) panic('onlyFirstFrame: expected an Image');
-    if (sha256(first.bitmap) !== sha256((await Animation.decode(gif, {onlyFirstFrame: true})).frames[0].bitmap)) panic('onlyFirstFrame: wrong frame');
+    // options pass through: Image.decode gives the first frame as an Image, maxPixels applies to both kinds
+    const first = await Image.decode(gif);
+    if (first instanceof Animation || !(first instanceof Image)) panic('Image.decode: expected an Image');
+    if (sha256(first.bitmap) !== sha256((await Animation.decode(gif)).frames[0].bitmap)) panic('Image.decode: wrong frame');
     await throwsA(() => decode(gif, {maxPixels: 100}), RangeError, 'maxPixels on a GIF');
     const jpeg = await fs.readFile('./tests/targets/external.jpg');
     await throwsA(() => decode(jpeg, {maxPixels: 100}), RangeError, 'maxPixels on a JPEG');

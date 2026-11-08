@@ -183,7 +183,7 @@ export function decode(data: Uint8Array, maxPixels = MAX_PIXELS): { width: numbe
 /**
  * Decodes an animated WebP into its frames (not composited); still WebPs become a single frame
  */
-export function decodeAnimation(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX_PIXELS): WebPAnimation {
+export function decodeAnimation(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX_PIXELS): WebPAnimation {
     const list = container(data);
     const header = list[0];
     if (!header || header.type !== VP8X || !list.some(c => c.type === ANMF)) {
@@ -194,7 +194,7 @@ export function decodeAnimation(data: Uint8Array, onlyFirstFrame = false, maxPix
     if (header.data.length < 10) throw new Error('WebP: invalid VP8X chunk');
     const width = u24(header.data, 4) + 1, height = u24(header.data, 7) + 1;
     // every frame is composited onto a canvas of its own
-    checkPixels(width, height, maxPixels, onlyFirstFrame ? 1 : list.filter(c => c.type === ANMF).length);
+    checkPixels(width, height, maxPixels, firstFrameOnly ? 1 : list.filter(c => c.type === ANMF).length);
     let loopCount = 0, background = 0;
     const frames: WebPFrame[] = [];
 
@@ -218,7 +218,7 @@ export function decodeAnimation(data: Uint8Array, onlyFirstFrame = false, maxPix
                 dispose: (d[15] & 1) === 1,
                 pixels: frame.pixels
             });
-            if (onlyFirstFrame) break;
+            if (firstFrameOnly) break;
         }
     }
 

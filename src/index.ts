@@ -31,15 +31,13 @@ export type { Metadata } from './metadata.ts';
  * returned as an {@link Animation} of its frames, and any other file as an {@link Image}: a file with a single frame
  * (also a GIF, APNG, WebP or JPEG XL with one frame) becomes an Image of that frame, without its offsets and duration.
  * Static formats (PNG, JPEG, AVIF, ...) are always Images, AVIF image sequences decode to their first frame, as
- * {@link Image.decode} does. The options are passed on to {@link Animation.decode} or {@link Image.decode}. With
- * `onlyFirstFrame` the rest of the file isn't decoded, so the frame count isn't known: the first frame is returned as
- * an Image.
+ * {@link Image.decode} does. The options are passed on to {@link Animation.decode} or {@link Image.decode}.
  * @param data The image data
  * @param options See {@link AnimationDecodeOptions} and {@link DecodeOptions}
  */
 export function decode(data: BinaryData, options?: AnimationDecodeOptions & DecodeOptions): Promise<Image | Animation>;
 export async function decode(data: BinaryData, options: AnimationDecodeOptions & DecodeOptions = {}): Promise<Image | Animation> {
-    checkOptions(options, 'decode(data, { onlyFirstFrame: true })');
+    checkOptions(options, 'decode(data, { maxPixels: 1e8 })');
     const bytes = view(data);
     const type = ImageType.getType(bytes);
     const animated = type === 'gif' || type === 'jxl' || (type === 'webp' && webp.isAnimated(bytes)) || (type === 'png' && png.isAnimated(bytes));

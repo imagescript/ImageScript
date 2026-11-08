@@ -33,11 +33,11 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **The positional arguments of `Image.renderSVG()` are removed**: `Image.renderSVG(svg, size, mode)` is `Image.renderSVG(svg, { size, mode })`, which takes the same `fonts` and `images` as before: `Image.renderSVG(svg, 2, 'width')` is now `Image.renderSVG(svg, { size: 2, mode: 'width' })`.
 
-- **The positional arguments of `new Frame()`, `Frame.from()` and `new Animation()` are removed, and `Animation.decode()` takes no flag**: `new Frame(width, height, duration, xOffset, yOffset, disposalMode)` is `new Frame(width, height, { duration, xOffset, yOffset, disposalMode })`, `Frame.from(image, duration, xOffset, yOffset, disposalMode)` is `Frame.from(image, { duration, xOffset, yOffset, disposalMode })`, `new Animation(frames, loopCount)` is `new Animation(frames, { loopCount })`, and `Animation.decode(data, true)` is `Animation.decode(data, { onlyFirstFrame: true })`.
+- **The positional arguments of `new Frame()`, `Frame.from()` and `new Animation()` are removed, and `Animation.decode()` takes no flag**: `new Frame(width, height, duration, xOffset, yOffset, disposalMode)` is `new Frame(width, height, { duration, xOffset, yOffset, disposalMode })`, `Frame.from(image, duration, xOffset, yOffset, disposalMode)` is `Frame.from(image, { duration, xOffset, yOffset, disposalMode })`, `new Animation(frames, loopCount)` is `new Animation(frames, { loopCount })`, and `Animation.decode(data, true)` is `Animation.decode(data)`, or `Image.decode(data)` for the first frame only.
 
 - **`Image.decode()` returns the first frame of an animation**: a GIF or an animated WebP, which threw in 3.x, is an `Image` of its first frame, composed onto the canvas as `Animation.decode()` composes it, and decoding stops after that frame, so it is fast on long animations. Animated JPEG XLs and AVIF sequences were already their first frame. An APNG is still its default image, what viewers without APNG support show. Use `Animation.decode()` for all the frames.
 
-- **`decode()` returns an `Animation` only for files with several frames**: a GIF, APNG, animated WebP or JPEG XL with more than one frame is an `Animation` (`decode(gif)` used to be a `GIF`), and one with a single frame is an `Image`, like a still image (a one-frame GIF used to be a `GIF`). With `onlyFirstFrame`, the first frame comes back as an `Image`, since the frame count isn't read.
+- **`decode()` returns an `Animation` only for files with several frames**: a GIF, APNG, animated WebP or JPEG XL with more than one frame is an `Animation` (`decode(gif)` used to be a `GIF`), and one with a single frame is an `Image`, like a still image (a one-frame GIF used to be a `GIF`). For the first frame alone, `Image.decode()` returns an `Image`.
 
 - **The `GIF` class is removed**: `new GIF(frames, loopCount)` is `new Animation(frames, { loopCount })`, `GIF.decode(data)` is `Animation.decode(data)` and `gif.encode(quality)` is `animation.encodeGIF({ quality })`. `Animation` decodes and encodes GIFs the same way it does APNGs and WebPs.
 
@@ -47,7 +47,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Text alignments only take the values of their own axis**: `TextLayout`'s `horizontalAlign` takes `'left'`, `'center'` or `'right'` and `verticalAlign` takes `'top'`, `'middle'` or `'bottom'`. 3.x accepted the other axis' values in either field, which now throws a `TypeError`: `new TextLayout({ verticalAlign: 'right' })` is `new TextLayout({ horizontalAlign: 'right' })`.
 
-- **`decode()` takes options only**: `decode(data, true)` is `decode(data, { onlyFirstFrame: true })`, and a boolean throws a `TypeError` that names the options form.
+- **`decode()` takes options only**: `decode(data, true)` is `Image.decode(data)` for the first frame, and a boolean throws a `TypeError` that names the options form.
 
 - **`opacity()`, `red()`, `green()`, `blue()`, `lightness()` and `saturation()` reject a second argument**: 3.x's `absolute` call like `image.red(0.5, true)` would silently scale by 0.5 now, so it throws a `TypeError` before the image is touched. Use `image.red(0.5)` to scale and `image.recolor()` for a fixed color.
 
