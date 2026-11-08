@@ -613,8 +613,9 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(Buffer.from(await map.encode()).equals(Buffer.from(await map.encode({}))), 'GainMap.encode() without arguments');
     }
 
-    // gradients
+    // gradients and recolor with an image
     {
+        const {GainMap} = require('..');
         const px = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
         const throws = (fn, type, message) => {
             let error = null;
@@ -659,6 +660,20 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
             'zero radius': () => Image.radialGradient(2, 2, {stops: [1, 2], radius: 0}),
             'NaN center': () => Image.radialGradient(2, 2, {stops: [1, 2], x: NaN})
         })) throws(call, RangeError, name);
+
+        // recolor(image) takes the RGB, keeps the alpha
+        const shape = new Image(4, 1).fill(x => [0xffffff00, 0xffffff40, 0xffffff80, 0xffffffff][x]);
+        const filled = shape.clone().recolor(Image.linearGradient(4, 1, {stops: [0xff0000ff, 0x0000ffff], angle: 90}));
+        const colors = Image.linearGradient(4, 1, {stops: [0xff0000ff, 0x0000ffff], angle: 90});
+        for (let x = 0; x < 4; x++)
+            assert(px(filled, x, 0).join() === [...px(colors, x, 0).slice(0, 3), px(shape, x, 0)[3]].join(), `recolor(image), x ${x}`);
+        assert(px(shape.clone().recolor(new Image(4, 1).fill(0x112233ff)), 3, 0).join() === '17,34,51,255', 'recolor(image) with a flat image');
+        throws(() => shape.clone().recolor(new Image(3, 1)), RangeError, 'recolor(image) with another size');
+        assert(shape.clone().recolor(0x336699ff).bitmap[0] === 0x33, 'recolor(color) still works');
+        const mapped = new Image(8, 8).fill(0xffffffff);
+        mapped.gainMap = new GainMap(new Image(4, 4).fill(0x808080ff), {gainMapMin: 0, gainMapMax: 2});
+        mapped.recolor(Image.linearGradient(8, 8, {stops: [0xff0000ff, 0x0000ffff], angle: 90}));
+        assert(px(mapped, 0, 0)[0] > 200 && px(mapped, 7, 0)[2] > 200 && mapped.gainMap && mapped.gainMap.width === 4, 'recolor(image) keeps the gain map');
     }
 
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values

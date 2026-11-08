@@ -1508,9 +1508,31 @@ export class Image {
      * or tints it: `image.recolor(0xffffffff)` makes every pixel white, keeping its transparency
      * @param color The color to use, its alpha is ignored
      */
-    recolor(color: Color): this {
+    recolor(color: Color): this;
+    /**
+     * Sets the RGB of every pixel to the RGB of the same pixel of another image, keeping each pixel's own alpha. With a
+     * gradient this fills a shape with it, e.g. gradient text:
+     * `text.recolor(Image.linearGradient(text.width, text.height, { stops: [0x22d3eeff, 0xfb923cff], angle: 90 }))`
+     * @param colors The image to take the colors from, it has to have the same size. Its alpha is ignored
+     */
+    recolor(colors: Image): this;
+    recolor(colorOrImage: Color | Image): this {
+        if (colorOrImage instanceof Image) {
+            const colors = colorOrImage;
+            if (colors.width !== this.width || colors.height !== this.height)
+                throw new RangeError(`The image to take the colors from has to be ${this.width}x${this.height}, not ${colors.width}x${colors.height}`);
+            // (the gain map's resolution gets the colors at its resolution)
+            if (this.__gain_map__) return this.__recolor__(image => image.recolor(image.width === colors.width && image.height === colors.height ? colors : colors.clone().resize(image.width, image.height)));
+            const from = colors.bitmap, to = this.bitmap;
+            for (let i = 0; i < to.length; i += 4) {
+                to[i] = from[i];
+                to[i + 1] = from[i + 1];
+                to[i + 2] = from[i + 2];
+            }
+            return this;
+        }
+        const color = checkColor(colorOrImage);
         if (this.__gain_map__) return this.__recolor__(image => image.recolor(color));
-        color = checkColor(color);
         const r = color >>> 24, g = color >> 16 & 0xff, b = color >> 8 & 0xff;
         for (let i = 0; i < this.bitmap.length; i += 4) {
             this.bitmap[i] = r;
