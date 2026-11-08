@@ -613,7 +613,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(Buffer.from(await map.encode()).equals(Buffer.from(await map.encode({}))), 'GainMap.encode() without arguments');
     }
 
-    // gradients, recolor with an image and drop shadows / glows
+    // gradients, recolor with an image, drop shadows / glows and outlines
     {
         const {GainMap} = require('..');
         const px = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
@@ -716,6 +716,25 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         hdr.gainMap = new GainMap(new Image(5, 5).fill(0xc0c0c0ff), {gainMapMin: 0, gainMapMax: 2});
         const hdrShadow = hdr.clone().dropShadow({x: 5, y: 0, blur: 1});
         assert(hdrShadow.gainMap && Math.abs(hdrShadow.gainMap.width / hdrShadow.width - 0.5) < 0.1 && Math.abs(hdrShadow.gainMap.height / hdrShadow.height - 0.5) < 0.1, 'dropShadow keeps the gain map at its scale');
+
+        // outlines
+        const outlined = square().outline({width: 2, color: 0xff0000ff});
+        assert(outlined.width === 14 && outlined.height === 14, `outline({width}) grows by the width on every side: ${outlined.width}x${outlined.height}`);
+        assert(px(outlined, 2 + 4, 2 + 4).join() === '255,128,64,255', 'outline keeps the shape');
+        assert(px(outlined, 2 + 2, 2 + 4).join() === '255,0,0,255' && px(outlined, 2 + 1, 2 + 4)[3] > 100 && alphaAt(outlined, 0, 2 + 4) === 0 && alphaAt(outlined, 2 + 3, 0) === 0, `outline: the stroke is next to the shape and as wide as asked: ${px(outlined, 4, 6)} ${px(outlined, 3, 6)} ${px(outlined, 0, 6)}`);
+        assert(alphaAt(outlined, 2 + 3 - 1, 2 + 3 - 1) > 200 && alphaAt(outlined, 2 + 3 - 2, 2 + 3 - 2) < 128, 'outline rounds the corners');
+        const clipped = square().outline({width: 2, expand: false});
+        assert(clipped.width === 10 && px(clipped, 2, 4).join() === '0,0,0,255' && px(clipped, 4, 4).join() === '255,128,64,255', 'outline({expand: false}) keeps the size');
+        assert(square().outline({width: 0}).width === 10 && Buffer.from(square().outline({width: 0}).bitmap).equals(Buffer.from(square().bitmap)), 'outline({width: 0}) does nothing');
+        assert(px(square().outline({width: 1, color: 0x00ff0080}), 2 + 2, 2 + 4).slice(3).join() === '128' || Math.abs(alphaAt(square().outline({width: 1, color: 0x00ff0080}), 3 - 1 + 1, 3 + 2 + 1) - 128) <= 1, 'outline with a translucent color');
+        const holey = new Image(9, 9).fill((x, y) => x >= 2 && x < 7 && y >= 2 && y < 7 && !(x === 4 && y === 4) ? 0xffffffff : 0);
+        assert(alphaAt(holey.clone().outline({width: 1, color: 0x000000ff}), 1 + 4, 1 + 4) === 255, 'outline fills small holes of the shape');
+        throws(() => square().outline({width: -1}), RangeError, 'negative outline width');
+        throws(() => square().outline({width: Infinity}), RangeError, 'infinite outline width');
+        const outlinedFrame = Frame.from(square(), {xOffset: 1, yOffset: 4}).outline({width: 3});
+        assert(outlinedFrame.xOffset === 0 && outlinedFrame.yOffset === 1 && outlinedFrame.width === 10 + 1 + 3 && outlinedFrame.height === 10 + 3 + 3, `Frame.outline: ${outlinedFrame.width}x${outlinedFrame.height} at ${outlinedFrame.xOffset},${outlinedFrame.yOffset}`);
+        const glowOnText = new Image(12, 12).fill((x, y) => (x - 5.5) ** 2 + (y - 5.5) ** 2 < 16 ? 0xffffffff : 0).outline({width: 2, color: 0xfacc15ff}).dropShadow({blur: 1, y: 2});
+        assert(glowOnText.width > 16 && glowOnText.height > 18, 'outline and dropShadow chain');
     }
 
     // Colors: the color helpers, and the deprecated Image ones they replaced, give the same values

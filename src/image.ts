@@ -190,6 +190,19 @@ export interface ShadowOptions {
     expand?: boolean;
 }
 
+/** Options of {@link Image.outline} */
+export interface OutlineOptions {
+    /** The outline's width in pixels. Default: `1` */
+    width?: number;
+    /** The outline's color. Default: `0x000000ff` */
+    color?: Color;
+    /**
+     * Whether to make the image larger so the outline isn't cut off. Without it, the image keeps its size and the
+     * outline is cut where the image ends. Default: `true`
+     */
+    expand?: boolean;
+}
+
 /** The colors of a gradient, see {@link Image.linearGradient} */
 export interface GradientOptions {
     /**
@@ -2053,6 +2066,38 @@ export class Image {
             right: Math.max(0, Math.ceil(reach + x)),
             bottom: Math.max(0, Math.ceil(reach + y))
         } : { left: 0, top: 0, right: 0, bottom: 0 });
+    }
+
+    /**
+     * Draws an outline around the image's shape (its alpha): the sticker effect for cut-out images, or an outline for
+     * text. The image grows to fit it, unless `expand` is `false`. Frames stay where they are (their offsets move with
+     * the growth), they only grow up and left as far as their offset allows
+     * @param options See {@link OutlineOptions}
+     */
+    outline(options: OutlineOptions = {}): this {
+        const { width = 1, color = 0x000000ff, expand = true } = options;
+        if (finite(width, 'outline width') < 0) throw new RangeError('Invalid outline width');
+        const [r, g, b, a] = Colors.toRGBA(checkColor(color));
+        if (width === 0) return this;
+
+        const margin = Math.ceil(width) + 1;
+        const layer = this.__shape_layer__(margin);
+        const coverage = new Uint8Array(layer.width * layer.height);
+        for (let i = 0; i < coverage.length; i++) coverage[i] = layer.bitmap[i * 4 + 3];
+        const stroke = outline(coverage, layer.width, layer.height, width);
+        const bitmap = layer.bitmap;
+        for (let i = 0; i < coverage.length; i++) {
+            // (around the shape only: it shows through translucent pixels neither)
+            bitmap[i * 4] = r;
+            bitmap[i * 4 + 1] = g;
+            bitmap[i * 4 + 2] = b;
+            bitmap[i * 4 + 3] = stroke[i] * (1 - coverage[i] / 255) * a;
+        }
+
+        const room = this.__room__(), grow = Math.ceil(width);
+        return this.__under__(layer, -margin, -margin, expand
+            ? { left: Math.min(room.left, grow), top: Math.min(room.top, grow), right: grow, bottom: grow }
+            : { left: 0, top: 0, right: 0, bottom: 0 });
     }
 
     /**
