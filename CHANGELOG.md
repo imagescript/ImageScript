@@ -58,6 +58,8 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Removed and narrowed exported types**: `TextOptions` is `RenderTextOptions`, `FrameDisposalModeId` is removed (`FrameDisposalMode` has the names), `AdjustOptions` is removed with `absolute`, `PNGMetadata` is `Metadata`, and `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and `APNGAnimationEncoderOptions` are `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`, `GIFAnimationEncodeOptions` and `APNGEncodeOptions`. `ResizeMode` is narrowed to the lower-case names (`'area'`, ...), `ContainOptions` is removed, and `SVGScaleMode` is removed.
 
+- **Fixed-length tuple types**: `Image`, `Frame` and `Animation.transform()` take `AffineTransform` (exactly six values); gain-map channel options and setters take a scalar or a three-value tuple (`GainMapChannelValues`), not an arbitrary `number[]`.
+
 - **Hues are in degrees**: `Colors.fromHSL()`, `Colors.fromHSLA()` and `Colors.toHSLA()` take and return the hue in degrees (0-360, like CSS' `hsl()` and `hueShift()`) instead of 0-1.
 
 - **`drawBox()` and `drawCircle()` are removed**: `image.composite(new Image(w, h).fill(color), { x, y })` draws a box, with `.cropCircle()` a circle. Compositing blends a translucent color over the image, where `drawBox()` replaced the pixels.

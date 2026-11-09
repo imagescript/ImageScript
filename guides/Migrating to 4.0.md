@@ -397,6 +397,12 @@ false })` grows the image again), so search for them too.
 | `new GainMap(image, { gainMapMin, gainMapMax })`, `map.gainMapMin`, `map.gainMapMax` | `new GainMap(image, { min, max })`, `map.min`, `map.max` |
 | `setPixelAt(x, y, pixelColor)`, `lightness(value)`, `saturation(value)` (parameter names only) | `setPixelAt(x, y, color)`, `lightness(factor)`, `saturation(factor)` |
 
+### Fixed-length tuple types
+
+`transform()` on images, frames and animations takes an `AffineTransform` with exactly six values. Gain-map channel
+parameters take a scalar or a three-value `[red, green, blue]` tuple (`GainMapChannelValues`); use a scalar for the
+shared-channel form instead of a one-element array.
+
 ### Frames hold an image
 
 A `Frame` is no longer an `Image`: it holds one, `frame.image`, with the frame's duration, offsets and disposal mode.

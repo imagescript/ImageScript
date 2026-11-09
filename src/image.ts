@@ -176,6 +176,9 @@ export interface QuantizeOptions {
 /** How {@link Image.transform} and {@link Image.rotate} sample the pixels between the source's */
 export type TransformMode = 'nearest-neighbor' | 'bilinear' | 'bicubic';
 
+/** The six values `[a, b, c, d, e, f]` of an affine transform */
+export type AffineTransform = readonly [a: number, b: number, c: number, d: number, e: number, f: number];
+
 // the sampling modes of Image.transform()
 const TRANSFORM_MODES: readonly string[] = ['nearest-neighbor', 'bilinear', 'bicubic'];
 
@@ -1799,7 +1802,7 @@ export class Image {
      * @param matrix The six values [a, b, c, d, e, f]
      * @param options See {@link TransformOptions}
      */
-    transform(matrix: ArrayLike<number>, options: TransformOptions = {}): this {
+    transform(matrix: AffineTransform, options: TransformOptions = {}): this {
         checkOptions(options, 'image.transform([1, 0, 0, 1, 0, 0], { expand: false })');
         if (matrix === null || typeof matrix !== 'object' || matrix.length !== 6) throw new RangeError('A transform has 6 values: [a, b, c, d, e, f]');
         // (numbers only: a string is a mistake in data like this)

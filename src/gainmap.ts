@@ -10,18 +10,21 @@ export interface GainMapEncodeOptions {
     quality?: number;
 }
 
-/** Options of the {@link GainMap} constructor: per channel values can be one number for all three or [r, g, b] */
+/** A gain-map parameter shared across channels or specified as `[red, green, blue]` */
+export type GainMapChannelValues = number | readonly [red: number, green: number, blue: number];
+
+/** Options of the {@link GainMap} constructor */
 export interface GainMapOptions {
     /** log2 of the boost of the map's value 0 (`-1`: half as bright; hdrgm's GainMapMin). Default: `0` */
-    min?: number | number[];
+    min?: GainMapChannelValues;
     /** log2 of the boost of the map's value 255 (`2`: 4 times as bright; hdrgm's GainMapMax). Default: `2` */
-    max?: number | number[];
+    max?: GainMapChannelValues;
     /** the gamma the map's values are stored with. Default: `1` */
-    gamma?: number | number[];
+    gamma?: GainMapChannelValues;
     /** added to the SDR image's linear values before the boost (keeps black from being boosted forever). Default: `1/64` */
-    offsetSDR?: number | number[];
+    offsetSDR?: GainMapChannelValues;
     /** subtracted from the HDR result. Default: `1/64` */
-    offsetHDR?: number | number[];
+    offsetHDR?: GainMapChannelValues;
     /** log2 of the display headroom from which on the map starts to apply. Default: `0` */
     hdrCapacityMin?: number;
     /** log2 of the display headroom at which it applies fully. Default: `max`'s largest value */
@@ -30,7 +33,7 @@ export interface GainMapOptions {
     useBaseColorSpace?: boolean;
 }
 
-const perChannel = (value: number | number[], name: string): number[] => {
+const perChannel = (value: GainMapChannelValues, name: string): number[] => {
     const values = typeof value === 'number' ? [value, value, value] : Array.from(value);
     if (values.length === 1) values.push(values[0], values[0]);
     if (values.length !== 3) throw new RangeError(`${name} must be a number or an array of 3 numbers`);
@@ -73,21 +76,21 @@ export class GainMap {
      * Replaces the value (checked: an invalid one throws and the old one stays)
      * @param value One number for all channels or [r, g, b]
      */
-    set min(value: number | number[]) { this.__min__ = perChannel(value, 'min'); }
+    set min(value: GainMapChannelValues) { this.__min__ = perChannel(value, 'min'); }
     /** log2 of the boost of the map's value 255, per channel (a copy: assign to change it) */
     get max(): number[] { return this.__max__.slice(); }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
      * @param value One number for all channels or [r, g, b]
      */
-    set max(value: number | number[]) { this.__max__ = perChannel(value, 'max'); }
+    set max(value: GainMapChannelValues) { this.__max__ = perChannel(value, 'max'); }
     /** The gamma the map's values are stored with, per channel (a copy: assign to change it) */
     get gamma(): number[] { return this.__gamma__.slice(); }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
      * @param value One number above 0 for all channels or [r, g, b]
      */
-    set gamma(value: number | number[]) {
+    set gamma(value: GainMapChannelValues) {
         const gamma = perChannel(value, 'gamma');
         if (gamma.some(g => g <= 0)) throw new RangeError('The gain map\'s gamma must be above 0');
         this.__gamma__ = gamma;
@@ -98,14 +101,14 @@ export class GainMap {
      * Replaces the value (checked: an invalid one throws and the old one stays)
      * @param value One number for all channels or [r, g, b]
      */
-    set offsetSDR(value: number | number[]) { this.__offsetSDR__ = perChannel(value, 'offsetSDR'); }
+    set offsetSDR(value: GainMapChannelValues) { this.__offsetSDR__ = perChannel(value, 'offsetSDR'); }
     /** Subtracted from the HDR result, per channel (a copy: assign to change it) */
     get offsetHDR(): number[] { return this.__offsetHDR__.slice(); }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
      * @param value One number for all channels or [r, g, b]
      */
-    set offsetHDR(value: number | number[]) { this.__offsetHDR__ = perChannel(value, 'offsetHDR'); }
+    set offsetHDR(value: GainMapChannelValues) { this.__offsetHDR__ = perChannel(value, 'offsetHDR'); }
     /** log2 of the display headroom from which on the map starts to apply (from 0) */
     get hdrCapacityMin(): number { return this.__capacityMin__; }
     /**

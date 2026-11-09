@@ -1,4 +1,4 @@
-import { Image, ResizeOptions, ResizeToOptions, TrimOptions, RotateOptions, TransformOptions, ShadowOptions, OutlineOptions } from './image.ts';
+import { Image, ResizeOptions, ResizeToOptions, TrimOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions } from './image.ts';
 import { checkOptions, finite } from './util/options.ts';
 
 /**
@@ -263,7 +263,7 @@ export class Frame {
      * @param matrix The six values [a, b, c, d, e, f]
      * @param options See {@link TransformOptions}
      */
-    transform(matrix: ArrayLike<number>, options?: TransformOptions): this {
+    transform(matrix: AffineTransform, options?: TransformOptions): this {
         return this.__tracked__(image => image.transform(matrix, options));
     }
 

@@ -6,7 +6,7 @@ import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
-import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize } from './image.ts';
+import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize } from './image.ts';
 import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
@@ -359,7 +359,7 @@ export class Animation {
      * @param matrix The six values [a, b, c, d, e, f]
      * @param options See {@link TransformOptions}
      */
-    transform(matrix: ArrayLike<number>, options?: TransformOptions): this {
+    transform(matrix: AffineTransform, options?: TransformOptions): this {
         return this.__each__(image => image.transform(matrix, options));
     }
 
