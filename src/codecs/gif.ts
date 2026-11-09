@@ -52,6 +52,7 @@ export interface DecodedGIF {
     width: number;
     height: number;
     loopCount: number;
+    hasLoopExtension: boolean;
     frames: DecodedGIFFrame[];
 }
 
@@ -240,6 +241,7 @@ export function decode(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX
 
     const frames: DecodedGIFFrame[] = [];
     let loopCount = 0;
+    let hasLoopExtension = false;
     let control: GraphicControl | null = null;
     // the frames' color indices, and later a canvas per frame
     const budget = new PixelBudget(maxPixels);
@@ -252,7 +254,7 @@ export function decode(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX
     }
 
     checkPixels(width, height, maxPixels, Math.max(1, frames.length));
-    return { width, height, loopCount, frames };
+    return { width, height, loopCount, hasLoopExtension, frames };
 
     function parse(): void {
         while (reader.offset < data.length) {
@@ -278,6 +280,7 @@ export function decode(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX
                     const id = reader.string(size);
 
                     if (id === 'NETSCAPE2.0' || id === 'ANIMEXTS1.0') {
+                        hasLoopExtension = true;
                         // sub-block 1 holds the loop count
                         for (let length; (length = reader.u8());) {
                             const sub = reader.slice(length);

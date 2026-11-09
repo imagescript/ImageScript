@@ -91,6 +91,9 @@ export class Animation {
     private __loopCount__ = Infinity;
 
     /** @internal @ignore */
+    private __animationSignal__ = false;
+
+    /** @internal @ignore */
     private __frames__: Frame[] = [];
 
     /** @internal @ignore */
@@ -625,6 +628,11 @@ export class Animation {
         return decoding(() => Animation.__decode__(input, options));
     }
 
+    /** @internal @ignore */
+    static __is_animated__(animation: Animation): boolean {
+        return animation.__animationSignal__;
+    }
+
     /**
      * @internal
      * @ignore
@@ -646,9 +654,12 @@ export class Animation {
         if (type === 'gif') return Animation.__gifFrames__(data, maxPixels);
 
         if (type === 'webp') {
+            const animated = webp.isAnimated(data);
             const decoded = webp.decodeAnimation(data, false, maxPixels);
             const frames = orient(profile(canvasFrames(decoded.width, decoded.height, webp.composite(decoded)), decoded.icc), decoded.orientation);
-            return new Animation(frames, { loopCount: fromPlays(decoded.loopCount), width: frames[0]?.width ?? decoded.width, height: frames[0]?.height ?? decoded.height });
+            const animation = new Animation(frames, { loopCount: fromPlays(decoded.loopCount), width: frames[0]?.width ?? decoded.width, height: frames[0]?.height ?? decoded.height });
+            animation.__animationSignal__ = animated;
+            return animation;
         }
 
         // (still PNGs decode like images)
@@ -659,12 +670,14 @@ export class Animation {
         if (type === 'png') {
             const decoded = await png.decodeAnimation(data, false, maxPixels);
             const frames = orient(profile(canvasFrames(decoded.width, decoded.height, png.compositeAnimation(decoded)), decoded.icc), decoded.orientation);
-            return new Animation(frames, { loopCount: decoded.frames.length > 1 ? fromPlays(decoded.plays) : Infinity, width: frames[0]?.width ?? decoded.width, height: frames[0]?.height ?? decoded.height });
+            const animation = new Animation(frames, { loopCount: fromPlays(decoded.plays), width: frames[0]?.width ?? decoded.width, height: frames[0]?.height ?? decoded.height });
+            animation.__animationSignal__ = true;
+            return animation;
         }
 
         if (type === 'jxl') {
             const frames: Frame[] = [];
-            let loops = Infinity, icc: Uint8Array | undefined, space: jxl.ColorSpace | undefined;
+            let loops = Infinity, animated = false, icc: Uint8Array | undefined, space: jxl.ColorSpace | undefined;
             let orientation = 1;
             for await (const decoded of jxl.frames(data, maxPixels, toneMapping, threads)) {
                 const image = new Image(decoded.width, decoded.height);
@@ -672,6 +685,7 @@ export class Animation {
                 frames.push(new Frame(image, { duration: decoded.duration, disposalMode: 'background' }));
                 orientation = decoded.orientation;
                 loops = fromPlays(decoded.loopCount);
+                animated ||= decoded.animated;
                 icc = decoded.icc;
                 space = decoded.colorSpace;
             }
@@ -691,7 +705,9 @@ export class Animation {
                     frame.image.gainMap = null;
                 }
             }
-            return new Animation(frames, { loopCount: frames.length > 1 ? loops : Infinity, ...(frames.length ? { width: frames[0].width, height: frames[0].height } : {}) });
+            const animation = new Animation(frames, { loopCount: animated ? loops : Infinity, ...(frames.length ? { width: frames[0].width, height: frames[0].height } : {}) });
+            animation.__animationSignal__ = animated;
+            return animation;
         }
 
         if (type) {
@@ -708,7 +724,9 @@ export class Animation {
     private static __gifFrames__(data: Uint8Array, maxPixels: number): Animation {
         const decoded = gifCodec.decode(data, false, maxPixels);
         const frames = gifCodec.composite(decoded).map(({ pixels, delay }) => ({ pixels, duration: 10 * delay }));
-        return new Animation(canvasFrames(decoded.width, decoded.height, frames), { loopCount: decoded.loopCount, width: decoded.width, height: decoded.height });
+        const animation = new Animation(canvasFrames(decoded.width, decoded.height, frames), { loopCount: decoded.loopCount, width: decoded.width, height: decoded.height });
+        animation.__animationSignal__ = decoded.hasLoopExtension;
+        return animation;
     }
 }
 

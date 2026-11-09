@@ -37,20 +37,25 @@ const throwsA = async (fn, type, label) => {
     const jxlFrames = await decode(jxlAnimation);
     if (!(jxlFrames instanceof Animation) || jxlFrames.length !== jxlRef.length) panic(`JPEG XL: ${jxlFrames.constructor.name} with ${jxlFrames.length} frames instead of ${jxlRef.length}`);
 
-    // one frame: an Image with the frame's pixels, as Animation.decode's first frame has them
+    // a file with one frame is an Animation only when the format signals animation
     const single = new Animation([new Frame(new Image(12, 8).fill((x, y) => Colors.fromRGBA(x * 20, y * 30, 90, 255)), {duration: 90, xOffset: 0, yOffset: 0})]);
     for (const [format, bytes] of [['GIF', await single.encodeGIF()], ['APNG', await single.encodeAPNG()], ['WebP', await single.encodeWebP({quality: 90})]]) {
-        const image = await decode(bytes);
-        if (image instanceof Animation || !(image instanceof Image)) panic(`single frame ${format}: ${image.constructor.name} instead of an Image`);
+        const decoded = await decode(bytes);
+        if (!(decoded instanceof Animation) || decoded.length !== 1) panic(`single frame ${format}: got ${decoded.constructor.name}`);
+        if (format === 'GIF' && decoded.loopCount !== Infinity) panic(`single-frame GIF loop count: ${decoded.loopCount}`);
         const reference = (await Animation.decode(bytes)).frames[0].image;
+        const image = decoded instanceof Animation ? decoded.frames[0].image : decoded;
         if (image.width !== reference.width || image.height !== reference.height) panic(`single frame ${format}: ${image.width}x${image.height} instead of ${reference.width}x${reference.height}`);
         if (sha256(image.bitmap) !== sha256(reference.bitmap)) panic(`single frame ${format}: pixels differ from Animation.decode's first frame`);
     }
 
-    // a single frame with an offset: the image is the canvas, the offset is dropped
+    // a single-frame animated GIF keeps its canvas and frame metadata
     const offset = await new Animation([new Frame(new Image(4, 3).fill(0xff0000ff), {xOffset: 2, yOffset: 1, duration: 40})]).encodeGIF({optimize: false});
-    const offsetImage = await decode(offset);
-    if (offsetImage instanceof Animation || offsetImage.width !== 6 || offsetImage.height !== 4) panic(`single frame with an offset: ${offsetImage.width}x${offsetImage.height}`);
+    const offsetAnimation = await decode(offset);
+    if (!(offsetAnimation instanceof Animation) || offsetAnimation.width !== 6 || offsetAnimation.height !== 4 || offsetAnimation.frames[0].duration !== 40)
+        panic(`single frame with an offset: ${offsetAnimation.constructor.name}`);
+    const stillGif = await decode(await new Animation([single.frames[0].clone()], {loopCount: 0}).encodeGIF());
+    if (stillGif instanceof Animation || !(stillGif instanceof Image)) panic('one-frame GIF without a loop extension should be an Image');
 
     // a still JPEG XL is an Image with the pixels Image.decode gives
     const still = await fs.readFile('./tests/jxl/lossy.jxl');
@@ -74,7 +79,7 @@ const throwsA = async (fn, type, label) => {
     await throwsA(() => decode(jpeg, {maxPixels: 100}), RangeError, 'maxPixels on a JPEG');
     if ((await decode(gif, {threads: 2})).length !== 30) panic('threads: frames changed');
 
-    // Animation.decode returns an Animation for every format, single frames included: only decode() unwraps them
+    // Animation.decode wraps still images too; top-level decode uses explicit animation markers
     const alwaysAnimation = async (name, bytes) => {
         const animation = await Animation.decode(bytes);
         if (!(animation instanceof Animation) || animation.length !== 1) panic(`${name}: Animation.decode gives ${animation.constructor.name} with ${animation.length} frames, not an Animation of 1`);
@@ -95,8 +100,7 @@ const throwsA = async (fn, type, label) => {
     const oneFrameFiles = {GIF: await single.encodeGIF(), APNG: await single.encodeAPNG(), 'WebP animation': await single.encodeWebP({quality: 90})};
     for (const [name, bytes] of Object.entries(oneFrameFiles)) await alwaysAnimation(name, bytes);
 
-    // a one-frame APNG that keeps its acTL chunk (the encoder writes none for one frame): the two-frame file cut before
-    // its second frame, num_frames patched to 1, every chunk's CRC recomputed
+    // a one-frame APNG cut from a two-frame file, with its play count retained
     const crcTable = Array.from({length: 256}, (_, n) => {
         let c = n;
         for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
@@ -130,7 +134,9 @@ const throwsA = async (fn, type, label) => {
     for (const c of chunks.slice(0, second)) {
         if (c.type !== 'acTL') { parts.push(pngChunk(c.type, c.data)); continue; }
         const actl = new Uint8Array(c.data);
-        new DataView(actl.buffer).setUint32(0, 1);
+        const actlView = new DataView(actl.buffer);
+        actlView.setUint32(0, 1);
+        actlView.setUint32(4, 3);
         parts.push(pngChunk('acTL', actl));
     }
     parts.push(pngChunk('IEND', new Uint8Array(0)));
@@ -140,10 +146,11 @@ const throwsA = async (fn, type, label) => {
 
     const oneAnimation = await Animation.decode(oneApng);
     if (!(oneAnimation instanceof Animation) || oneAnimation.length !== 1) panic(`one-frame APNG with acTL: Animation.decode gives ${oneAnimation.constructor.name} with ${oneAnimation.length} frames`);
+    if (oneAnimation.loopCount !== 2) panic(`one-frame APNG: loop count ${oneAnimation.loopCount} instead of 2`);
     if (sha256(oneAnimation.frames[0].image.bitmap) !== sha256((await Animation.decode(apng)).frames[0].image.bitmap)) panic('one-frame APNG with acTL: the frame differs from the first frame of the two-frame file');
     const oneImage = await decode(oneApng);
-    if (oneImage instanceof Animation || !(oneImage instanceof Image)) panic('one-frame APNG with acTL: decode() should give an Image');
-    if (sha256(oneImage.bitmap) !== sha256(oneAnimation.frames[0].image.bitmap)) panic('one-frame APNG with acTL: decode() pixels differ from Animation.decode');
+    if (!(oneImage instanceof Animation) || oneImage.length !== 1 || oneImage.loopCount !== 2) panic('one-frame APNG with acTL: decode() should preserve the Animation');
+    if (sha256(oneImage.frames[0].image.bitmap) !== sha256(oneAnimation.frames[0].image.bitmap)) panic('one-frame APNG with acTL: decode() pixels differ from Animation.decode');
 
     // Image.decode of an animation is its first frame, an Image composed like Animation.decode's first frame: frames that
     // differ, with offsets and disposal modes, from our encoders (GIF, APNG, animated WebP, lossless and lossy)

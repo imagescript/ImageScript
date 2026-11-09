@@ -20,13 +20,15 @@ The recommended path:
 
 These change what code does without a compile error.
 
-### `decode()` returns an `Animation` for files with several frames
+### `decode()` uses animation markers as well as frame count
 
 In 3.x, `decode()` returned a `GIF` for every GIF, including a GIF with one frame, an `Animation` for an animated WebP,
 and an `Image` for everything else. An APNG or a JPEG XL with several frames decoded to its first frame, as an `Image`.
 
-In 4.0, a file with several frames (GIF, APNG, animated WebP or JPEG XL) decodes to an `Animation`. A file with one
-frame decodes to an `Image`, like a still image, so a one-frame GIF is an `Image` now.
+In 4.0, a file with several frames or an explicit animation marker decodes to an `Animation`. This includes one-frame
+APNGs, animated WebPs, JPEG XL animations and GIFs with a loop extension; their timing and loop metadata are retained.
+A file with one frame and no animation marker decodes to an `Image`, including a still image or a one-frame GIF without
+a loop extension.
 
 ```ts
 // 3.x: a GIF was a GIF, which is an Animation with encode()
@@ -42,9 +44,9 @@ if (decoded instanceof Animation) {
 }
 ```
 
-`Image.decode()` returns the first frame of an animated GIF or WebP, which threw in 3.x. The frame is an `Image` composed
-onto the canvas like the first frame of `Animation.decode()`, and decoding stops after it, so it is fast for a long
-animation. Use `Animation.decode()` for all the frames. An APNG still gives its default image, as before.
+`Image.decode()` still returns only an `Image`: for an animated GIF or WebP it returns the first frame composed onto the
+canvas like `Animation.decode()`, and decoding stops after it. Use `Animation.decode()` for all frames and their
+metadata. An APNG still gives its default image, as before.
 
 ```ts
 const first = await Image.decode(data); // the first frame of an animated GIF or WebP

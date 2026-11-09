@@ -25,11 +25,11 @@ export type { BinaryData } from './util/mem.ts';
 export type { Metadata } from './metadata.ts';
 
 /**
- * Decodes any supported image. A file with more than one frame (GIF, APNG, animated WebP, animated JPEG XL) is
- * returned as an {@link Animation} of its frames, and any other file as an {@link Image}: a file with a single frame
- * (also a GIF, APNG, WebP or JPEG XL with one frame) becomes an Image of that frame, without its offsets and duration.
- * Static formats (PNG, JPEG, AVIF, ...) are always Images, AVIF image sequences decode to their first frame, as
- * {@link Image.decode} does. The options are passed on to {@link Animation.decode} or {@link Image.decode}.
+ * Decodes any supported image. A file with more than one frame or an explicit animation marker (including a one-frame
+ * APNG or animated WebP) is returned as an {@link Animation}; otherwise it is an {@link Image}. A one-frame animation
+ * keeps its timing, offsets and loop metadata. Static formats (PNG, JPEG, AVIF, ...) are Images, and AVIF image
+ * sequences decode to their first frame, as {@link Image.decode} does. The options are passed on to
+ * {@link Animation.decode} or {@link Image.decode}.
  * @param input The image data
  * @param options See {@link DecodeOptions}
  */
@@ -42,7 +42,7 @@ export async function decode(input: BinaryData, options: DecodeOptions = {}): Pr
     if (!animated) return Image.decode(input, options);
 
     const animation = await Animation.decode(input, options);
-    if (animation.length !== 1) return animation;
+    if (animation.length !== 1 || Animation.__is_animated__(animation)) return animation;
     // the only frame, as an image: its pixels and gain map
     return animation.frames[0].image;
 }

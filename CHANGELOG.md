@@ -40,7 +40,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`Image.decode()` returns the first frame of an animation**: a GIF or an animated WebP, which threw in 3.x, is an `Image` of its first frame, composed onto the canvas as `Animation.decode()` composes it, and decoding stops after that frame, so it is fast on long animations. Animated JPEG XLs and AVIF sequences were already their first frame. An APNG is still its default image, what viewers without APNG support show. Use `Animation.decode()` for all the frames.
 
-- **`decode()` returns an `Animation` only for files with several frames**: a GIF, APNG, animated WebP or JPEG XL with more than one frame is an `Animation` (`decode(gif)` used to be a `GIF`), and one with a single frame is an `Image`, like a still image (a one-frame GIF used to be a `GIF`). For the first frame alone, `Image.decode()` returns an `Image`.
+- **`decode()` follows animation markers as well as frame count**: files with multiple frames or an explicit animation marker return an `Animation`, including one-frame APNGs and animated WebPs; a static image or an unmarked one-frame GIF returns an `Image`. A one-frame animation keeps its timing and loop metadata. `Image.decode()` still returns only an `Image` of the first frame.
 
 - **The `GIF` class is removed**: `new GIF(frames, loopCount)` is `new Animation(frames, { loopCount })`, `GIF.decode(data)` is `Animation.decode(data)` and `gif.encode(quality)` is `animation.encodeGIF({ colors })`. `Animation` decodes and encodes GIFs the same way it does APNGs and WebPs.
 
@@ -92,7 +92,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### New
 
-- `Animation.clone()` and `Animation.crop()`, plus `'contain'` and `'cover'` fit modes of `Animation.resize()`.
+- `Animation.clone()` and `Animation.crop()`.
 - `resize({ width, height, fit })` on images, frames and animations: `'inside'` fits without padding, `'contain'` pads, and `'cover'` crops while keeping the aspect ratio; `background` sets the bars for `'contain'`.
 - `encodeJPEG({ subsampling: '4:4:4' | '4:2:0' })`; the default stays 4:2:0 up to quality 90 and 4:4:4 above.
 - `Colors.gradient()` takes an array of evenly spaced colors, like the `stops` of the gradient functions.

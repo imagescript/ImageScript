@@ -134,7 +134,7 @@ export function colorSpace(image: ImageHeader): ColorSpace | undefined {
 }
 
 /** The frames shown (composited, as RGBA), their durations in milliseconds */
-export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1): AsyncGenerator<{ width: number, height: number, pixels: Uint8Array, duration: number, orientation: number, loopCount: number, icc?: Uint8Array, colorSpace?: ColorSpace }> {
+export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1): AsyncGenerator<{ width: number, height: number, pixels: Uint8Array, duration: number, orientation: number, loopCount: number, animated: boolean, icc?: Uint8Array, colorSpace?: ColorSpace }> {
     const d = codestream(data);
     const r = new BitReader(d);
     const image = imageHeader(r);
@@ -177,7 +177,7 @@ export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapp
                 shown++;
                 yield {
                     width: image.width, height: image.height, pixels: state.output.toRGBA(frame.canvas), duration: frame.header.duration * tick,
-                    orientation: image.orientation, loopCount: a ? a.numLoops : 1, icc, colorSpace: space
+                    orientation: image.orientation, loopCount: a ? a.numLoops : 1, animated: !!a, icc, colorSpace: space
                 };
             }
             if (frame.header.isLast) return;
