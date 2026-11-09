@@ -316,7 +316,7 @@ export function hfTokenChunks({ types, hf, pw, bw, bh, groupsPerRow }: HFTokenTa
 }
 
 /** Encodes RGBA pixels as a lossy JPEG XL codestream, alpha (if the image has transparency) losslessly */
-export async function encodeVarDCT(rgba: Uint8Array, width: number, height: number, options: VarDCTOptions): Promise<Uint8Array> {
+export async function encodeVarDCT(rgba: Uint8Array, width: number, height: number, options: VarDCTOptions): Promise<Uint8Array<ArrayBuffer>> {
     if (width < 1 || height < 1) throw new RangeError('JPEG XL: dimensions must be at least 1');
     // threads for the XYB planes, the quantization field, the varblock search, the coefficients and their tokens, if
     // they start (the same files). Started first, they load while the work begins here
@@ -329,7 +329,7 @@ export async function encodeVarDCT(rgba: Uint8Array, width: number, height: numb
     }
 }
 
-async function encode(rgba: Uint8Array, width: number, height: number, { distance, effort }: VarDCTOptions, pool: { threads: Thread[] | null }): Promise<Uint8Array> {
+async function encode(rgba: Uint8Array, width: number, height: number, { distance, effort }: VarDCTOptions, pool: { threads: Thread[] | null }): Promise<Uint8Array<ArrayBuffer>> {
     const bw = Math.ceil(width / 8), bh = Math.ceil(height / 8), pw = bw * 8;
     // (a stage in the threads; if they fail, like workers whose module can't be loaded, it and the rest run here)
     const parallel = async <R>(run: (threads: Thread[] | null) => Promise<R>): Promise<R> => {

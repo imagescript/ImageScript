@@ -168,7 +168,7 @@ function decodePFM(d: Uint8Array, channels: number, maxPixels: number, toneMappi
  * Encodes RGBA pixels into the smallest fitting Netpbm format: PBM for black and white images, PGM for grayscale
  * ones, PPM, and PAM (grayscale or RGB with alpha) for images with transparency
  */
-export function encode(rgba: Uint8Array, width: number, height: number): Uint8Array {
+export function encode(rgba: Uint8Array, width: number, height: number): Uint8Array<ArrayBuffer> {
     if (width < 1 || height < 1) throw new RangeError('Netpbm: dimensions must be at least 1');
     const count = width * height;
     let opaque = true, gray = true, bitmap = true;

@@ -997,7 +997,7 @@ export interface EncodeMetadata {
     subsampling?: '4:4:4' | '4:2:0';
 }
 
-export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment, segments, gray = false, fullChroma = false, subsampling }: EncodeMetadata = {}): Uint8Array {
+export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment, segments, gray = false, fullChroma = false, subsampling }: EncodeMetadata = {}): Uint8Array<ArrayBuffer> {
     if (!width || !height || width > 0xffff || height > 0xffff) throw new RangeError('JPEG: invalid dimensions');
 
     quality = Math.min(100, Math.max(1, Math.round(quality)));

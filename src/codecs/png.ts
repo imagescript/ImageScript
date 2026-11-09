@@ -69,7 +69,7 @@ const ADAM7 = [[0, 0, 8, 8], [4, 0, 8, 8], [0, 4, 4, 8], [2, 0, 4, 4], [0, 2, 2,
  * Encodes raw pixel data into a PNG
  * @param data Raw pixel data, rows packed MSB first for depths below 8
  */
-export async function encode(data: Uint8Array, { text, width, height, channels, depth = 8, level = 0, palette, transparency, filter: filterRows = false }: EncodeOptions): Promise<Uint8Array> {
+export async function encode(data: Uint8Array, { text, width, height, channels, depth = 8, level = 0, palette, transparency, filter: filterRows = false }: EncodeOptions): Promise<Uint8Array<ArrayBuffer>> {
     const header = new Uint8Array(13);
     const view = new DataView(header.buffer);
     view.setUint32(0, width);
@@ -343,7 +343,7 @@ const aligned = (rgba: Uint8Array): Uint8Array => rgba.byteOffset % 4 ? rgba.sli
  * Rows of non-palette images are paeth filtered where that compresses better (unless the data isn't compressed),
  * palette indices aren't filtered (like libpng recommends)
  */
-export async function encodeRGBA(rgba: Uint8Array, width: number, height: number, level: number, text?: EncodeOptions['text']): Promise<Uint8Array> {
+export async function encodeRGBA(rgba: Uint8Array, width: number, height: number, level: number, text?: EncodeOptions['text']): Promise<Uint8Array<ArrayBuffer>> {
     rgba = aligned(rgba.subarray(0, width * height * 4));
     const format = pixelFormat([rgba]);
     const { channels, depth, palette, transparency } = format;
@@ -372,7 +372,7 @@ export interface APNGEncodeFrame {
  * @param plays How often to play the animation, 0 = forever
  * @param text tEXt chunks, empty values are skipped
  */
-export async function encodeAnimation(frames: APNGEncodeFrame[], width: number, height: number, plays: number, level: number, text?: EncodeOptions['text']): Promise<Uint8Array> {
+export async function encodeAnimation(frames: APNGEncodeFrame[], width: number, height: number, plays: number, level: number, text?: EncodeOptions['text']): Promise<Uint8Array<ArrayBuffer>> {
     if (!frames.length) throw new Error('PNG: an animation needs at least one frame');
 
     frames = [coverCanvas(frames[0], width, height), ...frames.slice(1)];
@@ -415,7 +415,7 @@ export function frameData(rgba: Uint8Array, width: number, height: number, forma
 }
 
 /** An APNG from its compressed frames, all in one pixel format */
-export function animationFile(frames: EncodedAPNGFrame[], width: number, height: number, plays: number, format: PixelFormat, text?: EncodeOptions['text']): Uint8Array {
+export function animationFile(frames: EncodedAPNGFrame[], width: number, height: number, plays: number, format: PixelFormat, text?: EncodeOptions['text']): Uint8Array<ArrayBuffer> {
     const { channels, depth, palette, transparency } = format;
     const header = new Uint8Array(13);
     const hv = new DataView(header.buffer);

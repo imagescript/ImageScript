@@ -182,7 +182,7 @@ function seqMonochrome(d: Uint8Array, o: number): boolean {
 }
 
 /** Encodes RGBA pixels as an AVIF (with an alpha image if the image has transparency) */
-export async function encode(rgba: Uint8Array, width: number, height: number, { quality, alphaQuality, subsampling, effort, exif, threads: maxThreads, gainMap }: AVIFOptions): Promise<Uint8Array> {
+export async function encode(rgba: Uint8Array, width: number, height: number, { quality, alphaQuality, subsampling, effort, exif, threads: maxThreads, gainMap }: AVIFOptions): Promise<Uint8Array<ArrayBuffer>> {
     if (width < 1 || height < 1) throw new RangeError('AVIF: dimensions must be at least 1');
     if (width > 65536 || height > 65536) throw new RangeError('AVIF: dimensions must be at most 65536');
     let opaque = true;

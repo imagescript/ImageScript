@@ -302,7 +302,7 @@ function concat(parts: Uint8Array[]): Uint8Array {
     return out;
 }
 
-function riff(chunks: Uint8Array[]): Uint8Array {
+function riff(chunks: Uint8Array[]): Uint8Array<ArrayBuffer> {
     let size = 4;
     for (const c of chunks) size += c.length;
     const out = new Uint8Array(8 + size);
@@ -340,7 +340,7 @@ const MIN_THREADED_PIXELS = 1536 << 10, PIXELS_PER_THREAD = 512 << 10;
  * @param exif Exif data (a TIFF header and IFDs), needs the extended format (VP8X)
  * @param effort 0 fast, 1 in between, 2 (and above) the most compression
  */
-export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, threads = 1, effort = 2): Promise<Uint8Array> {
+export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, threads = 1, effort = 2): Promise<Uint8Array<ArrayBuffer>> {
     const n = Math.min(threads, Math.floor(width * height / PIXELS_PER_THREAD));
     const pool = n > 1 && width * height >= MIN_THREADED_PIXELS ? startThreads(n) : null;
     let stream: Uint8Array;
@@ -392,7 +392,7 @@ export function lossyOptions(quality: number | undefined, effort: number, sharp:
  * isn't opaque)
  * @param exif Exif data (a TIFF header and IFDs), needs the extended format (VP8X)
  */
-export async function encodeLossy(rgba: Uint8Array, width: number, height: number, lossy: LossyOptions, exif?: Uint8Array): Promise<Uint8Array> {
+export async function encodeLossy(rgba: Uint8Array, width: number, height: number, lossy: LossyOptions, exif?: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
     const { alpha, chunks } = await lossyChunks(rgba, width, height, lossy);
     if (!alpha && !exif) return riff(chunks);
 
@@ -449,7 +449,7 @@ export function lossyTolerance(quality: number): number {
  * @param lossy For lossy frames
  * @param effort For lossless frames: 0 fast, 1 in between, 2 (and above) the most compression
  */
-export async function encodeAnimation(frames: WebPEncodeFrame[], width: number, height: number, plays: number, exif?: Uint8Array, lossy?: LossyOptions, effort = 2): Promise<Uint8Array> {
+export async function encodeAnimation(frames: WebPEncodeFrame[], width: number, height: number, plays: number, exif?: Uint8Array, lossy?: LossyOptions, effort = 2): Promise<Uint8Array<ArrayBuffer>> {
     if (!frames.length) throw new Error('WebP: an animation needs at least one frame');
     if (width > 1 << 24 || height > 1 << 24) throw new RangeError('WebP: canvas too large');
 
@@ -487,7 +487,7 @@ export async function frameChunk(f: WebPEncodeFrame, lossy?: LossyOptions, effor
 }
 
 /** An animation's file from its frames' ANMF chunks */
-export function animationFile(frames: Uint8Array[], width: number, height: number, plays: number, alpha: boolean, exif?: Uint8Array): Uint8Array {
+export function animationFile(frames: Uint8Array[], width: number, height: number, plays: number, alpha: boolean, exif?: Uint8Array): Uint8Array<ArrayBuffer> {
     const vp8x = new Uint8Array(10);
     vp8x[0] = 2 | (alpha ? 16 : 0) | (exif ? 8 : 0); // animation, alpha, exif
     set24(vp8x, 4, width - 1);

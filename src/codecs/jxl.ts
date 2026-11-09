@@ -34,8 +34,8 @@ export function isJXL(d: Uint8Array): boolean {
  * Encodes RGBA pixels as a JPEG XL, lossless or lossy (with a Butteraugli distance above 0, and an effort 0-2): the
  * codestream, in the container if there is Exif data (a TIFF header and IFDs); lossy with up to threads worker threads
  */
-export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, distance = 0, effort = 1, threads = 1, gainMap?: GainMapInput): Promise<Uint8Array> {
-    const codestreamOf = (pixels: Uint8Array, w: number, h: number, d: number): Promise<Uint8Array> | Uint8Array => d > 0 ? encodeVarDCT(pixels, w, h, { distance: d, effort, threads })
+export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, distance = 0, effort = 1, threads = 1, gainMap?: GainMapInput): Promise<Uint8Array<ArrayBuffer>> {
+    const codestreamOf = (pixels: Uint8Array, w: number, h: number, d: number): Promise<Uint8Array<ArrayBuffer>> | Uint8Array<ArrayBuffer> => d > 0 ? encodeVarDCT(pixels, w, h, { distance: d, effort, threads })
         : effort ? encodeModular(pixels, w, h, threads) : encodeRGBA(pixels, w, h);
     const stream = await codestreamOf(rgba, width, height, distance);
     if (!exif?.length && !gainMap) return stream;

@@ -398,7 +398,7 @@ const segmentBytes = (marker: number, body: Uint8Array): Uint8Array => {
     out.set(body, 4);
     return out;
 };
-const join = (parts: Uint8Array[]): Uint8Array => {
+const join = (parts: Uint8Array[]): Uint8Array<ArrayBuffer> => {
     const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
     let o = 0;
     for (const p of parts) {
@@ -424,14 +424,14 @@ export function stripMetadata(jpeg: Uint8Array): Uint8Array {
 }
 
 // inserts segments after a JPEG's APP0 (JFIF) segment if it starts with one, else after SOI
-function insert(jpeg: Uint8Array, added: Uint8Array[]): Uint8Array {
+function insert(jpeg: Uint8Array, added: Uint8Array[]): Uint8Array<ArrayBuffer> {
     let at = 2;
     if (jpeg[2] === 0xff && jpeg[3] === 0xe0) at = 4 + (jpeg[4] << 8 | jpeg[5]);
     return join([jpeg.subarray(0, at), ...added, jpeg.subarray(at)]);
 }
 
 /** A gain map JPEG with its metadata (hdrgm XMP and ISO 21496-1), from its compressed pixels */
-export function mapWithMetadata(body: Uint8Array, p: Params): Uint8Array {
+export function mapWithMetadata(body: Uint8Array, p: Params): Uint8Array<ArrayBuffer> {
     const added = [segmentBytes(0xe1, join([ascii(XMP_NAMESPACE), ascii(writeMapXMP(p))])), segmentBytes(0xe2, join([ascii(ISO_NAMESPACE), writeISO(p)]))];
     return insert(stripMetadata(body), added);
 }
@@ -448,7 +448,7 @@ export function primarySegments(mapLength: number): Uint8Array[] {
 }
 
 /** Fills in the primary's MPF index (big endian like libultrahdr) and appends the gain map */
-export function finish(primary: Uint8Array, map: Uint8Array): Uint8Array {
+export function finish(primary: Uint8Array, map: Uint8Array): Uint8Array<ArrayBuffer> {
     const mpf = segments(primary).find(({ marker, body }) => marker === 0xe2 && startsWith(body, 0, MPF_SIGNATURE));
     if (!mpf) throw new Error('JPEG: missing MPF segment');
     const tiff = mpf.start + 4 + 4;

@@ -14,7 +14,7 @@ import type { AnimationOptions, WebPAnimationEncodeOptions, GIFAnimationEncodeOp
 interface Format {
     readonly optimize: OptimizeOptions;
     frame(f: OptimizedFrame | InputFrame, optimized: boolean): Promise<void>;
-    file(optimizer: Optimizer | null): Promise<Uint8Array<ArrayBuffer>> | Uint8Array;
+    file(optimizer: Optimizer | null): Promise<Uint8Array<ArrayBuffer>> | Uint8Array<ArrayBuffer>;
 }
 
 /**
@@ -218,7 +218,7 @@ function webpFrame(f: InputFrame): webp.WebPEncodeFrame {
     return { x, y, width: w, height: h, duration: f.duration, dispose: f.dispose === 1, pixels };
 }
 
-function concat(parts: Uint8Array[]): Uint8Array {
+function concat(parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
     const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
     let offset = 0;
     for (const p of parts) {

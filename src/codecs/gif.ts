@@ -72,7 +72,7 @@ export interface GIFPalette {
  * Encodes frames into a GIF. `loopCount`: Infinity loops forever, 0 plays once (no loop extension), n repeats n times;
  * `comments` are written as comment extensions
  */
-export function encode({ width, height, loopCount = Infinity, frames }: Omit<GIFData, 'loopCount'> & { loopCount?: number }, palette: GIFPalette, comments: Uint8Array[] = []): Uint8Array {
+export function encode({ width, height, loopCount = Infinity, frames }: Omit<GIFData, 'loopCount'> & { loopCount?: number }, palette: GIFPalette, comments: Uint8Array[] = []): Uint8Array<ArrayBuffer> {
     // frames that restore the background have a transparent index: decoders like Pillow and ffmpeg restore to it
     // (browsers to transparent), otherwise to the background color. So does the first frame then: Pillow decides by it
     // whether the animation has transparency at all

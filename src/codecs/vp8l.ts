@@ -570,7 +570,7 @@ class BitWriter extends ByteWriter {
         }
     }
 
-    override finish(): Uint8Array {
+    override finish(): Uint8Array<ArrayBuffer> {
         if (this.count > 0) this.write(0, 8 - this.count);
         return super.finish();
     }

@@ -208,7 +208,7 @@ function extensionArea({ author, comment, time, software }: Extension, alpha: bo
     return area;
 }
 
-export function encode(rgba: Uint8Array, width: number, height: number, extension?: Extension): Uint8Array {
+export function encode(rgba: Uint8Array, width: number, height: number, extension?: Extension): Uint8Array<ArrayBuffer> {
     if (width < 1 || height < 1 || width > 65535 || height > 65535) throw new RangeError('TGA: dimensions must be 1-65535');
 
     let opaque = true;
