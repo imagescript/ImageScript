@@ -1,5 +1,6 @@
 import { ByteWriter } from '../util/bytes.ts';
-import { quantize, type DitherMethod } from './quantize.ts';
+import type { DitherMethod } from '../image.ts';
+import { quantize } from './quantize.ts';
 import { MAX_PIXELS, PixelBudget, checkPixels } from '../util/limits.ts';
 
 // ImageScript disposal modes (any, keep, previous, background) <-> GIF disposal methods (unspecified, none, background, previous)

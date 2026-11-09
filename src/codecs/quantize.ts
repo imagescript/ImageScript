@@ -1,3 +1,4 @@
+import type { DitherMethod } from '../image.ts';
 
 // perceptual channel weights for squared color distances
 const WR = 3, WG = 4, WB = 2;
@@ -14,9 +15,9 @@ export interface QuantizeOptions {
     transparent?: boolean;
 }
 
-/** The dithering methods of Image.quantize() and the GIF encoders */
-export const DITHER_METHODS = ['none', 'floyd-steinberg', 'atkinson', 'ordered'] as const;
-export type DitherMethod = typeof DITHER_METHODS[number];
+// every DitherMethod (a missing key is a type error)
+const DITHER: Record<DitherMethod, true> = { 'none': true, 'floyd-steinberg': true, 'atkinson': true, 'ordered': true };
+export const DITHER_METHODS = Object.keys(DITHER) as DitherMethod[];
 
 /**
  * Checks palette options (`colors` from 2 to 256, a dither method, a strength 0-1) before anything changes, with the
@@ -185,7 +186,7 @@ const ATKINSON = [[1, 0, 1 / 8], [2, 0, 1 / 8], [-1, 1, 1 / 8], [0, 1, 1 / 8], [
  * the neighbors that come after it (serpentine: rows alternate direction), `'ordered'` offsets each pixel by a 4x4
  * Bayer threshold. `strength` (0-1) scales the spread error and the threshold offset; 0 changes nothing but rounding
  */
-export function applyPalette(pixels: Uint8Array, width: number, height: number, palette: Uint8Array, dither: 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered', strength: number): void {
+export function applyPalette(pixels: Uint8Array, width: number, height: number, palette: Uint8Array, dither: DitherMethod, strength: number): void {
     const entries = palette.length / 3;
     if (!entries) return;
     const nearest = nearestSearch(palette, entries);
