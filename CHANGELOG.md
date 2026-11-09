@@ -4,7 +4,7 @@
 
 ### Breaking changes
 
-Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://imagescript.dev/documents/Migrating_to_4.0.html) lists every change and the nine behavior changes that don't show up as deprecations or compile errors.
+Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://imagescript.dev/documents/Migrating_to_4.0.html) covers the 3.x-to-4.0 API changes and the nine behavior changes that don't show up as deprecations or compile errors.
 
 - **Methods that take options refuse anything else than an object**: a stray number, string, boolean or `null` as the options of `cropCircle()`, `Image.renderText()`, the encoders (`encodeWebP()`, `encodeAVIF()`, `encodeJXL()`, ...), `quantize()`, `transform()`, `dropShadow()`, `outline()`, the gradients, `Image.decode()`, the animation encoders, and `new GainMap()` throws a `TypeError` that names the working form (e.g. `cropCircle({ size: 'cover' })`), so the 3.x calls that are gone like `cropCircle(true)` or `Image.renderText(font, 32, 'Hi')` fail instead of being ignored. Only the type of the argument is checked: a key that isn't an option is still ignored, so a typo like `{ maxWith: 300 }` isn't caught.
 
@@ -14,7 +14,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`Image.encode()` is removed**: use `image.encodePNG()`, which takes the same arguments.
 
-- **`contain()` and `cover()` are removed** from `Image`, `Frame` and `Animation`: use `resize({ width, height, fit: 'contain' | 'cover' })`. `fit: 'contain'` also takes `background`; `ResizeFit` names the fit modes and `ContainOptions` is removed. 3.x's `contain()` maps to `'inside'`, and 3.x's padded `fit()` maps to `'contain'`.
+- **`contain()` and `cover()` are removed** from `Image`, `Frame` and `Animation`: use `resize({ width, height, fit: 'contain' })` or `resize({ width, height, fit: 'cover' })`. `fit: 'contain'` also takes `background`; `ResizeFit` names the fit modes and `ContainOptions` is removed. 3.x's `contain()` maps to `'inside'`, and 3.x's padded `fit()` maps to `'contain'`.
 
 - **The color helpers of `Image` are removed**: `Image.rgbaToColor()`, `Image.rgbToColor()`, `Image.hslaToColor()`, `Image.hslToColor()`, `Image.rgbaToHSLA()`, `Image.colorToRGBA()`, `Image.colorToRGB()` and `Image.gradient()` are now `Colors.fromRGBA()`, `Colors.fromRGB()`, `Colors.fromHSLA()`, `Colors.fromHSL()`, `Colors.toHSLA()`, `Colors.toRGBA()`, `Colors.toRGB()` and `Colors.gradient()`.
 
@@ -86,7 +86,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Values are checked when they are set**: `frame.duration`, `frame.xOffset`, `frame.yOffset` and the parameters of a `GainMap` throw for invalid values (instead of failing in a later encode) and keep their value.
 
-- **An animation has its own canvas size**: decoded animations keep the file's, `new Animation(frames, { width, height })` sets one, and `resize()` sets the new one. Without one it is the frames' extent, as before. Frames (or their parts) outside the canvas aren't encoded.
+- **An animation has its own canvas size**: decoded animations keep the file's, `new Animation(frames, { width, height })` sets one (`AnimationCanvasOptions`), and `resize()` sets the new one. Without one it is the frames' extent, as before. Frames (or their parts) outside the canvas aren't encoded.
 
 - **The encoders return `Promise<Uint8Array<ArrayBuffer>>`** instead of `Promise<Uint8Array>`, so `new Blob()`, `new Response()` and `crypto.subtle` take the output without a cast, also with the stricter DOM types of TypeScript 5.9 and newer. The type needs TypeScript 5.7 or newer.
 
@@ -94,10 +94,10 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - `Animation.clone()` and `Animation.crop()`.
 - `resize({ width, height, fit })` on images, frames and animations: `'inside'` fits without padding, `'contain'` pads, and `'cover'` crops while keeping the aspect ratio; `background` sets the bars for `'contain'`.
-- `encodeJPEG({ subsampling: '4:4:4' | '4:2:0' })`; the default stays 4:2:0 up to quality 90 and 4:4:4 above.
+- `encodeJPEG()` accepts `subsampling: '4:4:4'` or `'4:2:0'`; the default stays 4:2:0 up to quality 90 and 4:4:4 above.
 - `Colors.gradient()` takes an array of evenly spaced colors, like the `stops` of the gradient functions.
 - `Animation.scale()`, `Animation.trim()`, `Animation.rotate()`, `Animation.transform()`, `Animation.dropShadow()` and `Animation.outline()`. `scale()` and `trim()` keep the frames; the others work on the composited animation (full canvas frames) and resize the canvas.
-- `'contain'` and `'cover'` fit modes of `Frame.resize()`, plus `Frame.rotate()`, `Frame.transform()`, `Frame.dropShadow()` and `Frame.outline()`, which move the offsets like `Frame.resize()` and `Frame.crop()`.
+- `Frame.rotate()`, `Frame.transform()`, `Frame.dropShadow()` and `Frame.outline()`, which move the offsets like `Frame.resize()` and `Frame.crop()`.
 - `Image.encodeGIF()` for single images, with `colors`, `dither` and `ditherStrength` (also on the animation encoders), and the `DitherMethod` type that `quantize()` and the GIF encoders share.
 - `renderSVG({ fonts })` takes a single font without an array.
 

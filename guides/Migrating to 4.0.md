@@ -124,7 +124,8 @@ animations; frame offsets and animation canvases follow the resized pixels.
 | `'contain'` | Keeps the aspect ratio and pads to the exact box; `background` sets the bar color |
 | `'cover'` | Keeps the aspect ratio and crops to the exact box |
 
-`contain` and `cover` require both dimensions. `background` is only valid with `fit: 'contain'`.
+`contain` and `cover` require both dimensions. `background` is only valid with `fit: 'contain'`. `ResizeFit` is the
+type of the `fit` option.
 
 | 3.x | 4.0 |
 | --- | --- |
@@ -161,6 +162,8 @@ JPEG has no alpha channel. In 3.x, `encodeJPEG()` dropped the alpha and kept the
 showed whatever RGB it had stored (often black, but not always). In 4.0, an image with transparent or translucent pixels
 is composited onto a background first, black by default, the way a viewer would show it on black. Pass `background`
 for another color: `image.encodeJPEG({ background: 0xffffffff })`. Opaque images encode as before, byte for byte.
+The new `subsampling` option can select `'4:4:4'` or `'4:2:0'`; its default remains 4:2:0 up to quality 90 and 4:4:4
+above.
 
 Search your code for: `encodeJPEG(` on images that can have transparency.
 
@@ -244,8 +247,9 @@ any more, so `image.resize(256, 256, { mode: 'RESIZE_BICUBIC' })` throws.
 | `for (const [x, y] of image)` | `for (const [x, y] of image.coordinates())` |
 | `image.iterateWithColors()` | `image.pixels()`, which yields `[x, y, color]` |
 
-The color helpers take the same arguments and return the same values, so `Image.rgbaToColor(...)` becomes
-`Colors.fromRGBA(...)` and nothing else changes. `Colors` is exported from the package.
+The moved color helpers keep their argument shapes and results, except for the hue-unit change described above.
+`Colors.gradient()` also accepts an array of evenly spaced colors, in addition to the prior positions-to-colors object.
+`Colors` is exported from the package.
 
 ### Channel methods and `absolute`
 
@@ -434,7 +438,7 @@ Values that were only checked when they were used are now checked when they are 
 throws a `RangeError` (a `TypeError` for `useBaseColorSpace`) and the old value stays.
 
 An `Animation` now has a canvas size of its own: `animation.width` and `animation.height` are the decoded file's, the
-one given as `new Animation(frames, { width, height })`, or the one `resize()` and `crop()` set.
+one given as `new Animation(frames, { width, height })` (`AnimationCanvasOptions`), or the one `resize()` and `crop()` set.
 Without one, they are the frames' right and bottom edge, as in 3.x. Frames, or the parts of them, outside the canvas
 aren't encoded.
 
