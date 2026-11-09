@@ -11,6 +11,7 @@ const throwsA = (fn, type, label) => {
 };
 
 const frames = () => [new Frame(new Image(4, 4).fill(0xff0000ff), {duration: 40}), new Frame(new Image(4, 4).fill(0x00ff00ff), {duration: 60})];
+const metadata = {creationTime: 0};
 // each format: its encode method, its encoder factory, and the count the file stores when it loops forever or plays
 // (the GIF's NETSCAPE block counts repetitions, APNG and WebP count plays)
 const formats = {GIF: ['encodeGIF', 'gifEncoder'], APNG: ['encodeAPNG', 'apngEncoder'], WebP: ['encodeWebP', 'webpEncoder']};
@@ -26,8 +27,8 @@ const netscape = bytes => {
     if (new Animation(frames()).loopCount !== Infinity || new Animation([]).loopCount !== Infinity) panic('the default loop count should be Infinity');
     for (const [format, [encode, factory]] of Object.entries(formats)) {
         const animation = new Animation(frames());
-        const bytes = await animation[encode]();
-        const encoder = Animation[factory](4, 4);
+        const bytes = await animation[encode]({metadata});
+        const encoder = Animation[factory](4, 4, {metadata});
         for (const frame of frames()) await encoder.add(frame);
         if (!Buffer.from(await encoder.finish()).equals(Buffer.from(bytes))) panic(`${format}: the encoder's default isn't the animation's`);
         if (encode === 'encodeGIF' && netscape(bytes) !== 0) panic(`${format}: forever should be stored as NETSCAPE count 0, not ${netscape(bytes)}`);
@@ -39,9 +40,9 @@ const netscape = bytes => {
 
     // Infinity is forever, explicitly, in every entry point
     for (const [format, [encode, factory]] of Object.entries(formats)) {
-        const forever = await new Animation(frames(), {loopCount: Infinity})[encode]();
-        if (!Buffer.from(forever).equals(Buffer.from(await new Animation(frames())[encode]()))) panic(`${format}: Infinity isn't the default`);
-        const encoder = Animation[factory](4, 4, {loopCount: Infinity});
+        const forever = await new Animation(frames(), {loopCount: Infinity})[encode]({metadata});
+        if (!Buffer.from(forever).equals(Buffer.from(await new Animation(frames())[encode]({metadata})))) panic(`${format}: Infinity isn't the default`);
+        const encoder = Animation[factory](4, 4, {loopCount: Infinity, metadata});
         for (const frame of frames()) await encoder.add(frame);
         if (!Buffer.from(await encoder.finish()).equals(Buffer.from(forever))) panic(`${format}: the encoder with Infinity`);
         const setter = new Animation(frames(), {loopCount: 2});
@@ -52,18 +53,18 @@ const netscape = bytes => {
     // finite counts: 0 plays once, n repeats n times, through the constructor, the setter and each encoder
     for (const count of [0, 1, 5]) {
         for (const [format, [encode, factory]] of Object.entries(formats)) {
-            const bytes = await new Animation(frames(), {loopCount: count})[encode]();
+            const bytes = await new Animation(frames(), {loopCount: count})[encode]({metadata});
             if (format === 'GIF' && netscape(bytes) !== (count === 0 ? null : count)) panic(`GIF: loop count ${count} stored as ${netscape(bytes)}`);
             const back = await Animation.decode(bytes);
             if (back.loopCount !== count) panic(`${format}: loop count ${count} decodes as ${back.loopCount}`);
 
-            const encoder = Animation[factory](4, 4, {loopCount: count});
+            const encoder = Animation[factory](4, 4, {loopCount: count, metadata});
             for (const frame of frames()) await encoder.add(frame);
             if (!Buffer.from(await encoder.finish()).equals(Buffer.from(bytes))) panic(`${format}: encoder with loop count ${count} differs`);
 
             const set = new Animation(frames());
             set.loopCount = count;
-            if (set.loopCount !== count || !Buffer.from(await set[encode]()).equals(Buffer.from(bytes))) panic(`${format}: setter with loop count ${count}`);
+            if (set.loopCount !== count || !Buffer.from(await set[encode]({metadata})).equals(Buffer.from(bytes))) panic(`${format}: setter with loop count ${count}`);
         }
     }
 
@@ -75,11 +76,11 @@ const netscape = bytes => {
     const limits = {GIF: 65535, WebP: 65534, APNG: 2 ** 31 - 2};
     for (const [format, max] of Object.entries(limits)) {
         const [encode, factory] = formats[format];
-        const bytes = await new Animation(frames(), {loopCount: max})[encode]();
+        const bytes = await new Animation(frames(), {loopCount: max})[encode]({metadata});
         if (format === 'GIF' && netscape(bytes) !== max) panic(`GIF: the largest count ${max} is stored as ${netscape(bytes)}`);
         const back = await Animation.decode(bytes);
         if (back.loopCount !== max) panic(`${format}: the largest count ${max} decodes as ${back.loopCount}`);
-        const encoder = Animation[factory](4, 4, {loopCount: max});
+        const encoder = Animation[factory](4, 4, {loopCount: max, metadata});
         for (const frame of frames()) await encoder.add(frame);
         if (!Buffer.from(await encoder.finish()).equals(Buffer.from(bytes))) panic(`${format}: the encoder with the largest count ${max} differs`);
 
