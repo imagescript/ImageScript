@@ -29,16 +29,22 @@ if (animation[0] !== undefined) panic('animation[0] should be gone: use animatio
 if (Animation[Symbol.species] !== undefined) panic('Animation[Symbol.species] should be gone');
 if (lib.GIF !== undefined) panic('the GIF export should be gone');
 
-// frames: the array the animation uses, live and assignable
+// frames: a frozen snapshot; the Frame objects remain mutable and replacing the list is assignable
 if (animation.frames[0] !== a || animation.frames[1] !== b) panic('frames should be the frames');
-animation.frames.push(c);
-if (animation.length !== 3 || animation.duration !== 60) panic('pushing to frames should add a frame');
-animation.frames.splice(1, 1);
-if (animation.length !== 2 || animation.frames[1] !== c) panic('splicing frames should remove a frame');
-animation.frames[0] = b;
-if (animation.frames[0] !== b) panic('setting an index of frames should replace the frame');
+const originalFrames = animation.frames;
+if (!Object.isFrozen(originalFrames)) panic('frames should be frozen');
+if (Reflect.set(originalFrames, 0, c) || animation.frames[0] !== a) panic('setting a frame index should not change the animation');
+throwsA(() => originalFrames.push(c), TypeError, 'pushing to frozen frames');
+animation.frames[0].duration = 15;
+if (animation.frames[0].duration !== 15) panic('frames themselves should remain mutable');
+animation.frames[0].duration = 10;
+animation.frames = [...animation.frames, c];
+if (animation.length !== 3 || animation.duration !== 60) panic('assigning an added frame should add a frame');
+animation.frames = [animation.frames[0], animation.frames[2]];
+if (animation.length !== 2 || animation.frames[1] !== c) panic('assigning a new frame list should remove a frame');
 animation.frames = [a, c];
 if (animation.length !== 2 || animation.frames[0] !== a || animation.frames[1] !== c) panic('assigning frames should replace them');
+if (originalFrames === animation.frames || originalFrames.length !== 2) panic('replacing frames should return a new snapshot');
 
 // assigning copies: the array given isn't the one the animation uses, and a bad frame changes nothing
 const list = [b, c];

@@ -66,17 +66,18 @@ const widths = animation.map(f => f.width);
 
 // 4.0
 const first = animation.frames[0];
-animation.frames.push(frame);
+animation.frames = [...animation.frames, frame];
 const copy = new Animation(animation.frames.slice(0, 10), { loopCount: animation.loopCount });
 const widths = animation.frames.map(f => f.width);
 ```
 
 These still work: `for (const frame of animation)`, `[...animation]`, `Array.from(animation)`, `animation.length` and
 the methods of `Animation` itself (`resize()`, `encodeGIF()`, `width`, `duration`, ...). `Array.isArray(animation)` is
-`false` now.
+`false` now. `animation.frames` is a frozen snapshot, so array mutation methods and index assignment don't change it.
+The `Frame` objects themselves remain mutable; replace the list by assigning a new array to `animation.frames`.
 
-Two details: `animation.length` is read-only, so `animation.length = 0` throws. Assigning `animation.frames = list`
-copies `list` into a new array, so later changes to `list` don't reach the animation. Change `animation.frames` instead.
+`animation.length` is read-only, so `animation.length = 0` throws. Assigning `animation.frames = list` copies `list`
+into a new array, so later changes to `list` don't reach the animation.
 
 Search your code for: `Array.isArray`, `.slice(`, `.map(`, `.filter(`, `.forEach(`, `.reduce(`, `.push(`, `.splice(`, `.length =`
 and `[0]` on variables that hold an animation.
@@ -286,7 +287,7 @@ Do it per pixel: read the color with `Colors.toHSLA()`, set the lightness or sat
 | `gif.encode(quality)` | `animation.encodeGIF({ colors })`, see the [GIF options](#renamed-and-reshaped-apis) |
 | `GIF` (the class, also in `instanceof`) | `Animation`. `GIF` is no longer exported |
 | `animation.slice(start, end)` | `new Animation(animation.frames.slice(start, end), { loopCount: animation.loopCount })` |
-| `animation[i]` and the array methods | `animation.frames[i]` and `animation.frames.<method>` |
+| `animation[i]` and the array methods | `animation.frames[i]` and non-mutating array methods; assign a new array to change the frame list |
 | `AnimationEncoder.frames` | `AnimationEncoder.frameCount` |
 | `toString()` of a GIF, `GIF<64x64x1000ms>` | `Animation<64x64x1000ms>` |
 

@@ -93,6 +93,9 @@ export class Animation {
     /** @internal @ignore */
     private __frames__: Frame[] = [];
 
+    /** @internal @ignore */
+    private __framesView__: readonly Frame[] | null = null;
+
     /** @internal @ignore the canvas size, once set (else the frames' extent) */
     private __canvas__: [width: number, height: number] | null = null;
 
@@ -131,25 +134,25 @@ export class Animation {
     }
 
     /**
-     * The animation's frames: the array the animation uses, so changing it (`push()`, `splice()`, setting an index)
-     * changes the animation. Assigning replaces them: the frames are copied into a new array, which is then the one
-     * the animation uses
+     * The animation's frames as a frozen array. The frames themselves are mutable; assign a new array to replace the
+     * list
      */
-    get frames(): Frame[] {
-        return this.__frames__;
+    get frames(): readonly Frame[] {
+        return this.__framesView__ ??= Object.freeze([...this.__frames__]);
     }
 
     /**
      * Replaces the animation's frames
-     * @param frames The new frames (copied into the animation, the array itself isn't kept)
+     * @param frames The new frames (copied into the animation; the array itself isn't kept)
      */
-    set frames(frames: Frame[]) {
+    set frames(frames: readonly Frame[]) {
         const copy: Frame[] = [];
         for (const frame of frames) {
             if (!(frame instanceof Frame)) throw new TypeError(`Frame ${copy.length} is not an instance of Frame`);
             copy.push(frame);
         }
         this.__frames__ = copy;
+        this.__framesView__ = null;
     }
 
     /** The number of frames */
