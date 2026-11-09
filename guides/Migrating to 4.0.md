@@ -192,7 +192,7 @@ Search your code for: `.crop(`, `.cover(` and `.rotate(` on frames.
 
 Each table maps a 3.x API to its 4.0 replacement. The deprecation hint in 3.x names a replacement too, but some of those
 replacements were reshaped in 4.0 as well (for example `ResizeModes`, which became plain strings); the tables give the
-4.0 form. The replacements are documented on their own pages: {@link ResizeMode}, {@link FrameDisposalModeName},
+4.0 form. The replacements are documented on their own pages: {@link ResizeMode}, {@link FrameDisposalMode},
 {@link Colors}, {@link Frame}, {@link Animation}, {@link AnimationEncoder} and {@link Metadata}.
 
 ### Constants and modes
@@ -214,7 +214,7 @@ replacements were reshaped in 4.0 as well (for example `ResizeModes`, which beca
 | Numeric disposal ids: `frame.disposalMode = 3`, `disposalMode: 3` in the frame options | The names: `frame.disposalMode = 'background'`, `disposalMode: 'background'`. `FrameDisposalModeId` is removed |
 
 The modes are plain strings in 4.0: the `ResizeModes` and `FrameDisposalModes` classes are removed, and the types
-{@link ResizeMode} and {@link FrameDisposalModeName} list the names. The old string and number values are not accepted
+{@link ResizeMode} and {@link FrameDisposalMode} list the names. The old string and number values are not accepted
 any more, so `image.resize(256, 256, { mode: 'RESIZE_BICUBIC' })` throws.
 
 ### Colors, pixels and encoding on `Image`
@@ -317,7 +317,7 @@ Methods that took options as their last positional arguments take the options ob
 object under the names of their options. The options of each method are on its own page, for example
 {@link ResizeOptions}, {@link CompositeOptions}, {@link RotateOptions}, {@link SharpenOptions},
 {@link DominantColorOptions}, {@link RoundCornersOptions}, {@link FisheyeOptions}, {@link TrimOptions},
-{@link ColorToAlphaOptions}, {@link PNGEncodeOptions}, {@link JPEGEncodeOptions}, {@link SVGOptions} and
+{@link ColorToAlphaOptions}, {@link PNGEncodeOptions}, {@link JPEGEncodeOptions}, {@link RenderSVGOptions} and
 {@link FrameOptions}. The animation options are {@link GIFAnimationEncodeOptions}, {@link APNGEncodeOptions},
 {@link DecodeOptions} and {@link GainMapEncodeOptions} for `GainMap.encode()`.
 
@@ -379,6 +379,9 @@ false })` grows the image again), so search for them too.
 | `image.getRGBAAt(x, y)` | `Colors.toRGBA(image.getPixelAt(x, y))`, an array (`getRGBAAt()` returned a view into the bitmap) |
 | `image.region(x, y, w, h)` | `image.extract(x, y, w, h)` |
 | `animation.encodeGIF({ quality })`, `Animation.gifEncoder(w, h, { quality })` | `{ colors }`: the palette size, 2-256. A quality of 90 and above is the default `256`; below, `colors: Math.round(8 * 32 ** (quality / 90))` gives the old palette size. `dither` (`'floyd-steinberg'` by default, `'atkinson'`, `'ordered'` or `'none'`) and `ditherStrength` are new |
+| `FrameDisposalModeName` (type) | `FrameDisposalMode`: the `Name` suffix is gone, as `FrameDisposalModeId` is |
+| `SVGOptions` (type) | `RenderSVGOptions`, like `RenderTextOptions` |
+| `TextStyle` (type) | `TextStyleOptions`, like `TextLayoutOptions` |
 | `GIFEncodeOptions` (the options of `Animation.encodeGIF()`) | `GIFAnimationEncodeOptions`. `GIFEncodeOptions` is now the options of the new `Image.encodeGIF()` |
 | `AnimationDecodeOptions` (type) | `DecodeOptions`, which `Image.decode()`, `Animation.decode()` and `decode()` all take |
 | `EncodeOptions` (type) as the options of `encodeTGA()` | `TGAEncodeOptions`. `EncodeOptions` is now the `metadata` that all encoder options extend |
@@ -453,7 +456,7 @@ grep -rnE 'rgbaToColor|rgbToColor|hslaToColor|hslToColor|rgbaToHSLA|colorToRGBA?
 grep -rnE 'iterateWithColors|for \(const \[[a-z]+, ?[a-z]+\] of' src
 
 # types and classes
-grep -rnE 'PNGMetadata|AnimationEncoderOptions|AdjustOptions|TextOptions|FrameDisposalModeId|\bGIF\b' src
+grep -rnE 'PNGMetadata|AnimationEncoderOptions|AdjustOptions|TextOptions|FrameDisposalModeId|FrameDisposalModeName|SVGOptions|\bTextStyle\b|\bGIF\b' src
 
 # decode and animations
 grep -rnE 'decode\(.*, *(true|false)\)' src

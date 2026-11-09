@@ -8,12 +8,12 @@ import { checkOptions, finite } from './util/options.ts';
  * - `'previous'`: the frame's area goes back to what it was before the frame
  * - `'any'`: the decoder decides (in practice like `'keep'`)
  */
-export type FrameDisposalModeName = 'any' | 'keep' | 'previous' | 'background';
+export type FrameDisposalMode = 'any' | 'keep' | 'previous' | 'background';
 
 // the ids the library stores the modes as (0 any, 1 keep, 2 previous, 3 background, like GIFs)
 type DisposalId = 0 | 1 | 2 | 3;
 
-const DISPOSAL_MODES: readonly FrameDisposalModeName[] = ['any', 'keep', 'previous', 'background'];
+const DISPOSAL_MODES: readonly FrameDisposalMode[] = ['any', 'keep', 'previous', 'background'];
 
 /** Options of {@link Frame} */
 export interface FrameOptions {
@@ -24,7 +24,7 @@ export interface FrameOptions {
     /** The frame's offset on the y-axis. Default: `0` */
     yOffset?: number;
     /** The frame's disposal mode, see {@link Frame.disposalMode}. Default: `'keep'` */
-    disposalMode?: FrameDisposalModeName;
+    disposalMode?: FrameDisposalMode;
 }
 
 /**
@@ -53,7 +53,7 @@ export class Frame {
      * @internal
      * @ignore
      */
-    static __convert_disposal_mode__(mode: FrameDisposalModeName): DisposalId {
+    static __convert_disposal_mode__(mode: FrameDisposalMode): DisposalId {
         const id = DISPOSAL_MODES.indexOf(mode);
         if (id < 0)
             throw new RangeError('Invalid disposal mode');
@@ -147,8 +147,8 @@ export class Frame {
         this.__y__ = finite(y, 'y offset');
     }
 
-    /** The frame's disposal mode, see {@link FrameDisposalModeName} */
-    get disposalMode(): FrameDisposalModeName {
+    /** The frame's disposal mode, see {@link FrameDisposalMode} */
+    get disposalMode(): FrameDisposalMode {
         return DISPOSAL_MODES[this.__disposalMode__];
     }
 
@@ -165,7 +165,7 @@ export class Frame {
      * Sets the disposal mode
      * @param disposalMode The mode's name (`'any'`, `'keep'`, `'previous'`, `'background'`)
      */
-    set disposalMode(disposalMode: FrameDisposalModeName) {
+    set disposalMode(disposalMode: FrameDisposalMode) {
         this.__disposalMode__ = Frame.__convert_disposal_mode__(disposalMode);
     }
 

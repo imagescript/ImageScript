@@ -9,9 +9,9 @@ import { ImageType } from './image-type.ts';
 
 export { Image } from './image.ts';
 export { Colors } from './colors.ts';
-export type { Color, ColorFunction, ResizeMode, TextStyle, DecodeOptions, CompositeOptions, BlendMode, CropCircleOptions, DominantColorOptions, RotateOptions, ColorToAlphaOptions, ResizeOptions, ResizeToOptions, ContainOptions, SharpenOptions, PNGEncodeOptions, JPEGEncodeOptions, WebPEncodeOptions, AVIFEncodeOptions, JXLEncodeOptions, EncodeOptions, TGAEncodeOptions, GIFEncodeOptions, DitherMethod, GainMapEmbedOptions, SVGOptions, RenderTextOptions, ShadowOptions, OutlineOptions, QuantizeOptions, TransformOptions, TransformMode, GradientOptions, LinearGradientOptions, RadialGradientOptions, RoundCornersOptions, FisheyeOptions, TrimOptions } from './image.ts';
+export type { Color, ColorFunction, ResizeMode, TextStyleOptions, DecodeOptions, CompositeOptions, BlendMode, CropCircleOptions, DominantColorOptions, RotateOptions, ColorToAlphaOptions, ResizeOptions, ResizeToOptions, ContainOptions, SharpenOptions, PNGEncodeOptions, JPEGEncodeOptions, WebPEncodeOptions, AVIFEncodeOptions, JXLEncodeOptions, EncodeOptions, TGAEncodeOptions, GIFEncodeOptions, DitherMethod, GainMapEmbedOptions, RenderSVGOptions, RenderTextOptions, ShadowOptions, OutlineOptions, QuantizeOptions, TransformOptions, TransformMode, GradientOptions, LinearGradientOptions, RadialGradientOptions, RoundCornersOptions, FisheyeOptions, TrimOptions } from './image.ts';
 export { Frame } from './frame.ts';
-export type { FrameDisposalModeName, FrameOptions } from './frame.ts';
+export type { FrameDisposalMode, FrameOptions } from './frame.ts';
 export { GainMap } from './gainmap.ts';
 export type { GainMapOptions, GainMapEncodeOptions } from './gainmap.ts';
 export { Animation } from './animation.ts';

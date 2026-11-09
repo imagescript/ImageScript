@@ -362,7 +362,7 @@ export interface FisheyeOptions {
 }
 
 /** Options of {@link Image.renderSVG} */
-export interface SVGOptions {
+export interface RenderSVGOptions {
     /**
      * The width in pixels, the height follows the SVG's aspect ratio. Give one of `width`, `height` and `scale`.
      * Default: the SVG's own width
@@ -397,9 +397,9 @@ export interface SVGOptions {
 
 /**
  * Options of {@link Image.renderText}: the font and size, the text color, the layout (wrapping, cutting off and alignment,
- * see {@link TextLayoutOptions}) and the style (see {@link TextStyle})
+ * see {@link TextLayoutOptions}) and the style (see {@link TextStyleOptions})
  */
-export interface RenderTextOptions extends TextStyle, TextLayoutOptions {
+export interface RenderTextOptions extends TextStyleOptions, TextLayoutOptions {
     /**
      * TrueType (ttf/ttc), OpenType (otf) or WOFF font buffer to use, or several by priority: every character comes
      * from the first font that has it (e.g. `[text, emoji]`), the first one sets the line height. Color glyphs (COLR
@@ -512,7 +512,7 @@ export interface AVIFEncodeOptions extends EncodeOptions {
 }
 
 /** Text style options of {@link Image.renderText} */
-export interface TextStyle {
+export interface TextStyleOptions {
     /** Width of an outline around the glyphs in pixels. Default: `0` */
     strokeWidth?: number;
     /** Color of the outline. Default: `0x000000ff` */
@@ -2680,8 +2680,8 @@ export class Image {
      * Creates a new image from the given SVG.
      * Supports shapes, paths, transforms, use/symbol, CSS styles, gradients, patterns, strokes, markers, clip paths,
      * masks, opacity, blend modes, filters (all primitives and the filter functions) and images embedded as data URIs
-     * (PNG, JPEG, GIF, WebP, SVG) or given with {@link SVGOptions.images}, and text with the given or embedded fonts
-     * (see {@link SVGOptions.fonts}). Hrefs are resolved from the options and the data URIs only, never from files or URLs.
+     * (PNG, JPEG, GIF, WebP, SVG) or given with {@link RenderSVGOptions.images}, and text with the given or embedded fonts
+     * (see {@link RenderSVGOptions.fonts}). Hrefs are resolved from the options and the data URIs only, never from files or URLs.
      * @example
      * ```ts
      * const logo = await Image.renderSVG(
@@ -2690,11 +2690,11 @@ export class Image {
      * );
      * ```
      * @param svg The SVG content
-     * @param options See {@link SVGOptions}
+     * @param options See {@link RenderSVGOptions}
      * @return The rendered SVG graphic
      */
-    static renderSVG(svg: string | BinaryData, options?: SVGOptions): Promise<Image>;
-    static async renderSVG(svg: string | BinaryData, options: SVGOptions = {}): Promise<Image> {
+    static renderSVG(svg: string | BinaryData, options?: RenderSVGOptions): Promise<Image>;
+    static async renderSVG(svg: string | BinaryData, options: RenderSVGOptions = {}): Promise<Image> {
         checkOptions(options, 'renderSVG(svg, { width: 512 })');
         const { width: givenWidth, height: givenHeight, scale, fonts = [], images: givenImages = {} } = options;
         const sizes = [givenWidth, givenHeight, scale].filter(value => value !== undefined).length;
