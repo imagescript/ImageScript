@@ -29,7 +29,7 @@ const concurrencyLimit = os.availableParallelism ? os.availableParallelism() : (
             const timeout = setTimeout(() => {
                 timedOut = true;
                 proc.kill('SIGTERM');
-            }, 60000);
+            }, 1000 * 60 * 2);
 
             proc.on('exit', code => {
                 clearTimeout(timeout);
