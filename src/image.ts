@@ -74,31 +74,48 @@ export interface CompositeOptions {
     mode?: BlendMode;
 }
 
+/** How {@link Image.resize}, {@link Frame.resize} and {@link Animation.resize} fit an image into a box */
+export type ResizeFit = 'fill' | 'inside' | 'contain' | 'cover';
+
 /**
  * The size for {@link Image.resize}, {@link Frame.resize} and {@link Animation.resize}, and how to resize: a side
  * that is missing follows from the other one, keeping the aspect ratio
  */
-export interface ResizeToOptions extends ResizeOptions {
-    /** The new width. Without it, it follows from the height */
-    width?: number;
-    /** The new height. Without it, it follows from the width */
-    height?: number;
-    /**
-     * How a width and a height together are met: `'fill'` stretches the image to exactly that size, `'inside'` keeps
-     * the aspect ratio and makes the image as large as fits inside it, so one side can be smaller (a thumbnail of at
-     * most 800x600: `resize({ width: 800, height: 600, fit: 'inside' })`). For a box of exactly that size, see
-     * {@link Image.contain} and {@link Image.cover}. Default: `'fill'`
-     */
-    fit?: 'fill' | 'inside';
-}
+export type ResizeToOptions = ResizeOptions & (
+    | {
+        /** The new width. Without it, it follows from the height */
+        width?: number;
+        /** The new height. Without it, it follows from the width */
+        height?: number;
+        /**
+         * `'fill'` stretches to the exact size; `'inside'` keeps the aspect ratio and makes the image as large as fits
+         * inside it, so one side can be smaller. Default: `'fill'`
+         */
+        fit?: 'fill' | 'inside';
+    }
+    | {
+        /** The exact width of the box */
+        width: number;
+        /** The exact height of the box */
+        height: number;
+        /** Keeps the aspect ratio and pads to the exact box */
+        fit: 'contain';
+        /** For `'contain'`, the color of the bars. Default: `0x00000000` (transparent) */
+        background?: Color;
+    }
+    | {
+        /** The exact width of the box */
+        width: number;
+        /** The exact height of the box */
+        height: number;
+        /** Keeps the aspect ratio and crops to the exact box */
+        fit: 'cover';
+    }
+);
 
-/** Options of {@link Image.contain} */
-export interface ContainOptions extends ResizeOptions {
-    /** The color of the bars around the image where it doesn't fill the box. Default: `0x00000000` (transparent) */
-    background?: Color;
-}
+type ResizeRuntimeOptions = ResizeOptions & { background?: Color };
 
-/** Options of {@link Image.scale}, {@link Image.resize}, {@link Image.contain} and {@link Image.cover} */
+/** Options of {@link Image.scale} and {@link Image.resize} */
 export interface ResizeOptions {
     /** The resizing mode. Default: `'bilinear'` */
     mode?: ResizeMode;
@@ -957,6 +974,12 @@ export class Image {
     resize(options: ResizeToOptions): this;
     resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
         const [width, height, options, fit] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
+        if (fit === 'contain' || fit === 'cover') {
+            if (width === undefined || height === undefined) throw new TypeError(`resize({ fit: '${fit}' }) needs both width and height`);
+            return fit === 'contain'
+                ? this.__contain__(width, height, options)
+                : this.__cover__(width, height, options);
+        }
         const { mode, fast } = resizeOptions(options);
         const image = this.__resize__(...this.__resized_size__(width, height, fit), mode, fast);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
@@ -965,18 +988,10 @@ export class Image {
     }
 
     /**
-     * Resizes the image to fit inside the given box, keeping its aspect ratio, and centers it in a box of exactly that
-     * size (like CSS' `object-fit: contain`): the bars where it doesn't fill the box are transparent or the
-     * `background` color. To only resize it to fit inside the box, without the bars, use
-     * `resize({ width, height, fit: 'inside' })`
-     * @param width The width of the box
-     * @param height The height of the box
-     * @param options The background and how to resize, see {@link ContainOptions}
-     * @returns The resized image
+     * Resizes and centers the image in a box of exactly that size, with transparent or colored bars
+     * @internal
      */
-    contain(width: number, height: number, options?: ContainOptions): this;
-    contain(width: number, height: number, options?: ContainOptions): this {
-        checkOptions(options, 'contain(width, height, { background: 0x000000ff })');
+    private __contain__(width: number, height: number, options?: ResizeRuntimeOptions): this {
         const { background = 0x00000000, ...resizeOpts } = options ?? {};
         const backgroundColor = checkColor(background, 'background');
         resizeOptions(resizeOpts);
@@ -996,16 +1011,10 @@ export class Image {
     }
 
     /**
-     * Resizes the image so it covers the given bounding box, cropping the overflowing edges.
-     * Always returns the exact dimensions of the bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param options See {@link ResizeOptions}
-     * @returns The resized image
+     * Resizes the image to cover the box, cropping the overflowing edges
+     * @internal
      */
-    cover(width: number, height: number, options?: ResizeOptions): this;
-    cover(width: number, height: number, options?: ResizeOptions): this {
-        checkOptions(options, 'cover(width, height, { mode: \'area\' })');
+    private __cover__(width: number, height: number, options?: ResizeOptions): this {
         const resizeOpts = resizeOptions(options);
         width = Math.floor(width);
         height = Math.floor(height);
@@ -2870,14 +2879,14 @@ interface HSLA {
  * The width, height and mode of resize()'s signatures: a side left out of the options is `undefined`
  * @internal
  */
-export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, options?: ResizeOptions): [width: number | undefined, height: number | undefined, options: ResizeOptions | undefined, fit: 'fill' | 'inside'] {
+export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, options?: ResizeOptions): [width: number | undefined, height: number | undefined, options: ResizeRuntimeOptions | undefined, fit: ResizeFit] {
     if (!isOptions(widthOrOptions)) {
         checkOptions(options, 'resize(width, height, { mode: \'area\' })');
         return [finite(widthOrOptions, 'width'), finite(height as number, 'height'), options, 'fill'];
     }
     const { width, height: optionsHeight, fit = 'fill', ...rest } = widthOrOptions;
     if (width === undefined && optionsHeight === undefined) throw new TypeError('resize() needs a width, a height or both');
-    if (fit !== 'fill' && fit !== 'inside') throw new TypeError(`fit must be 'fill' or 'inside', not ${String(fit)}`);
+    if (!['fill', 'inside', 'contain', 'cover'].includes(fit)) throw new TypeError(`fit must be 'fill', 'inside', 'contain' or 'cover', not ${String(fit)}`);
     return [width === undefined ? undefined : finite(width, 'width'), optionsHeight === undefined ? undefined : finite(optionsHeight, 'height'), rest, fit];
 }
 

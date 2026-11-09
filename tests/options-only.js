@@ -21,10 +21,10 @@ const sameImage = (image, reference, label) => {
 (async () => {
 	const photo = new Image(20, 12).fill((x, y) => 0x336699ff + x * 0x01000000 + y * 0x00010000 >>> 0);
 
-	// resize, scale, contain and cover take the resizing mode in the options only
+	// resize and scale take the sampling mode in the options only
 	const modes = {'a mode name': 'area', 'a string': 'bilinear', 'an unknown mode': 'Area', 'null': null};
 	for (const [label, mode] of Object.entries(modes)) {
-		for (const method of ['resize', 'contain', 'cover']) {
+		for (const method of ['resize']) {
 			const image = photo.clone();
 			const error = await rejects(() => image[method](10, 6, mode), `${method}(10, 6, ${label})`);
 			if (!/takes an options object/.test(error.message)) panic(`${method}(10, 6, ${label}): the message should name the options form, got ${error.message}`);
@@ -142,8 +142,8 @@ const sameImage = (image, reference, label) => {
 	if (photo.clone().resize(10, 6, undefined).height !== 6) panic('resize(10, 6, undefined)');
 	if (photo.clone().scale(0.5, {mode: 'area'}).width !== 10) panic('scale(0.5, { mode })');
 	if (photo.clone().resize({width: 10, height: 10, fit: 'inside', mode: 'area'}).width !== 10) panic('resize({ width, height, fit: \'inside\', mode })');
-	if (photo.clone().contain(10, 10, {mode: 'area'}).height !== 10) panic('contain(10, 10, { mode })');
-	if (photo.clone().cover(10, 10, {mode: 'area'}).width !== 10) panic('cover(10, 10, { mode })');
+	if (photo.clone().resize({width: 10, height: 10, fit: 'contain', mode: 'area'}).height !== 10) panic('resize({ fit: \'contain\', mode })');
+	if (photo.clone().resize({width: 10, height: 10, fit: 'cover', mode: 'area'}).width !== 10) panic('resize({ fit: \'cover\', mode })');
 	if (new Frame(new Image(20, 12)).resize(10, 6, {mode: 'area'}).width !== 10) panic('Frame.resize(10, 6, { mode })');
 	if (new Animation([new Frame(new Image(20, 12))]).resize(10, 6, {mode: 'area'}).frames[0].width !== 10) panic('Animation.resize(10, 6, { mode })');
 })().catch(error => panic(error.stack || String(error)));

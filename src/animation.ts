@@ -6,7 +6,7 @@ import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
-import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ContainOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize } from './image.ts';
+import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize } from './image.ts';
 import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
@@ -163,8 +163,8 @@ export class Animation {
     }
 
     /**
-     * The canvas width: the one given to the constructor, the decoded file's, or the one {@link Animation.resize},
-     * {@link Animation.crop}, {@link Animation.contain} and {@link Animation.cover} set; else the frames' right edge
+     * The canvas width: the one given to the constructor, the decoded file's, or the one {@link Animation.resize} and
+     * {@link Animation.crop} set; else the frames' right edge
      */
     get width(): number {
         if (this.__canvas__) return this.__canvas__[0];
@@ -216,6 +216,12 @@ export class Animation {
     resize(options: ResizeToOptions): this;
     resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
         const [givenWidth, givenHeight, options, fit] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
+        if (fit === 'contain' || fit === 'cover') {
+            if (givenWidth === undefined || givenHeight === undefined) throw new TypeError(`resize({ fit: '${fit}' }) needs both width and height`);
+            return fit === 'contain'
+                ? this.__contain__(givenWidth, givenHeight, options)
+                : this.__cover__(givenWidth, givenHeight, options);
+        }
         const originalWidth = this.width, originalHeight = this.height;
         if (!originalWidth || !originalHeight) throw new RangeError('An animation without frames or canvas can\'t be resized');
         // a side left out follows the other one, keeping the aspect ratio
@@ -262,16 +268,11 @@ export class Animation {
     }
 
     /**
-     * Resizes the animation to fit inside the given box, keeping its aspect ratio, and centers it on a canvas of
-     * exactly that size, like {@link Image.contain}. With a `background` color, the frames become full canvas frames
-     * (the composited animation) on that color
-     * @param width The width of the box
-     * @param height The height of the box
-     * @param options The background and how to resize, see {@link ContainOptions}
+     * Resizes and centers the animation in a box of exactly that size, with transparent or colored bars
+     * @internal
      */
-    contain(width: number, height: number, options?: ContainOptions): this;
-    contain(width: number, height: number, options?: ContainOptions): this {
-        checkOptions(options, 'contain(width, height, { background: 0x000000ff })');
+    private __contain__(width: number, height: number, options?: ResizeOptions & { background?: number }): this {
+        checkOptions(options, 'resize({ width, height, fit: \'contain\', background: 0x000000ff })');
         const { background = 0x00000000, ...resizeOpts } = options ?? {};
         const backgroundColor = checkColor(background, 'background');
         const [boxWidth, boxHeight] = canvasSize(Math.floor(finite(width, 'width')), Math.floor(finite(height, 'height')));
@@ -289,6 +290,18 @@ export class Animation {
             });
         }
         return this;
+    }
+
+    /**
+     * Resizes the animation to cover the box and crops the overflowing edges
+     * @internal
+     */
+    private __cover__(width: number, height: number, options?: ResizeOptions): this {
+        checkOptions(options, 'resize({ width, height, fit: \'cover\' })');
+        const [boxWidth, boxHeight] = canvasSize(Math.floor(finite(width, 'width')), Math.floor(finite(height, 'height')));
+        const scale = Math.max(boxWidth / this.width, boxHeight / this.height);
+        this.resize(Math.max(boxWidth, Math.round(this.width * scale)), Math.max(boxHeight, Math.round(this.height * scale)), options);
+        return this.crop((this.width - boxWidth) / 2, (this.height - boxHeight) / 2, boxWidth, boxHeight);
     }
 
     /**
@@ -395,22 +408,6 @@ export class Animation {
         this.frames = frames;
         this.__canvas__ = [probe.width, probe.height];
         return this;
-    }
-
-    /**
-     * Resizes the animation to cover the given box, keeping its aspect ratio, and crops the overflowing edges, like
-     * {@link Image.cover}: the canvas gets exactly that size
-     * @param width The width of the box
-     * @param height The height of the box
-     * @param options See {@link ResizeOptions}
-     */
-    cover(width: number, height: number, options?: ResizeOptions): this;
-    cover(width: number, height: number, options?: ResizeOptions): this {
-        checkOptions(options, 'cover(width, height, { mode: \'area\' })');
-        const [boxWidth, boxHeight] = canvasSize(Math.floor(finite(width, 'width')), Math.floor(finite(height, 'height')));
-        const scale = Math.max(boxWidth / this.width, boxHeight / this.height);
-        this.resize(Math.max(boxWidth, Math.round(this.width * scale)), Math.max(boxHeight, Math.round(this.height * scale)), options);
-        return this.crop((this.width - boxWidth) / 2, (this.height - boxHeight) / 2, boxWidth, boxHeight);
     }
 
     /**

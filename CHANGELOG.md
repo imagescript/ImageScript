@@ -14,6 +14,8 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`Image.encode()` is removed**: use `image.encodePNG()`, which takes the same arguments.
 
+- **`contain()` and `cover()` are removed** from `Image`, `Frame` and `Animation`: use `resize({ width, height, fit: 'contain' | 'cover' })`. `fit: 'contain'` also takes `background`; `ResizeFit` names the fit modes and `ContainOptions` is removed. 3.x's `contain()` maps to `'inside'`, and 3.x's padded `fit()` maps to `'contain'`.
+
 - **The color helpers of `Image` are removed**: `Image.rgbaToColor()`, `Image.rgbToColor()`, `Image.hslaToColor()`, `Image.hslToColor()`, `Image.rgbaToHSLA()`, `Image.colorToRGBA()`, `Image.colorToRGB()` and `Image.gradient()` are now `Colors.fromRGBA()`, `Colors.fromRGB()`, `Colors.fromHSLA()`, `Colors.fromHSL()`, `Colors.toHSLA()`, `Colors.toRGBA()`, `Colors.toRGB()` and `Colors.gradient()`.
 
 - **Iterating over an image and `iterateWithColors()` are removed**: `for (const [x, y] of image)` is now `image.coordinates()`, and `image.iterateWithColors()` is `image.pixels()`, which yields `[x, y, color]`.
@@ -26,7 +28,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **The deprecated animation encoder option types and `AnimationEncoder.frames` are removed**: `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and `APNGAnimationEncoderOptions` are `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`, `GIFAnimationEncodeOptions` and `APNGEncodeOptions`, each with `AnimationOptions` for the `loopCount`, and `encoder.frames` is `encoder.frameCount`.
 
-- **The positional mode of `scale()`, `resize()`, `contain()` and `cover()` is removed**, on `Image`, `Frame` and `Animation`: `image.resize(width, height, 'area')` and `image.resize(width, height, ResizeModes.AREA)` are now `image.resize(width, height, { mode: 'area' })`, and `image.scale(0.5, { mode })` takes the mode in the same way. Other values in the position throw a `TypeError`, and `fast` goes in the same object.
+- **The positional mode of `scale()` and `resize()` is removed**, on `Image`, `Frame` and `Animation`: `image.resize(width, height, 'area')` and `image.resize(width, height, ResizeModes.AREA)` are now `image.resize(width, height, { mode: 'area' })`, and `image.scale(0.5, { mode })` takes the mode in the same way. Other values in the position throw a `TypeError`, and `fast` goes in the same object.
 
 - **The positional arguments of `composite()`, `rotate()`, `sharpen()`, `dominantColor()`, `roundCorners()`, `fisheye()`, `trim()` and `colorToAlpha()` are removed**: the values go in the options object, which is the only second argument now. `image.composite(logo, 10, 20, { opacity: 0.5 })` is `image.composite(logo, { x: 10, y: 20, opacity: 0.5 })`, `image.sharpen(2, 3)` is `image.sharpen({ amount: 2, radius: 3 })`, `image.rotate(45, false)` is `image.rotate(-45, { expand: false })` (see the clockwise rotation below), `image.dominantColor(true, true, 15)` is `image.dominantColor({ ignoreBlack: true, ignoreWhite: true, threshold: 15 })`, `image.roundCorners(8)` is `image.roundCorners({ radius: 8 })` and `image.fisheye(3)` is `image.fisheye({ strength: 3 })`. `trim(color, options)` and `colorToAlpha(color, options)` take the color as `color` in the options (`trim({ color, tolerance })`, `colorToAlpha({ color, transparencyThreshold })`), and `Frame.trim()` works the same way. A value in the old position throws a `TypeError`.
 
@@ -54,9 +56,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Loop counts a format can't store throw a `RangeError`**: a GIF stores up to 65535 loops, a WebP up to 65534 and an APNG up to 2147483646 (2^31 - 2). A larger count used to wrap around silently (65536 as a GIF was forever). The encoders and the streaming encoders refuse it before encoding; `Infinity` is always fine.
 
-- **Removed and narrowed exported types**: `TextOptions` is `RenderTextOptions`, `FrameDisposalModeId` is removed (`FrameDisposalMode` has the names), `AdjustOptions` is removed with `absolute`, `PNGMetadata` is `Metadata`, and `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and `APNGAnimationEncoderOptions` are `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`, `GIFAnimationEncodeOptions` and `APNGEncodeOptions`. `ResizeMode` is narrowed to the lower-case names (`'area'`, ...), and `SVGScaleMode` is removed.
-
-- **`contain()` pads to the box, `fit()` is removed**: `image.contain(w, h)` resizes the image to fit inside the box and centers it on a canvas of exactly that size, like CSS' `object-fit: contain` (what `fit()` did), with transparent bars or a `background` color. The resize without bars, which `contain()` did, is `resize({ width, height, fit: 'inside' })`.
+- **Removed and narrowed exported types**: `TextOptions` is `RenderTextOptions`, `FrameDisposalModeId` is removed (`FrameDisposalMode` has the names), `AdjustOptions` is removed with `absolute`, `PNGMetadata` is `Metadata`, and `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and `APNGAnimationEncoderOptions` are `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`, `GIFAnimationEncodeOptions` and `APNGEncodeOptions`. `ResizeMode` is narrowed to the lower-case names (`'area'`, ...), `ContainOptions` is removed, and `SVGScaleMode` is removed.
 
 - **Hues are in degrees**: `Colors.fromHSL()`, `Colors.fromHSLA()` and `Colors.toHSLA()` take and return the hue in degrees (0-360, like CSS' `hsl()` and `hueShift()`) instead of 0-1.
 
@@ -68,7 +68,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`encodeJPEG()` composites transparent pixels onto a background**, black by default (`background` sets the color), instead of dropping the alpha and showing the stored color. Opaque images encode as before.
 
-- **`Frame` holds an image instead of extending `Image`**: `frame.image` is the image, `new Frame(image, options)` takes it (without a copy), and `Frame.from()` is removed. The methods that change the size (`resize()`, `scale()`, `contain()`, `cover()`, `crop()`, `trim()`, `rotate()`, `transform()`, `dropShadow()` and `outline()`) stay on the frame and move its offsets so it stays in place; everything else is `frame.image.blur(2)` and the like. `frame.crop()` and `frame.rotate()` now move the offsets too (3.x kept them), `frame.cover()` moves them by the cropped amount, and the offsets can become negative where 3.x stopped the growth at 0.
+- **`Frame` holds an image instead of extending `Image`**: `frame.image` is the image, `new Frame(image, options)` takes it (without a copy), and `Frame.from()` is removed. `resize()` (including its `'contain'` and `'cover'` fit modes), `scale()`, `crop()`, `trim()`, `rotate()`, `transform()`, `dropShadow()` and `outline()` stay on the frame and move its offsets so it stays in place; everything else is `frame.image.blur(2)` and the like. `frame.crop()` and `frame.rotate()` now move the offsets too (3.x kept them), and the offsets can become negative where 3.x stopped the growth at 0.
 
 - **GIF palettes take a color count**: the `quality` of `Animation.encodeGIF()` and `Animation.gifEncoder()` is `colors` (2-256, default 256, which `quality` 90 and above gave), with the new `dither` and `ditherStrength`. Their options type is `GIFAnimationEncodeOptions`; `GIFEncodeOptions` is now the options of `Image.encodeGIF()`.
 
@@ -90,12 +90,12 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### New
 
-- `Animation.clone()`, `Animation.crop()`, `Animation.contain()` and `Animation.cover()`, working on the canvas like their `Image` counterparts (`contain()` with a `background` makes full canvas frames of the composited animation).
-- `resize({ width, height, fit: 'inside' })` on images, frames and animations: as large as fits inside the box, keeping the aspect ratio.
+- `Animation.clone()` and `Animation.crop()`, plus `'contain'` and `'cover'` fit modes of `Animation.resize()`.
+- `resize({ width, height, fit })` on images, frames and animations: `'inside'` fits without padding, `'contain'` pads, and `'cover'` crops while keeping the aspect ratio; `background` sets the bars for `'contain'`.
 - `encodeJPEG({ subsampling: '4:4:4' | '4:2:0' })`; the default stays 4:2:0 up to quality 90 and 4:4:4 above.
 - `Colors.gradient()` takes an array of evenly spaced colors, like the `stops` of the gradient functions.
 - `Animation.scale()`, `Animation.trim()`, `Animation.rotate()`, `Animation.transform()`, `Animation.dropShadow()` and `Animation.outline()`. `scale()` and `trim()` keep the frames; the others work on the composited animation (full canvas frames) and resize the canvas.
-- `Frame.contain()`, `Frame.cover()`, `Frame.rotate()`, `Frame.transform()`, `Frame.dropShadow()` and `Frame.outline()`, which move the offsets like `Frame.resize()` and `Frame.crop()`.
+- `'contain'` and `'cover'` fit modes of `Frame.resize()`, plus `Frame.rotate()`, `Frame.transform()`, `Frame.dropShadow()` and `Frame.outline()`, which move the offsets like `Frame.resize()` and `Frame.crop()`.
 - `Image.encodeGIF()` for single images, with `colors`, `dither` and `ditherStrength` (also on the animation encoders), and the `DitherMethod` type that `quantize()` and the GIF encoders share.
 - `renderSVG({ fonts })` takes a single font without an array.
 

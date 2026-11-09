@@ -14,19 +14,21 @@ const throws = (call, type, message) => {
 (async () => {
     const photo = () => new Image(40, 20).fill((x, y) => Colors.fromRGBA(x * 6, y * 12, 128, 255));
 
-    // contain() pads to the box (transparent, or the background color); resize({ fit: 'inside' }) only resizes
+    // resize fit modes: contain pads to the box; inside only resizes
     {
-        const padded = photo().contain(30, 30);
+        const padded = photo().resize({width: 30, height: 30, fit: 'contain'});
         assert(padded.width === 30 && padded.height === 30, `contain: ${padded}`);
         assert(padded.getPixelAt(0, 0) === 0 && padded.getPixelAt(15, 15) >>> 0 !== 0, 'contain: transparent bars, the image in the middle');
-        const black = photo().contain(30, 30, {background: 0x000000ff});
+        const black = photo().resize({width: 30, height: 30, fit: 'contain', background: 0x000000ff});
         assert(black.getPixelAt(0, 0) === 0x000000ff, 'contain: background color in the bars');
         const inside = photo().resize({width: 30, height: 30, fit: 'inside'});
         assert(inside.width === 30 && inside.height === 15, `resize fit inside: ${inside}`);
+        const covered = photo().resize({width: 30, height: 30, fit: 'cover'});
+        assert(covered.width === 30 && covered.height === 30, `resize fit cover: ${covered}`);
         const filled = photo().resize({width: 30, height: 30});
         assert(filled.width === 30 && filled.height === 30, 'resize: fill is the default');
-        throws(() => photo().resize({width: 30, height: 30, fit: 'contain'}), TypeError, 'resize: unknown fit');
-        throws(() => photo().contain(30, 30, {background: NaN}), RangeError, 'contain: NaN background');
+        throws(() => photo().resize({width: 30, height: 30, fit: 'contain', background: NaN}), RangeError, 'contain: NaN background');
+        throws(() => photo().resize({width: 30, fit: 'contain'}), TypeError, 'contain requires both dimensions');
         const frame = new Frame(photo(), {xOffset: 10, yOffset: 4});
         frame.resize({width: 20, height: 20, fit: 'inside'});
         assert(frame.width === 20 && frame.height === 10 && frame.xOffset === 5 && frame.yOffset === 2, `Frame.resize fit inside: ${frame} ${frame.xOffset},${frame.yOffset}`);
@@ -91,14 +93,14 @@ const throws = (call, type, message) => {
         assert(cropped.frames[0].width === 10 && cropped.frames[0].xOffset === 0 && cropped.frames[1].xOffset === 5 && cropped.frames[1].width === 5, 'crop: frames cut and moved');
         throws(() => make().crop(30, 0, 5, 5), RangeError, 'crop outside the canvas');
 
-        const contained = make().contain(40, 40);
+        const contained = make().resize({width: 40, height: 40, fit: 'contain'});
         assert(contained.width === 40 && contained.height === 40 && contained.frames[0].width === 40 && contained.frames[0].yOffset === 10, `contain: ${contained} ${contained.frames[0]} ${contained.frames[0].yOffset}`);
-        const withBackground = make().contain(40, 40, {background: 0xffffffff});
+        const withBackground = make().resize({width: 40, height: 40, fit: 'contain', background: 0xffffffff});
         assert(withBackground.frames.every(f => f.width === 40 && f.height === 40 && f.image.getPixelAt(0, 0) === 0xffffffff), 'contain: background frames');
         assert(withBackground.frames[1].image.getPixelAt(30, 20) === 0x0000ffff && withBackground.frames[1].image.getPixelAt(5, 20) === 0xff0000ff, 'contain: background frames show the composited animation');
         assert(withBackground.frames.map(f => f.duration).join() === '50,70', 'contain: durations kept');
 
-        const covered = make().cover(10, 10);
+        const covered = make().resize({width: 10, height: 10, fit: 'cover'});
         assert(covered.width === 10 && covered.height === 10, `cover: ${covered}`);
         const inside = make().resize({width: 10, height: 10, fit: 'inside'});
         assert(inside.width === 10 && inside.height === 5, `Animation.resize fit inside: ${inside}`);
@@ -255,9 +257,9 @@ const throws = (call, type, message) => {
         assert(turned.width === 10 && turned.height === 20 && turned.xOffset === 15 && turned.yOffset === 5, `Frame.rotate(90) keeps its middle: ${turned.xOffset},${turned.yOffset}`);
         const tilted = new Frame(new Image(20, 20), {xOffset: 50, yOffset: 50}).rotate(45);
         assert(Math.abs(tilted.xOffset + tilted.width / 2 - 60) <= 0.5 && Math.abs(tilted.yOffset + tilted.height / 2 - 60) <= 0.5, 'Frame.rotate(45) keeps its middle');
-        const contained = new Frame(new Image(20, 10), {xOffset: 10, yOffset: 6}).contain(40, 40);
+        const contained = new Frame(new Image(20, 10), {xOffset: 10, yOffset: 6}).resize({width: 40, height: 40, fit: 'contain'});
         assert(contained.width === 40 && contained.height === 40 && contained.xOffset === 20 && contained.yOffset === 2, `Frame.contain: ${contained.xOffset},${contained.yOffset}`);
-        const covered = new Frame(new Image(20, 10), {xOffset: 10, yOffset: 6}).cover(10, 10);
+        const covered = new Frame(new Image(20, 10), {xOffset: 10, yOffset: 6}).resize({width: 10, height: 10, fit: 'cover'});
         assert(covered.width === 10 && covered.xOffset === 15 && covered.yOffset === 6, `Frame.cover: ${covered.xOffset},${covered.yOffset}`);
         const viaImage = new Frame(square(), {xOffset: 2, yOffset: 5});
         viaImage.image.dropShadow({blur: 2});
@@ -297,6 +299,6 @@ const throws = (call, type, message) => {
     {
         const gray = new Image(1, 1).fill(0xff0000ff).grayscale();
         assert(gray.getPixelAt(0, 0) === 0x4c4c4cff, `grayscale: ${gray.getPixelAt(0, 0).toString(16)}`);
-        assert(new Image(1, 1).greyscale === undefined && new Image(1, 1).drawBox === undefined && new Image(1, 1).fit === undefined && new Image(1, 1).getRGBAAt === undefined && new Image(1, 1).region === undefined, 'removed methods');
+        assert(new Image(1, 1).greyscale === undefined && new Image(1, 1).drawBox === undefined && new Image(1, 1).fit === undefined && new Image(1, 1).contain === undefined && new Image(1, 1).cover === undefined && new Frame(new Image(1, 1)).contain === undefined && new Frame(new Image(1, 1)).cover === undefined && new Animation([]).contain === undefined && new Animation([]).cover === undefined && new Image(1, 1).getRGBAAt === undefined && new Image(1, 1).region === undefined, 'removed methods');
     }
 })();

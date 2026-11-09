@@ -109,17 +109,25 @@ forever.) `Infinity` is always fine.
 
 Search your code for: `loopCount: -1`, `loopCount = -1`, `loopCount === -1` and `loopCount < 0`.
 
-### `contain()` pads to the box
+### Resize fit modes
 
-`image.contain(width, height)` now works like CSS' `object-fit: contain`: the image is resized to fit inside the box
-and centered on a canvas of exactly that size, with transparent bars (or the `background` color). That is what
-`fit()` did in 3.x; `fit()` is removed. 3.x's `contain()`, which only resized and could return a smaller image, is
-`resize({ width, height, fit: 'inside' })`.
+`resize({ width, height, fit })` handles stretching, aspect-ratio fitting and cropping. It works on images, frames and
+animations; frame offsets and animation canvases follow the resized pixels.
+
+| `fit` | Result |
+| --- | --- |
+| `'fill'` (default) | Stretches to the exact dimensions |
+| `'inside'` | Keeps the aspect ratio and fits inside the box without padding |
+| `'contain'` | Keeps the aspect ratio and pads to the exact box; `background` sets the bar color |
+| `'cover'` | Keeps the aspect ratio and crops to the exact box |
+
+`contain` and `cover` require both dimensions. `background` is only valid with `fit: 'contain'`.
 
 | 3.x | 4.0 |
 | --- | --- |
 | `image.contain(800, 600)` (at most 800x600, no bars) | `image.resize({ width: 800, height: 600, fit: 'inside' })` |
-| `image.fit(800, 600)` (exactly 800x600, transparent bars) | `image.contain(800, 600)`, or `image.contain(800, 600, { background: 0x000000ff })` for black bars |
+| `image.fit(800, 600)` (exactly 800x600, transparent bars) | `image.resize({ width: 800, height: 600, fit: 'contain' })` |
+| `image.cover(800, 600)` | `image.resize({ width: 800, height: 600, fit: 'cover' })` |
 
 ### Hues are in degrees
 
@@ -170,13 +178,13 @@ Search your code for: `.quantize(`.
 
 ### Frames move their offsets when their size changes
 
-A frame's `crop()`, `cover()` and `rotate()` now move its offsets, so the frame's pixels stay where they are in the
-animation. In 3.x, `crop()` and `rotate()` kept the offsets (the top left corner stayed in place), and `cover()` only
-scaled them. Now:
+A frame's `crop()`, `resize({ fit: 'cover' })` and `rotate()` now move its offsets, so the frame's pixels stay where
+they are in the animation. In 3.x, `crop()` and `rotate()` kept the offsets (the top left corner stayed in place), and
+`cover()` only scaled them. Now:
 
 - `frame.crop(x, y, w, h)` adds `x` and `y` to the offsets, like `trim()` already did.
 - `frame.rotate(angle)` keeps the frame's middle in place.
-- `frame.cover(w, h)` scales the offsets and then moves them by the cropped amount.
+- `frame.resize({ width: w, height: h, fit: 'cover' })` scales the offsets and then moves them by the cropped amount.
 
 `transform()`, `dropShadow()` and `outline()` moved the offsets in 3.x too, but only as far as they allowed: a frame at
 `xOffset: 0` couldn't grow to the left, so a shadow or outline was cut off on that side and a transform grew to the
@@ -186,7 +194,7 @@ animation's canvas isn't encoded.
 To keep a frame's offsets as they are, call the method on its image: `frame.image.crop(x, y, w, h)`. See
 [frames hold an image](#frames-hold-an-image) for the other frame changes.
 
-Search your code for: `.crop(`, `.cover(` and `.rotate(` on frames.
+Search your code for: `.crop(`, `.resize(` with `fit: 'cover'`, and `.rotate(` on frames.
 
 ## Removed APIs
 
@@ -326,7 +334,7 @@ object under the names of their options. The options of each method are on its o
 | `image.resize(256, 256, 'bicubic')`, `image.resize(256, 256, ResizeModes.AREA)` | `image.resize(256, 256, { mode: 'bicubic' })` |
 | `image.scale(0.5, 'area')`, `image.scale(0.5, ResizeModes.AREA)` | `image.scale(0.5, { mode: 'area' })` |
 | `image.resize(100)` (width only, the height left out) | `image.resize({ width: 100 })`, which keeps the aspect ratio. The positional form throws a `RangeError` without a height |
-| `image.contain(w, h, mode)`, `image.fit(w, h, mode)`, `image.cover(w, h, mode)` | `image.resize({ width: w, height: h, fit: 'inside', mode })`, `image.contain(w, h, { mode })` and `image.cover(w, h, { mode })`, see [`contain()` pads to the box](#contain-pads-to-the-box) |
+| `image.contain(w, h, mode)`, `image.fit(w, h, mode)`, `image.cover(w, h, mode)` | `image.resize({ width: w, height: h, fit: 'inside', mode })`, with `'contain'` or `'cover'` as needed; see [Resize fit modes](#resize-fit-modes) |
 | `Frame` and `Animation`: `resize(w, h, mode)` | `resize(w, h, { mode })` |
 | `image.composite(logo, 10, 20, { opacity: 0.5 })` | `image.composite(logo, { x: 10, y: 20, opacity: 0.5 })` |
 | `image.rotate(45, false)` | `image.rotate(-45, { expand: false })`: the angle is negated because [`rotate()` turns clockwise](#rotate-turns-clockwise) now |
@@ -401,9 +409,9 @@ A `Frame` is no longer an `Image`: it holds one, `frame.image`, with the frame's
 | `image.composite(frame)`, `frame.encodePNG()` | `image.composite(frame.image)`, `frame.image.encodePNG()` |
 | `frame instanceof Image` | `false` now |
 
-The methods that change the size stay on the frame: `resize()`, `scale()`, `contain()`, `cover()`, `crop()`, `trim()`,
-`rotate()`, `transform()`, `dropShadow()` and `outline()`. They move the offsets so the frame stays in place in the
-animation (resizing scales the offsets, as if the whole animation was resized); see
+The methods that change the size stay on the frame: `resize()` (including its `'contain'` and `'cover'` fit modes),
+`scale()`, `crop()`, `trim()`, `rotate()`, `transform()`, `dropShadow()` and `outline()`. They move the offsets so the
+frame stays in place in the animation (resizing scales the offsets, as if the whole animation was resized); see
 [frames move their offsets](#frames-move-their-offsets-when-their-size-changes) for how that differs from 3.x.
 `width`, `height`, `clone()` and `toString()` work as before. Everything else goes through `frame.image`. The image's
 own methods don't know about the frame and leave the offsets alone: after `frame.image.rotate(90)`, the frame's top
@@ -417,7 +425,7 @@ Values that were only checked when they were used are now checked when they are 
 throws a `RangeError` (a `TypeError` for `useBaseColorSpace`) and the old value stays.
 
 An `Animation` now has a canvas size of its own: `animation.width` and `animation.height` are the decoded file's, the
-one given as `new Animation(frames, { width, height })`, or the one `resize()`, `crop()`, `contain()` and `cover()` set.
+one given as `new Animation(frames, { width, height })`, or the one `resize()` and `crop()` set.
 Without one, they are the frames' right and bottom edge, as in 3.x. Frames, or the parts of them, outside the canvas
 aren't encoded.
 
@@ -492,5 +500,5 @@ Also search for the variables that hold animations, and for `[0]`, `.map(`, `.fi
 search can't tell an animation from an array, so check the type of each receiver.
 
 Then compile with `tsc`, and run the tests that cover your decode and encode paths. The nine behavior changes need
-runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every `contain()`, every HSL hue,
+runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every resize fit mode, every HSL hue,
 every `rotate()`, every JPEG made from an image with transparency, every `quantize()`, and the size changes of frames.

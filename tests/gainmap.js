@@ -271,7 +271,7 @@ const meanValue = (image, left, top, right, bottom) => {
 	}
 
 	// invalid arguments throw before the image or its map changes
-	for (const [name, call] of [['blur', i => i.blur('5')], ['fill', i => i.fill('red')], ['cover', i => i.cover(-1, 10)]]) {
+	for (const [name, call] of [['blur', i => i.blur('5')], ['fill', i => i.fill('red')], ['resize cover', i => i.resize({width: -1, height: 10, fit: 'cover'})]]) {
 		const image = single.clone();
 		let threw = false;
 		try { call(image); } catch { threw = true; }

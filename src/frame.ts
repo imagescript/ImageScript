@@ -1,4 +1,4 @@
-import { Image, ResizeOptions, ResizeToOptions, TrimOptions, ContainOptions, RotateOptions, TransformOptions, ShadowOptions, OutlineOptions } from './image.ts';
+import { Image, ResizeOptions, ResizeToOptions, TrimOptions, RotateOptions, TransformOptions, ShadowOptions, OutlineOptions } from './image.ts';
 import { checkOptions, finite } from './util/options.ts';
 
 /**
@@ -29,10 +29,11 @@ export interface FrameOptions {
 
 /**
  * A frame of an {@link Animation}: an {@link Image} ({@link Frame.image}) with a duration, offsets and a disposal mode.
- * The frame has the methods that change the image's size (resize, scale, contain, cover, crop, trim, rotate, transform,
- * dropShadow, outline), which move the offsets along so the frame stays in place in the animation; every other change
- * goes to the image (`frame.image.blur(2)`). The image's own size-changing methods leave the offsets as they are.
- * Offsets can become negative: the parts of a frame outside the animation's canvas aren't encoded
+ * The frame has the methods that change the image's size (`resize()` including its `'contain'` and `'cover'` fit
+ * modes, `scale()`, `crop()`, `trim()`, `rotate()`, `transform()`, `dropShadow()` and `outline()`), which move the
+ * offsets along so the frame stays in place in the animation; every other change goes to the image
+ * (`frame.image.blur(2)`). The image's own size-changing methods leave the offsets as they are. Offsets can become
+ * negative: the parts of a frame outside the animation's canvas aren't encoded
  */
 export class Frame {
     /** @internal @ignore */
@@ -224,29 +225,6 @@ export class Frame {
      */
     scale(factor: number, options?: ResizeOptions): this {
         return this.__tracked__(image => image.scale(factor, options));
-    }
-
-    /**
-     * Resizes the frame to fit inside the given box and pads it to exactly that size, like {@link Image.contain}. The
-     * offsets scale with the image and then move by the padding, so the image stays where the scaled frame would be
-     * @param width The width of the box
-     * @param height The height of the box
-     * @param options The background and how to resize, see {@link ContainOptions}
-     */
-    contain(width: number, height: number, options?: ContainOptions): this {
-        return this.__tracked__(image => image.contain(width, height, options));
-    }
-
-    /**
-     * Resizes the frame to cover the given box and crops the overflowing edges, like {@link Image.cover}. The offsets
-     * scale with the image and then move by the cropped amount, so the remaining pixels stay where the scaled frame
-     * had them
-     * @param width The width of the box
-     * @param height The height of the box
-     * @param options See {@link ResizeOptions}
-     */
-    cover(width: number, height: number, options?: ResizeOptions): this {
-        return this.__tracked__(image => image.cover(width, height, options));
     }
 
     /**

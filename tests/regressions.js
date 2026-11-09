@@ -165,13 +165,13 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(rgba(image, 0, 0)[0] === 20, 'composite: 100 at 20% over black should be 20, got ' + rgba(image, 0, 0)[0]);
     }
 
-    // cover and contain hit the requested dimensions despite floating point scale factors
+    // cover and contain fit modes hit the requested dimensions despite floating point scale factors
     {
         for (let width = 1; width < 200; width++) {
             for (const target of [7, 50, 99, 128]) {
-                const covered = new Image(width, 61).cover(target, 33);
+                const covered = new Image(width, 61).resize({width: target, height: 33, fit: 'cover'});
                 assert(covered.width === target && covered.height === 33, `cover(${target}, 33) of ${width}x61 returned ${covered}`);
-                const contained = new Image(width, 61).contain(target, 33);
+                const contained = new Image(width, 61).resize({width: target, height: 33, fit: 'contain'});
                 assert(contained.width === target && contained.height === 33, `contain(${target}, 33) of ${width}x61 returned ${contained}`);
                 const inside = new Image(width, 61).resize({width: target, height: 33, fit: 'inside'});
                 assert((inside.width === target || inside.height === 33) && inside.width <= target && inside.height <= 33, `resize({ width: ${target}, height: 33, fit: 'inside' }) of ${width}x61 returned ${inside}`);
@@ -1003,7 +1003,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const image = () => new Image(8, 8).fill(0xff0000ff);
         const calls = {
             rgbaToColor: v => Colors.fromRGBA(v, 0, 0, 255), hslaToColor: v => Colors.fromHSLA(v, 0.5, 0.5, 1), colorToRGBA: v => Colors.toRGBA(v),
-            getPixelAt: v => image().getPixelAt(v, 1), setPixelAt: v => image().setPixelAt(1, 1, v), fill: v => image().fill(v), contain: v => image().contain(v, 4),
+            getPixelAt: v => image().getPixelAt(v, 1), setPixelAt: v => image().setPixelAt(1, 1, v), fill: v => image().fill(v), contain: v => image().resize({width: v, height: 4, fit: 'contain'}),
             crop: v => image().crop(v, 0, 2, 2), trim: v => image().trim({color: v}),
             cropCircle: v => image().cropCircle({ feathering: v }), opacity: v => image().opacity(v), red: v => image().red(v), lightness: v => image().lightness(v),
             composite: v => image().composite(image(), {x: v, y: 0}), hueShift: v => image().hueShift(v), brightness: v => image().brightness(v), gamma: v => image().gamma(v),
