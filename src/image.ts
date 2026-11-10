@@ -2601,7 +2601,7 @@ export class Image {
             if (ImageType.isAVIF(dataView)) return avif.decode(data, maxPixels, toneMapping, threads, gainMap);
             if (ImageType.isJXL(dataView)) return jxl.decode(data, maxPixels, toneMapping, threads, gainMap);
             if (ImageType.isBMP(dataView)) return bitmap(bmp.decode(data, maxPixels));
-            if (ImageType.isICO(dataView)) return bitmap(ico.decode(data, maxPixels));
+            if (ImageType.isICO(dataView) || ImageType.isCUR(dataView)) return bitmap(ico.decode(data, maxPixels));
             if (ImageType.isQOI(dataView)) return qoi.decode(data, maxPixels);
             if (ImageType.isPNM(dataView)) return netpbm.decode(data, maxPixels, toneMapping);
             if (ImageType.isHDR(dataView)) return hdr.decode(data, maxPixels, toneMapping);
