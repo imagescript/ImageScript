@@ -205,7 +205,7 @@ export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS): Promise<
                 stream = joined;
             }
 
-            const decoded = jpeg.decode(stream, { transform });
+            const decoded = jpeg.decode(stream, { transform, maxPixels });
             blitRGBA(decoded.pixels, decoded.width, decoded.height, pixels, width, height, (s % segmentsAcross) * segmentWidth, (s / segmentsAcross | 0) * segmentHeight);
         }
 
