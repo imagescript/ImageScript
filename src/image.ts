@@ -120,12 +120,8 @@ export interface ResizeOptions {
     /** The resizing mode. Default: `'bilinear'` */
     mode?: ResizeMode;
     /**
-     * Whether to round to 8 bits between the two passes, so two channels share the multiplications of both: about
-     * 15-25% faster for opaque images, with 10-25% of the channel values a step off the precise result (instead of
-     * about 1%, never more than 1). Transparent images are premultiplied to 8 bits like browsers do, which makes them
-     * about twice as fast: what shows once they're composited differs by up to about 2 steps, pixels that are almost
-     * transparent keep less of their color. Only affects `'bilinear'` and `'area'`,
-     * down to about a third of the size. Default: `true`
+     * Whether to use faster, lower-precision arithmetic. It can cause small color differences, especially around
+     * transparent edges. Only affects `'bilinear'` and `'area'` resizing. Default: `true`
      */
     fast?: boolean;
 }
@@ -139,36 +135,34 @@ export interface SharpenOptions {
 }
 
 /**
- * How the rounding error of each pixel is handled when colors are reduced to a palette ({@link Image.quantize},
- * {@link Image.encodeGIF}): `'none'` (each pixel takes its nearest color), `'floyd-steinberg'` (the error goes to the next
- * pixels, 7/16, 3/16, 5/16 and 1/16), `'atkinson'` (the error goes to six neighbors, 1/8 each: lighter, more contrast),
- * `'ordered'` (a regular 4x4 pattern of thresholds, no error spreading). Rows alternate direction for the error
- * diffusions
+ * How to reduce visible banding when an image is limited to a smaller set of colors ({@link Image.quantize},
+ * {@link Image.encodeGIF}): `'none'` uses the nearest color; `'floyd-steinberg'` and `'atkinson'` spread small color
+ * errors to nearby pixels; `'ordered'` uses a repeating pattern. Atkinson tends to give a higher-contrast result.
  */
 export type DitherMethod = 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered';
 
 /** Options of {@link Image.quantize}: either `colors` or `palette`, and the dithering */
 export interface QuantizeOptions {
     /**
-     * The number of colors to reduce the image to, an integer from 2 to 256. The palette is the image's own colors when
-     * it has no more distinct ones than this, else colors chosen by median cut (the common colors get their own). Those
-     * are averages of groups of similar colors, so e.g. pure black and white are only in it if the image has them in
-     * quantity: give `palette` for exact colors. Default: `256`. Give `colors` or `palette`, not both
+     * The maximum number of colors to keep (2-256). Images with fewer distinct colors keep them exactly; otherwise
+     * ImageScript chooses a smaller set of representative colors. Give `palette` instead to choose exact colors.
+     * Default: `256`. Give `colors` or `palette`, not both
      */
     colors?: number;
     /**
-     * A fixed palette (1 to 256 colors, e.g. a Game Boy's four greens) that every pixel is mapped to, the nearest color
-     * by its RGB. The alpha of the palette's colors is ignored. Give `palette` or `colors`, not both
+     * A fixed palette (1-256 colors, e.g. a Game Boy's four greens). Every pixel is changed to the nearest palette
+     * color by its red, green and blue values; transparency in palette colors is ignored. Give `palette` or `colors`,
+     * not both
      */
     palette?: Color[];
     /**
-     * How the rounding error of each pixel is handled, which makes gradients look smooth with few colors, see
+     * How to spread small color changes across nearby pixels to make gradients look smoother with few colors, see
      * {@link DitherMethod}. Default: `'floyd-steinberg'`, like {@link GIFEncodeOptions.dither}
      */
     dither?: DitherMethod;
     /**
-     * How strongly to dither, from `0` (no spreading or threshold, the same as `'none'`) to `1` (the full error or
-     * threshold). Default: `0.85`, like {@link GIFEncodeOptions.ditherStrength}
+     * How strongly to apply dithering: `0` disables it; `1` applies it fully. Default: `0.85`, like
+     * {@link GIFEncodeOptions.ditherStrength}
      */
     ditherStrength?: number;
 }
@@ -300,8 +294,8 @@ export type TGAEncodeOptions = EncodeOptions;
 /** Options of {@link Image.encodeGIF}, and of {@link Animation.encodeGIF} with {@link GIFAnimationEncodeOptions} */
 export interface GIFEncodeOptions extends EncodeOptions {
     /**
-     * The most colors in the palette (of each frame), an integer from 2 to 256, a transparent one included. Images with
-     * no more colors keep them exactly, others get a palette by median cut. Default: `256`
+     * The maximum colors in each frame's palette (2-256, including transparency). Frames with fewer colors keep them
+     * exactly; otherwise ImageScript chooses representative colors. Default: `256`
      */
     colors?: number;
     /** How the rounding error is spread when the colors don't fit the palette, see {@link DitherMethod}. Default: `'floyd-steinberg'` */
@@ -315,13 +309,14 @@ export interface JPEGEncodeOptions extends EncodeOptions {
     /** The JPEG quality (1-100). Default: `90` */
     quality?: number;
     /**
-     * Chroma subsampling: `'4:4:4'` keeps the full color resolution, `'4:2:0'` halves it (smaller, like most
-     * cameras). Default: `'4:2:0'` up to quality 90, `'4:4:4'` above (like libjpeg-turbo's `cjpeg`)
+     * How much color detail to keep: `'4:4:4'` keeps it all; `'4:2:0'` stores less color detail to make a smaller
+     * file (often hard to notice in photos, but more visible around colored edges). Default: `'4:2:0'` up to quality
+     * 90, `'4:4:4'` above
      */
     subsampling?: '4:4:4' | '4:2:0';
     /**
-     * The color that transparent and translucent pixels are composited onto, as JPEG has no transparency (its alpha is
-     * ignored: the background is opaque). Opaque images are encoded as they are. Default: `0x000000ff` (black)
+     * The background color to combine with transparent pixels, since JPEG doesn't support transparency. Opaque images
+     * are encoded as they are. Default: `0x000000ff` (black)
      */
     background?: Color;
     /**
@@ -334,37 +329,28 @@ export interface JPEGEncodeOptions extends EncodeOptions {
 /** Options of {@link Image.encodeWebP} */
 export interface WebPEncodeOptions extends EncodeOptions {
     /**
-     * Lossy compression (0-100, like libwebp's quality: 75 is its default): the image is encoded like cwebp encodes it
-     * (with `-m` set to the effort), much smaller than lossless. Without it the image is encoded losslessly
+     * Lossy compression (0-100): higher values usually preserve more detail but make larger files. Without it the image
+     * is encoded losslessly, keeping every pixel exact
      */
     quality?: number;
     /**
-     * How much effort compression takes (0-6): higher is smaller but slower. Lossy (libwebp's method): 0-2 pick the
-     * predictions by how close they are, 3 and up also by how many bits they take, 5 and 6 also optimize the
-     * quantized values; the default `2` takes about a quarter of the time of 4 (cwebp's default) for files about 5%
-     * larger. Lossless: 0 is a fast mode (photos in about a fifth of the time, graphics in about a third, files about
-     * 6-8% larger), 1 takes about two thirds of the time for files up to 2% larger, 2 and up compress the most.
-     * Default: `2`
+     * Compression effort (0-6): higher values usually take longer but may make smaller files. For lossless images,
+     * `0` prioritizes speed; `2` and above spend more time reducing file size. Default: `2`
      */
     effort?: number;
     /**
-     * For lossy compression: convert to YUV like libwebp's sharp conversion (cwebp's `-sharp_yuv`, the same file),
-     * which picks the color planes so that colored edges (red text on blue, thin colored lines) stay sharp instead of
-     * bleeding. It takes about twice the time at the default effort; photos get about as large, images with many
-     * hard color edges a lot larger (1200x800 red and blue squares: 2.7 times). Default: `false`
+     * For lossy compression: improve color detail around sharp edges (for example, red text on a blue background).
+     * This can take longer and make graphics larger. Default: `false`
      */
     sharpYuv?: boolean;
     /**
-     * For lossy compression, the alpha plane's quality (0-100, like cwebp's `-alpha_q`): below 100 its levels are
-     * reduced (to 2-16 up to 70, 16-256 above), which makes it compress better; the alpha plane is lossless otherwise.
-     * Default: `100`
+     * For lossy compression, the transparency (alpha) channel's quality (0-100). Lower values may make the image
+     * smaller but can make transparency look less smooth. Default: `100` (full quality)
      */
     alphaQuality?: number;
     /**
-     * For lossless compression, at most this many worker threads search the predictors and prefix codes in parallel
-     * (the same file, faster), `1` for none. Images under about 1.5 megapixels, and runtimes whose workers can't share
-     * memory (browsers without cross-origin isolation), encode without them. Default: the processors available, at
-     * most 8
+     * For lossless compression, the maximum worker threads to use. Small images or runtimes that cannot share memory
+     * between workers use one thread. Default: the available processors, up to 8
      */
     threads?: number;
 }
@@ -396,12 +382,14 @@ export interface RenderSVGOptions {
      */
     scale?: number;
     /**
-     * The most pixels to render, and the most pixels in any embedded image. Default: `268402689` (16383²), `Infinity`
-     * for no limit
+     * Maximum total pixels in the rendered output. Output over the limit throws a RangeError. Raster images decoded
+     * from embedded data are limited too and omitted if they exceed it; already-decoded {@link Image} values are used
+     * as supplied. Default: `268402689` (16383²); `Infinity` disables the limit
      */
     maxPixels?: number;
     /**
-     * Fonts for `<text>` (TrueType, OpenType): each text gets the face its `font-family`, `font-weight`, `font-style`
+     * Fonts for `<text>` (TrueType, OpenType or WOFF; not WOFF2 or some newer OpenType outline formats such as CFF2):
+     * each text gets the face its `font-family`, `font-weight`, `font-style`
      * and `font-stretch` match best among them, by the names, weights and styles in the fonts (like browsers match
      * installed fonts). Generic families (`serif`, `sans-serif`, `monospace`, ...) are the first font that fits them,
      * other families and text without one get the first font's family; characters a face doesn't have come from the
@@ -426,10 +414,12 @@ export interface RenderSVGOptions {
  */
 export interface RenderTextOptions extends TextStyleOptions, TextLayoutOptions {
     /**
-     * TrueType (ttf/ttc), OpenType (otf) or WOFF font buffer to use, or several by priority: every character comes
+     * TrueType (ttf/ttc), OpenType (otf) or WOFF font buffer to use (not WOFF2 or some newer OpenType outline formats
+     * such as CFF2), or several by priority: every character comes
      * from the first font that has it (e.g. `[text, emoji]`), the first one sets the line height. Color glyphs (COLR
-     * layers and paints, CBDT and sbix bitmaps, as in emoji fonts) keep their colors. Text in any script is shaped
-     * like browsers do (right to left and bidirectional text, Arabic joining, Indic conjuncts, marks)
+     * layers and paints, CBDT and sbix bitmaps, as in emoji fonts) keep their colors. Shaping includes bidirectional
+     * layout, Arabic joining, and script-specific OpenType shapers for Indic scripts, Hebrew, Thai/Lao, Hangul, Khmer,
+     * Myanmar and other Universal Shaping Engine scripts; other scripts use default OpenType shaping.
      */
     font: BinaryData | BinaryData[];
     /** Font size in pixels (per em) */
@@ -441,42 +431,40 @@ export interface RenderTextOptions extends TextStyleOptions, TextLayoutOptions {
 /** Options of {@link Image.decode}, {@link Animation.decode} and {@link decode} */
 export interface DecodeOptions {
     /**
-     * Whether to rotate/mirror the image (or every frame) as its orientation tag says: Exif in JPEGs, TIFFs, PNGs
-     * (also eXIf and XMP, and in APNGs) and WebPs (also animated ones), and JPEG XL's header. Default: `true`
+     * Whether to rotate or mirror the image according to its saved orientation information, so photos taken with a
+     * rotated camera display upright. This applies to every animation frame too. Default: `true`
      */
     applyOrientation?: boolean;
     /**
-     * Whether to convert the colors of images with an embedded ICC profile (PNG, JPEG, WebP, AVIF, JPEG XL, TIFF), and
-     * of AVIFs with other color primaries than sRGB's (Display P3, BT.2020), to sRGB, like browsers show them: wide
-     * gamut photos (Display P3 from phones, Adobe RGB, ProPhoto) look as intended instead of washed out. Matrix/TRC
-     * profiles (RGB and gray) are applied, relative colorimetric (colors outside sRGB are clipped); profiles with only
-     * lookup tables, CMYK ones and ones that are sRGB anyway leave the pixels as they are. Default: `true`
+     * Whether to use the image's embedded color profile (color information describing its pixels) to convert its
+     * colors to sRGB, the standard used by most screens and browsers. Common RGB and gray profiles described by a
+     * color matrix and tone curves are converted, as are AVIFs using other color ranges (such as Display P3 or BT.2020).
+     * Colors outside sRGB are clipped. Profiles that rely on lookup tables, CMYK profiles and profiles already in
+     * sRGB are left unchanged. Default: `true`
      */
     applyColorProfile?: boolean;
     /**
-     * The most pixels to decode: larger images throw a RangeError before anything that size is allocated, so small
-     * files declaring huge images (decompression bombs) can't exhaust the memory. For {@link Animation.decode}, all
-     * frames together (every frame is a full canvas). Default: `268402689` (16383², like sharp), `Infinity` for no
-     * limit
+     * The maximum total pixels to decode. An image declaring more pixels throws a RangeError before its pixel buffer
+     * is allocated, helping prevent a small or untrusted file from requesting an enormous amount of memory.
+     * {@link Animation.decode} counts all frames together because each frame uses a full canvas. Default:
+     * `268402689` (16383²); `Infinity` disables the limit
      */
     maxPixels?: number;
     /**
-     * How Radiance HDRs, PFMs and HDR (PQ or HLG) AVIFs and JPEG XLs, whose light can be brighter than (SDR) white,
-     * become 8 bit sRGB: `'reinhard'` compresses the brightest parts like Reinhard's tone mapping operator does (the
-     * brightest pixel becomes white, images no brighter than white stay as they are), `'clamp'` clamps everything
-     * brighter than white. Default: `'reinhard'`
+     * How high-dynamic-range images (which can be brighter than a standard screen's white) become 8-bit sRGB.
+     * `'reinhard'` gently compresses bright highlights so the brightest pixel becomes white; images that are not HDR
+     * stay unchanged. `'clamp'` clips anything brighter than white. Default: `'reinhard'`
      */
     toneMapping?: ToneMapping;
     /**
-     * Whether to read the gain maps of JPEGs (Ultra HDR, JPEG-R, ISO 21496-1, Apple's), AVIFs (tone mapped items) and
-     * JPEG XLs (jhgm boxes, also of every frame of an animation) into {@link Image.gainMap}. Default: `true`
+     * Whether to read extra HDR brightness data (a gain map) from supported JPEG, AVIF and JPEG XL images into
+     * {@link Image.gainMap}. For animations, this also reads maps from supported JPEG XL frames. Default: `true`
      */
     gainMap?: boolean;
     /**
-     * At most this many worker threads decode in parallel (lossy JPEG XLs from 4 megapixels on, one per 2 megapixels
-     * at most, lossless ones from 1.5 megapixels and 512 KiB on; AVIFs from 4 megapixels on: the conversion to RGB,
-     * one per megapixel, and the tiles of grids), `1` for none. Default: the processors available, at most 8 (1 where
-     * workers can't share memory)
+     * Maximum worker threads for formats and image sizes that can be decoded in parallel. Small images may use one
+     * thread because starting workers can take longer than decoding them. Default: the available processors, up to 8
+     * (one in runtimes that cannot share memory between workers)
      */
     threads?: number;
 }
@@ -484,30 +472,23 @@ export interface DecodeOptions {
 /** Options of {@link Image.encodeJXL} */
 export interface JXLEncodeOptions extends EncodeOptions {
     /**
-     * Lossy compression (0-100, like cjxl's `-q`: 90 is visually lossless, 100 lossless): higher is better and larger.
-     * Without it the image is encoded losslessly
+     * Lossy compression (0-100): higher values usually preserve more detail but make larger files; `100` is
+     * lossless. Without this option, the image is encoded losslessly
      */
     quality?: number;
     /**
-     * How hard compression works: 0-2, faster to smaller. Lossy: 0 uses 8x8 DCTs only (like `cjxl -e 3`), 1 and 2
-     * search their sizes like `cjxl -e 5` (2 tries more of the small ones), and 2 also stores text-like features that
-     * repeat (the glyphs of screenshots) once, as patches like `cjxl -e 7`. Lossless: 0 is `cjxl -e 1`'s fast mode
-     * (byte for byte), 1 and 2 like `cjxl -e 3` (about 15% smaller for photos, 13% for graphics; a few times slower).
-     * Default: `1`
+     * Compression effort (0-2): higher values usually take longer but may make smaller files. `0` prioritizes speed;
+     * `2` spends the most time compressing. Default: `1`
      */
     effort?: number;
     /**
-     * At most this many worker threads compress in parallel (the same file, faster: lossy 2.3 times with 8 on a
-     * 1920x1080 photo at effort 1, 3.8 times on 3840x2160; lossless 2.8 and 4.3 times), `1` for none. Small images
-     * (lossy under about 1.5 megapixels at effort 0, 512x512 pixels at 1, 384x384 at 2; lossless under 724x724 and
-     * always at effort 0), and runtimes whose workers can't share memory (browsers without cross-origin isolation)
-     * encode without them.
-     * Default: the processors available, at most 8
+     * Maximum worker threads for compression. Small images or runtimes that cannot share memory between workers use
+     * one thread. Default: the available processors, up to 8
      */
     threads?: number;
     /**
-     * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a jhgm box, like libjxl's), or how.
-     * Default: `true` (written if there is one)
+     * Whether to write the image's {@link Image.gainMap}, the extra data used to show brighter highlights on HDR
+     * displays. Default: `true` (written if there is one)
      */
     gainMap?: boolean | GainMapEmbedOptions;
 }
@@ -516,22 +497,23 @@ export interface JXLEncodeOptions extends EncodeOptions {
 export interface AVIFEncodeOptions extends EncodeOptions {
     /** 0-100, like avifenc's: higher is better and larger, 100 is lossless. Default: `60` */
     quality?: number;
-    /** The quality of the alpha channel (if the image has transparency), like avifenc's. Default: `100` (lossless) */
+    /** The quality of the transparency channel, if the image has transparency. Default: `100` (lossless) */
     alphaQuality?: number;
-    /** Chroma subsampling: `'4:4:4'` keeps the full color resolution, `'4:2:0'` halves it (smaller). Default: `'4:4:4'` */
+    /**
+     * How much color detail to keep: `'4:4:4'` keeps it all; `'4:2:0'` stores less color detail to make a smaller
+     * file. Default: `'4:4:4'`
+     */
     subsampling?: '4:4:4' | '4:2:0';
     /** How hard the encoder searches for the best modes: 0-2, faster to smaller. Default: `1` */
     effort?: number;
     /**
-     * At most this many worker threads encode in parallel (the same file, faster: 2.9 times with 8 on a 1920x1080
-     * photo at effort 1), `1` for none. Small images (under about 640x640 pixels at effort 0, 448x448 at 1, 320x320
-     * at 2), and runtimes whose workers can't share memory (browsers without cross-origin isolation), encode without
-     * them. Default: the processors available, at most 8
+     * Maximum worker threads for compression. Small images or runtimes that cannot share memory between workers use
+     * one thread. Default: the available processors, up to 8
      */
     threads?: number;
     /**
-     * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a tone mapped item, like libavif
-     * writes), or how. Default: `true` (written if there is one)
+     * Whether to write the image's {@link Image.gainMap}, the extra data used to show brighter highlights on HDR
+     * displays. Default: `true` (written if there is one)
      */
     gainMap?: boolean | GainMapEmbedOptions;
 }
@@ -695,8 +677,9 @@ export class Image {
     }
 
     /**
-     * The image's gain map, if it has one (JPEGs from phones, Ultra HDR): how much brighter each part gets on HDR
-     * displays. {@link Image.encodeJPEG} writes it. `null` removes it
+     * Extra image data that lets high-dynamic-range (HDR) screens show brighter highlights. Standard screens show the
+     * image without the extra brightness. {@link Image.encodeJPEG}, {@link Image.encodeAVIF} and
+     * {@link Image.encodeJXL} can write it. `null` means there is no gain map
      */
     get gainMap(): GainMap | null {
         return this.__gain_map__;
@@ -712,8 +695,10 @@ export class Image {
     }
 
     /**
-     * The image's RGBA pixel data. It can be replaced by any 8-bit array with width * height * 4 bytes
-     * (it is used as is, without copying)
+     * The image's RGBA pixel data (red, green, blue and transparency, four bytes per pixel). It can be replaced by any
+     * 8-bit array with width * height * 4 bytes
+     * (it is used as is, without copying). Direct changes to this array or {@link Image.setPixelAt} don't update the
+     * image's gain map.
      */
     get bitmap(): Uint8ClampedArray {
         return this.__bitmap__;

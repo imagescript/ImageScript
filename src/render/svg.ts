@@ -4,7 +4,8 @@
  * <style> sheets (type, class and id selectors), solid colors, linear and radial gradients, patterns, strokes
  * (joins, caps, dashes), markers, opacity, clip paths, luminance masks, images in data URIs (rasters decoded by
  * the caller, SVGs and SVGZs) and filters (all primitives, see filter.ts).
- * Not supported: text, external images, animation and scripting.
+ * Text is supported with supplied or embedded fonts. Not supported: animation, scripting, foreignObject or automatic
+ * loading of external files and URLs; images can be embedded as data URIs or supplied by the caller.
  * How patterns are rendered (a tile in device resolution, its filtering) and their reference cycles broken, and how
  * images are fitted and sampled follows resvg/usvg, the markers (their placement and orientation,
  * crates/usvg/src/parser/marker.rs) are ported from usvg (https://github.com/linebender/resvg; Copyright 2017 the

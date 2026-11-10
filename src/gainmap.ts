@@ -15,21 +15,24 @@ export type GainMapChannelValues = number | readonly [red: number, green: number
 
 /** Options of the {@link GainMap} constructor */
 export interface GainMapOptions {
-    /** log2 of the boost of the map's value 0 (`-1`: half as bright; hdrgm's GainMapMin). Default: `0` */
+    /** Extra brightness at the map's darkest value (0); `-1` means half as bright. Default: `0` (no change) */
     min?: GainMapChannelValues;
-    /** log2 of the boost of the map's value 255 (`2`: 4 times as bright; hdrgm's GainMapMax). Default: `2` */
+    /** Extra brightness at the map's brightest value (255); `2` means four times as bright. Default: `2` */
     max?: GainMapChannelValues;
-    /** the gamma the map's values are stored with. Default: `1` */
+    /** How quickly the brightness changes between `min` and `max`; `1` changes it evenly. Default: `1` */
     gamma?: GainMapChannelValues;
-    /** added to the SDR image's linear values before the boost (keeps black from being boosted forever). Default: `1/64` */
+    /**
+     * Small brightness offset added before applying the boost, to keep black from being boosted indefinitely.
+     * Default: `1/64`
+     */
     offsetSDR?: GainMapChannelValues;
-    /** subtracted from the HDR result. Default: `1/64` */
+    /** Small brightness offset subtracted from the result. Default: `1/64` */
     offsetHDR?: GainMapChannelValues;
-    /** log2 of the display headroom from which on the map starts to apply. Default: `0` */
+    /** How bright a display must be before the map starts to apply; `0` is standard-screen brightness. Default: `0` */
     hdrCapacityMin?: number;
-    /** log2 of the display headroom at which it applies fully. Default: `max`'s largest value */
+    /** How bright a display must be for the map to apply fully. Default: the largest value in `max` */
     hdrCapacityMax?: number;
-    /** whether the boost applies in the SDR image's color space (`false`: in the HDR image's). Default: `true` */
+    /** Whether the boost uses the original image's colors (`false`: the brighter HDR colors). Default: `true` */
     useBaseColorSpace?: boolean;
 }
 
@@ -41,13 +44,14 @@ const perChannel = (value: GainMapChannelValues, name: string): number[] => {
 };
 
 /**
- * A gain map: a small image saying how much brighter each part of an image gets on an HDR display, as Ultra HDR
- * (JPEG-R) photos from phones carry it. HDR displays show the image boosted by it, the others the image as it is.
+ * A gain map is a small companion image that tells a high-dynamic-range (HDR) display how much brighter to show each
+ * part of a photo. Standard displays ignore it and show the regular-brightness image.
  *
- * {@link Image.decode} reads the gain maps of JPEGs, AVIFs and JPEG XLs into {@link Image.gainMap},
- * {@link Image.encodeJPEG}, {@link Image.encodeAVIF} and {@link Image.encodeJXL} write them. The map covers the whole image, at any resolution (phones
- * write a quarter of the width and height). Its value `v` (0-255, per channel or one for all) boosts the linear
- * light of the image by `2^(min + (max - min) * (v / 255)^(1 / gamma))`.
+ * {@link Image.decode} reads gain maps from supported JPEG, AVIF and JPEG XL images into {@link Image.gainMap};
+ * {@link Image.encodeJPEG}, {@link Image.encodeAVIF} and {@link Image.encodeJXL} can write them. The map covers the
+ * whole image, at any resolution. Each pixel's value (0-255) controls how much extra brightness to add at that
+ * location. For developers who need the exact calculation, the boost is
+ * `2^(min + (max - min) * (v / 255)^(1 / gamma))`, per color channel.
  *
  * The parameters are checked when they are set: a value that isn't finite (or an array of other than 1 or 3 of them)
  * throws, and the map keeps its value

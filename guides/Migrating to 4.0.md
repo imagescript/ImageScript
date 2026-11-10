@@ -158,19 +158,22 @@ Search your code for: `.rotate(`.
 
 ### JPEG composites transparent pixels onto black
 
-JPEG has no alpha channel. In 3.x, `encodeJPEG()` dropped the alpha and kept the color, so a fully transparent pixel
-showed whatever RGB it had stored (often black, but not always). In 4.0, an image with transparent or translucent pixels
-is composited onto a background first, black by default, the way a viewer would show it on black. Pass `background`
-for another color: `image.encodeJPEG({ background: 0xffffffff })`. Opaque images encode as before, byte for byte.
-The new `subsampling` option can select `'4:4:4'` or `'4:2:0'`; its default remains 4:2:0 up to quality 90 and 4:4:4
-above.
+JPEG does not store transparency (also called an alpha channel). In 3.x, `encodeJPEG()` dropped the alpha and kept the
+color, so a fully transparent pixel showed its stored red, green and blue values (often black, but not always). In
+4.0, an image with transparent or translucent pixels is combined with a background first, black by default, the way
+a viewer would show it on black. Pass `background` for another color: `image.encodeJPEG({ background: 0xffffffff })`.
+Opaque images encode as before, byte for byte.
+The new `subsampling` option controls how much color detail to keep: `'4:4:4'` keeps it all; `'4:2:0'` stores less
+color detail to make a smaller file. Its default remains 4:2:0 up to quality 90 and 4:4:4 above.
 
 Search your code for: `encodeJPEG(` on images that can have transparency.
 
 ### `quantize()` dithers by default
 
-`image.quantize()` now dithers with Floyd-Steinberg at a strength of `0.85` by default, like the GIF encoders. In 3.x
-it didn't dither unless you passed `dither`. For the old result, pass `dither: 'none'`:
+`image.quantize()` reduces an image to a limited color palette. It now uses dithering by default: a pattern of small
+color changes that helps smooth the result when colors are reduced. The default method is Floyd-Steinberg, with a
+strength of `0.85`, like the GIF encoders. In 3.x it didn't dither unless you passed `dither`. For the old result,
+pass `dither: 'none'`:
 
 | 3.x | 4.0 |
 | --- | --- |
@@ -279,8 +282,9 @@ image.red(0.5, true);
 for (let i = 0; i < image.bitmap.length; i += 4) image.bitmap[i] = 0.5 * 255;
 ```
 
-`bitmap` is RGBA, four bytes per pixel. Writing it directly skips the gain map of an HDR image, so do not use it on
-images that have one. `absolute` on `lightness()` and `saturation()` sets the value of every pixel and keeps its hue.
+`bitmap` stores four bytes per pixel: red, green, blue and transparency (alpha). Writing it directly skips the gain map
+of a high-dynamic-range (HDR) image, so do not use it on images that have one. `absolute` on `lightness()` and
+`saturation()` sets the value of every pixel and keeps its hue.
 Do it per pixel: read the color with `Colors.toHSLA()`, set the lightness or saturation, and write the pixel back with
 `Colors.fromHSLA()`.
 

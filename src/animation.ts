@@ -60,16 +60,18 @@ export interface AnimationEncodeOptions extends EncodeOptions {
 /** Options of {@link Animation.encodeWebP} */
 export interface WebPAnimationEncodeOptions extends AnimationEncodeOptions {
     /**
-     * Lossy frames (0-100, like libwebp's quality: 75 is its default), much smaller than lossless ones. Without it the
-     * frames are lossless. Optimized lossy frames, like libwebp's, leave out 8x8 blocks that only changed a little (by
-     * up to 3 per channel at quality 85, 1 at 100)
+     * Lossy compression quality (0-100): higher values usually preserve more detail but make larger files. Without
+     * this option, frames are encoded losslessly
      */
     quality?: number;
-    /** How much effort the frames take (0-6, lossy and lossless), see {@link WebPEncodeOptions.effort}. Default: `2` */
+    /**
+     * Compression effort (0-6): higher effort can make smaller files but takes longer, see
+     * {@link WebPEncodeOptions.effort}. Default: `2`
+     */
     effort?: number;
-    /** Lossy frames: libwebp's sharp YUV conversion, see {@link WebPEncodeOptions.sharpYuv}. Default: `false` */
+    /** For lossy frames, improve color detail around sharp edges. Default: `false` */
     sharpYuv?: boolean;
-    /** Lossy frames: the alpha planes' quality (0-100), see {@link WebPEncodeOptions.alphaQuality}. Default: `100` */
+    /** For lossy frames, the quality of the transparency channel (0-100). Default: `100` */
     alphaQuality?: number;
 }
 
