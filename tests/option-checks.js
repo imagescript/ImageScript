@@ -55,7 +55,13 @@ const rejects = async (name, fn, Type, pattern) => {
     await rejects('Animation loopCount 1.5', () => new Animation([new Frame(new Image(8, 8))], {loopCount: 1.5}), RangeError, /loop count/);
     await rejects('dominantColor threshold NaN', () => image.dominantColor({threshold: NaN}), RangeError, /threshold/);
     await rejects('renderSVG scale NaN', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {scale: NaN}), RangeError, /SVG scale/);
+    await rejects('renderSVG maxPixels 0', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {maxPixels: 0}), RangeError, /maxPixels/);
+    await rejects('renderSVG maxPixels exceeded', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {maxPixels: 15}), RangeError, /maxPixels/);
+    if ((await Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {maxPixels: 16})).width !== 4)
+        panic('renderSVG: maxPixels should allow an output that fits');
     await rejects('renderText size -1', () => Image.renderText('x', { font: new Uint8Array(0), size: -1 }), RangeError, /font size/);
+    if (new Image(2.9, 1).width !== 2) panic('Image constructor: fractional dimensions should still be truncated');
+    await rejects('Image width wraps to small positive dimension', () => new Image(2 ** 32 + 2, 1), RangeError, /width is too large/);
     const png = await image.encodePNG();
     for (const maxPixels of [NaN, -1, 0]) {
         await rejects(`Image.decode maxPixels ${maxPixels}`, () => Image.decode(png, {maxPixels}), RangeError, /maxPixels/);

@@ -22,6 +22,7 @@ import { FontFace, FontStyle, fontFace, layOutText, parseFontFamilies, parseVari
 import { rasterizeGlyph } from './text.ts';
 import { renderPaintGlyph } from './colr.ts';
 import { decodeSync as decodePNG } from '../codecs/png.ts';
+import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
 
 const UNSUPPORTED = new Set(['filter', 'pattern', 'marker', 'foreignObject', 'script', 'style', 'title', 'desc', 'metadata',
     'defs', 'clipPath', 'mask', 'linearGradient', 'radialGradient', 'stop', 'symbol', 'font', 'font-face', 'animate', 'animateTransform', 'animateMotion', 'set']);
@@ -159,7 +160,7 @@ const OFFSETS = Float64Array.from({ length: SAMPLES }, (_, s) => (s + 0.5) / SAM
  * @param {number} size
  * @return {{width: number, height: number, pixels: Uint8Array}}
  */
-export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'height', size: number, images: Map<string, RasterImage> = new Map(), fonts: Uint8Array[] = []): { width: number, height: number, pixels: Uint8Array } {
+export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'height', size: number, images: Map<string, RasterImage> = new Map(), fonts: Uint8Array[] = [], maxPixels = MAX_PIXELS): { width: number, height: number, pixels: Uint8Array } {
     if (typeof source !== 'string') source = decodeUTF8(source);
 
     const root = parseXML(source).children.find(node => node.name === 'svg' && node.svg);
@@ -185,6 +186,10 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
 
     outWidth = Math.max(1, outWidth);
     outHeight = Math.max(1, outHeight);
+
+    if (!Number.isSafeInteger(outWidth) || !Number.isSafeInteger(outHeight))
+        throw new RangeError(`SVG output dimensions are too large: ${outWidth}x${outHeight}`);
+    checkPixels(outWidth, outHeight, maxPixels);
 
     const canvas = new Layer(outWidth, outHeight);
     // (a transform on the root element (SVG 2) applies before the viewBox mapping)

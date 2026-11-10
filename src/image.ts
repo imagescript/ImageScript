@@ -396,6 +396,11 @@ export interface RenderSVGOptions {
      */
     scale?: number;
     /**
+     * The most pixels to render, and the most pixels in any embedded image. Default: `268402689` (16383²), `Infinity`
+     * for no limit
+     */
+    maxPixels?: number;
+    /**
      * Fonts for `<text>` (TrueType, OpenType): each text gets the face its `font-family`, `font-weight`, `font-style`
      * and `font-stretch` match best among them, by the names, weights and styles in the fonts (like browsers match
      * installed fonts). Generic families (`serif`, `sans-serif`, `monospace`, ...) are the first font that fits them,
@@ -674,13 +679,15 @@ export class Image {
      * @param height The height in pixels
      */
     constructor(width: number, height: number) {
-        width = ~~width;
-        height = ~~height;
+        width = Math.trunc(finite(width, 'width'));
+        height = Math.trunc(finite(height, 'height'));
 
         if (width < 1)
             throw new RangeError('Image has to be at least 1 pixel wide');
         if (height < 1)
             throw new RangeError('Image has to be at least 1 pixel high');
+        if (width > 0x7fffffff) throw new RangeError('Image width is too large');
+        if (height > 0x7fffffff) throw new RangeError('Image height is too large');
 
         this.__width__ = width;
         this.__height__ = height;
@@ -2708,7 +2715,8 @@ export class Image {
     static renderSVG(svg: string | BinaryData, options?: RenderSVGOptions): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, options: RenderSVGOptions = {}): Promise<Image> {
         checkOptions(options, 'renderSVG(svg, { width: 512 })');
-        const { width: givenWidth, height: givenHeight, scale, fonts = [], images: givenImages = {} } = options;
+        const { width: givenWidth, height: givenHeight, scale, maxPixels = MAX_PIXELS, fonts = [], images: givenImages = {} } = options;
+        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
         const sizes = [givenWidth, givenHeight, scale].filter(value => value !== undefined).length;
         if (sizes > 1) throw new TypeError('renderSVG() takes one of width, height and scale');
         const mode = givenWidth !== undefined ? 'width' : givenHeight !== undefined ? 'height' : 'scale';
@@ -2741,10 +2749,10 @@ export class Image {
                     images.set(href, { width: value.width, height: value.height, pixels: value.bitmap });
                 } else if (ImageType.getType(value) === 'gif') {
                     // (a GIF's first frame)
-                    const decoded = gif.decode(view(value), true);
+                    const decoded = gif.decode(view(value), true, maxPixels);
                     images.set(href, { width: decoded.width, height: decoded.height, pixels: gif.composite(decoded)[0].pixels });
                 } else {
-                    const image = await Image.decode(value);
+                    const image = await Image.decode(value, { maxPixels });
                     images.set(href, { width: image.width, height: image.height, pixels: image.bitmap });
                 }
             } catch {
@@ -2752,7 +2760,7 @@ export class Image {
             }
         }
 
-        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, (Array.isArray(fonts) ? fonts : [fonts]).map(font => view(font)));
+        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, (Array.isArray(fonts) ? fonts : [fonts]).map(font => view(font)), maxPixels);
         const image = new Image(width, height);
         image.bitmap.set(pixels);
 
