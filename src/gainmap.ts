@@ -71,21 +71,21 @@ export class GainMap {
     __useBaseColorSpace__!: boolean;
 
     /** log2 of the boost of the map's value 0, per channel (red, green, blue; a copy: assign to change it) */
-    get min(): number[] { return this.__min__.slice(); }
+    get min(): readonly [red: number, green: number, blue: number] { return [this.__min__[0], this.__min__[1], this.__min__[2]]; }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
      * @param value One number for all channels or [r, g, b]
      */
     set min(value: GainMapChannelValues) { this.__min__ = perChannel(value, 'min'); }
     /** log2 of the boost of the map's value 255, per channel (a copy: assign to change it) */
-    get max(): number[] { return this.__max__.slice(); }
+    get max(): readonly [red: number, green: number, blue: number] { return [this.__max__[0], this.__max__[1], this.__max__[2]]; }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
      * @param value One number for all channels or [r, g, b]
      */
     set max(value: GainMapChannelValues) { this.__max__ = perChannel(value, 'max'); }
     /** The gamma the map's values are stored with, per channel (a copy: assign to change it) */
-    get gamma(): number[] { return this.__gamma__.slice(); }
+    get gamma(): readonly [red: number, green: number, blue: number] { return [this.__gamma__[0], this.__gamma__[1], this.__gamma__[2]]; }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
      * @param value One number above 0 for all channels or [r, g, b]
@@ -96,14 +96,14 @@ export class GainMap {
         this.__gamma__ = gamma;
     }
     /** Added to the SDR image's linear values before the boost, per channel (a copy: assign to change it) */
-    get offsetSDR(): number[] { return this.__offsetSDR__.slice(); }
+    get offsetSDR(): readonly [red: number, green: number, blue: number] { return [this.__offsetSDR__[0], this.__offsetSDR__[1], this.__offsetSDR__[2]]; }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
      * @param value One number for all channels or [r, g, b]
      */
     set offsetSDR(value: GainMapChannelValues) { this.__offsetSDR__ = perChannel(value, 'offsetSDR'); }
     /** Subtracted from the HDR result, per channel (a copy: assign to change it) */
-    get offsetHDR(): number[] { return this.__offsetHDR__.slice(); }
+    get offsetHDR(): readonly [red: number, green: number, blue: number] { return [this.__offsetHDR__[0], this.__offsetHDR__[1], this.__offsetHDR__[2]]; }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
      * @param value One number for all channels or [r, g, b]
