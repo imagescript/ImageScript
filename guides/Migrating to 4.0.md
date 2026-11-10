@@ -107,8 +107,9 @@ old count when it throws), and to the encoders `Animation.gifEncoder()`, `webpEn
 
 The formats store a finite count in fixed-size fields: a GIF up to `65535`, a WebP up to `65534` and an APNG up to
 `2147483646` (2^31 - 2). A larger count throws a `RangeError` before anything is encoded, from `encodeGIF()`,
-`encodeWebP()`, `encodeAPNG()` and the streaming encoders. (Before, a GIF with `65536` loops wrapped to `0`, which is
-forever.) `Infinity` is always fine.
+`encodeWebP()`, `encodeAPNG()` and the streaming encoders. This limit is already enforced in the latest 3.x release,
+3.20.2; earlier releases silently wrapped a GIF count of `65536` to `0`, which means forever. `Infinity` is always
+fine.
 
 Search your code for: `loopCount: -1`, `loopCount = -1`, `loopCount === -1` and `loopCount < 0`.
 
@@ -411,7 +412,9 @@ false })` grows the image again), so search for them too.
 
 `transform()` on images, frames and animations takes an `AffineTransform` with exactly six values. Gain-map channel
 parameters take a scalar or a three-value `[red, green, blue]` tuple (`GainMapChannelValues`); use a scalar for the
-shared-channel form instead of a one-element array.
+shared-channel form instead of a one-element array. The gain-map parameter properties (`min`, `max`, `gamma`,
+`offsetSDR` and `offsetHDR`) return readonly copies: changing `map.min[0]` does not change the map (and TypeScript
+rejects it). Assign a scalar or a full tuple instead, such as `map.min = [0, 1, 2]`.
 
 ### Frames hold an image
 
