@@ -112,7 +112,7 @@ jobs:
         node-version: 24.x
     - run: npm install
     - run: npm run build
-    - run: npm install --no-save --ignore-scripts vite@6.4.5 playwright@1.64.1 esbuild@0.28.2
+    - run: npm install --no-save --ignore-scripts vite@8.3.8 playwright@1.65.0
     # (the runner image has the libraries Chromium needs: --with-deps only added fonts through apt, which the tests
     # don't use, and failed the job whenever the Ubuntu mirrors were unreachable)
     - run: npx playwright install chromium
