@@ -112,5 +112,7 @@ jobs:
     - run: npm install
     - run: npm run build
     - run: npm install --no-save vite@6.4.5 playwright@1.64.1 esbuild@0.28.2
-    - run: npx playwright install --with-deps chromium
+    # (the runner image has the libraries Chromium needs: --with-deps only added fonts through apt, which the tests
+    # don't use, and failed the job whenever the Ubuntu mirrors were unreachable)
+    - run: npx playwright install chromium
     - run: node tests/browser/run.mjs
