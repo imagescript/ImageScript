@@ -163,14 +163,6 @@ pre > button {
     height: var(--toolbar-height);
 }
 
-.tsd-page-toolbar .table-cell {
-    line-height: var(--toolbar-height);
-}
-
-.tsd-page-toolbar .tsd-toolbar-icon {
-    padding: calc((var(--toolbar-height) - 16px) / 2) 0;
-}
-
 .tsd-page-toolbar .tsd-widget {
     height: var(--toolbar-height);
 }
@@ -211,7 +203,6 @@ pre > button {
     color: var(--color-text-aside);
     font-size: 0.9rem;
     font-weight: 500;
-    margin-left: 1.5rem;
 }
 
 #tsd-toolbar-links a:hover {
@@ -219,31 +210,31 @@ pre > button {
     text-decoration: none;
 }
 
-#tsd-search .field input {
-    font: inherit;
-}
-
-#tsd-search .results {
-    border-radius: 0 0 var(--radius) var(--radius);
-    overflow: hidden;
+/* the search: a dialog the toolbar's button opens */
+#tsd-search {
+    border-radius: var(--radius);
     box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
 }
 
-#tsd-search .results li {
+#tsd-search-input {
+    font: inherit;
+}
+
+#tsd-search-results > li {
     line-height: 1.4;
 }
 
-#tsd-search .results li:nth-child(even) {
+#tsd-search-results > li:nth-child(even) {
     background-color: var(--color-background);
 }
 
-#tsd-search .results li:nth-child(odd) {
+#tsd-search-results > li:nth-child(odd) {
     background-color: var(--color-background-secondary);
 }
 
-#tsd-search .results li.current,
-#tsd-search .results li:hover {
+#tsd-search-results > li:is(:hover, [aria-selected="true"]) {
     background-color: var(--color-active-menu-item);
+    color: inherit;
 }
 
 /* ---------- layout ---------- */
@@ -341,11 +332,16 @@ pre > button {
     font-weight: 600;
 }
 
-.tsd-navigation .tsd-accordion-summary svg,
-.tsd-page-navigation .tsd-accordion-summary svg {
-    width: 0.75rem;
-    height: 0.75rem;
-    margin-right: 0.15rem;
+/* typedoc's chevrons are 20px symbols in svgs without a viewBox: zoom scales them (a smaller width or height would only
+cut them off). Their margins are zoomed too */
+.tsd-navigation .tsd-accordion-summary > svg {
+    zoom: 0.56;
+    margin-right: 0.27rem;
+    opacity: 0.6;
+}
+
+/* (sized with the rest of the page menu's below) */
+.tsd-page-navigation .tsd-accordion-summary > svg {
     opacity: 0.6;
 }
 
@@ -369,9 +365,8 @@ pre > button {
 }
 
 .page-menu .tsd-accordion-summary > svg {
-    width: 0.7rem;
-    height: 0.7rem;
-    margin-right: 0.3rem;
+    zoom: 0.72;
+    margin-right: 0.42rem;
 }
 
 .page-menu .tsd-page-navigation a {
@@ -525,12 +520,9 @@ a.external[target="_blank"]:has(> img) {
     margin: 0;
 }
 
-.tsd-accordion-summary > h2 > svg,
-.tsd-accordion-summary > h3 > svg,
-.tsd-accordion-summary > h5 > svg,
+/* (the size the headings' chevrons had at 0.8em of the headings) */
 .tsd-accordion-summary > svg {
-    width: 0.8em;
-    height: 0.8em;
+    zoom: 1.59;
     opacity: 0.45;
 }
 
