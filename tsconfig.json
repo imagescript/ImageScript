@@ -5,7 +5,7 @@
       "es2022"
     ],
     "types": [],
-    "module": "es2022",
+    "module": "esnext",
     "moduleResolution": "bundler",
     "strict": true,
     "noImplicitReturns": true,
