@@ -1,7 +1,7 @@
 # Migrating to 4.0
 
-ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes nine behaviors. Most of the
-removals are mechanical: the compiler points at them. The nine behavior changes are not deprecations, nothing warns
+ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes twelve behaviors. Most of the
+removals are mechanical: the compiler points at them. The twelve behavior changes are not deprecations, nothing warns
 about them, and code keeps compiling while it does something else. Read the first section even if your build is clean.
 
 Node.js 22.13 or newer is required, as it was for 3.x (`engines` in `package.json`).
@@ -13,7 +13,7 @@ The recommended path:
    problems list, or a lint rule for deprecated APIs (typescript-eslint has `no-deprecated`), to get the full list.
 2. Fix every deprecation hint, using the tables below.
 3. Switch to 4.0, fix what the compiler reports with the [renamed and reshaped APIs](#renamed-and-reshaped-apis), and go
-   through the nine behavior changes. The [checklist](#checklist) at the end has grep patterns
+   through the twelve behavior changes. The [checklist](#checklist) at the end has grep patterns
    for finding the code they affect.
 
 ## Behavior changes
@@ -205,6 +205,70 @@ To keep a frame's offsets as they are, call the method on its image: `frame.imag
 [frames hold an image](#frames-hold-an-image) for the other frame changes.
 
 Search your code for: `.crop(`, `.resize(` with `fit: 'cover'`, and `.rotate(` on frames.
+
+### Values that were wrapped, clamped or ignored now throw
+
+Several values that 3.x quietly changed into something else now throw, naming the value:
+
+| Value | 3.x | 4.0 |
+| --- | --- | --- |
+| Colors (`setPixelAt()`, `fill()`, options like `background`, `Colors.toRGBA()`, ...) | any number, wrapped to 32 bits (`2 ** 32 + 5` was `0x00000005`, `1.5` was `1`) | an integer from `-2 ** 31` to `2 ** 32 - 1`, else a `RangeError`. Negative colors keep working: they're what bitwise operators return (`r << 24 \| g << 16 \| b << 8 \| a`) and read as the same unsigned color |
+| Colors returned by a `fill()` function | anything, `undefined` was transparent black | checked like any color |
+| Pixel coordinates (`getPixelAt()`, `setPixelAt()`, `crop()`, `extract()`, `composite()`'s `x` and `y`) | truncated to 32 bits, so `2 ** 32` was `0` | truncated (fractions dropped) without wrapping: out of the image throws as before |
+| `compression` of `encodePNG()`, `encodeAPNG()` and `apngEncoder()` | clamped to 0-9 and truncated | an integer from 0 to 9, like `effort`, else a `RangeError` |
+| Frame durations over what the format stores (GIF and APNG 655350 ms, WebP 16777215 ms) | cut to the format's limit | a `RangeError`, like loop counts that don't fit. Unchanged frames that are merged are split at the limit instead |
+| `frame.xOffset`, `frame.yOffset` (and encoder `add()` offsets) | stored as given, fractions included (`0.4`) | truncated to integers when set, like image sizes, so the offset you read is the one that is encoded |
+| `image.bitmap = view` with a view that doesn't start at a multiple of 4 bytes | copied, so changes to the view no longer reached the image | a `TypeError`: pass an aligned view, or `view.slice()` for a copy |
+| `Colors.gradient()` at a `NaN` position | transparent black with two stops, a `RangeError` with more | a `RangeError` with any number of stops |
+| `encodeGIF()` of an animation without frames | a GIF that doesn't decode | an `Error`, like `encodeAPNG()` and `encodeWebP()` |
+
+A value outside a fixed set of choices is a `TypeError` naming them all, like `resize mode must be 'nearest-neighbor',
+'bilinear', 'bicubic' or 'area', not 'lanczos'`. This changes the error type of the resize `mode` (an `Error`, and only
+thrown once resizing started), `composite()`'s `mode`, `flip()` and `disposalMode` (`RangeError`s), and `wrapStyle`
+(a `RangeError`; `''` and `null` were the default, now they throw).
+
+Search your code for: `compression:`, `xOffset`, `yOffset`, `.bitmap =`, `duration:` above 655 seconds, and catch
+blocks that check for `RangeError` around `resize()`, `composite()`, `flip()` and `disposalMode`.
+
+### Encoded files have no creation time and no version by default
+
+In 3.x, every encoder wrote the time of encoding as the creation time and `ImageScript vX.Y.Z` as the software, so the
+same image never encoded to the same bytes twice, and every file told which release made it. In 4.0, the creation time
+is only written when `metadata.creationTime` is given, and the default software is `'ImageScript'`, without a version
+(`software: ''` still leaves it out):
+
+| 3.x | 4.0 |
+| --- | --- |
+| `image.encodePNG()` (with the time of encoding) | `image.encodePNG({ metadata: { creationTime: Date.now() } })` |
+
+Search your code for: code that reads `Creation Time`, Exif `DateTime` or the software version from encoded files.
+
+### SVG and text rendering limits, and images that can't be drawn
+
+`Image.renderSVG()` used to draw nothing for an `<image>` it couldn't use. In 4.0, drawing one throws, so a rendered SVG
+is the image it describes or nothing:
+
+- an `href` that isn't a data URI or a key of the `images` option (such as `href="logo.png"` or an `https:` URL, which
+  are never fetched): pass the image's bytes with `images: { 'logo.png': bytes }`
+- an image that can't be decoded (the error says which, with the decoding error as its `cause`), a data URI of a type
+  that isn't supported, or an embedded SVG that can't be read
+- images beyond the new `maxImagePixels` option: the pixels of all the raster images the SVG references, decoded
+  together (default: `maxPixels`; `Image` values in `images` don't count). In 3.x, each image was checked on its own,
+  so many images could take many times `maxPixels`
+
+Images that aren't drawn (in `<defs>`, `display="none"`, `visibility="hidden"`) don't throw.
+
+The new `maxLayerPixels` option limits the layers rendering uses at once, the output included: each group with opacity,
+a mask, a filter or a blend mode is drawn in a layer of its own (16 bytes per pixel), so nested ones multiply the memory
+of a small SVG. The default is `4 * maxPixels`; an SVG over it throws a `RangeError`. For untrusted SVGs, lower
+`maxPixels` (it bounds the output, the layers and the images): the worst case is about 90 bytes per pixel of
+`maxPixels` (64 for the layers, up to 20 for the images, 4 for the output), so `maxPixels: 4096 ** 2` keeps rendering
+around 1.5 GB.
+
+`Image.renderText()` takes `maxPixels` too (default `16383 ** 2`), which counts the outline (`strokeWidth`), checked
+before anything is allocated.
+
+Search your code for: `renderSVG(` with SVGs that reference files or URLs, or that may contain broken images.
 
 ## Removed APIs
 
@@ -440,7 +504,7 @@ left corner stays where it was, and the turned image hangs from it.
 ### Checked values and the canvas
 
 Values that were only checked when they were used are now checked when they are set: `frame.duration`,
-`frame.xOffset` and `frame.yOffset` (a finite number, a duration from 0), and the parameters of a `GainMap` (finite,
+`frame.xOffset` and `frame.yOffset` (a finite number, truncated to an integer for the offsets; a duration from 0), and the parameters of a `GainMap` (finite,
 1 or 3 values per channel, a gamma above 0, `hdrCapacityMin` from 0, `useBaseColorSpace` a boolean). An invalid value
 throws a `RangeError` (a `TypeError` for `useBaseColorSpace`) and the old value stays.
 
@@ -511,6 +575,7 @@ grep -rnE 'new Frame\(|Frame\.from\(|frame\w*\.[a-zA-Z]+\(' src
 
 # behavior changes without a compile error
 grep -rnE '\.(rotate|quantize|contain|encodeJPEG)\(|from(HSLA?)\(|toHSLA\(' src
+grep -rnE 'compression:|[xy]Offset|\.bitmap =|renderSVG\(|Creation Time|DateTime' src
 
 # GainMap
 grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
@@ -519,6 +584,7 @@ grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
 Also search for the variables that hold animations, and for `[0]`, `.map(`, `.filter(` and `.forEach(` on them: the
 search can't tell an animation from an array, so check the type of each receiver.
 
-Then compile with `tsc`, and run the tests that cover your decode and encode paths. The nine behavior changes need
+Then compile with `tsc`, and run the tests that cover your decode and encode paths. The twelve behavior changes need
 runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every resize fit mode, every HSL hue,
-every `rotate()`, every JPEG made from an image with transparency, every `quantize()`, and the size changes of frames.
+every `rotate()`, every JPEG made from an image with transparency, every `quantize()`, the size changes of frames, the
+values that now throw, anything that reads the metadata of encoded files, and every SVG with images.

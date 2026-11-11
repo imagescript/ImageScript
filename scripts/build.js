@@ -8,7 +8,7 @@ const root = path.join(__dirname, '..');
 const tsc = require.resolve('typescript/bin/tsc');
 const run = args => execFileSync(process.execPath, [tsc, ...args], { cwd: root, stdio: 'inherit' });
 
-// keep the version in PNG metadata and the one JSR publishes in sync with package.json
+// keep the version JSR publishes in sync with package.json
 require('./version.js').setVersion();
 
 fs.rmSync(path.join(root, 'dist'), { recursive: true, force: true });

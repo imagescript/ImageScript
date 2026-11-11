@@ -115,12 +115,25 @@ const crc32 = bytes => {
         if (transparent(viaMap)) panic(`${name}: nothing drawn`);
     }
 
-    // hrefs that aren't given draw nothing, like before; the empty SVG is the reference
+    // drawing an href that isn't given throws (the SVG can't be rendered as it is); images that aren't drawn don't
     {
+        const missing = await throwsA(Image.renderSVG(svg('<image href="missing.png" width="4" height="3"/>')), Error, 'a missing href');
+        if (!/"missing\.png"/.test(missing.message)) panic(`a missing href's error doesn't name it: ${missing.message}`);
+        await throwsA(Image.renderSVG(svg('<image href="missing.png" width="4" height="3"/>'), {images: {'logo.png': png}}), Error, 'a missing href next to a given one');
+        await throwsA(Image.renderSVG(svg('<image href="https://example.com/logo.png" width="4" height="3"/>')), Error, 'a URL');
+        await throwsA(Image.renderSVG(svg(`<image href="${dataURI('image/bmp', [1, 2, 3])}" width="4" height="3"/>`)), Error, 'an unsupported data URI type');
+        await throwsA(Image.renderSVG(svg(`<image href="${dataURI('image/svg+xml', '<html/>')}" width="4" height="3"/>`)), Error, 'a data URI SVG without <svg>');
         const empty = await Image.renderSVG(svg(''));
-        const missing = await Image.renderSVG(svg('<image href="missing.png" width="4" height="3"/>'));
-        const missingWithOthers = await Image.renderSVG(svg('<image href="missing.png" width="4" height="3"/>'), {images: {'logo.png': png}});
-        if (!same(empty, missing) || !same(empty, missingWithOthers) || !transparent(missing)) panic('a missing href draws something');
+        for (const [label, body] of [
+            ['in <defs>', '<defs><image id="i" href="missing.png" width="4" height="3"/></defs>'],
+            ['display="none"', '<image href="missing.png" width="4" height="3" display="none"/>'],
+            ['visibility="hidden"', '<image href="missing.png" width="4" height="3" visibility="hidden"/>'],
+            ['in a group\'s bounding box', '<g fill="url(#g)"><image href="missing.png" width="4" height="3" visibility="hidden"/><rect width="2" height="2"/></g><linearGradient id="g"><stop stop-color="red"/></linearGradient>'],
+            ['without an href', '<image width="4" height="3"/>'],
+        ]) {
+            const result = await Image.renderSVG(svg(body)).catch(error => panic(`a missing image that isn't drawn (${label}) throws: ${error.message}`));
+            if (label !== 'in a group\'s bounding box' && !same(result, empty)) panic(`a missing image that isn't drawn (${label}) draws something`);
+        }
     }
 
     // images that are given but not referenced are not decoded (garbage bytes don't throw)
@@ -132,11 +145,14 @@ const crc32 = bytes => {
         if (transparent(result)) panic('the used image was not drawn next to an unused one');
     }
 
-    // an undecodable image under a used href behaves like a broken data URI: nothing is drawn, nothing throws
+    // drawing an undecodable image throws, given by href or as a data URI (with the decoding error as its cause)
     {
-        const broken = await Image.renderSVG(svg('<image href="logo.png" width="4" height="3"/>'), {images: {'logo.png': new Uint8Array([1, 2, 3, 4])}});
-        const brokenURI = await Image.renderSVG(svg(`<image href="${dataURI('image/png', [1, 2, 3, 4])}" width="4" height="3"/>`));
-        if (!transparent(broken) || !same(broken, brokenURI)) panic('a broken image under a used href is not like a broken data URI');
+        const broken = await throwsA(Image.renderSVG(svg('<image href="logo.png" width="4" height="3"/>'), {images: {'logo.png': new Uint8Array([1, 2, 3, 4])}}), Error, 'a broken given image');
+        if (!/"logo\.png" can't be decoded/.test(broken.message) || !broken.cause) panic(`a broken image's error: ${broken.message}`);
+        await throwsA(Image.renderSVG(svg(`<image href="${dataURI('image/png', [1, 2, 3, 4])}" width="4" height="3"/>`)), Error, 'a broken data URI');
+        await throwsA(Image.renderSVG(svg(`<filter id="f"><feImage href="${dataURI('image/png', [1, 2, 3, 4])}"/></filter><rect width="4" height="3" filter="url(#f)"/>`)), Error, 'a broken feImage');
+        // (one that isn't drawn doesn't throw)
+        await Image.renderSVG(svg('<defs><image href="logo.png" width="4" height="3"/></defs>'), {images: {'logo.png': new Uint8Array([1, 2, 3, 4])}});
     }
 
     // validation before anything is decoded
@@ -150,7 +166,7 @@ const crc32 = bytes => {
         if (calls !== 0) panic(`images were decoded before validation failed (${calls})`);
     }
 
-    // a huge declared image doesn't get around the decoding limit: it draws nothing, like a broken image
+    // a huge declared image doesn't get around the decoding limit: drawing it throws a RangeError
     {
         const tiny = await new Image(1, 1).fill(0xffffffff).encodePNG({compression: 1});
         const huge = Uint8Array.from(tiny);
@@ -159,8 +175,36 @@ const crc32 = bytes => {
         view.setUint32(20, 20000);
         view.setUint32(29, crc32(huge.subarray(12, 29)));
         await throwsA(Image.decode(huge), RangeError, 'the huge PNG decodes on its own');
-        const result = await Image.renderSVG(svg('<image href="big.png" width="4" height="3"/>'), {images: {'big.png': huge}});
-        if (!transparent(result)) panic('a huge image was drawn');
+        await throwsA(Image.renderSVG(svg('<image href="big.png" width="4" height="3"/>'), {images: {'big.png': huge}}), RangeError, 'a huge image');
+    }
+
+    // maxImagePixels: the images together (Image values don't count), by default maxPixels
+    {
+        const body = '<image href="a.png" width="4" height="3"/><image href="b.png" x="4" width="4" height="3"/>';
+        const two = {'a.png': png, 'b.png': otherPNG};
+        await Image.renderSVG(svg(body), {images: two, maxImagePixels: 24});
+        await throwsA(Image.renderSVG(svg(body), {images: two, maxImagePixels: 23}), RangeError, 'two images over maxImagePixels');
+        // (a 4x3 output: only the images exceed maxPixels)
+        await throwsA(Image.renderSVG(svg(body, 4, 3), {images: two, maxPixels: 23}), RangeError, 'two images over maxPixels');
+        await Image.renderSVG(svg(body), {images: {'a.png': logo, 'b.png': other}, maxImagePixels: 1});
+        await Image.renderSVG(svg(body, 4, 3), {images: two, maxPixels: 23, maxImagePixels: Infinity});
+        for (const value of [0, -1, NaN, 'many'])
+            await throwsA(Image.renderSVG(svg(body), {images: two, maxImagePixels: value}), RangeError, `maxImagePixels ${value}`);
+    }
+
+    // maxLayerPixels: the layers alive at once (nested groups with opacity each take one), by default 4 * maxPixels
+    {
+        const nest = depth => '<g opacity="0.9">'.repeat(depth) + '<rect width="8" height="3"/>' + '</g>'.repeat(depth);
+        // the canvas and 3 layers fit 4 * maxPixels
+        await Image.renderSVG(svg(nest(3)), {maxPixels: 24});
+        await throwsA(Image.renderSVG(svg(nest(4)), {maxPixels: 24}), RangeError, 'nested layers over 4 * maxPixels');
+        await throwsA(Image.renderSVG(svg(nest(2)), {maxLayerPixels: 24 * 2}), RangeError, 'nested layers over maxLayerPixels');
+        await Image.renderSVG(svg(nest(20)), {maxPixels: 24, maxLayerPixels: Infinity});
+        // layers that are done are given back: many groups after each other only take one at a time
+        await Image.renderSVG(svg(nest(1).repeat(100) + `<g opacity="0.5" filter="url(#f)" mask="url(#m)"><rect width="8" height="3"/></g>`.repeat(50)
+            + '<filter id="f"><feOffset dx="1"/></filter><mask id="m"><rect width="8" height="3" fill="white"/></mask>'), {maxLayerPixels: 24 * 8});
+        for (const value of [0, -1, NaN])
+            await throwsA(Image.renderSVG(svg(nest(1)), {maxLayerPixels: value}), RangeError, `maxLayerPixels ${value}`);
     }
 
     // quantized images can be given too (the palette of an SVG's image)

@@ -12,6 +12,19 @@ export function checkOptions(value: unknown, usage: string): void {
 }
 
 /**
+ * One of a fixed set of string values: anything else throws a TypeError naming the allowed ones, like
+ * `mode must be 'a', 'b' or 'c', not d`
+ */
+export function oneOf<T extends string>(value: unknown, allowed: readonly T[], name: string): T {
+    if (typeof value !== 'string' || !allowed.includes(value as T)) {
+        const list = allowed.map(a => `'${a}'`);
+        const expected = list.length > 1 ? `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}` : list[0];
+        throw new TypeError(`${name} must be ${expected}, not ${typeof value === 'string' ? `'${value}'` : String(value)}`);
+    }
+    return value as T;
+}
+
+/**
  * A number argument, converted like arithmetic does (numeric strings keep working); NaN and the infinities throw
  * a RangeError naming the argument
  */
@@ -54,6 +67,25 @@ export function fitLoops(count: number, format: keyof typeof LOOP_LIMITS): numbe
     return count;
 }
 
+/**
+ * The longest frame duration each format stores, in milliseconds: GIF 16 bits of centiseconds, APNG 16 bits of
+ * centiseconds (16 bits of milliseconds below that), WebP 24 bits of milliseconds
+ */
+const DURATION_LIMITS = { GIF: 655350, APNG: 655350, WebP: 0xffffff };
+
+/** The longest frame duration a format stores (in milliseconds), see {@link fitDuration} */
+export const maxDuration = (format: keyof typeof DURATION_LIMITS): number => DURATION_LIMITS[format];
+
+/**
+ * A frame duration for a format's frames: a duration above the format's limit would be cut silently, so it throws a
+ * RangeError, like {@link fitLoops}
+ */
+export function fitDuration(duration: number, format: keyof typeof DURATION_LIMITS): number {
+    const max = DURATION_LIMITS[format];
+    if (duration > max) throw new RangeError(`refuse frame durations that don't fit the format: ${format} frames last up to ${max} ms, not ${duration}`);
+    return duration;
+}
+
 /** A quality argument (0-100) of the encoders that take one, finite and in range */
 export function quality(value: number, name = 'quality'): number {
     const q = finite(value, name);
@@ -67,8 +99,19 @@ export function effort(value: number, max: number): number {
     return value;
 }
 
-/** A zlib compression level: finite, clamped to 0-9 and truncated (PNG's and APNG's) */
-export const compressionLevel = (value: number): number => Math.min(9, Math.max(0, ~~finite(value, 'compression level')));
+/** A zlib compression level (PNG's and APNG's): an integer from 0 to 9, like effort */
+export function compressionLevel(value: number): number {
+    if (!Number.isInteger(value) || value < 0 || value > 9) throw new RangeError(`compression level must be an integer 0-9, not ${value}`);
+    return value;
+}
 
-/** A color argument: a finite number (as RGBA, 0xrrggbbaa) */
-export const color = (value: number, name = 'color'): number => finite(value, name);
+/**
+ * A color argument (RGBA, 0xrrggbbaa) as an unsigned 32-bit integer. Signed 32-bit integers are accepted too, they're
+ * what bitwise operators return (`r << 24 | g << 16 | b << 8 | a` is negative for red above 127); anything else that
+ * isn't an integer from -2^31 to 2^32 - 1 throws a RangeError instead of wrapping around
+ */
+export function color(value: number, name = 'color'): number {
+    const number = finite(value, name);
+    if (!Number.isInteger(number) || number < -0x80000000 || number > 0xffffffff) throw new RangeError(`Invalid ${name}: ${value} (a color is an integer like 0xrrggbbaa)`);
+    return number >>> 0;
+}

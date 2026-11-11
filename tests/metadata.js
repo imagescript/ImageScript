@@ -9,8 +9,8 @@ const has = (data, text) => Buffer.from(data).includes(Buffer.from(text));
 const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'latin1'));
 
 (async () => {
-    const {VERSION} = await import('../dist/version.js');
-    const software = `ImageScript v${VERSION}`;
+    // (without the version: it would tell which release made a file)
+    const software = 'ImageScript';
     const image = new Image(8, 4).fill(0xff000080);
     const animation = new Animation([new Frame(image.clone(), {duration: 100}), new Frame(new Image(8, 4).fill(0x00ff00ff), {duration: 100})]);
 
@@ -30,6 +30,15 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
     for (const [format, encode] of Object.entries(encoders)) {
         const tagged = await encode();
         if (!has(tagged, software)) panic(`${format}: software missing by default`);
+        if (has(tagged, `${software} v`)) panic(`${format}: the default software names the version`);
+        // no creation time unless one is given: the same image encodes to the same bytes, whenever it's encoded
+        const now = Date.now;
+        Date.now = () => 0;
+        const early = await encode();
+        Date.now = () => 4e12;
+        const late = await encode();
+        Date.now = now;
+        if (!Buffer.from(early).equals(Buffer.from(late))) panic(`${format}: encoding depends on the time`);
         if (has(await encode({software: ''}), 'ImageScript')) panic(`${format}: software: '' should leave it out`);
         if (!has(await encode({software: 'custom tool'}), 'custom tool')) panic(`${format}: custom software missing`);
 
@@ -46,6 +55,7 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
         if (!has(png, 'iTXtCopyright\0\0\0\0\0Ⓒ someone')) panic('png: other text should be an iTXt chunk');
         if (png.indexOf('tEXt') > png.indexOf('IDAT')) panic('png: text chunks should come before the image data');
         if (!has(png, 'Thu, 15 Oct 2026 12:34:56 GMT')) panic('png: creation time missing');
+        if (has(await image.encodePNG(), 'Creation Time')) panic('png: a creation time without one given');
     }
 
     // JPEG, WebP, AVIF and JPEG XL: Exif (IFD0 strings, UTC date; AVIF and JPEG XL: the TIFF header's offset first),

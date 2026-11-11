@@ -20,8 +20,8 @@ const rejects = async (name, fn, Type, pattern) => {
 (async () => {
     const image = new Image(8, 8).fill(0x336699ff);
     const animation = () => new Animation([new Frame(new Image(8, 8).fill(0xff0000ff), {duration: 100}), new Frame(new Image(8, 8).fill(0x00ff00ff), {duration: 100})]);
-    const encoded = async (encoder) => {
-        await encoder.add(new Frame(new Image(8, 8).fill(0xff0000ff)));
+    const encoded = async (encoder, options) => {
+        await encoder.add(new Frame(new Image(8, 8).fill(0xff0000ff)), options);
         return encoder.finish();
     };
 
@@ -50,7 +50,7 @@ const rejects = async (name, fn, Type, pattern) => {
     await rejects('encodeGIF dither', () => animation().encodeGIF({dither: 'random'}), TypeError, /dither/);
     await rejects('encodeAPNG compression NaN', () => animation().encodeAPNG({compression: NaN}), RangeError, /compression level/);
     await rejects('apngEncoder compression NaN', () => encoded(Animation.apngEncoder(8, 8, {compression: NaN})), RangeError, /compression level/);
-    if (!(await animation().encodeAPNG({compression: 12})).length) panic('clamped values rejected');
+    await rejects('encodeAPNG compression 12', () => animation().encodeAPNG({compression: 12}), RangeError, /compression level must be an integer 0-9/);
 
     await rejects('Animation loopCount 1.5', () => new Animation([new Frame(new Image(8, 8))], {loopCount: 1.5}), RangeError, /loop count/);
     await rejects('dominantColor threshold NaN', () => image.dominantColor({threshold: NaN}), RangeError, /threshold/);
@@ -73,6 +73,89 @@ const rejects = async (name, fn, Type, pattern) => {
     const gif = await new Animation([new Frame(new Image(4, 4).fill(0xff0000ff))]).encodeGIF();
     await rejects('Image.decode GIF maxPixels', () => Image.decode(gif, {maxPixels: 15}), RangeError, /maxPixels/);
     if ((await Image.decode(gif, {maxPixels: 16})).width !== 4) panic('Image.decode GIF: the first frame should fit maxPixels 16');
+
+    // a value outside a fixed set of choices is a TypeError naming them all
+    await rejects('resize mode', () => image.clone().resize(4, 4, {mode: 'lanczos'}), TypeError, /resize mode must be 'nearest-neighbor', 'bilinear', 'bicubic' or 'area', not 'lanczos'/);
+    await rejects('scale mode', () => image.clone().scale(2, {mode: 'lanczos'}), TypeError, /resize mode must be/);
+    await rejects('blend mode', () => image.clone().composite(image, {mode: 'nope'}), TypeError, /blend mode must be/);
+    await rejects('flip direction', () => image.clone().flip('diagonal'), TypeError, /flip direction must be 'horizontal' or 'vertical'/);
+    await rejects('disposal mode', () => new Frame(image, {disposalMode: 'none'}), TypeError, /disposal mode must be/);
+    await rejects('wrapStyle', () => Image.renderText('hi', {font: new Uint8Array(4), size: 8, wrapStyle: 'line'}), TypeError, /wrapStyle must be 'word' or 'char'/);
+    // (an invalid mode is found before anything changes: a frame's offsets stay)
+    {
+        const frame = new Frame(new Image(100, 50), {xOffset: 10, yOffset: 10});
+        await rejects('cover mode', () => frame.resize({width: 20, height: 20, fit: 'cover', mode: 'lanczos'}), TypeError, /resize mode/);
+        if (frame.xOffset !== 10 || frame.yOffset !== 10 || frame.width !== 100) panic('an invalid cover mode moved the frame');
+    }
+
+    // compression levels are integers 0-9, like efforts (out of range ones aren't clamped)
+    for (const compression of [-1, 10, 99, 4.5, NaN, '4', null]) {
+        await rejects(`encodePNG compression ${compression}`, () => image.encodePNG({compression}), RangeError, /compression level must be an integer 0-9/);
+        await rejects(`encodeAPNG compression ${compression}`, () => animation().encodeAPNG({compression}), RangeError, /compression level must be an integer 0-9/);
+    }
+
+    // colors are integers from -2^31 (what bitwise operators return) to 2^32 - 1: others throw instead of wrapping
+    for (const color of [2 ** 32, 2 ** 32 + 5, -(2 ** 31) - 1, 1.5, NaN, Infinity]) {
+        await rejects(`setPixelAt color ${color}`, () => image.clone().setPixelAt(0, 0, color), RangeError, /color/);
+        await rejects(`fill color ${color}`, () => image.clone().fill(color), RangeError, /color/);
+        await rejects(`fill function color ${color}`, () => image.clone().fill(() => color), RangeError, /color/);
+    }
+    await rejects('fill function without a color', () => image.clone().fill(() => undefined), RangeError, /color/);
+    if (new Image(1, 1).setPixelAt(0, 0, 0xff << 24 | 0xff).getPixelAt(0, 0) !== 0xff0000ff) panic('a negative (signed) color should be read as unsigned');
+    if (new Image(1, 1).fill(-1).getPixelAt(0, 0) !== 0xffffffff) panic('fill(-1) should be white');
+
+    // coordinates are truncated like sizes, without wrapping around at 2^32
+    await rejects('getPixelAt 2^32', () => image.getPixelAt(2 ** 32, 0), RangeError, /outside/);
+    await rejects('setPixelAt 2^32 + 1', () => image.clone().setPixelAt(2 ** 32 + 1, 0, 0), RangeError, /outside/);
+    {
+        const canvas = new Image(4, 1);
+        canvas.composite(new Image(1, 1).fill(0xffffffff), {x: 2 ** 32 + 1});
+        if (canvas.getPixelAt(1, 0) !== 0) panic('composite at x = 2^32 + 1 drew at x = 1');
+        await rejects('crop at 2^32', () => new Image(4, 4).crop(2 ** 32, 0, 2, 2), RangeError, /overlap/);
+    }
+
+    // a gradient position that isn't a number throws, whatever the number of stops; stops at one position are an edge
+    {
+        const {Colors} = require('..');
+        await rejects('gradient of 2 at NaN', () => Colors.gradient([0xff0000ff, 0x0000ffff])(NaN), RangeError, /gradient position/);
+        await rejects('gradient of 3 at NaN', () => Colors.gradient([0xff0000ff, 0x00ff00ff, 0x0000ffff])(NaN), RangeError, /gradient position/);
+        const edge = Colors.gradient({0: 0xff0000ff, 0.5: 0x00ff00ff, '0.50': 0x0000ffff, 1: 0xffffffff});
+        if ([0.25, 0.5, 0.75].some(p => Number.isNaN(edge(p)))) panic('a gradient with two stops at one position');
+        const single = Colors.gradient({0.5: 0xff0000ff, '0.50': 0x00ff00ff, '5e-1': 0x0000ffff});
+        if (single(0.2) !== 0xff0000ff || single(0.8) !== 0x0000ffff) panic('a gradient with all stops at one position');
+    }
+
+    // bitmaps are used without copying, so they have to start at a byte offset divisible by 4
+    {
+        const target = new Image(2, 2);
+        await rejects('unaligned bitmap', () => { target.bitmap = new Uint8Array(17).subarray(1); }, TypeError, /divisible by 4/);
+        const aligned = new Uint8Array(20).subarray(4);
+        target.bitmap = aligned;
+        aligned[0] = 7;
+        if (target.bitmap[0] !== 7) panic('an aligned bitmap should be used without copying');
+    }
+
+    // frame offsets are truncated to integers, like image sizes
+    {
+        const frame = new Frame(new Image(1, 1), {xOffset: 2.7, yOffset: -0.5});
+        if (frame.xOffset !== 2 || !Object.is(frame.yOffset, 0)) panic(`frame offsets should be truncated, got ${frame.xOffset}, ${frame.yOffset}`);
+        frame.xOffset = -3.9;
+        if (frame.xOffset !== -3) panic(`frame.xOffset = -3.9 should be -3, got ${frame.xOffset}`);
+    }
+
+    // frame durations a format can't store throw, like loop counts (and frames merged for being unchanged are split)
+    {
+        const long = duration => new Animation([new Frame(new Image(2, 2).fill(0xff0000ff), {duration})]);
+        for (const [format, max] of [['GIF', 655350], ['APNG', 655350], ['WebP', 0xffffff]]) {
+            await rejects(`encode${format} duration ${max + 1}`, () => long(max + 1)[`encode${format}`](), RangeError, new RegExp(`${format} frames last up to ${max} ms`));
+            await rejects(`${format} encoder duration ${max + 1}`, () => encoded(Animation[`${format.toLowerCase()}Encoder`](8, 8, {}), {duration: max + 1}), RangeError, /frames last up to/);
+            await long(max)[`encode${format}`]();
+            const frames = () => [1, 2, 3].map(() => new Frame(new Image(2, 2).fill(0xff0000ff), {duration: 400000}));
+            const decoded = await Animation.decode(await new Animation(frames())[`encode${format}`]());
+            if (decoded.duration !== 1200000 || decoded.frames.some(f => f.duration > max)) panic(`${format}: merged frames should be split at the limit, got ${decoded.frames.map(f => f.duration)}`);
+        }
+        await rejects('encodeGIF without frames', () => new Animation([]).encodeGIF(), Error, /at least one frame/);
+    }
 
     // valid values keep working
     for (const effort of [0, 1, 2]) await image.encodeAVIF({effort});

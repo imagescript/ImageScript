@@ -1,6 +1,6 @@
-// sets the package version and keeps its copies in sync: package.json, jsr.json and src/version.ts (reported in
-// PNG metadata). The release workflow sets the version from the release tag, the build syncs the copies.
-// usage: node scripts/version.js [version]   (without a version only the copies are synced to package.json)
+// sets the package version and keeps its copy in sync: package.json and jsr.json. The release workflow sets the
+// version from the release tag, the build syncs the copy.
+// usage: node scripts/version.js [version]   (without a version only the copy is synced to package.json)
 const fs = require('fs');
 const path = require('path');
 
@@ -15,10 +15,6 @@ function setVersion(version) {
 
     const jsr = readJSON('jsr.json');
     if (jsr.version !== version) writeJSON('jsr.json', { ...jsr, version });
-
-    const file = path.join(root, 'src/version.ts');
-    const source = `// kept in sync with package.json by scripts/version.js\nexport const VERSION = '${version}';\n`;
-    if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== source) fs.writeFileSync(file, source);
     return version;
 }
 

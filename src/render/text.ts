@@ -15,6 +15,7 @@ import { graphemeBoundaries, scripts } from './segment.ts';
 import { PaintGlyphs, parsePaintGlyphs, paintExtent, renderPaintGlyph } from './colr.ts';
 import { decode as decodePNG } from '../codecs/png.ts';
 import { resample, TRIANGLE } from '../util/resample.ts';
+import { MAX_PIXELS, LimitError } from '../util/limits.ts';
 
 export interface Layout {
     maxWidth: number;
@@ -199,23 +200,21 @@ function glyphOf(f: SizedFont, index: number, size: number): Glyph {
  * @param hinting Whether to run TrueType fonts' hinting instructions, the glyphs of hinted fonts are then placed on
  *     whole pixels (fonts without instructions render as without hinting)
  * @param foreground RGBA color (0xrrggbbaa) of color glyph layers drawn in the text color
+ * @param maxPixels the most pixels of the image the text becomes, with `pad` pixels more on every side (its outline):
+ *     larger text throws a LimitError before anything that size is allocated
  * @return the coverage of the outline glyphs, and the premultiplied RGBA pixels of color glyphs (null without any)
  */
-export async function render(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting = false, foreground = 0xffffffff, features: Features = [], variations: Record<string, number> = {}): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
+export async function render(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting = false, foreground = 0xffffffff, features: Features = [], variations: Record<string, number> = {}, maxPixels = MAX_PIXELS, pad = 0): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
     // reading past the end of damaged or truncated font data throws a RangeError
     try {
-        return await layOut(fonts, size, text, layout, hinting, foreground, features, variations);
+        return await layOut(fonts, size, text, layout, hinting, foreground, features, variations, maxPixels, pad);
     } catch (err) {
-        if (err instanceof RangeError && !(err instanceof TooLarge)) throw new Error('Font: damaged or truncated font data', { cause: err });
+        if (err instanceof RangeError && !(err instanceof LimitError)) throw new Error('Font: damaged or truncated font data', { cause: err });
         throw err;
     }
 }
 
-// rendered text larger than 2^28 pixels (16384 square)
-const MAX_PIXELS = 1 << 28;
-class TooLarge extends RangeError {}
-
-async function layOut(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting: boolean, foreground: number, features: Features, variations: Record<string, number>): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
+async function layOut(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting: boolean, foreground: number, features: Features, variations: Record<string, number>, maxPixels: number, pad: number): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
     const sized: SizedFont[] = [];
     const font = (i: number): SizedFont => sized[i] ??= sizedFont(fonts[i], size, hinting, variations);
     const primary = font(0);
@@ -242,7 +241,8 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
     // text without ink (empty, spaces) still makes an image, a transparent pixel wide
     const width = Math.max(1, Math.ceil(Math.max(0, ...visible.map(line => line.extent))));
     const height = visible.length * lineHeight;
-    if (!(width * height <= MAX_PIXELS)) throw new TooLarge(`Text too large to render (${width}x${height} pixels)`);
+    if (!((width + 2 * pad) * (height + 2 * pad) <= maxPixels))
+        throw new LimitError(`Text too large to render: ${width + 2 * pad}x${height + 2 * pad} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
     const coverage = new Uint8Array(width * height);
     let color: Uint8ClampedArray | null = null;
 

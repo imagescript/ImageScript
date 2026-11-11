@@ -7,11 +7,12 @@ import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel, loopCount, toPlays, fitLoops } from './util/options.ts';
+import { checkOptions, finite, compressionLevel, loopCount, toPlays, fitLoops, fitDuration, maxDuration } from './util/options.ts';
 import type { AnimationOptions, WebPAnimationEncodeOptions, GIFAnimationEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
 interface Format {
+    readonly name: 'GIF' | 'APNG' | 'WebP';
     readonly optimize: OptimizeOptions;
     frame(f: OptimizedFrame | InputFrame, optimized: boolean): Promise<void>;
     file(optimizer: Optimizer | null): Promise<Uint8Array<ArrayBuffer>> | Uint8Array<ArrayBuffer>;
@@ -60,11 +61,12 @@ export class AnimationEncoder {
         const own = frame instanceof Frame ? frame : null;
         const image = own ? own.image : frame;
         if (!(image instanceof Image)) throw new TypeError('encoder.add() takes a Frame or an Image');
-        const duration = options.duration ?? own?.duration ?? 100;
-        const x = options.xOffset ?? own?.xOffset ?? 0, y = options.yOffset ?? own?.yOffset ?? 0;
-        if (finite(duration, 'frame duration') < 0) throw new RangeError('Invalid frame duration');
-        finite(x, 'x offset');
-        finite(y, 'y offset');
+        const duration = finite(options.duration ?? own?.duration ?? 100, 'frame duration');
+        if (duration < 0) throw new RangeError('Invalid frame duration');
+        fitDuration(duration, this.format.name);
+        // (offsets are truncated to integers, like a frame's)
+        const x = Math.trunc(finite(options.xOffset ?? own?.xOffset ?? 0, 'x offset')) || 0;
+        const y = Math.trunc(finite(options.yOffset ?? own?.yOffset ?? 0, 'y offset')) || 0;
         const disposal = options.disposalMode !== undefined ? Frame.__convert_disposal_mode__(options.disposalMode) : own ? own.__disposal_id__ : 1;
         const input: InputFrame & { disposal: number } = {
             x, y, width: image.width, height: image.height, duration, disposal,
@@ -109,7 +111,8 @@ export class AnimationEncoder {
             chunks.push(await webp.frameChunk(f, lossy, effort));
         };
         return new AnimationEncoder(width, height, {
-            optimize: { replace: true, even: true, alpha: 'frame', tolerance: lossy ? webp.lossyTolerance(lossy.quality) : undefined },
+            name: 'WebP',
+            optimize: { replace: true, even: true, alpha: 'frame', tolerance: lossy ? webp.lossyTolerance(lossy.quality) : undefined, maxDuration: maxDuration('WebP') },
             async frame(f, optimized) {
                 if (optimized) return add(f as OptimizedFrame);
                 const input = f as InputFrame & { disposal: number };
@@ -133,7 +136,8 @@ export class AnimationEncoder {
         let first: gifCodec.GIFFrame | null = null, restores = false;
         const rest: Uint8Array[] = [];
         return new AnimationEncoder(width, height, {
-            optimize: { replace: false, even: false, alpha: 'frame', palette: 256, cover: true },
+            name: 'GIF',
+            optimize: { replace: false, even: false, alpha: 'frame', palette: 256, cover: true, maxDuration: maxDuration('GIF') },
             async frame(f, optimized) {
                 if (!first && optimized) coverCanvas(f as OptimizedFrame, width, height);
                 const gif: gifCodec.GIFFrame = { x: f.x, y: f.y, width: f.width, height: f.height, pixels: f.pixels,
@@ -163,7 +167,8 @@ export class AnimationEncoder {
         const cost = new png.AlphaCost();
         let blended = false;
         return new AnimationEncoder(width, height, {
-            optimize: { replace: true, even: false, alpha: () => cost.cost() },
+            name: 'APNG',
+            optimize: { replace: true, even: false, alpha: () => cost.cost(), maxDuration: maxDuration('APNG') },
             async frame(f, optimized) {
                 let frame: png.APNGEncodeFrame;
                 if (optimized) {

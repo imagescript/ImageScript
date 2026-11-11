@@ -32,8 +32,8 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
-import { MAX_PIXELS, decoding } from './util/limits.ts';
+import { isOptions, checkOptions, finite, oneOf, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { MAX_PIXELS, LimitError, decoding } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
 import { multiply, invert } from './util/matrix.ts';
@@ -382,11 +382,26 @@ export interface RenderSVGOptions {
      */
     scale?: number;
     /**
-     * Maximum total pixels in the rendered output. Output over the limit throws a RangeError. Raster images decoded
-     * from embedded data are limited too and omitted if they exceed it; already-decoded {@link Image} values are used
-     * as supplied. Default: `268402689` (16383²); `Infinity` disables the limit
+     * Maximum total pixels in the rendered output. Output over the limit throws a RangeError before anything is
+     * rendered. It's also the default of {@link RenderSVGOptions.maxLayerPixels} and
+     * {@link RenderSVGOptions.maxImagePixels}. Default: `268402689` (16383²); `Infinity` disables the limit
      */
     maxPixels?: number;
+    /**
+     * Maximum pixels of the layers rendering uses at once, the output's included. Groups with opacity, masks, clip
+     * paths of nested viewports, filters and blend modes are each rendered into a layer of their own (up to the
+     * output's size, 16 bytes per pixel) while their content is drawn, so deeply nested ones multiply the memory a
+     * small SVG takes. Exceeding it throws a RangeError. With the defaults, rendering can take about 90 bytes per pixel
+     * of `maxPixels` (64 for the layers, up to 20 for the images, 4 for the output): lower `maxPixels` to bound it for
+     * untrusted SVGs. Default: `4 * maxPixels`; `Infinity` disables the limit
+     */
+    maxLayerPixels?: number;
+    /**
+     * Maximum total pixels of the raster images the SVG references (data URIs and {@link RenderSVGOptions.images}),
+     * decoded together; already-decoded {@link Image} values are used as supplied and don't count. Drawing an image
+     * beyond the limit throws a RangeError. Default: `maxPixels`; `Infinity` disables the limit
+     */
+    maxImagePixels?: number;
     /**
      * Fonts for `<text>` (TrueType, OpenType or WOFF; not WOFF2 or some newer OpenType outline formats such as CFF2):
      * each text gets the face its `font-family`, `font-weight`, `font-style`
@@ -402,8 +417,9 @@ export interface RenderSVGOptions {
      * Images for the `<image>` elements (and `feImage`) by their `href`, the same string the SVG uses: with
      * `images: { 'logo.png': bytes }`, `<image href="logo.png" .../>` draws the image. Values are encoded images (PNG,
      * JPEG, WebP, GIF's first frame, ...) or {@link Image}s, decoded like data URI images are, and only for the hrefs
-     * the SVG references. Nothing else is read: no files and no URLs, so an href that isn't given (and isn't a data URI)
-     * draws nothing. SVG documents can't be given this way, use a data URI for them. Default: `{}`
+     * the SVG references. Nothing else is read: no files and no URLs, so drawing an image whose href isn't given (and
+     * isn't a data URI) throws, as does drawing one that can't be decoded. SVG documents can't be given this way, use a
+     * data URI for them. Default: `{}`
      */
     images?: Record<string, BinaryData | Image>;
 }
@@ -426,6 +442,11 @@ export interface RenderTextOptions extends TextStyleOptions, TextLayoutOptions {
     size: number;
     /** The text color. Default: `0xffffffff` */
     color?: Color;
+    /**
+     * Maximum total pixels of the rendered image (the outline included): larger text throws a RangeError before its
+     * pixels are allocated. Default: `268402689` (16383²); `Infinity` disables the limit
+     */
+    maxPixels?: number;
 }
 
 /** Options of {@link Image.decode}, {@link Animation.decode} and {@link decode} */
@@ -446,7 +467,10 @@ export interface DecodeOptions {
     /**
      * The maximum total pixels to decode. An image declaring more pixels throws a RangeError before its pixel buffer
      * is allocated, helping prevent a small or untrusted file from requesting an enormous amount of memory.
-     * {@link Animation.decode} counts all frames together because each frame uses a full canvas. Default:
+     * {@link Animation.decode} counts all frames together because each frame uses a full canvas. The decoded image
+     * takes 4 bytes per pixel (about 1 GiB at the default), and decoding needs more while it runs: for 8-bit images,
+     * about 4-7 bytes per pixel for PNG, JPEG, WebP, GIF and the simpler formats, about 14 for AVIF and about 30 for
+     * JPEG XL (more with high bit depths). Lower it to bound the memory of servers decoding untrusted files. Default:
      * `268402689` (16383²); `Infinity` disables the limit
      */
     maxPixels?: number;
@@ -696,9 +720,8 @@ export class Image {
 
     /**
      * The image's RGBA pixel data (red, green, blue and transparency, four bytes per pixel). It can be replaced by any
-     * 8-bit array with width * height * 4 bytes
-     * (it is used as is, without copying). Direct changes to this array or {@link Image.setPixelAt} don't update the
-     * image's gain map.
+     * 8-bit array with width * height * 4 bytes starting at a byte offset divisible by 4 (it is used as is, without
+     * copying). Direct changes to this array or {@link Image.setPixelAt} don't update the image's gain map.
      */
     get bitmap(): Uint8ClampedArray {
         return this.__bitmap__;
@@ -706,13 +729,17 @@ export class Image {
 
     /**
      * Replaces the pixel data
-     * @param bitmap The new RGBA data, width * height * 4 bytes (used as is, without copying)
+     * @param bitmap The new RGBA data, width * height * 4 bytes (used as is, without copying, so its byte offset has to be
+     *     divisible by 4: the image reads it as 32-bit pixels too)
      */
     set bitmap(bitmap: Uint8ClampedArray | Uint8Array) {
         if (!(bitmap instanceof Uint8ClampedArray || bitmap instanceof Uint8Array))
             throw new TypeError('The bitmap has to be a Uint8ClampedArray or Uint8Array');
         if (bitmap.length !== this.width * this.height * 4)
             throw new RangeError(`The bitmap has to have ${this.width * this.height * 4} bytes (width * height * 4), got ${bitmap.length}`);
+        // (a copy would no longer be the array the caller has)
+        if (bitmap.byteOffset % 4)
+            throw new TypeError(`The bitmap has to start at a byte offset divisible by 4 to be used without copying, not ${bitmap.byteOffset} (pass bitmap.slice() for a copy)`);
 
         this.__set_bitmap__(bitmap instanceof Uint8ClampedArray ? bitmap : new Uint8ClampedArray(bitmap.buffer, bitmap.byteOffset, bitmap.length));
     }
@@ -723,7 +750,7 @@ export class Image {
      * @ignore
      */
     protected __set_bitmap__(bitmap: Uint8ClampedArray): void {
-        // 32-bit views need an aligned offset
+        // 32-bit views need an aligned offset (the bitmap setter only takes aligned ones, internal pixels get copied)
         if (bitmap.byteOffset % 4) bitmap = bitmap.slice();
         this.__bitmap__ = bitmap;
         this.__view__ = new DataView(bitmap.buffer, bitmap.byteOffset, bitmap.byteLength);
@@ -824,8 +851,8 @@ export class Image {
      * @returns The color value (`0xRRGGBBAA`)
      */
     getPixelAt(x: number, y: number): Color {
-        x = ~~finite(x, 'x');
-        y = ~~finite(y, 'y');
+        x = Math.trunc(finite(x, 'x'));
+        y = Math.trunc(finite(y, 'y'));
         this.__check_boundaries__(x, y);
         return this.__view__.getUint32((y * this.width + x) * 4, false);
     }
@@ -837,8 +864,8 @@ export class Image {
      * @param color The new color (`0xRRGGBBAA`)
      */
     setPixelAt(x: number, y: number, color: Color): this {
-        x = ~~finite(x, 'x');
-        y = ~~finite(y, 'y');
+        x = Math.trunc(finite(x, 'x'));
+        y = Math.trunc(finite(y, 'y'));
         this.__check_boundaries__(x, y);
         this.__set_pixel__(x, y, checkColor(color));
         return this;
@@ -882,25 +909,25 @@ export class Image {
 
     /**
      * Fills the image data with the supplied color
-     * @param color The color, or a function returning the color of each pixel
+     * @param color The color, or a function returning the color of each pixel (checked like any color: a result that
+     *     isn't one throws a RangeError)
      */
     fill(color: Color | ColorFunction): this {
         const view = new DataView(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
         if (typeof color !== 'function') color = checkColor(color);
-        // (the new pixels have no HDR light beyond their own: no boost anywhere)
-        if (this.__gain_map__) this.__gain_map__ = gain.neutralMap(this.__gain_map__, this.width, this.width, this.height);
 
         if (typeof color === 'function') {
             let offset = 0;
             for (let y = 0; y < this.height; y++)
                 for (let x = 0; x < this.width; x++, offset += 4)
-                    view.setUint32(offset, color(x, y), false);
+                    view.setUint32(offset, checkColor(color(x, y)), false);
         } else {
-            if (!this.bitmap.length) return this;
             view.setUint32(0, color, false);
             const u32 = new Uint32Array(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength / 4);
             u32.fill(u32[0]);
         }
+        // (the new pixels have no HDR light beyond their own: no boost anywhere)
+        if (this.__gain_map__) this.__gain_map__ = gain.neutralMap(this.__gain_map__, this.width, this.width, this.height);
 
         return this;
     }
@@ -1058,10 +1085,10 @@ export class Image {
         if (height < 1)
             throw new RangeError('Image has to be at least 1 pixel high');
 
+        oneOf(mode, RESIZE_MODES, 'resize mode');
         if (mode === 'nearest-neighbor') return this.__resize_nearest_neighbor__(width, height);
 
-        const filter = mode === 'bilinear' ? TRIANGLE : mode === 'bicubic' ? CUBIC : mode === 'area' ? BOX : null;
-        if (!filter) throw new Error('Invalid resize mode');
+        const filter = mode === 'bilinear' ? TRIANGLE : mode === 'bicubic' ? CUBIC : BOX;
 
         const image = new Image(region?.width ?? width, region?.height ?? height);
         resample(this.bitmap, this.width, this.height, width, height, filter, image.bitmap, fast, region);
@@ -1142,10 +1169,10 @@ export class Image {
      * @ignore
      */
     protected __crop_bounds__(x: number, y: number, width: number, height: number): [number, number, number, number] {
-        x = ~~finite(x, 'x');
-        y = ~~finite(y, 'y');
-        width = ~~finite(width, 'width');
-        height = ~~finite(height, 'height');
+        x = Math.trunc(finite(x, 'x'));
+        y = Math.trunc(finite(y, 'y'));
+        width = Math.trunc(finite(width, 'width'));
+        height = Math.trunc(finite(height, 'height'));
 
         const left = Math.max(0, x), top = Math.max(0, y);
         const right = Math.min(this.width, x + width), bottom = Math.min(this.height, y + height);
@@ -1403,14 +1430,12 @@ export class Image {
         checkOptions(options, 'composite(source, { x: 10, y: 20 })');
         const { opacity = 1, mode = 'normal' } = options;
         let x = options.x ?? 0, y = options.y ?? 0;
-        x = finite(x, 'x') | 0;
-        y = finite(y, 'y') | 0;
+        x = Math.trunc(finite(x, 'x'));
+        y = Math.trunc(finite(y, 'y'));
 
         if (isNaN(opacity) || opacity < 0 || opacity > 1)
             throw new RangeError('Invalid composite opacity');
-        const blend = BLEND_MODES[mode];
-        if (!blend || !Object.prototype.hasOwnProperty.call(BLEND_MODES, mode))
-            throw new RangeError(`Invalid blend mode: ${mode}`);
+        const blend = BLEND_MODES[oneOf(mode, Object.keys(BLEND_MODES) as BlendMode[], 'blend mode')];
         if (opacity === 0) return this;
         if (this.__gain_map__ || source.__gain_map__) return this.__composite_gain__(source, x, y, opacity, mode);
         if (mode !== 'normal') return this.__blend__(source, x, y, opacity, blend);
@@ -2213,18 +2238,19 @@ export class Image {
      * @param direction The direction to flip
      */
     flip(direction: 'horizontal' | 'vertical'): this {
+        oneOf(direction, ['horizontal', 'vertical'], 'flip direction');
         const u32 = this.__u32__;
         const {width, height} = this;
 
         if (direction === 'horizontal') {
             for (let y = 0; y < height; y++) u32.subarray(y * width, (y + 1) * width).reverse();
-        } else if (direction === 'vertical') {
+        } else {
             for (let y = 0; y < height >> 1; y++) {
                 const top = u32.slice(y * width, (y + 1) * width);
                 u32.copyWithin(y * width, (height - 1 - y) * width, (height - y) * width);
                 u32.set(top, (height - 1 - y) * width);
             }
-        } else throw new RangeError('Invalid flip direction');
+        }
 
         this.__gain_map__?.__transform__(width, height, width, height, direction === 'horizontal' ? (X, Y) => [width - X, Y] : (X, Y) => [X, height - Y]);
         return this;
@@ -2615,7 +2641,7 @@ export class Image {
         }
         // the decoded pixels become the bitmap, without a copy
         const image = new Image(decoded.width, decoded.height);
-        image.bitmap = decoded.pixels;
+        image.bitmap = alignedPixels(decoded.pixels);
         // (a gain map that can't be read leaves the image without one, it doesn't fail the decoding)
         if (gainMap && ImageType.isJPEG(dataView)) {
             try {
@@ -2629,7 +2655,7 @@ export class Image {
         if (decoded.gainMap) {
             const { width, height, pixels, params } = decoded.gainMap;
             const map = new Image(width, height);
-            map.bitmap = pixels;
+            map.bitmap = alignedPixels(pixels);
             image.__gain_map__ = GainMap.__from_pixels__(map, params);
         }
         if (applyOrientation && decoded.orientation && decoded.orientation > 1) {
@@ -2685,7 +2711,8 @@ export class Image {
      * Supports shapes, paths, transforms, use/symbol, CSS styles, gradients, patterns, strokes, markers, clip paths,
      * masks, opacity, blend modes, filters (all primitives and the filter functions) and images embedded as data URIs
      * (PNG, JPEG, GIF, WebP, SVG) or given with {@link RenderSVGOptions.images}, and text with the given or embedded fonts
-     * (see {@link RenderSVGOptions.fonts}). Hrefs are resolved from the options and the data URIs only, never from files or URLs.
+     * (see {@link RenderSVGOptions.fonts}). Hrefs are resolved from the options and the data URIs only, never from files or URLs:
+     * drawing an image that isn't given, or can't be decoded, throws.
      * @example
      * ```ts
      * const logo = await Image.renderSVG(
@@ -2702,6 +2729,9 @@ export class Image {
         checkOptions(options, 'renderSVG(svg, { width: 512 })');
         const { width: givenWidth, height: givenHeight, scale, maxPixels = MAX_PIXELS, fonts = [], images: givenImages = {} } = options;
         if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
+        const { maxLayerPixels = 4 * Number(maxPixels), maxImagePixels = Number(maxPixels) } = options;
+        if (!(Number(maxLayerPixels) > 0)) throw new RangeError(`maxLayerPixels must be a positive number, not ${maxLayerPixels}`);
+        if (!(Number(maxImagePixels) > 0)) throw new RangeError(`maxImagePixels must be a positive number, not ${maxImagePixels}`);
         const sizes = [givenWidth, givenHeight, scale].filter(value => value !== undefined).length;
         if (sizes > 1) throw new TypeError('renderSVG() takes one of width, height and scale');
         const mode = givenWidth !== undefined ? 'width' : givenHeight !== undefined ? 'height' : 'scale';
@@ -2723,29 +2753,42 @@ export class Image {
         }
 
         // the raster images it references are decoded first (decoding can be asynchronous), the SVG is rendered at once.
-        // A given image wins over a data URI with the same href; each is decoded once, and only if the SVG uses it
+        // A given image wins over a data URI with the same href; each is decoded once, and only if the SVG references
+        // it. One that can't be decoded (or doesn't fit maxImagePixels) throws once it's drawn
         const source = typeof svg === 'string' ? svg : view(svg);
-        const images = new Map<string, svgRenderer.RasterImage>();
+        const images = new Map<string, svgRenderer.RasterImage | svgRenderer.ImageError>();
+        const shown = (href: string): string => JSON.stringify(href.length > 100 ? `${href.slice(0, 100)}...` : href);
+        let imagePixels = Number(maxImagePixels);
         for (const { href, data } of svgRenderer.imageReferences(source)) {
             const value = given.get(href) ?? data;
             if (!value) continue;
+            if (value instanceof Image) {
+                images.set(href, { width: value.width, height: value.height, pixels: value.bitmap });
+                continue;
+            }
+            const tooLarge = (cause?: unknown): LimitError => new LimitError(`SVG: the image ${shown(href)} exceeds what's left of the ${maxImagePixels} pixels the SVG's images may decode to (the render options' maxImagePixels)`, { cause });
+            if (!(imagePixels >= 1)) {
+                images.set(href, { error: tooLarge() });
+                continue;
+            }
             try {
-                if (value instanceof Image) {
-                    images.set(href, { width: value.width, height: value.height, pixels: value.bitmap });
-                } else if (ImageType.getType(value) === 'gif') {
+                let decoded: svgRenderer.RasterImage;
+                if (ImageType.getType(value) === 'gif') {
                     // (a GIF's first frame)
-                    const decoded = gif.decode(view(value), true, maxPixels);
-                    images.set(href, { width: decoded.width, height: decoded.height, pixels: gif.composite(decoded)[0].pixels });
+                    const gifData = await decoding(() => gif.decode(view(value), true, imagePixels));
+                    decoded = { width: gifData.width, height: gifData.height, pixels: gif.composite(gifData)[0].pixels };
                 } else {
-                    const image = await Image.decode(value, { maxPixels });
-                    images.set(href, { width: image.width, height: image.height, pixels: image.bitmap });
+                    const image = await Image.decode(value, { maxPixels: imagePixels });
+                    decoded = { width: image.width, height: image.height, pixels: image.bitmap };
                 }
-            } catch {
-                // (images that can't be decoded aren't drawn, like resvg's)
+                imagePixels -= decoded.width * decoded.height;
+                images.set(href, decoded);
+            } catch (err) {
+                images.set(href, { error: err instanceof LimitError ? tooLarge(err) : new Error(`SVG: the image ${shown(href)} can't be decoded`, { cause: err }) });
             }
         }
 
-        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, (Array.isArray(fonts) ? fonts : [fonts]).map(font => view(font)), maxPixels);
+        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, (Array.isArray(fonts) ? fonts : [fonts]).map(font => view(font)), Number(maxPixels), Number(maxLayerPixels));
         const image = new Image(width, height);
         image.bitmap.set(pixels);
 
@@ -2762,7 +2805,8 @@ export class Image {
     static async renderText(text: string, options: RenderTextOptions): Promise<Image> {
         if (typeof text !== 'string' || !isOptions(options)) throw new TypeError('renderText() takes the text and an options object, like renderText(\'Hello\', { font, size: 32 })');
         if (options.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
-        const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {} } = options;
+        const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {}, maxPixels = MAX_PIXELS } = options;
+        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
         const { maxWidth, maxHeight, wrapStyle, horizontalAlign, verticalAlign, wrapHardBreaks } = options;
         const layout = new TextLayout({ maxWidth, maxHeight, wrapStyle, horizontalAlign, verticalAlign, wrapHardBreaks });
         const axes = textRenderer.axisValues(variations);
@@ -2774,11 +2818,11 @@ export class Image {
         if (!fonts.length) throw new RangeError('No font given');
 
         const [r, g, b, a] = Colors.toRGBA(color);
-        // color glyph layers in the text color take it without its alpha, which applies to the whole color glyph
-        const rendered = await textRenderer.render(fonts.map(view), size, text, layout, hinting, (r << 24 | g << 16 | b << 8 | 255) >>> 0, featureList(features), axes);
-
-        // the outline needs room around the glyphs
+        // the outline needs room around the glyphs (checked against maxPixels with them)
         const pad = Math.ceil(strokeWidth);
+        // color glyph layers in the text color take it without its alpha, which applies to the whole color glyph
+        const rendered = await textRenderer.render(fonts.map(view), size, text, layout, hinting, (r << 24 | g << 16 | b << 8 | 255) >>> 0, featureList(features), axes, Number(maxPixels), pad);
+
         const width = rendered.width + 2 * pad, height = rendered.height + 2 * pad;
         const coverage = new Uint8Array(width * height);
         for (let y = 0; y < rendered.height; y++)
@@ -2872,6 +2916,15 @@ interface HSLA {
 }
 
 /**
+ * Decoded pixels as an image's bitmap: as they are, or copied if they don't start at an offset the 32-bit pixel views
+ * need (the bitmap setter refuses those, so a decoder returning a view into a larger buffer doesn't fail)
+ * @internal
+ */
+export function alignedPixels<T extends Uint8Array | Uint8ClampedArray>(pixels: T): T {
+    return pixels.byteOffset % 4 ? pixels.slice() as T : pixels;
+}
+
+/**
  * The width, height and mode of resize()'s signatures: a side left out of the options is `undefined`
  * @internal
  */
@@ -2897,8 +2950,11 @@ export function insideSize(width: number, height: number, boxWidth: number, boxH
     return [Math.max(1, Math.min(boxWidth, Math.round(width * scale))), Math.max(1, Math.min(boxHeight, Math.round(height * scale)))];
 }
 
+const RESIZE_MODES: readonly ResizeMode[] = ['nearest-neighbor', 'bilinear', 'bicubic', 'area'];
+
+// the resize options with their defaults, the mode checked before anything changes
 function resizeOptions(options?: ResizeOptions): { mode: ResizeMode, fast: boolean } {
-    return { mode: options?.mode ?? 'bilinear', fast: options?.fast ?? true };
+    return { mode: options?.mode === undefined ? 'bilinear' : oneOf(options.mode, RESIZE_MODES, 'resize mode'), fast: options?.fast ?? true };
 }
 
 // separable blend functions of normalized channel values (W3C Compositing and Blending Level 1)

@@ -29,7 +29,7 @@
     "test": "npm run build && node ./tests/run.js",
     "coverage": "node scripts/build.js --source-maps && c8 node ./tests/run.js && node scripts/coverage-report.js",
     "prepack": "npm run build",
-    "version": "node scripts/version.js && git add src/version.ts jsr.json"
+    "version": "node scripts/version.js && git add jsr.json"
   },
   "repository": {
     "type": "git",

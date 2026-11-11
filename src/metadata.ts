@@ -1,4 +1,3 @@
-import { VERSION } from './version.ts';
 import { encode as utf8 } from './util/utf8.ts';
 import * as exif from './codecs/exif.ts';
 
@@ -13,7 +12,8 @@ import * as exif from './codecs/exif.ts';
  * | GIF | software, comment (comment extensions) |
  * | TGA | author, comment, creation time, software (extension area) |
  *
- * Empty fields are left out
+ * Empty fields are left out. Without metadata, the files only say which software made them (`software`), so the same
+ * image always encodes to the same bytes
  */
 export interface Metadata {
     /** The image's title */
@@ -24,9 +24,9 @@ export interface Metadata {
     description?: string;
     /** The image's copyright info */
     copyright?: string;
-    /** The image's creation time. Default: now */
+    /** The image's creation time. Default: none (left out) */
     creationTime?: string | number | Date;
-    /** The software used to create the image. Default: `'ImageScript vX.X.X'`, `''` leaves it out */
+    /** The software used to create the image. Default: `'ImageScript'` (without a version), `''` leaves it out */
     software?: string;
     /** A disclaimer for the image */
     disclaimer?: string;
@@ -47,7 +47,7 @@ export interface ResolvedMetadata {
     author?: string;
     description?: string;
     copyright?: string;
-    creationTime: Date;
+    creationTime?: Date;
     software?: string;
     disclaimer?: string;
     warning?: string;
@@ -63,12 +63,14 @@ const TEXT_FIELDS = ['title', 'author', 'description', 'copyright', 'software', 
  */
 export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
     const { creationTime, software } = metadata || {};
-    const time = new Date(creationTime === undefined ? Date.now() : creationTime);
-    if (isNaN(time.getTime())) throw new RangeError('Invalid creation time');
-
-    const resolved: ResolvedMetadata = { creationTime: time };
+    const resolved: ResolvedMetadata = {};
+    if (creationTime !== undefined) {
+        const time = new Date(creationTime);
+        if (isNaN(time.getTime())) throw new RangeError('Invalid creation time');
+        resolved.creationTime = time;
+    }
     for (const key of TEXT_FIELDS) {
-        const value = key === 'software' && software === undefined ? `ImageScript v${VERSION}` : metadata?.[key];
+        const value = key === 'software' && software === undefined ? 'ImageScript' : metadata?.[key];
         if (value) resolved[key] = String(value);
     }
     return resolved;
@@ -84,7 +86,7 @@ export function pngText(m: ResolvedMetadata): Record<string, string | undefined>
         Author: m.author,
         Description: m.description,
         Copyright: m.copyright,
-        'Creation Time': m.creationTime.toUTCString(),
+        'Creation Time': m.creationTime?.toUTCString(),
         Software: m.software,
         Disclaimer: m.disclaimer,
         Warning: m.warning,

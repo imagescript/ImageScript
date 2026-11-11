@@ -1,5 +1,5 @@
 import { Image, ResizeOptions, ResizeToOptions, TrimOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions } from './image.ts';
-import { checkOptions, finite } from './util/options.ts';
+import { checkOptions, finite, oneOf } from './util/options.ts';
 
 /**
  * What happens to a frame's area before the next frame is drawn, see {@link Frame.disposalMode}:
@@ -55,11 +55,7 @@ export class Frame {
      * @ignore
      */
     static __convert_disposal_mode__(mode: FrameDisposalMode): DisposalId {
-        const id = DISPOSAL_MODES.indexOf(mode);
-        if (id < 0)
-            throw new RangeError('Invalid disposal mode');
-
-        return id as DisposalId;
+        return DISPOSAL_MODES.indexOf(oneOf(mode, DISPOSAL_MODES, 'disposal mode')) as DisposalId;
     }
 
     /**
@@ -122,7 +118,10 @@ export class Frame {
         this.__duration__ = value;
     }
 
-    /** The frame's horizontal offset in the animation (a finite number, else it throws a RangeError) */
+    /**
+     * The frame's horizontal offset in the animation: an integer, values with a fraction are truncated like image sizes
+     * (a value that isn't a finite number throws a RangeError)
+     */
     get xOffset(): number {
         return this.__x__;
     }
@@ -132,10 +131,11 @@ export class Frame {
      * @param x The offset in pixels
      */
     set xOffset(x: number) {
-        this.__x__ = finite(x, 'x offset');
+        // (|| 0: no negative zero)
+        this.__x__ = Math.trunc(finite(x, 'x offset')) || 0;
     }
 
-    /** The frame's vertical offset in the animation (a finite number, else it throws a RangeError) */
+    /** The frame's vertical offset in the animation: an integer, like {@link Frame.xOffset} */
     get yOffset(): number {
         return this.__y__;
     }
@@ -145,7 +145,7 @@ export class Frame {
      * @param y The offset in pixels
      */
     set yOffset(y: number) {
-        this.__y__ = finite(y, 'y offset');
+        this.__y__ = Math.trunc(finite(y, 'y offset')) || 0;
     }
 
     /** The frame's disposal mode, see {@link FrameDisposalMode} */

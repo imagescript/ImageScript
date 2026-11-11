@@ -1,4 +1,4 @@
-import { Image } from './image.ts';
+import { Image, alignedPixels } from './image.ts';
 import * as jpeg from './codecs/jpeg.ts';
 import * as codec from './codecs/gainmap.ts';
 import { BinaryData, view } from './util/mem.ts';
@@ -174,7 +174,7 @@ export class GainMap {
     static __from_jpeg__(map: Uint8Array, params: codec.Params, apple = 0): GainMap {
         const { width, height, pixels } = jpeg.decode(map);
         const image = new Image(width, height);
-        image.bitmap = pixels;
+        image.bitmap = alignedPixels(pixels);
         if (apple) {
             const table = new Uint8Array(256);
             for (let v = 0; v < 256; v++) table[v] = Math.round(255 * codec.appleValue(v / 255, apple));

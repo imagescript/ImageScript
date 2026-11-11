@@ -215,6 +215,7 @@ export class Colors {
         } else if (positions.length === 2) {
             const gradient = gradientBetween(values[0], values[1]);
             return position => {
+                if (Number.isNaN(position)) throw new RangeError(`Invalid gradient position: ${position}`);
                 if (position <= positions[0]) return values[0];
                 if (position >= positions[1]) return values[1];
                 return gradient((position - positions[0]) / (positions[1] - positions[0]));
@@ -230,6 +231,8 @@ export class Colors {
             if (minPos === undefined) continue;
 
             const maxPos = positions[i];
+            // (two stops at the same position: a hard edge, nothing in between)
+            if (maxPos === minPos) continue;
 
             let minVal = values[i - 1];
             if (minVal === undefined) minVal = values[i];
@@ -239,6 +242,12 @@ export class Colors {
 
             gradients.push({min: minPos, max: maxPos, gradient});
         }
+
+        // (every stop at the same position: a hard edge between the first and the last color)
+        if (!gradients.length) return position => {
+            if (Number.isNaN(position)) throw new RangeError(`Invalid gradient position: ${position}`);
+            return position <= minDef ? values[0] : values[values.length - 1];
+        };
 
         return position => {
             if (position <= minDef) return gradients[0].gradient(0);

@@ -6,13 +6,13 @@ import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
-import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize } from './image.ts';
+import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize, alignedPixels } from './image.ts';
 import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, color as checkColor } from './util/options.ts';
+import { checkOptions, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
@@ -21,7 +21,7 @@ function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uin
     return frames.map(({ pixels, duration }) => {
         // the composited frames are copies already, the frame can keep them
         const image = new Image(width, height);
-        image.bitmap = pixels;
+        image.bitmap = alignedPixels(pixels);
         return new Frame(image, { duration, disposalMode: 'background' });
     });
 }
@@ -396,7 +396,7 @@ export class Animation {
         if (!this.length) return [];
         return png.compositeAnimation({ width, height, frames: this.__apngFrames__() }).map(({ pixels, duration }) => {
             const image = new Image(width, height);
-            image.bitmap = pixels;
+            image.bitmap = alignedPixels(pixels);
             return new Frame(image, { duration, disposalMode: 'background' });
         });
     }
@@ -443,9 +443,12 @@ export class Animation {
      * @internal
      * @ignore
      */
-    protected __validate__(): void {
-        for (const frame of this.frames)
+    protected __validate__(format: 'GIF' | 'APNG' | 'WebP'): void {
+        if (!this.length) throw new Error('An animation needs at least one frame');
+        for (const frame of this.frames) {
             if (!(frame instanceof Frame)) throw new Error('Animation contains invalid frames');
+            fitDuration(frame.duration, format);
+        }
     }
 
     /**
@@ -461,9 +464,9 @@ export class Animation {
         const { colors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85, metadata = {}, optimize = true } = options;
         const palette = paletteOptions(colors, dither, ditherStrength);
         const loops = fitLoops(this.loopCount, 'GIF');
-        this.__validate__();
+        this.__validate__('GIF');
         const frames = optimize
-            ? this.__optimized__({ replace: false, even: false, alpha: 'frame', palette: 256, cover: true }).map(f => ({ ...f, dispose: f.dispose ? 3 : 1 }))
+            ? this.__optimized__({ replace: false, even: false, alpha: 'frame', palette: 256, cover: true, maxDuration: maxDuration('GIF') }).map(f => ({ ...f, dispose: f.dispose ? 3 : 1 }))
             : Array.from(this.__clipped_frames__(), frame => ({
                 x: frame.xOffset,
                 y: frame.yOffset,
@@ -491,11 +494,10 @@ export class Animation {
         checkOptions(options, 'encodeAPNG({ compression: 9 })');
         const { compression = 4, metadata = {}, optimize = true } = options;
         const loops = fitLoops(this.loopCount, 'APNG');
-        this.__validate__();
-        if (!this.length) throw new Error('An animation needs at least one frame');
+        this.__validate__('APNG');
 
         const frames = optimize
-            ? this.__optimized__({ replace: true, even: false, alpha: frames => png.alphaCost(frames.map(f => f.pixels)) }).map(f => ({ ...f, dispose: f.dispose ? 1 : 0 }))
+            ? this.__optimized__({ replace: true, even: false, alpha: frames => png.alphaCost(frames.map(f => f.pixels)), maxDuration: maxDuration('APNG') }).map(f => ({ ...f, dispose: f.dispose ? 1 : 0 }))
             : this.__apngFrames__().map(({ blend: _, ...f }) => f); // blended, the encoder's default
         return png.encodeAnimation(frames, this.width, this.height, toPlays(loops), compressionLevel(compression), pngText(resolveMetadata(metadata)));
     }
@@ -510,12 +512,11 @@ export class Animation {
         checkOptions(options, 'animation.encodeWebP({ quality: 80 })');
         const { metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 } = options;
         const loops = fitLoops(this.loopCount, 'WebP');
-        this.__validate__();
-        if (!this.length) throw new Error('An animation needs at least one frame');
+        this.__validate__('WebP');
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
 
         const tolerance = lossy ? webp.lossyTolerance(lossy.quality) : undefined;
-        const frames = optimize ? this.__optimized__({ replace: true, even: true, alpha: 'frame', tolerance }) : this.__webpFrames__();
+        const frames = optimize ? this.__optimized__({ replace: true, even: true, alpha: 'frame', tolerance, maxDuration: maxDuration('WebP') }) : this.__webpFrames__();
         return webp.encodeAnimation(frames, this.width, this.height, toPlays(loops), exifData(resolveMetadata(metadata)), lossy, effort);
     }
 
@@ -683,7 +684,7 @@ export class Animation {
             let orientation = 1;
             for await (const decoded of jxl.frames(data, maxPixels, toneMapping, threads)) {
                 const image = new Image(decoded.width, decoded.height);
-                image.bitmap = decoded.pixels;
+                image.bitmap = alignedPixels(decoded.pixels);
                 frames.push(new Frame(image, { duration: decoded.duration, disposalMode: 'background' }));
                 orientation = decoded.orientation;
                 loops = fromPlays(decoded.loopCount);

@@ -346,7 +346,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(frame.disposalMode === 'previous', 'disposalMode should be a name, got ' + frame.disposalMode);
         // the numeric ids (0-3) are not accepted any more, the names are
         let threw = false;
-        try { frame.disposalMode = 0; } catch (e) { threw = e instanceof RangeError; }
+        try { frame.disposalMode = 0; } catch (e) { threw = e instanceof TypeError; }
         assert(threw && frame.disposalMode === 'previous', 'disposalMode should only take names');
         const decoded = await Animation.decode(await new Animation([new Frame(new Image(2, 2), {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'background'}), new Frame(new Image(2, 2).fill(0xff0000ff))]).encodeGIF());
         assert(decoded.length === 2, 'gif with disposal modes should roundtrip');

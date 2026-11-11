@@ -1,3 +1,5 @@
+import { oneOf } from './util/options.ts';
+
 /** Where lines are wrapped: between words or at any character */
 export type WrapStyle = 'word' | 'char';
 /** Alignment of the lines relative to the widest line */
@@ -58,9 +60,7 @@ export class TextLayout {
         if (isNaN(this.maxHeight) || this.maxHeight < 1)
             throw new RangeError('Invalid maxHeight');
 
-        this.wrapStyle = wrapStyle || 'word';
-        if (!['word', 'char'].includes(this.wrapStyle))
-            throw new RangeError('Invalid wrapStyle');
+        this.wrapStyle = wrapStyle === undefined ? 'word' : oneOf(wrapStyle, ['word', 'char'], 'wrapStyle');
 
         if (horizontalAlign !== undefined) {
             if (!HORIZONTAL.includes(horizontalAlign)) throw new TypeError(`horizontalAlign must be 'left', 'center' or 'right', not '${horizontalAlign}'`);

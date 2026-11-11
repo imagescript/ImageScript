@@ -23,7 +23,7 @@ import { FontFace, FontStyle, fontFace, layOutText, parseFontFamilies, parseVari
 import { rasterizeGlyph } from './text.ts';
 import { renderPaintGlyph } from './colr.ts';
 import { decodeSync as decodePNG } from '../codecs/png.ts';
-import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
+import { MAX_PIXELS, LimitError, checkPixels } from '../util/limits.ts';
 
 const UNSUPPORTED = new Set(['filter', 'pattern', 'marker', 'foreignObject', 'script', 'style', 'title', 'desc', 'metadata',
     'defs', 'clipPath', 'mask', 'linearGradient', 'radialGradient', 'stop', 'symbol', 'font', 'font-face', 'animate', 'animateTransform', 'animateMotion', 'set']);
@@ -161,7 +161,7 @@ const OFFSETS = Float64Array.from({ length: SAMPLES }, (_, s) => (s + 0.5) / SAM
  * @param {number} size
  * @return {{width: number, height: number, pixels: Uint8Array}}
  */
-export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'height', size: number, images: Map<string, RasterImage> = new Map(), fonts: Uint8Array[] = [], maxPixels = MAX_PIXELS): { width: number, height: number, pixels: Uint8Array } {
+export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'height', size: number, images: Map<string, RasterImage | ImageError> = new Map(), fonts: Uint8Array[] = [], maxPixels = MAX_PIXELS, maxLayerPixels = 4 * maxPixels): { width: number, height: number, pixels: Uint8Array } {
     if (typeof source !== 'string') source = decodeUTF8(source);
 
     const root = parseXML(source).children.find(node => node.name === 'svg' && node.svg);
@@ -192,11 +192,26 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         throw new RangeError(`SVG output dimensions are too large: ${outWidth}x${outHeight}`);
     checkPixels(outWidth, outHeight, maxPixels);
 
-    const canvas = new Layer(outWidth, outHeight);
-    // (a transform on the root element (SVG 2) applies before the viewBox mapping)
-    doc.renderRoot([outWidth / width, 0, 0, outHeight / height, 0, 0], canvas, 0);
-    return { width: outWidth, height: outHeight, pixels: canvas.toRGBA() };
+    // (rendering is synchronous: the layers allocated until it returns are this render's)
+    const previous = layerBudget;
+    layerBudget = { left: maxLayerPixels, limit: maxLayerPixels };
+    try {
+        const canvas = new Layer(outWidth, outHeight);
+        // (a transform on the root element (SVG 2) applies before the viewBox mapping)
+        doc.renderRoot([outWidth / width, 0, 0, outHeight / height, 0, 0], canvas, 0);
+        return { width: outWidth, height: outHeight, pixels: canvas.toRGBA() };
+    } finally {
+        layerBudget = previous;
+    }
 }
+
+/** an image the SVG references that can't be drawn: the error rendering it throws */
+export interface ImageError {
+    error: Error;
+}
+
+// the pixels the layers of the render running now may still allocate (the canvas included), see maxLayerPixels
+let layerBudget: { left: number, limit: number } | null = null;
 
 /** a decoded image, RGBA */
 export interface RasterImage {
@@ -277,17 +292,20 @@ function isRaster(data: Uint8Array): boolean {
         || (data[0] === 0x52 && data[1] === 0x49 && data[8] === 0x57 && data[9] === 0x45);
 }
 
-// the SVG of a data URI, parsed
-function nestedSvg(href: string): NestedSvg | null {
+// the SVG of a data URI, parsed (null if it has no size, so there's nothing to draw); an href that isn't an embedded
+// SVG or a decoded raster image (render()'s images) can't be drawn: the error drawing it throws
+function nestedSvg(href: string): NestedSvg | ImageError | null {
     const uri = dataURI(href);
-    if (!uri || (uri.type !== 'image/svg+xml' && (uri.type !== 'text/plain' || isRaster(uri.data)))) return null;
+    const shown = href.length > 100 ? `${href.slice(0, 100)}...` : href;
+    if (!uri) return { error: new Error(/^\s*data:/i.test(href) ? 'SVG: an image\'s data URI is invalid' : `SVG: the image ${JSON.stringify(shown)} isn't a data URI or one of the images given to render it`) };
+    if (uri.type !== 'image/svg+xml' && (uri.type !== 'text/plain' || isRaster(uri.data))) return { error: new Error(`SVG: images of type ${uri.type} aren't supported`) };
     try {
         const root = parseXML(svgText(uri.data)).children.find(node => node.name === 'svg' && node.svg);
-        if (!root) return null;
+        if (!root) return { error: new Error('SVG: an embedded SVG image has no <svg> element') };
         const { width, height } = documentSize(root);
         return width > 0 && height > 0 ? { width, height, document: new Document(root) } : null;
-    } catch {
-        return null;
+    } catch (cause) {
+        return { error: new Error('SVG: an embedded SVG image can\'t be read', { cause }) };
     }
 }
 
@@ -693,10 +711,10 @@ class Document {
     active: Set<XNode>;
     root: XNode;
     rules: Rule[];
-    /** decoded raster images by their href */
-    images: Map<string, RasterImage> = new Map();
-    /** the SVGs of data URIs, parsed */
-    nested: Map<string, NestedSvg | null> = new Map();
+    /** decoded raster images by their href (or why they couldn't be decoded) */
+    images: Map<string, RasterImage | ImageError> = new Map();
+    /** the SVGs of data URIs, parsed (or why they can't be drawn) */
+    nested: Map<string, NestedSvg | ImageError | null> = new Map();
     /** fonts for text: the ones the style sheets embed (@font-face), and the ones given to render() */
     embedded: FontFace[];
     given: FontFace[] = [];
@@ -926,6 +944,7 @@ class Document {
         }
 
         context.layer.composite(layer, opacity, alpha, blend);
+        layer.release();
     }
 
     // renders into a layer clipped to a rectangle in user space (viewports of nested svg and symbol elements)
@@ -942,6 +961,7 @@ class Document {
                     alpha[(coverage.y0 + row) * w + coverage.x0 + column] = coverage.data[row * coverage.w + column];
 
         ctx.layer.composite(layer, 1, alpha);
+        layer.release();
     }
 
     renderNestedSvg(node: XNode, ctx: Context): void {
@@ -1002,6 +1022,7 @@ class Document {
             const layer = new Layer(ctx.layer.width, ctx.layer.height);
             draw(layer);
             ctx.layer.composite(layer, opacity, null);
+            layer.release();
             return;
         }
 
@@ -1385,8 +1406,9 @@ class Document {
     // like resvg's (crates/usvg/src/parser/image.rs); other references (files, URLs) aren't loaded
     renderImage(node: XNode, ctx: Context): void {
         const style = ctx.style as Style;
+        if (style.visibility !== 'visible') return;
         const image = this.imageOf(node, ctx.viewport);
-        if (!image || style.visibility !== 'visible') return;
+        if (!image) return;
         const { raster, nested, intrinsic, x, y, width, height } = image;
 
         const aspect = node.attrs.preserveAspectRatio || 'xMidYMid meet';
@@ -1408,16 +1430,24 @@ class Document {
         else draw(ctx.layer);
     }
 
-    // an image element's content (a decoded raster or a nested SVG) and its rectangle
-    imageOf(node: XNode, viewport: Viewport): { raster?: RasterImage, nested: NestedSvg | null, intrinsic: { width: number, height: number }, x: number, y: number, width: number, height: number } | null {
+    // an image element's content (a decoded raster or a nested SVG) and its rectangle; an image that can't be drawn
+    // (broken, too large, or a reference that isn't given) throws, unless it's only measured (`draws` false: then it
+    // has no rectangle)
+    imageOf(node: XNode, viewport: Viewport, draws = true): { raster?: RasterImage, nested: NestedSvg | null, intrinsic: { width: number, height: number }, x: number, y: number, width: number, height: number } | null {
         const href = this.href(node)?.trim();
         if (!href) return null;
-        const raster = this.images.get(href);
-        let nested = null;
-        if (!raster) {
+        const decoded = this.images.get(href);
+        let embedded: NestedSvg | ImageError | null | undefined = null;
+        if (!decoded) {
             if (!this.nested.has(href)) this.nested.set(href, nestedSvg(href));
-            nested = this.nested.get(href) as NestedSvg | null;
+            embedded = this.nested.get(href);
         }
+        const broken = decoded && 'error' in decoded ? decoded : embedded && 'error' in embedded ? embedded : null;
+        if (broken) {
+            if (draws) throw broken.error;
+            return null;
+        }
+        const raster = decoded as RasterImage | undefined, nested = embedded as NestedSvg | null;
         if (!raster && !nested) return null;
         const intrinsic = raster || (nested as NestedSvg);
 
@@ -1797,6 +1827,8 @@ class Document {
         this.renderChildren(content, { ...ctx, matrix: contentMatrix, style: this.styleOf(content), layer: tile, depth: ctx.depth + 1,
             viewport: viewBox ? { width: viewBox[2], height: viewBox[3] } : ctx.viewport });
         this.active.delete(node);
+        // (the paint samples the tile while the shape it fills is drawn, right after: at most MAX_TILE pixels)
+        tile.release();
         if (tile.x1 <= tile.x0) return null;
 
         // the repeated tile sampled like resvg's: the nearest pixel where the tile is only translated, else bicubic (a
@@ -1842,19 +1874,21 @@ class Document {
         const layer = new Layer(lw, lh);
         draw(layer, shifted);
         const pixmap = layer.toPixmap();
+        layer.release();
         for (const filter of filters) applyFilter(filter, shifted, pixmap);
         const result = Layer.fromPixmap(pixmap);
-        if (result.x1 <= result.x0) return;
+        if (result.x1 <= result.x0) return result.release();
 
         if (rest[0] === 1 && rest[1] === 0 && rest[2] === 0 && rest[3] === 1) {
             target.blit(result, lx, ly);
-            return;
+            return result.release();
         }
         // (rotated or skewed: drawn through the rest of the matrix, interpolated bilinearly)
         const place = multiply(rest, [1, 0, 0, 1, lx, ly]);
         const inverse = invert(place);
         const coverage = inverse && rasterize([transformPoints([0, 0, lw, 0, lw, lh, 0, lh], place)], false, target.width, target.height);
         if (coverage) target.fill(coverage, sampler(result.data, lw, lh, inverse, false, 1, 1));
+        result.release();
     }
 
     // an element's filters (url references and filter functions), like usvg's: 'invalid' if it's not to be rendered
@@ -2109,7 +2143,9 @@ class Document {
                 if (target) this.renderNode(target, ctx);
                 else this.renderImage(image as XNode, { ...ctx, style: this.computeStyle(image as XNode, this.styleOf(node)) });
                 this.active.delete(node);
-                return layer.toPixmap();
+                const pixmap = layer.toPixmap();
+                layer.release();
+                return pixmap;
             }
         };
     }
@@ -2288,7 +2324,7 @@ class Document {
         let box: BBox | null = null;
         const visit = (n: XNode, matrix: Matrix): void => {
             // (an image's bounding box is its rectangle)
-            const image = n.name === 'image' ? this.imageOf(n, viewport) : null;
+            const image = n.name === 'image' ? this.imageOf(n, viewport, false) : null;
             const path = image ? [['M', image.x, image.y], ['L', image.x + image.width, image.y], ['L', image.x + image.width, image.y + image.height],
                 ['L', image.x, image.y + image.height], ['Z']] as PathCommand[] : n.name === 'text' ? this.textBox(n, viewport) : shapePath(n, viewport, 16);
             if (path) {
@@ -2351,6 +2387,7 @@ class Document {
         const regionCoverage = rasterize([transformPoints([rx, ry, rx + rw, ry, rx + rw, ry + rh, rx, ry + rh], matrix)], false, width, height);
         if (!regionCoverage) {
             this.active.delete(mask);
+            layer.release();
             return values;
         }
 
@@ -2362,6 +2399,8 @@ class Document {
                 // luminance of premultiplied color equals luminance * alpha
                 values[i] = data[y * w + x] * (alphaMask ? d[i * 4 + 3] : 0.2125 * d[i * 4] + 0.7154 * d[i * 4 + 1] + 0.0721 * d[i * 4 + 2]);
             }
+
+        layer.release();
 
         // the mask element itself may be masked
         const nested = this.reference(maskStyle.mask);
@@ -2694,10 +2733,27 @@ class Layer {
     x1 = -Infinity;
     y1 = -Infinity;
 
+    // the pixels taken from the render's layer budget (given back by release())
+    private budgeted = 0;
+
     constructor(width: number, height: number) {
         this.width = width;
         this.height = height;
+        const budget = layerBudget;
+        if (budget) {
+            // (checked before the layer is allocated)
+            if (!(width * height <= budget.left))
+                throw new LimitError(`SVG too complex: its layers (for opacity, masks, filters, ...) exceed ${budget.limit} pixels at once (the render options' maxLayerPixels)`);
+            budget.left -= width * height;
+            this.budgeted = width * height;
+        }
         this.data = new Float32Array(width * height * 4);
+    }
+
+    // gives the layer's pixels back to the render's budget, once it's composited (its memory is garbage then)
+    release(): void {
+        if (layerBudget) layerBudget.left += this.budgeted;
+        this.budgeted = 0;
     }
 
     extend(x0: number, y0: number, x1: number, y1: number): void {

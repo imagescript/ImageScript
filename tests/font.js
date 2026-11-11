@@ -443,4 +443,27 @@ const panic = message => {
             if (!error) panic(`renderText(text, ${JSON.stringify(options && Object.keys(options))}) should be rejected`);
         }
     }
+
+    // maxPixels limits the rendered image, its outline included, before its pixels are allocated
+    {
+        const font = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
+        const plain = await Image.renderText('hi', {font, size: 16});
+        const fits = await Image.renderText('hi', {font, size: 16, maxPixels: plain.width * plain.height});
+        if (fits.width !== plain.width || fits.height !== plain.height) panic('text exactly at maxPixels should render');
+        const tooLarge = async (label, options) => {
+            let error = null;
+            try { await Image.renderText('hi', {font, size: 16, ...options}); } catch (err) { error = err; }
+            if (!(error instanceof RangeError) || !/maxPixels/.test(error.message)) panic(`${label} should throw a RangeError naming maxPixels, got ${error}`);
+        };
+        await tooLarge('text over maxPixels', {maxPixels: plain.width * plain.height - 1});
+        await tooLarge('an outline over maxPixels', {strokeWidth: 2000, maxPixels: 1e6});
+        await tooLarge('an outline over the default maxPixels', {strokeWidth: 10000});
+        const unlimited = await Image.renderText('hi', {font, size: 16, strokeWidth: 3, maxPixels: Infinity});
+        if (unlimited.width !== plain.width + 6) panic('maxPixels: Infinity should lift the limit');
+        for (const maxPixels of [0, -1, NaN, 'many']) {
+            let error = null;
+            try { await Image.renderText('hi', {font, size: 16, maxPixels}); } catch (err) { error = err; }
+            if (!(error instanceof RangeError)) panic(`renderText maxPixels ${maxPixels} should throw a RangeError`);
+        }
+    }
 })();

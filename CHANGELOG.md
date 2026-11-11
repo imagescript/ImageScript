@@ -4,7 +4,7 @@
 
 ### Breaking changes
 
-Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://imagescript.dev/documents/Migrating_to_4.0.html) covers the 3.x-to-4.0 API changes and the nine behavior changes that don't show up as deprecations or compile errors.
+Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://imagescript.dev/documents/Migrating_to_4.0.html) covers the 3.x-to-4.0 API changes and the twelve behavior changes that don't show up as deprecations or compile errors.
 
 - **Methods that take options refuse anything else than an object**: a stray number, string, boolean or `null` as the options of `cropCircle()`, `Image.renderText()`, the encoders (`encodeWebP()`, `encodeAVIF()`, `encodeJXL()`, ...), `quantize()`, `transform()`, `dropShadow()`, `outline()`, the gradients, `Image.decode()`, the animation encoders, and `new GainMap()` throws a `TypeError` that names the working form (e.g. `cropCircle({ size: 'cover' })`), so the 3.x calls that are gone like `cropCircle(true)` or `Image.renderText(font, 32, 'Hi')` fail instead of being ignored. Only the type of the argument is checked: a key that isn't an option is still ignored, so a typo like `{ maxWith: 300 }` isn't caught.
 
@@ -88,10 +88,20 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **An animation has its own canvas size**: decoded animations keep the file's, `new Animation(frames, { width, height })` sets one (`AnimationCanvasOptions`), and `resize()` sets the new one. Without one it is the frames' extent, as before. Frames (or their parts) outside the canvas aren't encoded.
 
+- **Values that were wrapped, clamped or ignored throw**: colors have to be integers from -2^31 to 2^32 - 1, also the ones a `fill()` function returns (they wrapped to 32 bits; negative ones, which bitwise operators return, keep working); pixel coordinates are truncated without wrapping at 2^32; `compression` is an integer 0-9 like `effort` (it was clamped); frame durations that GIF, APNG or WebP can't store throw a `RangeError` like loop counts (they were cut; unchanged frames merged by the encoders are split at the limit); `frame.xOffset` and `frame.yOffset` are truncated to integers when set; `image.bitmap = view` throws a `TypeError` for a view that doesn't start at a multiple of 4 bytes (it was copied, so changes to the view were lost); `Colors.gradient()` throws for a `NaN` position with any number of stops; `encodeGIF()` of an animation without frames throws like the other encoders.
+
+- **Invalid choices throw a `TypeError` naming the valid ones**: the resize `mode` (an `Error`, thrown once resizing started, so `resize({ fit: 'cover' })` could move a frame's offsets before failing), `composite()`'s `mode`, `flip()`, `disposalMode` and `wrapStyle` (`RangeError`s; an empty or `null` `wrapStyle` was the default).
+
+- **No creation time and no version in encoded files by default**: the encoders only write a creation time when `metadata.creationTime` is given, so the same image encodes to the same bytes, and the default software is `'ImageScript'` without the version.
+
+- **Drawing an SVG image that can't be drawn throws**: an `href` that isn't a data URI or one of the `images`, an image that can't be decoded (with the decoding error as its `cause`), an unsupported data URI type or an embedded SVG that can't be read throw once they are drawn (images in `<defs>` or hidden ones don't); they drew nothing before.
+
 - **The encoders return `Promise<Uint8Array<ArrayBuffer>>`** instead of `Promise<Uint8Array>`, so `new Blob()`, `new Response()` and `crypto.subtle` take the output without a cast, also with the stricter DOM types of TypeScript 5.9 and newer. The type needs TypeScript 5.7 or newer.
 
 ### New
 
+- `renderSVG({ maxLayerPixels })` limits the layers SVG rendering uses at once (groups with opacity, masks, filters, ...; 16 bytes per pixel each), so nested ones can't multiply the memory of a small SVG: default `4 * maxPixels`. `renderSVG({ maxImagePixels })` limits the raster images an SVG references together (default `maxPixels`; each was limited on its own before).
+- `renderText({ maxPixels })`, default 16383², counting the outline, checked before anything is allocated.
 - `Animation.clone()` and `Animation.crop()`.
 - `resize({ width, height, fit })` on images, frames and animations: `'inside'` fits without padding, `'contain'` pads, and `'cover'` crops while keeping the aspect ratio; `background` sets the bars for `'contain'`.
 - `encodeJPEG()` accepts `subsampling: '4:4:4'` or `'4:2:0'`; the default stays 4:2:0 up to quality 90 and 4:4:4 above.
