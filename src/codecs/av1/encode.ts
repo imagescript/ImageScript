@@ -1020,7 +1020,7 @@ class TileEncoder {
         const sx = plane ? this.ssx : 0, sy = plane ? this.ssy : 0;
         // (the visible part)
         const vw = Math.max(0, Math.min(w, (f.width + sx >> sx) - px)), vh = Math.max(0, Math.min(h, (f.height + sy >> sy) - py));
-        let eob = -1;
+        let eob: number;
         if (!(this.w && b.skip)) {
             const res = this.res, coefs = this.coefs, q = this.q;
             let sse = 0;

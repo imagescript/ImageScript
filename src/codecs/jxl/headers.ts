@@ -273,7 +273,7 @@ const COMMON_DATA = ['XYZ ', 'desc', 'text', 'mluc', 'para', 'curv', 'sf32', 'gb
 
 /** The ICC profile an encoded ICC stream (see readICC) describes, null if the stream is invalid */
 export function decodeICC(stream: Uint8Array): Uint8Array | null {
-    let at = 0;
+    let at: number;
     const fail = (): never => {
         throw new RangeError('invalid ICC stream');
     };

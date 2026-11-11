@@ -523,7 +523,7 @@ function composite(mode: number, source: Layer, backdrop: Layer): Layer {
             else src.fill(0);
             const as = src[3], ab = d[o + 3];
             // Porter-Duff: result = source * fa + backdrop * fb
-            let fa = 0, fb = 0;
+            let fa: number, fb: number;
             switch (mode) {
                 case 0: fa = 0; fb = 0; break;
                 case 1: fa = 1; fb = 0; break;

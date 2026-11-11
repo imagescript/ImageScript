@@ -1433,7 +1433,7 @@ export class TileDecoder {
             const eobTok = m.symbol(cdf, eobCdf + ctx * 4, 2);
             let tok = eobTok + 1;
             let levelTok = tok * 0x41;
-            let mag = 0;
+            let mag: number;
 
             let scanTable: Uint16Array | null = null, stride: number, shift: number, shift2: number, mask: number, offsets = 0;
             if (txClass === TX_CLASS_2D) {

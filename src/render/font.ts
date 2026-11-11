@@ -377,7 +377,7 @@ export class Font {
     private components(offset: number): { components: Array<{ glyph: number, flags: number, arg1: number, arg2: number, matrix: [number, number, number, number] }>, end: number } {
         const components = [];
         const f2dot14 = (o: number): number => this.i16(o) / 16384;
-        let p = offset + 10, flags = 0;
+        let p = offset + 10, flags: number;
         do {
             flags = this.u16(p);
             const glyph = this.u16(p + 2);
