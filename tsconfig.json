@@ -6,7 +6,7 @@
     ],
     "types": [],
     "module": "es2022",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "strict": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
