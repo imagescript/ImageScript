@@ -1,3 +1,9 @@
+/**
+ * @packageDocumentation
+ * @document ../guides/Migrating to 4.0.md
+ */
+// (the guide is attached to the entry module: as a project document it turned the docs into a module "index", every
+// page's file name prefixed with it, e.g. classes/index.Image.html instead of classes/Image.html)
 import { BinaryData } from './util/mem.ts';
 import { Image, DecodeOptions } from './image.ts';
 import { Animation } from './animation.ts';
