@@ -92,6 +92,12 @@ const metadata = {creationTime: 0, software: ''};
     await rejects('an invalid quality', () => Animation.webpEncoder(4, 4, {quality: 101}));
     await rejects('an invalid duration', () => Animation.gifEncoder(4, 4).add(new Image(4, 4), {duration: -1}));
     await rejects('not an image', () => Animation.gifEncoder(4, 4).add({width: 4, height: 4}));
+    // (an error is a rejection, not thrown by the call)
+    {
+        let promise = null;
+        try { promise = Animation.gifEncoder(4, 4).add({width: 4, height: 4}); } catch { panic('add() should reject, not throw'); }
+        await promise.then(() => panic('add() of a non-image should reject'), () => {});
+    }
     const finished = Animation.gifEncoder(4, 4);
     await finished.add(new Image(4, 4));
     await finished.finish();

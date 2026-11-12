@@ -70,7 +70,7 @@ export class AnimationEncoder {
      * @param frame The frame or image
      * @param options See {@link FrameOptions}
      */
-    add(frame: Frame | Image, options: FrameOptions = {}): Promise<void> {
+    async add(frame: Frame | Image, options: FrameOptions = {}): Promise<void> {
         checkOptions(options, 'encoder.add(frame, { duration: 40 })');
         if (this.finished) throw new Error('The animation encoder is finished');
         const own = frame instanceof Frame ? frame : null;
