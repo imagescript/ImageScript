@@ -229,8 +229,9 @@ export class GainMap {
     private __check__(): void {
         // (each value is checked when it is set; these are the checks between them)
         for (let c = 0; c < 3; c++)
-            if (this.__max__[c] < this.__min__[c]) throw new RangeError('The gain map\'s max must be at least its min');
-        if (this.__capacityMax__ <= this.__capacityMin__) throw new RangeError('The gain map\'s hdrCapacityMax must be above its hdrCapacityMin');
+            if (this.__max__[c] < this.__min__[c]) throw new RangeError(`The gain map's max must be at least its min (${this.__max__[c]} < ${this.__min__[c]}; the values are checked together when the map is cloned or encoded)`);
+        if (this.__capacityMax__ <= this.__capacityMin__)
+            throw new RangeError(`The gain map's hdrCapacityMax (by default the largest max) must be above its hdrCapacityMin (${this.__capacityMax__} <= ${this.__capacityMin__})`);
     }
 
     /** The map's pixels. Changes to them are written when the image is encoded */

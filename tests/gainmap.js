@@ -106,6 +106,18 @@ const meanValue = (image, left, top, right, bottom) => {
 		}
 	}
 
+	// the checks between the values name them (they run when the map is cloned or encoded, not when one is set)
+	{
+		const map = new GainMap(new Image(4, 4).fill(0x808080ff), {max: 2});
+		map.min = 5;
+		let error = null;
+		try { map.clone(); } catch (err) { error = err; }
+		if (!(error instanceof RangeError) || !/max must be at least its min \(2 < 5.*cloned or encoded/.test(error.message)) panic(`min above max: ${error && error.message}`);
+		error = null;
+		try { new GainMap(new Image(4, 4), {max: 0}); } catch (err) { error = err; }
+		if (!(error instanceof RangeError) || !/hdrCapacityMax \(by default the largest max\)/.test(error.message)) panic(`max 0: ${error && error.message}`);
+	}
+
 	// made by hand: parameters checked, written and read back; per channel values
 	{
 		const image = new Image(64, 48).fill(0x808080ff);
