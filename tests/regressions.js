@@ -1041,10 +1041,14 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             }
         const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
         for (const [name, call] of Object.entries({size: v => Image.renderText('a', { font, size: v }), color: v => Image.renderText('a', { font, size: 12, color: v }),
-            maxWidth: v => Image.renderText('a', { font, size: 12, maxWidth: v })}))
+            width: v => Image.renderText('a', { font, size: 12, width: v }), height: v => Image.renderText('a', { font, size: 12, height: v })}))
             if (!await Promise.resolve().then(() => call(NaN)).then(() => false, e => e instanceof RangeError)) panic(`renderText: a NaN ${name} should throw a RangeError`);
-        // (no limit is a valid layout)
-        await Image.renderText('a', { font, size: 12, maxWidth: Infinity, maxHeight: Infinity });
+        // (no size is a valid layout; an infinite one, 0 and one the outline fills aren't)
+        await Image.renderText('a', { font, size: 12, width: undefined, height: undefined });
+        for (const side of ['width', 'height'])
+            for (const value of [Infinity, 0, -5, '20'])
+                if (!await Image.renderText('a', { font, size: 12, [side]: value }).then(() => false, e => e instanceof RangeError)) panic(`renderText: ${side} ${String(value)} should throw a RangeError`);
+        if (!await Image.renderText('a', { font, size: 12, width: 6, strokeWidth: 3 }).then(() => false, e => e instanceof RangeError)) panic('renderText: a width the outline fills should throw');
 
         const strings = image().crop('1', '1', '4', '4').rotate('45').opacity('0.5').composite(image(), {x: '1', y: '2'});
         if (strings.width !== 6) panic('numeric strings should keep working');

@@ -70,6 +70,8 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`dominantColor()`'s `threshold` is in channel values** (0-256) instead of steps of 4 (0-64): the default `60` is 3.x's `15`; multiply a threshold you give by 4.
 
+- **`renderText()` takes the image's `width` and `height`**: `maxWidth` and `maxHeight` are `width` and `height`, which also set the image's size: lines wrap to the width (inside the outline), lines that don't fit the height are left out, and `horizontalAlign` and `verticalAlign` place the text in that box. Without them, the image is as large as the text, as before. `wrapHardBreaks` is removed: remove the line breaks from the text instead. An old `maxWidth` is ignored, so the text doesn't wrap: search for it. `0` no longer means no limit (it throws).
+
 - **The `fast` option of `resize()` and `scale()` is removed**, on `Image`, `Frame` and `Animation`: resizing always works like its default (`fast: true`); `{ fast: false }` is ignored. The precise path took 15-25% longer for opaque images, for results at most a step or two closer.
 
 - **`encodeJPEG()` composites transparent pixels onto a background**, black by default (`background` sets the color), instead of dropping the alpha and showing the stored color. Opaque images encode as before.
@@ -86,7 +88,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Renamed**: `greyscale()` is `grayscale()` (American spelling throughout), the `fonts` option of `renderSVG()` is `font` (like `renderText()`'s), `GainMap.encode()` is `GainMap.encodeJPEG()` (named for the format it writes), `region()` is `extract()`, the `resize` option of `rotate()` is `expand` (like `transform()`, `outline()` and `dropShadow()`), `GainMap`'s `gainMapMin` and `gainMapMax` (properties and options) are `min` and `max`, and the parameters of `setPixelAt()`, `lightness()`, `saturation()` and `opacity()` are `color` and `factor`.
 
-- **Fewer types and classes**: `TextLayout` isn't exported, `renderText()` takes the layout options with its other options (`{ font, size, maxWidth: 300 }`). `AnimationDecodeOptions` is `DecodeOptions`, which all decode functions take. `encodeTGA()` takes `TGAEncodeOptions`; `EncodeOptions` is the `metadata` that every encoder's options extend, and the `gainMap` option of the JPEG, AVIF and JPEG XL encoders is `boolean | GainMapEmbedOptions`.
+- **Fewer types and classes**: `TextLayout` isn't exported, `renderText()` takes the layout options with its other options (`{ font, size, width: 300 }`). `AnimationDecodeOptions` is `DecodeOptions`, which all decode functions take. `encodeTGA()` takes `TGAEncodeOptions`; `EncodeOptions` is the `metadata` that every encoder's options extend, and the `gainMap` option of the JPEG, AVIF and JPEG XL encoders is `boolean | GainMapEmbedOptions`.
 
 - **Values are checked when they are set**: `frame.duration`, `frame.xOffset`, `frame.yOffset` and the parameters of a `GainMap` throw for invalid values (instead of failing in a later encode) and keep their value.
 

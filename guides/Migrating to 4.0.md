@@ -1,7 +1,7 @@
 # Migrating to 4.0
 
 ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes twelve behaviors. Most of the
-removals are mechanical: the compiler points at them. The thirteen behavior changes are not deprecations, nothing warns
+removals are mechanical: the compiler points at them. The fourteen behavior changes are not deprecations, nothing warns
 about them, and code keeps compiling while it does something else. Read the first section even if your build is clean.
 
 Node.js 22.13 or newer is required, as it was for 3.x (`engines` in `package.json`).
@@ -13,7 +13,7 @@ The recommended path:
    problems list, or a lint rule for deprecated APIs (typescript-eslint has `no-deprecated`), to get the full list.
 2. Fix every deprecation hint, using the tables below.
 3. Switch to 4.0, fix what the compiler reports with the [renamed and reshaped APIs](#renamed-and-reshaped-apis), and go
-   through the thirteen behavior changes. The [checklist](#checklist) at the end has grep patterns
+   through the fourteen behavior changes. The [checklist](#checklist) at the end has grep patterns
    for finding the code they affect.
 
 ## Behavior changes
@@ -243,6 +243,24 @@ default is the same; a threshold you give has to be multiplied by 4:
 | `image.dominantColor(true, true, 15)`, `dominantColor({ threshold: 15 })` | `image.dominantColor({ threshold: 60 })` |
 
 Search your code for: `threshold:` near `dominantColor(`.
+
+### `renderText()` takes the image's size
+
+`maxWidth` and `maxHeight` are `width` and `height`, and they are the size of the image: the lines wrap to the width
+(inside the outline of `strokeWidth`), the lines that don't fit the height are left out, and `horizontalAlign` and
+`verticalAlign` place the text in that box. In 3.x the image was only as wide as the widest line and as high as the
+lines, so the alignment only moved lines against each other. Without a `width` or `height` the image is as large as
+the text, as before. `wrapHardBreaks` is removed:
+
+| 3.x | 4.0 |
+| --- | --- |
+| `{ font, size, maxWidth: 300 }` (wrapped, as wide as the widest line) | `{ font, size, width: 300 }` (wrapped, 300 pixels wide); `trim()` the image for the old size |
+| `{ font, size, maxHeight: 100, verticalAlign: 'bottom' }` | `{ font, size, height: 100, verticalAlign: 'bottom' }`: the last lines that fit, at the bottom of a 100 pixel high image |
+| `{ font, size, maxWidth: 0 }` (no limit) | `{ font, size }`: `0` throws |
+| `{ font, size, wrapHardBreaks: false }` | `Image.renderText(text.replace(/\r?\n/g, ''), { font, size })` |
+
+An old `maxWidth` or `maxHeight` is ignored, so the text isn't wrapped or cut off. Search your code for: `maxWidth`,
+`maxHeight` and `wrapHardBreaks`.
 
 ### Encoded files have no creation time and no version by default
 
@@ -478,7 +496,7 @@ false })` grows the image again), so search for them too.
 | `image.drawBox(x, y, w, h, color)` | `image.composite(new Image(w, h).fill(color), { x, y })`. It blends a translucent color over the image; `drawBox()` replaced the pixels |
 | `image.drawCircle(x, y, r, color)` | `image.composite(new Image(2 * r, 2 * r).fill(color).cropCircle(), { x: x - r, y: y - r })` |
 | `image.greyscale()` | `image.grayscale()` (the whole API spells American English) |
-| `Image.renderText(text, { font, size, layout: { maxWidth: 300 } })`, `layout: new TextLayout(options)` | `Image.renderText(text, { font, size, maxWidth: 300 })`: the layout options ({@link TextLayoutOptions}) are part of the options; `TextLayout` isn't exported |
+| `Image.renderText(text, { font, size, layout: { maxWidth: 300 } })`, `layout: new TextLayout(options)` | `Image.renderText(text, { font, size, width: 300 })`: the layout options ({@link TextLayoutOptions}) are part of the options; `TextLayout` isn't exported |
 | `image.getRGBAAt(x, y)` | `Colors.toRGBA(image.getPixelAt(x, y))`, an array (`getRGBAAt()` returned a view into the bitmap) |
 | `image.region(x, y, w, h)` | `image.extract(x, y, w, h)` |
 | `animation.encodeGIF({ quality })`, `Animation.gifEncoder(w, h, { quality })` | `{ colors }`: the palette size, 2-256. A quality of 90 and above is the default `256`; below, `colors: Math.round(8 * 32 ** (quality / 90))` gives the old palette size. `dither` (`'floyd-steinberg'` by default, `'atkinson'`, `'ordered'` or `'none'`) and `ditherStrength` are new |
@@ -594,7 +612,7 @@ grep -rnE 'encodeGIF\(|gifEncoder\(|GIFEncodeOptions|encodeJPEG\(' src
 grep -rnE 'new Frame\(|Frame\.from\(|frame\w*\.[a-zA-Z]+\(' src
 
 # behavior changes without a compile error
-grep -rnE '\.(rotate|quantize|contain|encodeJPEG|dominantColor)\(|from(HSLA?)\(|toHSLA\(' src
+grep -rnE 'maxWidth|maxHeight|wrapHardBreaks|\.(rotate|quantize|contain|encodeJPEG|dominantColor)\(|from(HSLA?)\(|toHSLA\(' src
 grep -rnE 'compression:|[xy]Offset|\.bitmap =|renderSVG\(|Creation Time|DateTime' src
 
 # GainMap
@@ -604,7 +622,7 @@ grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
 Also search for the variables that hold animations, and for `[0]`, `.map(`, `.filter(` and `.forEach(` on them: the
 search can't tell an animation from an array, so check the type of each receiver.
 
-Then compile with `tsc`, and run the tests that cover your decode and encode paths. The thirteen behavior changes need
+Then compile with `tsc`, and run the tests that cover your decode and encode paths. The fourteen behavior changes need
 runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every resize fit mode, every HSL hue,
-every `rotate()`, every `dominantColor()` threshold, every JPEG made from an image with transparency, every `quantize()`, the size changes of frames, the
+every `rotate()`, every `dominantColor()` threshold, all text rendered with a size, every JPEG made from an image with transparency, every `quantize()`, the size changes of frames, the
 values that now throw, anything that reads the metadata of encoded files, and every SVG with images.

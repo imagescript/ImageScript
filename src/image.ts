@@ -2841,8 +2841,8 @@ export class Image {
     /**
      * Creates a new image containing the rendered text.
      * @param text Text to render
-     * @param options The font and size, color, layout and style, see {@link RenderTextOptions}; the image grows by the
-     *     outline width on every side
+     * @param options The font and size, color, layout and style, see {@link RenderTextOptions}. Without a `width` or
+     *     `height`, the image grows by the outline width on every side; with one, it has exactly that size
      * @return The rendered text
      */
     static async renderText(text: string, options: RenderTextOptions): Promise<Image> {
@@ -2850,8 +2850,8 @@ export class Image {
         if (options.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
         const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {}, maxPixels = MAX_PIXELS } = options;
         if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
-        const { maxWidth, maxHeight, wrapStyle, horizontalAlign, verticalAlign, wrapHardBreaks } = options;
-        const layout = new TextLayout({ maxWidth, maxHeight, wrapStyle, horizontalAlign, verticalAlign, wrapHardBreaks });
+        const { width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign } = options;
+        const layout = new TextLayout({ width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign });
         const axes = textRenderer.axisValues(variations);
         const size = finite(options.size, 'font size');
         if (size < 0) throw new RangeError(`Invalid font size: ${size}`);
@@ -2861,8 +2861,13 @@ export class Image {
         if (!fonts.length) throw new RangeError('No font given');
 
         const [r, g, b, a] = Colors.toRGBA(color);
-        // the outline needs room around the glyphs (checked against maxPixels with them)
+        // the outline needs room around the glyphs (checked against maxPixels with them): a given size is the image's,
+        // the text goes inside the outline
         const pad = Math.ceil(strokeWidth);
+        if (layout.width !== undefined && layout.width <= 2 * pad) throw new RangeError(`The width (${layout.width}) leaves no room for the text inside the ${strokeWidth} pixel outline`);
+        if (layout.height !== undefined && layout.height <= 2 * pad) throw new RangeError(`The height (${layout.height}) leaves no room for the text inside the ${strokeWidth} pixel outline`);
+        if (layout.width !== undefined) layout.width -= 2 * pad;
+        if (layout.height !== undefined) layout.height -= 2 * pad;
         // color glyph layers in the text color take it without its alpha, which applies to the whole color glyph
         const rendered = await textRenderer.render(fonts.map(view), size, text, layout, hinting, (r << 24 | g << 16 | b << 8 | 255) >>> 0, featureList(features), axes, Number(maxPixels), pad);
 

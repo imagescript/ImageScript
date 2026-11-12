@@ -110,16 +110,43 @@ const panic = message => {
         if ((await big('To')).width > (await big('T')).width + (await big('o')).width - 5) panic('layout: kerning has no effect');
 
         // wrapping
-        const word = await render('Hello world foo bar', {maxWidth: 160});
-        const char = await render('Hello world foo bar', {maxWidth: 160, wrapStyle: 'char'});
-        if (word.height !== 3 * 55 || word.width > 160) panic('layout: word wrapping failed');
-        if (char.width > 160 || char.width <= word.width) panic('layout: char wrapping failed');
+        const word = await render('Hello world foo bar', {width: 160});
+        const char = await render('Hello world foo bar', {width: 160, wrapStyle: 'char'});
+        if (word.height !== 3 * 55 || word.width !== 160) panic('layout: word wrapping failed');
+        if (char.width !== 160 || char.height > word.height || Buffer.from(char.bitmap).equals(Buffer.from(word.bitmap))) panic('layout: char wrapping failed');
 
-        // maxHeight keeps whole lines, chosen by the vertical alignment
-        const top = await render('one\ntwo\nthree\nfour\nfive', {maxHeight: 120});
-        const bottom = await render('one\ntwo\nthree\nfour\nfive', {maxHeight: 120, verticalAlign: 'bottom'});
-        if (top.height !== 110 || bottom.height !== 110) panic('layout: maxHeight failed');
+        // a height keeps whole lines, chosen by the vertical alignment, and is the image's height
+        const top = await render('one\ntwo\nthree\nfour\nfive', {height: 120});
+        const bottom = await render('one\ntwo\nthree\nfour\nfive', {height: 120, verticalAlign: 'bottom'});
+        if (top.height !== 120 || bottom.height !== 120) panic('layout: height failed');
         if (Buffer.from(top.bitmap).equals(Buffer.from(bottom.bitmap))) panic('layout: vertical alignment has no effect');
+
+        // the size is the image's: the text is aligned in it (also with an outline, which stays inside it)
+        const inkRows = image => {
+            const rows = [];
+            for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) if (image.bitmap[(y * image.width + x) * 4 + 3]) { rows.push(y); break; }
+            return [rows[0], rows[rows.length - 1]];
+        };
+        const inkColumns = image => {
+            let first = Infinity, last = -1;
+            for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) if (image.bitmap[(y * image.width + x) * 4 + 3]) { first = Math.min(first, x); last = Math.max(last, x); }
+            return [first, last];
+        };
+        for (const strokeWidth of [0, 3]) {
+            const boxed = options => render('Hi', {width: 300, height: 200, strokeWidth, ...options});
+            const [topLeft, middleCenter, bottomRight] = await Promise.all([boxed({}), boxed({horizontalAlign: 'center', verticalAlign: 'middle'}), boxed({horizontalAlign: 'right', verticalAlign: 'bottom'})]);
+            for (const image of [topLeft, middleCenter, bottomRight]) if (image.width !== 300 || image.height !== 200) panic(`layout: a box of 300x200 with a ${strokeWidth} pixel outline gave ${image}`);
+            const [left, right] = [inkColumns(topLeft), inkColumns(bottomRight)], center = inkColumns(middleCenter);
+            const [top, bottom] = [inkRows(topLeft), inkRows(bottomRight)], middle = inkRows(middleCenter);
+            if (!(left[0] < 20 && right[1] > 280 && Math.abs(center[0] + center[1] - 300) <= 4)) panic(`layout: horizontal alignment in the box (outline ${strokeWidth}): ${left} ${center} ${right}`);
+            if (!(top[0] < 40 && bottom[1] > 170 && middle[0] > top[0] + 40 && middle[1] < bottom[1] - 40)) panic(`layout: vertical alignment in the box (outline ${strokeWidth}): ${top} ${middle} ${bottom}`);
+            if (strokeWidth && !(left[0] >= 0 && right[1] <= 299 && top[0] >= 0 && bottom[1] <= 199)) panic('layout: the outline should stay inside the box');
+        }
+        // a width or height only sets that side
+        const wide = await render('Hi', {width: 300});
+        if (wide.width !== 300 || wide.height !== 55) panic(`layout: width only: ${wide}`);
+        const high = await render('Hi', {height: 200});
+        if (high.height !== 200 || high.width >= 300) panic(`layout: height only: ${high}`);
     }
     // TrueType hinting (#31): hinted outlines match FreeType's (v35 interpreter) point for point
     {
@@ -373,7 +400,7 @@ const panic = message => {
         const fonts = await Promise.all(['opensans bold.ttf', 'noto sans hebrew subset.ttf', 'noto naskh arabic subset.ttf', 'noto sans devanagari subset.ttf']
             .map(name => fs.readFile(`./tests/fonts/${name}`)));
         const text = 'Hi שָׁלוֹם עוֹלָם (2024) and مرحبا بالعالم!\nمرحبا بالعالم، هذا نص (2024)!\nनमस्ते क्षत्रिय र्क्ष';
-        const font = await Image.renderText(text, { font: fonts, size: 40, color: 0xffffffff, maxWidth: 420, horizontalAlign: 'right' });
+        const font = await Image.renderText(text, { font: fonts, size: 40, color: 0xffffffff, width: 420, horizontalAlign: 'right' });
         const encoded = await font.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
