@@ -366,24 +366,12 @@ export interface FisheyeOptions {
     strength?: number;
 }
 
-/** Options of {@link Image.renderSVG} */
-export interface RenderSVGOptions {
-    /**
-     * The width in pixels, the height follows the SVG's aspect ratio. Give one of `width`, `height` and `scale`.
-     * Default: the SVG's own width
-     */
-    width?: number;
-    /** The height in pixels, the width follows the SVG's aspect ratio. Give one of `width`, `height` and `scale` */
-    height?: number;
-    /**
-     * A factor of the SVG's own size (`2` renders it twice as large). Give one of `width`, `height` and `scale`.
-     * Default: `1`
-     */
-    scale?: number;
+/** The limits, fonts and images of {@link Image.renderSVG}, part of {@link RenderSVGOptions} */
+export interface SVGResourceOptions {
     /**
      * Maximum total pixels in the rendered output. Output over the limit throws a RangeError before anything is
-     * rendered. It's also the default of {@link RenderSVGOptions.maxLayerPixels} and
-     * {@link RenderSVGOptions.maxImagePixels}. Default: `268402689` (16383²); `Infinity` disables the limit
+     * rendered. It's also the default of {@link SVGResourceOptions.maxLayerPixels} and
+     * {@link SVGResourceOptions.maxImagePixels}. Default: `268402689` (16383²); `Infinity` disables the limit
      */
     maxPixels?: number;
     /**
@@ -396,7 +384,7 @@ export interface RenderSVGOptions {
      */
     maxLayerPixels?: number;
     /**
-     * Maximum total pixels of the raster images the SVG references (data URIs and {@link RenderSVGOptions.images}),
+     * Maximum total pixels of the raster images the SVG references (data URIs and {@link SVGResourceOptions.images}),
      * decoded together; already-decoded {@link Image} values are used as supplied and don't count. Drawing an image
      * beyond the limit throws a RangeError. Default: `maxPixels`; `Infinity` disables the limit
      */
@@ -422,6 +410,33 @@ export interface RenderSVGOptions {
      */
     images?: Record<string, BinaryData | Image>;
 }
+
+/**
+ * Options of {@link Image.renderSVG}: the size (one of `width`, `height` and `scale`, TypeScript reports a call with
+ * more; by default the SVG's own size), and the limits, fonts and images (see {@link SVGResourceOptions})
+ */
+export type RenderSVGOptions = SVGResourceOptions & ({
+    /** The width in pixels, the height follows the SVG's aspect ratio. Default: the SVG's own width */
+    width?: number;
+    /** Not with `width`: give one of `width`, `height` and `scale` */
+    height?: never;
+    /** Not with `width`: give one of `width`, `height` and `scale` */
+    scale?: never;
+} | {
+    /** Not with `height`: give one of `width`, `height` and `scale` */
+    width?: never;
+    /** The height in pixels, the width follows the SVG's aspect ratio */
+    height: number;
+    /** Not with `height`: give one of `width`, `height` and `scale` */
+    scale?: never;
+} | {
+    /** Not with `scale`: give one of `width`, `height` and `scale` */
+    width?: never;
+    /** Not with `scale`: give one of `width`, `height` and `scale` */
+    height?: never;
+    /** A factor of the SVG's own size (`2` renders it twice as large). Default: `1` */
+    scale: number;
+});
 
 /**
  * Options of {@link Image.renderText}: the font and size, the text color, the layout (wrapping, cutting off and alignment,
@@ -2732,8 +2747,8 @@ export class Image {
      * Creates a new image from the given SVG.
      * Supports shapes, paths, transforms, use/symbol, CSS styles, gradients, patterns, strokes, markers, clip paths,
      * masks, opacity, blend modes, filters (all primitives and the filter functions) and images embedded as data URIs
-     * (PNG, JPEG, GIF, WebP, SVG) or given with {@link RenderSVGOptions.images}, and text with the given or embedded fonts
-     * (see {@link RenderSVGOptions.fonts}). Hrefs are resolved from the options and the data URIs only, never from files or URLs:
+     * (PNG, JPEG, GIF, WebP, SVG) or given with {@link SVGResourceOptions.images}, and text with the given or embedded fonts
+     * (see {@link SVGResourceOptions.fonts}). Hrefs are resolved from the options and the data URIs only, never from files or URLs:
      * drawing an image that isn't given, or can't be decoded, throws.
      * @example
      * ```ts
