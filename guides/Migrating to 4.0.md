@@ -154,6 +154,7 @@ angle to keep the old result:
 | --- | --- |
 | `image.rotate(90)` | `image.rotate(-90)` (or `image.rotate(270)`) |
 | `image.rotate(45, false)` | `image.rotate(-45, { expand: false })` |
+| `image.rotate(90, false)` (swapped width and height anyway) | `image.rotate(-90)`: with `expand: false` quarter turns keep the size now, like every other angle, and cut off what doesn't fit |
 
 Search your code for: `.rotate(`.
 
