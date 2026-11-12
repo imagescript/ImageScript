@@ -6,7 +6,7 @@ import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
-import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize, alignedPixels } from './image.ts';
+import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize, alignedPixels, PNGEncodeOptions, WebPEncodeOptions } from './image.ts';
 import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
@@ -57,32 +57,24 @@ export interface AnimationEncodeOptions extends EncodeOptions {
     optimize?: boolean;
 }
 
-/** Options of {@link Animation.encodeWebP} */
-export interface WebPAnimationEncodeOptions extends AnimationEncodeOptions {
-    /**
-     * Lossy compression quality (0-100): higher values usually preserve more detail but make larger files. Without
-     * this option, frames are encoded losslessly
-     */
-    quality?: number;
-    /**
-     * Compression effort (0-6): higher effort can make smaller files but takes longer, see
-     * {@link WebPEncodeOptions.effort}. Default: `2`
-     */
-    effort?: number;
-    /** For lossy frames, improve color detail around sharp edges. Default: `false` */
-    sharpYuv?: boolean;
-    /** For lossy frames, the quality of the transparency channel (0-100). Default: `100` */
-    alphaQuality?: number;
-}
+/**
+ * Options of {@link Animation.encodeWebP} and {@link Animation.webpEncoder}: those of {@link WebPEncodeOptions} for every
+ * frame (but `threads`: the frames are encoded one at a time), and the animation options. Without `quality` the frames
+ * are lossless
+ */
+export interface WebPAnimationEncodeOptions extends Omit<WebPEncodeOptions, 'threads'>, AnimationEncodeOptions {}
 
-/** Options of {@link Animation.encodeGIF} and {@link Animation.gifEncoder}: the palette of {@link GIFEncodeOptions} and the animation options */
+/**
+ * Options of {@link Animation.encodeGIF} and {@link Animation.gifEncoder}: those of {@link GIFEncodeOptions} for every
+ * frame, and the animation options
+ */
 export interface GIFAnimationEncodeOptions extends GIFEncodeOptions, AnimationEncodeOptions {}
 
-/** Options of {@link Animation.encodeAPNG} */
-export interface APNGEncodeOptions extends AnimationEncodeOptions {
-    /** The zlib compression level (0-9), higher is smaller but slower. Default: `4` */
-    compression?: number;
-}
+/**
+ * Options of {@link Animation.encodeAPNG} and {@link Animation.apngEncoder}: those of {@link PNGEncodeOptions}, and the
+ * animation options
+ */
+export interface APNGEncodeOptions extends PNGEncodeOptions, AnimationEncodeOptions {}
 
 /**
  * An animation: frames ({@link Animation.frames}) that can be decoded from and encoded to GIF, APNG and WebP. It can be

@@ -377,6 +377,10 @@ The option types of the animation encoders are renamed, and each one takes `loop
 | `GIFAnimationEncoderOptions` | `GIFAnimationEncodeOptions & AnimationOptions` |
 | `APNGAnimationEncoderOptions` | `APNGEncodeOptions & AnimationOptions` |
 
+Each of them extends the options of the format's still images: `GIFAnimationEncodeOptions` extends
+`GIFEncodeOptions`, `APNGEncodeOptions` extends `PNGEncodeOptions` and `WebPAnimationEncodeOptions` extends
+`WebPEncodeOptions` (without `threads`: the frames are encoded one at a time).
+
 ### Text, crop and metadata
 
 | 3.x | 4.0 |

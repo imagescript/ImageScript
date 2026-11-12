@@ -291,8 +291,9 @@ export interface PNGEncodeOptions extends EncodeOptions {
     compression?: number;
 }
 
-/** Options of {@link Image.encodeTGA} */
-export type TGAEncodeOptions = EncodeOptions;
+/** Options of {@link Image.encodeTGA}: the metadata, which TGA keeps in its extension area */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface TGAEncodeOptions extends EncodeOptions {}
 
 /** Options of {@link Image.encodeGIF}, and of {@link Animation.encodeGIF} with {@link GIFAnimationEncodeOptions} */
 export interface GIFEncodeOptions extends EncodeOptions, DitherOptions {

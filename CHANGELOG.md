@@ -113,7 +113,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `Colors.gradient()` takes an array of evenly spaced colors, like the `stops` of the gradient functions.
 - `Animation.scale()`, `Animation.trim()`, `Animation.rotate()`, `Animation.transform()`, `Animation.dropShadow()` and `Animation.outline()`. `scale()` and `trim()` keep the frames; the others work on the composited animation (full canvas frames) and resize the canvas.
 - `Frame.rotate()`, `Frame.transform()`, `Frame.dropShadow()` and `Frame.outline()`, which move the offsets like `Frame.resize()` and `Frame.crop()`.
-- `Image.encodeGIF()` for single images, with `colors`, `dither` and `ditherStrength` (also on the animation encoders), and the `DitherMethod` and `DitherOptions` types that `quantize()` and the GIF encoders share. `QuantizeOptions` is a union: TypeScript reports a call with both `colors` and `palette` (it throws at runtime).
+- `Image.encodeGIF()` for single images, with `colors`, `dither` and `ditherStrength` (also on the animation encoders), and the `DitherMethod` and `DitherOptions` types that `quantize()` and the GIF encoders share. The option types of the animation encoders extend those of the format's still images (`APNGEncodeOptions` extends `PNGEncodeOptions`, `WebPAnimationEncodeOptions` extends `WebPEncodeOptions` without `threads`). `QuantizeOptions` is a union: TypeScript reports a call with both `colors` and `palette` (it throws at runtime).
 - `RenderSVGOptions` is a union of the sizes (`width`, `height` or `scale`, TypeScript reports a call with more than one, which throws at runtime) and `SVGResourceOptions`, the limits, fonts and images.
 - `renderSVG({ font })` takes a single font without an array, like `renderText()`.
 
