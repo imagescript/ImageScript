@@ -440,7 +440,7 @@ const rgba = (image, x, y) => Image.colorToRGBA(image.getPixelAt(x, y));
         assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f, other[i])), 'Animation.resize({height})');
     }
 
-    // coordinates() and pixels(), the iterator and iterateWithColors() (deprecated, removed in 4.0) yield the same
+    // coordinates(), pixels(), the iterator and iterateWithColors() (all but pixels() deprecated, removed in 4.0) yield the same
     {
         const image = new Image(3, 2).fill((x, y) => ColorHelpers.fromRGBA(x * 50, y * 100, 7, 255));
         const coordinates = [...image.coordinates()], pixels = [...image.pixels()];

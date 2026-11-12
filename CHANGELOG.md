@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.20.3
+
+### Deprecated
+
+- **`image.coordinates()`** is deprecated and will be removed in 4.0, like iterating over the image (`for (const [x, y] of image)`), which now points to `pixels()` instead of `coordinates()`. Use `for (const [x, y] of image.pixels())`: `pixels()` yields `[x, y, color]`, so the color comes with the position.
+
 ## 3.20.2
 
 ### Fixes

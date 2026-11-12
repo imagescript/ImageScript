@@ -783,6 +783,8 @@ export class Image {
     /**
      * Yields an [x, y] array for every pixel in the image (0-based), row by row
      * @yields The coordinates of the pixel ([x, y])
+     * @deprecated Use {@link Image.pixels}, which yields `[x, y, color]`: `coordinates()` will be removed in 4.0
+     * @group Deprecated
      */
     *coordinates(): Generator<[x: number, y: number], void, undefined> {
         for (let y = 0; y < this.height; y++)
@@ -805,7 +807,7 @@ export class Image {
     /**
      * Yields an [x, y] array for every pixel in the image (0-based)
      * @yields The coordinates of the pixel ([x, y])
-     * @deprecated Use {@link Image.coordinates}, iterating over the image will be removed in 4.0
+     * @deprecated Use {@link Image.pixels}, which yields `[x, y, color]`: iterating over the image will be removed in 4.0
      * @group Deprecated
      */
     *[Symbol.iterator](): Generator<[x: number, y: number], void, undefined> {
