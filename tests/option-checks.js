@@ -36,6 +36,11 @@ const rejects = async (name, fn, Type, pattern) => {
         await rejects(`Animation.encodeWebP effort ${effort}`, () => animation().encodeWebP({effort}), RangeError, /effort must be an integer 0-6/);
         await rejects(`webpEncoder effort ${effort}`, () => encoded(Animation.webpEncoder(8, 8, {effort})), RangeError, /effort must be an integer 0-6/);
     }
+    // (JPEG quality was clamped silently, like the other lossy formats' now throws)
+    for (const quality of [-5, 101, 1000, NaN, Infinity]) {
+        await rejects(`encodeJPEG quality ${quality}`, () => image.encodeJPEG({quality}), RangeError, /quality/);
+    }
+    for (const quality of [0, 1, 100]) await image.encodeJPEG({quality});
     for (const quality of [-1, 101, NaN]) {
         await rejects(`encodeAVIF quality ${quality}`, () => image.encodeAVIF({quality}), RangeError, /quality/);
         await rejects(`encodeAVIF alphaQuality ${quality}`, () => image.encodeAVIF({alphaQuality: quality}), RangeError, /alphaQuality/);

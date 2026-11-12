@@ -306,7 +306,7 @@ export interface GIFEncodeOptions extends EncodeOptions {
 
 /** Options of {@link Image.encodeJPEG} */
 export interface JPEGEncodeOptions extends EncodeOptions {
-    /** The JPEG quality (1-100). Default: `90` */
+    /** The JPEG quality (0-100, 0 is the same as 1). Default: `90` */
     quality?: number;
     /**
      * How much color detail to keep: `'4:4:4'` keeps it all; `'4:2:0'` stores less color detail to make a smaller
@@ -2430,7 +2430,8 @@ export class Image {
     encodeJPEG(options?: JPEGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodeJPEG(options: JPEGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encodeJPEG({ quality: 80 })');
-        const { quality = 90, subsampling, background = 0x000000ff, metadata = {}, gainMap: gainMapOption = true } = options;
+        const { quality: qualityOption = 90, subsampling, background = 0x000000ff, metadata = {}, gainMap: gainMapOption = true } = options;
+        const quality = checkQuality(qualityOption);
         if (subsampling !== undefined && subsampling !== '4:4:4' && subsampling !== '4:2:0') throw new TypeError(`subsampling must be '4:4:4' or '4:2:0', not ${String(subsampling)}`);
         const backgroundColor = checkColor(background, 'background');
         const m = resolveMetadata(metadata);
@@ -2439,7 +2440,7 @@ export class Image {
         // transparent pixels: composited onto the opaque background (with the gain map, so the HDR light dims alike)
         const source = this.__flattened__(backgroundColor, gainMapOption !== false) ?? this;
         const gainMap = source.__gain_map__;
-        if (!gainMap || gainMapOption === false) return jpeg.encode(source.__bytes__(), source.width, source.height, finite(quality, 'quality'), base);
+        if (!gainMap || gainMapOption === false) return jpeg.encode(source.__bytes__(), source.width, source.height, quality, base);
 
         // the gain map's JPEG first: the primary's XMP holds its length
         const { quality: mapQuality, scale } = typeof gainMapOption === 'object' && gainMapOption !== null ? gainMapOption : {} as GainMapEmbedOptions;
@@ -2452,7 +2453,7 @@ export class Image {
         }
         const params = gainMap.__params__();
         const map = gainMapCodec.mapWithMetadata(gainMap.__body__(mapQuality === undefined ? undefined : Math.max(1, checkQuality(mapQuality, 'gain map quality')), width, height), params);
-        const primary = jpeg.encode(source.__bytes__(), source.width, source.height, finite(quality, 'quality'), { ...base, segments: gainMapCodec.primarySegments(map.length) });
+        const primary = jpeg.encode(source.__bytes__(), source.width, source.height, quality, { ...base, segments: gainMapCodec.primarySegments(map.length) });
         return gainMapCodec.finish(primary, map);
     }
 
