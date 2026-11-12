@@ -22,6 +22,13 @@ export default tseslint.config(
             // ({ removed: _, ...rest }) leaves out a property
             '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
 
+            // option checks live in util/options.ts, so one option is checked (and worded) the same everywhere: use a
+            // helper there, or add one (a check that only one place needs can say why with an eslint-disable)
+            'no-restricted-syntax': ['error', {
+                selector: "ThrowStatement > NewExpression[callee.name=/^(Range|Type)Error$/] > :matches(TemplateLiteral, Literal)[quasis.0.value.raw=/must be/], ThrowStatement > NewExpression[callee.name=/^(Range|Type)Error$/] > Literal[value=/must be/]",
+                message: "Check options with the helpers of util/options.ts (oneOf, finite, pixelLimit, ...) instead of a hand-written 'must be' error."
+            }],
+
             // SonarJS: code that does nothing or something else than it reads like
             'sonarjs/array-callback-without-return': 'error',
             'sonarjs/no-all-duplicated-branches': 'error',
@@ -41,5 +48,16 @@ export default tseslint.config(
             // regular expressions that backtrack superlinearly (ReDoS)
             'sonarjs/slow-regex': 'error'
         }
+    },
+    {
+        // the dimension limits of a format aren't options (quantize.ts holds the dithering options, so it stays checked)
+        files: ['src/codecs/**/*.ts'],
+        ignores: ['src/codecs/quantize.ts'],
+        rules: { 'no-restricted-syntax': 'off' }
+    },
+    {
+        // (where the helpers are)
+        files: ['src/util/options.ts'],
+        rules: { 'no-restricted-syntax': 'off' }
     }
 );

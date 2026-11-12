@@ -98,6 +98,7 @@ export class GainMap {
      */
     set gamma(value: GainMapChannelValues) {
         const gamma = perChannel(value, 'gamma');
+        // eslint-disable-next-line no-restricted-syntax -- a rule of the gain map's values, not a shared option
         if (gamma.some(g => g <= 0)) throw new RangeError('The gain map\'s gamma must be above 0');
         this.__gamma__ = gamma;
     }
@@ -140,6 +141,7 @@ export class GainMap {
      * @param value Whether the boost applies in the SDR image's color space
      */
     set useBaseColorSpace(value: boolean) {
+        // eslint-disable-next-line no-restricted-syntax -- the only boolean option that is validated
         if (typeof value !== 'boolean') throw new TypeError('useBaseColorSpace must be a boolean');
         this.__useBaseColorSpace__ = value;
     }
@@ -229,8 +231,10 @@ export class GainMap {
     private __check__(): void {
         // (each value is checked when it is set; these are the checks between them)
         for (let c = 0; c < 3; c++)
+            // eslint-disable-next-line no-restricted-syntax -- a relation between two values of the gain map
             if (this.__max__[c] < this.__min__[c]) throw new RangeError(`The gain map's max must be at least its min (${this.__max__[c]} < ${this.__min__[c]}; the values are checked together when the map is cloned or encoded)`);
         if (this.__capacityMax__ <= this.__capacityMin__)
+            // eslint-disable-next-line no-restricted-syntax -- a relation between two values of the gain map
             throw new RangeError(`The gain map's hdrCapacityMax (by default the largest max) must be above its hdrCapacityMin (${this.__capacityMax__} <= ${this.__capacityMin__})`);
     }
 
