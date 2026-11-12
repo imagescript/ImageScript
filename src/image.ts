@@ -119,11 +119,6 @@ type ResizeRuntimeOptions = ResizeOptions & { background?: Color };
 export interface ResizeOptions {
     /** The resizing mode. Default: `'bilinear'` */
     mode?: ResizeMode;
-    /**
-     * Whether to use faster, lower-precision arithmetic. It can cause small color differences, especially around
-     * transparent edges. Only affects `'bilinear'` and `'area'` resizing. Default: `true`
-     */
-    fast?: boolean;
 }
 
 /** Options of {@link Image.sharpen} */
@@ -966,8 +961,8 @@ export class Image {
     scale(factor: number, options?: ResizeOptions): this;
     scale(factor: number, options?: ResizeOptions): this {
         checkOptions(options, 'scale(factor, { mode: \'area\' })');
-        const { mode, fast } = resizeOptions(options);
-        const image = this.__scale__(factor, mode, fast);
+        const { mode } = resizeOptions(options);
+        const image = this.__scale__(factor, mode);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         this.__moved__?.(image.width / this.width, image.height / this.height, 0, 0);
         return this.__apply__(image);
@@ -978,11 +973,11 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __scale__(factor: number, mode: ResizeMode = 'bilinear', fast = true): Image {
+    protected __scale__(factor: number, mode: ResizeMode = 'bilinear'): Image {
         if (factor === 1) return this;
         // (a side doesn't shrink below one pixel, like resize({ width }) keeping the aspect ratio)
         const size = (side: number): number => factor > 0 ? Math.max(1, side * factor) : side * factor;
-        return this.__resize__(size(this.width), size(this.height), mode, fast);
+        return this.__resize__(size(this.width), size(this.height), mode);
     }
 
     /**
@@ -1008,8 +1003,8 @@ export class Image {
                 ? this.__contain__(width, height, options)
                 : this.__cover__(width, height, options);
         }
-        const { mode, fast } = resizeOptions(options);
-        const image = this.__resize__(...this.__resized_size__(width, height, fit), mode, fast);
+        const { mode } = resizeOptions(options);
+        const image = this.__resize__(...this.__resized_size__(width, height, fit), mode);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         this.__moved__?.(image.width / this.width, image.height / this.height, 0, 0);
         return this.__apply__(image);
@@ -1059,7 +1054,7 @@ export class Image {
             const fx = resizedWidth / this.width, fy = resizedHeight / this.height;
             this.__gain_map__?.__transform__(this.width, this.height, width, height, (X, Y) => [(X + region.x) / fx, (Y + region.y) / fy], Math.min(fx, fy));
             this.__moved__?.(fx, fy, region.x, region.y);
-            return this.__apply__(this.__resize__(resizedWidth, resizedHeight, resizeOpts.mode, resizeOpts.fast, region));
+            return this.__apply__(this.__resize__(resizedWidth, resizedHeight, resizeOpts.mode, region));
         }
         this.resize(resizedWidth, resizedHeight, resizeOpts);
         return this.crop((this.width - width) / 2, (this.height - height) / 2, width, height);
@@ -1083,7 +1078,7 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __resize__(width: number, height: number, mode: ResizeMode = 'bilinear', fast = true, region?: Region): Image {
+    protected __resize__(width: number, height: number, mode: ResizeMode = 'bilinear', region?: Region): Image {
         width = Math.floor(width);
         height = Math.floor(height);
         if (width < 1)
@@ -1097,7 +1092,9 @@ export class Image {
         const filter = mode === 'bilinear' ? TRIANGLE : mode === 'bicubic' ? CUBIC : BOX;
 
         const image = new Image(region?.width ?? width, region?.height ?? height);
-        resample(this.bitmap, this.width, this.height, width, height, filter, image.bitmap, fast, region);
+        // (8-bit rounding between the passes and for transparent images, like browsers: what shows differs from the precise
+        // result by a step or two at most, see tests/resize.js)
+        resample(this.bitmap, this.width, this.height, width, height, filter, image.bitmap, true, region);
         return image;
     }
 
@@ -2973,8 +2970,8 @@ export function insideSize(width: number, height: number, boxWidth: number, boxH
 const RESIZE_MODES: readonly ResizeMode[] = ['nearest-neighbor', 'bilinear', 'bicubic', 'area'];
 
 // the resize options with their defaults, the mode checked before anything changes
-function resizeOptions(options?: ResizeOptions): { mode: ResizeMode, fast: boolean } {
-    return { mode: options?.mode === undefined ? 'bilinear' : oneOf(options.mode, RESIZE_MODES, 'resize mode'), fast: options?.fast ?? true };
+function resizeOptions(options?: ResizeOptions): { mode: ResizeMode } {
+    return { mode: options?.mode === undefined ? 'bilinear' : oneOf(options.mode, RESIZE_MODES, 'resize mode') };
 }
 
 // separable blend functions of normalized channel values (W3C Compositing and Blending Level 1)

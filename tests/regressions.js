@@ -377,7 +377,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(same(photo.clone().resize({width: 6}), photo.clone().resize(6, 4)), 'resize({width})');
         assert(photo.clone().resize({width: 6}).height === 4, 'resize({width}) keeps the aspect ratio');
         assert(same(photo.clone().resize({height: 4, mode: 'bicubic'}), photo.clone().resize(6, 4, {mode: 'bicubic'})), 'resize({height, mode})');
-        assert(same(photo.clone().resize({width: 5, height: 9, fast: false}), photo.clone().resize(5, 9, {fast: false})), 'resize({width, height, fast})');
+        assert(same(photo.clone().resize({width: 5, height: 9, mode: 'area'}), photo.clone().resize(5, 9, {mode: 'area'})), 'resize({width, height, mode})');
         let threw = false;
         try { photo.clone().resize({}); } catch (e) { threw = e instanceof TypeError; }
         assert(threw, 'resize({}) throws');

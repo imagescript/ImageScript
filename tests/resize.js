@@ -14,7 +14,7 @@ const samePixels = require('./util/pixels');
         const target = await fs.readFile('./tests/targets/resize.png');
         if (!await samePixels(target, encoded)) process.exit(1);
 
-        // the fast resampling (the default) stays within a step of the precise one for opaque images, transparent ones
+        // the resampling (with 8-bit rounding between its passes) stays within a step of the precise one for opaque images, transparent ones
         // within 2.5 steps where it shows (premultiplied, alpha within 2), bicubic resizing is left to the precise one
         const opaque = (await Image.decode(await fs.readFile('./bench/inputs/photo.jpg'))).crop(700, 300, 400, 300);
         const transparent = opaque.clone();
@@ -23,11 +23,13 @@ const samePixels = require('./util/pixels');
         const spot = opaque.clone();
         spot.bitmap[(spot.height >> 1) * spot.width * 4 + 403] = 128;
         const sizes = [[0.5, 0.5], [1 / 3, 0.4], [2, 1.5], [1, 0.7]];
+        const {resample, BOX, TRIANGLE, CUBIC} = await import('../dist/util/resample.js');
         for (const source of [opaque, transparent, spot])
                 for (const mode of ['bilinear', 'area', 'bicubic'])
                         for (const [sx, sy] of sizes) {
                                 const width = Math.round(source.width * sx), height = Math.round(source.height * sy);
-                                const a = source.clone().resize(width, height, {mode, fast: false}).bitmap, b = source.clone().resize(width, height, {mode}).bitmap;
+                                const a = new Uint8ClampedArray(width * height * 4), b = source.clone().resize(width, height, {mode}).bitmap;
+                                resample(source.bitmap, source.width, source.height, width, height, {bilinear: TRIANGLE, area: BOX, bicubic: CUBIC}[mode], a, false);
                                 const limit = mode === 'bicubic' ? 0 : source === opaque ? 1 : 2.5;
                                 let max = 0, differ = false;
                                 for (let i = 0; i < a.length; i++) {
@@ -37,7 +39,7 @@ const samePixels = require('./util/pixels');
                                         max = Math.max(max, source === opaque || alpha ? Math.abs(a[i] - b[i]) : Math.abs(a[i] * al - b[i] * bl) / 255);
                                 }
                                 if (max > limit || mode !== 'bicubic' && sx === 0.5 && !differ) {
-                                        console.error('fast resize', mode, sx, sy, source === opaque ? 'opaque' : source === spot ? 'spot' : 'transparent', max);
+                                        console.error('resize vs the precise resampling', mode, sx, sy, source === opaque ? 'opaque' : source === spot ? 'spot' : 'transparent', max);
                                         process.exit(1);
                                 }
                         }
