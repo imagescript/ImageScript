@@ -79,4 +79,14 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
         if (Buffer.compare(Buffer.from(animation.frames[0].image.bitmap), Buffer.from(one.bitmap))) panic('threads, Animation.decode: different pixels');
     }
     for (const threads of [0, 1.5]) if (!await Image.decode(lossy, {threads}).then(() => false, e => e instanceof RangeError)) panic(`threads ${threads} should throw`);
+
+    // damaged blending info (blendmodes.jxl with flipped bits): a blend alpha channel that doesn't exist is an error,
+    // not a TypeError from the blending
+    for (const name of await fs.readdir('./tests/jxl/damaged')) {
+        const data = await fs.readFile(`./tests/jxl/damaged/${name}`);
+        for (const decode of [() => Image.decode(data, {threads: 1}), () => Animation.decode(data, {threads: 1})]) {
+            const error = await decode().then(() => null, e => e);
+            if (!error || error instanceof TypeError || !/JPEG XL|damaged/.test(error.message)) panic(`damaged/${name}: ${error && error.constructor.name}: ${error && error.message}`);
+        }
+    }
 })();
