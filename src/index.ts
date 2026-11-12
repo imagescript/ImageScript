@@ -25,6 +25,7 @@ export type { AnimationOptions, AnimationCanvasOptions, AnimationEncodeOptions, 
 export { AnimationEncoder } from './animation-encoder.ts';
 export type { TextLayoutOptions, WrapStyle, HorizontalAlign, VerticalAlign } from './text-layout.ts';
 export { ImageType } from './image-type.ts';
+export { LimitError } from './util/limits.ts';
 export type { ImageTypeName } from './image-type.ts';
 export type { ToneMapping } from './codecs/hdr.ts';
 export type { BinaryData } from './util/mem.ts';

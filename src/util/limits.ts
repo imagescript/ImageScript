@@ -1,7 +1,10 @@
 // limits against decompression bombs: small files declaring huge images
 
-/** Thrown when an image exceeds the decode options' maxPixels */
-export class LimitError extends RangeError {}
+/** Thrown when an image exceeds a limit of the decode options (`maxPixels`) or the render options of SVGs */
+export class LimitError extends RangeError {
+    /** `'LimitError'`: tells a limit apart from other `RangeError`s */
+    override name = 'LimitError';
+}
 
 /** The default of the decode options' maxPixels: 16383 squared (like sharp's limitInputPixels) */
 export const MAX_PIXELS = 0x3fff * 0x3fff;

@@ -960,6 +960,15 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         await tooLarge('tiff samples', () => Image.decode(tiff));
         await tooLarge('gif frames', () => Animation.decode(gif, {maxPixels: 4000 * 4000 * 10}));
                 await tooLarge('maxPixels', () => Image.decode(png(100, 100), {maxPixels: 9999}));
+        // (the limit's error is exported, and tells itself from other RangeErrors by its name)
+        {
+            let error = null;
+            try { await Image.decode(png(100, 100), {maxPixels: 9999}); } catch (err) { error = err; }
+            assert(error instanceof require('..').LimitError && error instanceof RangeError && error.name === 'LimitError', `LimitError: ${error && error.name}`);
+            error = null;
+            try { await Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"/>', {maxPixels: 15}); } catch (err) { error = err; }
+            assert(error instanceof require('..').LimitError, `SVG maxPixels: ${error && error.constructor.name}`);
+        }
 
         // without a limit, the PNG gets as far as its data (which is too short)
         let error = null;
