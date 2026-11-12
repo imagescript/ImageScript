@@ -1,4 +1,5 @@
 import type { DitherMethod } from '../image.ts';
+import { oneOf } from '../util/options.ts';
 
 // perceptual channel weights for squared color distances
 const WR = 3, WG = 4, WB = 2;
@@ -27,11 +28,13 @@ export function paletteOptions(colors: number | undefined, dither: unknown, dith
     let count: number | undefined;
     if (colors !== undefined) {
         count = Number(colors);
+        // eslint-disable-next-line no-restricted-syntax -- the palette size is only checked here
         if (!Number.isInteger(count) || count < 2 || count > 256) throw new RangeError(`colors must be an integer from 2 to 256, not ${colors}`);
     }
-    if (!(DITHER_METHODS as readonly unknown[]).includes(dither)) throw new TypeError(`dither must be one of ${DITHER_METHODS.map(name => `'${name}'`).join(', ')}, not ${String(dither)}`);
+    oneOf(dither, DITHER_METHODS, 'dither');
     const strength = Number(ditherStrength);
     if (!Number.isFinite(strength)) throw new RangeError(`Invalid ditherStrength: ${ditherStrength}`);
+    // eslint-disable-next-line no-restricted-syntax -- the dither strength is only checked here
     if (strength < 0 || strength > 1) throw new RangeError(`ditherStrength must be 0-1, not ${ditherStrength}`);
     return { colors: count, dither: dither as DitherMethod, strength };
 }

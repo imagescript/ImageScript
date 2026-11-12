@@ -99,6 +99,13 @@ export function pixelLimit(value: number, name = 'maxPixels'): number {
     return Number(value);
 }
 
+/** The `scale` of a gain map: above 0 and at most 1 (1 is the size of the image) */
+export function gainMapScale(value: number): number {
+    const scale = finite(value, 'gain map scale');
+    if (!(scale > 0 && scale <= 1)) throw new RangeError(`The gain map scale must be above 0 and at most 1, not ${scale}`);
+    return scale;
+}
+
 /** The `threads` option: a whole number of at least 1 */
 export function checkThreads(threads: number): void {
     if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);

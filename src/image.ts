@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, oneOf, pixelLimit, checkThreads, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, oneOf, pixelLimit, checkThreads, gainMapScale, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -655,6 +655,7 @@ export interface ColorToAlphaOptions {
 
 // OpenType features as tags and values (tags are 4 printable ASCII characters)
 function featureList(features: Record<string, boolean | number>): Array<[string, number]> {
+    // eslint-disable-next-line no-restricted-syntax -- the OpenType features are only used by the text functions
     if (typeof features !== 'object' || features === null) throw new TypeError('Features must be an object');
     return Object.entries(features).map(([tag, value]) => {
         if (!/^[\x20-\x7e]{4}$/.test(tag)) throw new RangeError(`Invalid OpenType feature tag: ${JSON.stringify(tag)}`);
@@ -2461,8 +2462,7 @@ export class Image {
         const { quality: mapQuality, scale } = typeof gainMapOption === 'object' && gainMapOption !== null ? gainMapOption : {} as GainMapEmbedOptions;
         let width: number | undefined, height: number | undefined;
         if (scale !== undefined) {
-            const s = finite(scale, 'gain map scale');
-            if (!(s > 0 && s <= 1)) throw new RangeError(`The gain map scale must be above 0 and at most 1, not ${s}`);
+            const s = gainMapScale(scale);
             width = Math.max(1, Math.round(this.width * s));
             height = Math.max(1, Math.round(this.height * s));
         }
@@ -2573,8 +2573,7 @@ export class Image {
         const mapQuality = Math.max(1, checkQuality(quality, 'gain map quality'));
         let map = gainMap.image;
         if (scale !== undefined) {
-            const s = finite(scale, 'gain map scale');
-            if (!(s > 0 && s <= 1)) throw new RangeError(`The gain map scale must be above 0 and at most 1, not ${s}`);
+            const s = gainMapScale(scale);
             const width = Math.max(1, Math.round(this.width * s)), height = Math.max(1, Math.round(this.height * s));
             if (width !== map.width || height !== map.height) map = map.clone().resize(width, height);
         }
@@ -2769,12 +2768,14 @@ export class Image {
         const mode = givenWidth !== undefined ? 'width' : givenHeight !== undefined ? 'height' : 'scale';
         const size = finite(givenWidth ?? givenHeight ?? scale ?? 1, `SVG ${mode}`);
         if (mode === 'scale' && size <= 0)
+            // eslint-disable-next-line no-restricted-syntax -- the SVG size is only checked here
             throw new RangeError('SVG scale must be > 0');
         if (mode !== 'scale' && size < 1)
             throw new RangeError(`SVG ${mode} must be >= 1`);
 
         // the images given by href, checked before anything is decoded
         if (typeof givenImages !== 'object' || givenImages === null || Array.isArray(givenImages) || givenImages instanceof Map)
+            // eslint-disable-next-line no-restricted-syntax -- the images of an SVG are only checked here
             throw new TypeError('SVG images must be an object of hrefs to image data');
         const given = new Map<string, BinaryData | Image>();
         for (const href of Object.keys(givenImages)) {
