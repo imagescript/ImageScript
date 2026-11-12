@@ -700,6 +700,7 @@ function validProperty(name: string, value: string): boolean {
 
 // the most elements to render through <use> references (like librsvg's limit), and dashes of a path
 const MAX_INSTANCES = 100000;
+const MAX_OCTAVES = 24;
 const MAX_DASHES = 1000000;
 // the most pixels of a pattern's tile
 const MAX_TILE = 4096 * 1024;
@@ -2080,7 +2081,9 @@ class Document {
                 const list = node.attrs.baseFrequency === undefined ? null : parseStrictNumberList(node.attrs.baseFrequency);
                 let [fx, fy] = list && list.length === 2 ? list : list && list.length === 1 ? [list[0], list[0]] : [0, 0];
                 if (!(fx >= 0 && fy >= 0)) fx = fy = 0;
-                const octaves = Math.max(0, number('numOctaves', 1));
+                // (an octave adds half the noise of the one before it: after 24 they're below what the output can hold, and
+                // the cost grows with each)
+                const octaves = Math.min(MAX_OCTAVES, Math.max(0, number('numOctaves', 1)));
                 return { type: 'turbulence', fx, fy, octaves: Math.round(octaves), seed: Math.trunc(number('seed', 0)), stitch: node.attrs.stitchTiles?.trim() === 'stitch',
                     fractal: node.attrs.type?.trim() === 'fractalNoise' };
             }

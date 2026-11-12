@@ -32,4 +32,16 @@ const timed = async (name, svg, limit = 5000) => {
         const {image} = await timed('huge circle', `<svg ${NS} width="100" height="100"><circle cx="50" cy="50" r="1e9" fill="#0f0"/></svg>`);
         if (Colors.toRGBA(image.getPixelAt(50, 50)).join() !== '0,255,0,255') panic('huge circle: not painted');
     }
+
+    // feTurbulence: the cost is linear in numOctaves, which has no limit in the format; octaves past the 24th add nothing
+    {
+        const turbulence = octaves => `<svg ${NS} width="100" height="100"><filter id="f"><feTurbulence baseFrequency="0.01" numOctaves="${octaves}"/></filter><rect width="100" height="100" filter="url(#f)"/></svg>`;
+        const {image: reference, error} = await timed('numOctaves 24', turbulence(24));
+        if (error) panic(`numOctaves 24: ${error.message}`);
+        for (const octaves of [25, 1000, 1e9]) {
+            const {image, error} = await timed(`numOctaves ${octaves}`, turbulence(octaves), 3000);
+            if (error) panic(`numOctaves ${octaves}: ${error.message}`);
+            if (Buffer.compare(Buffer.from(image.bitmap), Buffer.from(reference.bitmap))) panic(`numOctaves ${octaves}: differs from 24`);
+        }
+    }
 })();
