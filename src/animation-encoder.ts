@@ -52,8 +52,9 @@ export class AnimationEncoder {
     /** The canvas height */
     readonly height: number;
 
-    /** @internal */
-    constructor(width: number, height: number, private readonly format: Format, optimize: boolean) {
+    // (private: created by the factories of Animation, through the static methods below; a constructor marked for
+    // stripping would be left out of the declarations, which then show a public `new AnimationEncoder()` that fails)
+    private constructor(width: number, height: number, private readonly format: Format, optimize: boolean) {
         this.width = width;
         this.height = height;
         this.optimizer = optimize ? new Optimizer(width, height, format.optimize) : null;
