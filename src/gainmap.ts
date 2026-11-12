@@ -6,7 +6,7 @@ import * as codec from './codecs/gainmap.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { finite, checkOptions, quality as checkQuality } from './util/options.ts';
 
-/** Options of {@link GainMap.encode} */
+/** Options of {@link GainMap.encodeJPEG} */
 export interface GainMapEncodeOptions {
     /** The JPEG quality (1-100). Default: `90` */
     quality?: number;
@@ -345,9 +345,9 @@ export class GainMap {
      * Ultra HDR JPEG
      * @param options See {@link GainMapEncodeOptions}
      */
-    encode(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
-    async encode(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>> {
-        checkOptions(options, 'encode({ quality: 80 })');
+    encodeJPEG(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
+    async encodeJPEG(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>> {
+        checkOptions(options, 'gainMap.encodeJPEG({ quality: 80 })');
         let quality = options?.quality;
         if (quality !== undefined) quality = Math.max(1, checkQuality(quality));
         return codec.mapWithMetadata(this.__body__(quality), this.__params__());

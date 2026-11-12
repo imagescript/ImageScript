@@ -87,14 +87,14 @@ const sameImage = (image, reference, label) => {
 		'encodeJPEG(80)': () => photo.encodeJPEG(80),
 		'encodeGIF(10)': () => makeAnimation().encodeGIF(10),
 		'encodeAPNG(9)': () => makeAnimation().encodeAPNG(9),
-		'GainMap.encode(70)': () => gainMap.encode(70)
+		'GainMap.encodeJPEG(70)': () => gainMap.encodeJPEG(70)
 	})) {
 		const error = await rejects(call, label);
 		if (!/takes/.test(error.message)) panic(`${label}: the message should name the form, got ${error.message}`);
 	}
 	if (!Buffer.from(await photo.encodePNG({compression: 1, metadata: {author: 'me'}})).includes('me')) panic('encodePNG({ metadata }): the metadata is missing');
 	if (!(await photo.encodeJPEG({quality: 80})).length || !(await makeAnimation().encodeGIF({colors: 16})).length) panic('encoders with options');
-	if (!(await gainMap.encode({quality: 70})).length || !(await gainMap.encode()).length) panic('GainMap.encode with options');
+	if (!(await gainMap.encodeJPEG({quality: 70})).length || !(await gainMap.encodeJPEG()).length) panic('GainMap.encodeJPEG with options');
 
 	// renderSVG takes its size and mode in the options object only
 	const svgSource = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red"/></svg>';

@@ -542,7 +542,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(frame().trim({color: 0x102030ff}).xOffset === 5, 'Frame.trim({color}) moves the offsets');
         assert(same(bordered().colorToAlpha(), bordered().colorToAlpha(undefined)) && same(bordered().colorToAlpha(), bordered().colorToAlpha({})), 'colorToAlpha() without arguments');
         const map = new GainMap(new Image(4, 4).fill(0x808080ff), {min: 0, max: 2});
-        assert(Buffer.from(await map.encode()).equals(Buffer.from(await map.encode({}))), 'GainMap.encode() without arguments');
+        assert(Buffer.from(await map.encodeJPEG()).equals(Buffer.from(await map.encodeJPEG({}))), 'GainMap.encodeJPEG() without arguments');
     }
 
     // gradients, recolor with an image, drop shadows / glows and outlines

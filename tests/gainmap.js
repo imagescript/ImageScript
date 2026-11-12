@@ -77,7 +77,7 @@ const meanValue = (image, left, top, right, bottom) => {
 
 	// a map alone, without ISO 21496-1 (only hdrgm XMP): read from the XMP
 	{
-		const alone = Buffer.from(await single.gainMap.encode());
+		const alone = Buffer.from(await single.gainMap.encodeJPEG());
 		const iso = alone.indexOf('urn:iso:std:iso:ts:21496:-1');
 		const start = iso - 4, length = alone.readUInt16BE(iso - 2);
 		const xmpOnly = Buffer.concat([alone.subarray(0, start), alone.subarray(start + 2 + length)]);
@@ -89,7 +89,7 @@ const meanValue = (image, left, top, right, bottom) => {
 
 	// decoding a map alone takes the limit of the decode options, and a damaged one says so (like Image.decode)
 	{
-		const alone = await single.gainMap.encode();
+		const alone = await single.gainMap.encodeJPEG();
 		const lib = require('..');
 		const map = await GainMap.decode(alone, {maxPixels: single.gainMap.width * single.gainMap.height});
 		if (map.width !== single.gainMap.width) panic('GainMap.decode with a limit that fits');

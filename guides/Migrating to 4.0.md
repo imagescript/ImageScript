@@ -405,7 +405,7 @@ object under the names of their options. The options of each method are on its o
 {@link DominantColorOptions}, {@link RoundCornersOptions}, {@link FisheyeOptions}, {@link TrimOptions},
 {@link ColorToAlphaOptions}, {@link PNGEncodeOptions}, {@link JPEGEncodeOptions}, {@link RenderSVGOptions} and
 {@link FrameOptions}. The animation options are {@link GIFAnimationEncodeOptions}, {@link APNGEncodeOptions},
-{@link DecodeOptions} and {@link GainMapEncodeOptions} for `GainMap.encode()`.
+{@link DecodeOptions} and {@link GainMapEncodeOptions} for `GainMap.encodeJPEG()`.
 
 | 3.x | 4.0 |
 | --- | --- |
@@ -427,7 +427,7 @@ object under the names of their options. The options of each method are on its o
 | `image.encodeJPEG(90)` | `image.encodeJPEG({ quality: 90 })` |
 | `animation.encodeGIF(90)` | `animation.encodeGIF()`; a quality of 90 and above was the default 256 colors, see the [GIF options](#renamed-and-reshaped-apis) for lower ones |
 | `animation.encodeAPNG(9)` | `animation.encodeAPNG({ compression: 9 })` |
-| `gainMap.encode(90)` | `gainMap.encode({ quality: 90 })` |
+| `gainMap.encode(90)`, `gainMap.encode({ quality: 90 })` | `gainMap.encodeJPEG({ quality: 90 })`: renamed for the format it writes, like `Image.encode()` became `encodePNG()` |
 | `Image.renderSVG(svg, 512, 'width')` | `Image.renderSVG(svg, { width: 512 })` (and `{ height }`, `{ scale }`) |
 | `new Frame(w, h, duration, x, y, disposal)` | `new Frame(new Image(w, h), { duration, xOffset, yOffset, disposalMode })`, see [frames](#frames-hold-an-image) |
 | `Frame.from(image, duration, x, y, disposal)` | `new Frame(image.clone(), { duration, xOffset, yOffset, disposalMode })` |
