@@ -136,31 +136,39 @@ export interface SharpenOptions {
  */
 export type DitherMethod = 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered';
 
-/** Options of {@link Image.quantize}: either `colors` or `palette`, and the dithering */
-export interface QuantizeOptions {
+/** How colors are dithered when they are reduced to a palette: options of {@link Image.quantize} and the GIF encoders */
+export interface DitherOptions {
+    /**
+     * How to spread small color changes across nearby pixels to make gradients look smoother with few colors, see
+     * {@link DitherMethod}. Default: `'floyd-steinberg'`
+     */
+    dither?: DitherMethod;
+    /** How strongly to apply dithering: `0` disables it (like `'none'`); `1` applies it fully. Default: `0.85` */
+    ditherStrength?: number;
+}
+
+/**
+ * Options of {@link Image.quantize}: either `colors` or `palette` (TypeScript reports a call with both), and the
+ * dithering
+ */
+export type QuantizeOptions = DitherOptions & ({
     /**
      * The maximum number of colors to keep (2-256). Images with fewer distinct colors keep them exactly; otherwise
      * ImageScript chooses a smaller set of representative colors. Give `palette` instead to choose exact colors.
-     * Default: `256`. Give `colors` or `palette`, not both
+     * Default: `256`
      */
     colors?: number;
+    /** Not with `colors`: give one of them */
+    palette?: never;
+} | {
     /**
      * A fixed palette (1-256 colors, e.g. a Game Boy's four greens). Every pixel is changed to the nearest palette
-     * color by its red, green and blue values; transparency in palette colors is ignored. Give `palette` or `colors`,
-     * not both
+     * color by its red, green and blue values; transparency in palette colors is ignored
      */
-    palette?: Color[];
-    /**
-     * How to spread small color changes across nearby pixels to make gradients look smoother with few colors, see
-     * {@link DitherMethod}. Default: `'floyd-steinberg'`, like {@link GIFEncodeOptions.dither}
-     */
-    dither?: DitherMethod;
-    /**
-     * How strongly to apply dithering: `0` disables it; `1` applies it fully. Default: `0.85`, like
-     * {@link GIFEncodeOptions.ditherStrength}
-     */
-    ditherStrength?: number;
-}
+    palette: Color[];
+    /** Not with `palette`: give one of them */
+    colors?: never;
+});
 
 /** How {@link Image.transform} and {@link Image.rotate} sample the pixels between the source's */
 export type TransformMode = 'nearest-neighbor' | 'bilinear' | 'bicubic';
@@ -287,16 +295,12 @@ export interface PNGEncodeOptions extends EncodeOptions {
 export type TGAEncodeOptions = EncodeOptions;
 
 /** Options of {@link Image.encodeGIF}, and of {@link Animation.encodeGIF} with {@link GIFAnimationEncodeOptions} */
-export interface GIFEncodeOptions extends EncodeOptions {
+export interface GIFEncodeOptions extends EncodeOptions, DitherOptions {
     /**
      * The maximum colors in each frame's palette (2-256, including transparency). Frames with fewer colors keep them
      * exactly; otherwise ImageScript chooses representative colors. Default: `256`
      */
     colors?: number;
-    /** How the rounding error is spread when the colors don't fit the palette, see {@link DitherMethod}. Default: `'floyd-steinberg'` */
-    dither?: DitherMethod;
-    /** How strongly to dither, from `0` (like `'none'`) to `1` (the full error). Default: `0.85` */
-    ditherStrength?: number;
 }
 
 /** Options of {@link Image.encodeJPEG} */
@@ -1737,7 +1741,8 @@ export class Image {
     quantize(options: QuantizeOptions = {}): this {
         checkOptions(options, 'image.quantize({ colors: 16 })');
         if (typeof options !== 'object' || options === null) throw new TypeError('quantize takes an options object');
-        const { colors, palette, dither = 'floyd-steinberg', ditherStrength = 0.85 } = options;
+        // (JavaScript callers can give both: checked below)
+        const { colors, palette, dither = 'floyd-steinberg', ditherStrength = 0.85 } = options as DitherOptions & { colors?: number, palette?: Color[] };
 
         // everything is checked before the image changes
         if (colors !== undefined && palette !== undefined) throw new TypeError('quantize takes colors or palette, not both');
