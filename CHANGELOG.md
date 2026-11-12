@@ -82,7 +82,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Renamed types**: `FrameDisposalModeName` is `FrameDisposalMode`, `SVGOptions` is `RenderSVGOptions` (like `RenderTextOptions`) and `TextStyle` is `TextStyleOptions` (like `TextLayoutOptions`). They are types only, nothing changes at runtime.
 
-- **Renamed**: `greyscale()` is `grayscale()` (American spelling throughout), `GainMap.encode()` is `GainMap.encodeJPEG()` (named for the format it writes), `region()` is `extract()`, the `resize` option of `rotate()` is `expand` (like `transform()`, `outline()` and `dropShadow()`), `GainMap`'s `gainMapMin` and `gainMapMax` (properties and options) are `min` and `max`, and the parameters of `setPixelAt()`, `lightness()` and `saturation()` are `color` and `factor`.
+- **Renamed**: `greyscale()` is `grayscale()` (American spelling throughout), the `fonts` option of `renderSVG()` is `font` (like `renderText()`'s), `GainMap.encode()` is `GainMap.encodeJPEG()` (named for the format it writes), `region()` is `extract()`, the `resize` option of `rotate()` is `expand` (like `transform()`, `outline()` and `dropShadow()`), `GainMap`'s `gainMapMin` and `gainMapMax` (properties and options) are `min` and `max`, and the parameters of `setPixelAt()`, `lightness()` and `saturation()` are `color` and `factor`.
 
 - **Fewer types and classes**: `TextLayout` isn't exported, `renderText()` takes the layout options with its other options (`{ font, size, maxWidth: 300 }`). `AnimationDecodeOptions` is `DecodeOptions`, which all decode functions take. `encodeTGA()` takes `TGAEncodeOptions`; `EncodeOptions` is the `metadata` that every encoder's options extend, and the `gainMap` option of the JPEG, AVIF and JPEG XL encoders is `boolean | GainMapEmbedOptions`.
 
@@ -115,7 +115,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `Frame.rotate()`, `Frame.transform()`, `Frame.dropShadow()` and `Frame.outline()`, which move the offsets like `Frame.resize()` and `Frame.crop()`.
 - `Image.encodeGIF()` for single images, with `colors`, `dither` and `ditherStrength` (also on the animation encoders), and the `DitherMethod` and `DitherOptions` types that `quantize()` and the GIF encoders share. `QuantizeOptions` is a union: TypeScript reports a call with both `colors` and `palette` (it throws at runtime).
 - `RenderSVGOptions` is a union of the sizes (`width`, `height` or `scale`, TypeScript reports a call with more than one, which throws at runtime) and `SVGResourceOptions`, the limits, fonts and images.
-- `renderSVG({ fonts })` takes a single font without an array.
+- `renderSVG({ font })` takes a single font without an array, like `renderText()`.
 
 ## 3.20.1
 

@@ -43,7 +43,7 @@ export async function smoke() {
     await step('svg', async () => {
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80"><linearGradient id="g"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient>'
             + '<rect width="200" height="80" fill="url(#g)" filter="drop-shadow(2px 2px 2px black)"/><text x="10" y="50" font-size="30" fill="white">Hallo</text></svg>';
-        const image = await Image.renderSVG(svg, { fonts: [font] });
+        const image = await Image.renderSVG(svg, { font: [font] });
         return `${image.width}x${image.height}`;
     });
     return results;

@@ -154,7 +154,7 @@ const throws = (call, type, message) => {
     {
         const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="20"><text x="2" y="15" font-size="14">Hi</text></svg>';
-        const one = await Image.renderSVG(svg, {fonts: font}), list = await Image.renderSVG(svg, {fonts: [font]});
+        const one = await Image.renderSVG(svg, {font}), list = await Image.renderSVG(svg, {font: [font]});
         assert(Buffer.from(one.bitmap).equals(Buffer.from(list.bitmap)) && one.bitmap.some(v => v), 'renderSVG: one font like a list of one');
     }
 

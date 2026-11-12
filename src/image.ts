@@ -399,7 +399,7 @@ export interface SVGResourceOptions {
      * before these for their family names. Without any fonts text isn't rendered. One font can be given without an
      * array. Default: `[]`
      */
-    fonts?: BinaryData | BinaryData[];
+    font?: BinaryData | BinaryData[];
     /**
      * Images for the `<image>` elements (and `feImage`) by their `href`, the same string the SVG uses: with
      * `images: { 'logo.png': bytes }`, `<image href="logo.png" .../>` draws the image. Values are encoded images (PNG,
@@ -2748,7 +2748,7 @@ export class Image {
      * Supports shapes, paths, transforms, use/symbol, CSS styles, gradients, patterns, strokes, markers, clip paths,
      * masks, opacity, blend modes, filters (all primitives and the filter functions) and images embedded as data URIs
      * (PNG, JPEG, GIF, WebP, SVG) or given with {@link SVGResourceOptions.images}, and text with the given or embedded fonts
-     * (see {@link SVGResourceOptions.fonts}). Hrefs are resolved from the options and the data URIs only, never from files or URLs:
+     * (see {@link SVGResourceOptions.font}). Hrefs are resolved from the options and the data URIs only, never from files or URLs:
      * drawing an image that isn't given, or can't be decoded, throws.
      * @example
      * ```ts
@@ -2764,7 +2764,7 @@ export class Image {
     static renderSVG(svg: string | BinaryData, options?: RenderSVGOptions): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, options: RenderSVGOptions = {}): Promise<Image> {
         checkOptions(options, 'renderSVG(svg, { width: 512 })');
-        const { width: givenWidth, height: givenHeight, scale, maxPixels = MAX_PIXELS, fonts = [], images: givenImages = {} } = options;
+        const { width: givenWidth, height: givenHeight, scale, maxPixels = MAX_PIXELS, font: fonts = [], images: givenImages = {} } = options;
         if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
         const { maxLayerPixels = 4 * Number(maxPixels), maxImagePixels = Number(maxPixels) } = options;
         if (!(Number(maxLayerPixels) > 0)) throw new RangeError(`maxLayerPixels must be a positive number, not ${maxLayerPixels}`);
