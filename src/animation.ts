@@ -6,13 +6,13 @@ import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
-import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize, alignedPixels, PNGEncodeOptions, WebPEncodeOptions } from './image.ts';
+import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize, alignedPixels, PNGEncodeOptions, WebPEncodeOptions, FlipDirection, FLIP_DIRECTIONS } from './image.ts';
 import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, color as checkColor } from './util/options.ts';
+import { checkOptions, oneOf, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
@@ -308,6 +308,27 @@ export class Animation {
         const scale = Math.max(boxWidth / this.width, boxHeight / this.height);
         this.resize(Math.max(boxWidth, Math.round(this.width * scale)), Math.max(boxHeight, Math.round(this.height * scale)), options);
         return this.crop((this.width - boxWidth) / 2, (this.height - boxHeight) / 2, boxWidth, boxHeight);
+    }
+
+    /**
+     * Flips / mirrors the animation horizontally or vertically, like {@link Image.flip}: every frame is flipped and
+     * moved to the mirrored place on the canvas, which keeps its size
+     * @param direction The direction to flip, see {@link FlipDirection}
+     */
+    flip(direction: FlipDirection): this {
+        oneOf(direction, FLIP_DIRECTIONS, 'flip direction');
+        const width = this.width, height = this.height;
+        // (a frame listed twice, or two frames of one image, are flipped once)
+        const flipped = new Set<Image>();
+        for (const frame of this.__distinct__()) {
+            if (!flipped.has(frame.image)) frame.image.flip(direction);
+            flipped.add(frame.image);
+            if (direction === 'horizontal') frame.xOffset = width - frame.xOffset - frame.width;
+            else frame.yOffset = height - frame.yOffset - frame.height;
+        }
+        // (the canvas stays: one that followed the frames would follow the mirrored ones elsewhere)
+        if (width && height) this.__canvas__ = [width, height];
+        return this;
     }
 
     /**

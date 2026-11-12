@@ -170,6 +170,9 @@ export type QuantizeOptions = DitherOptions & ({
     colors?: never;
 });
 
+/** The directions of {@link Image.flip} and {@link Animation.flip}: `'horizontal'` mirrors left and right, `'vertical'` top and bottom */
+export type FlipDirection = 'horizontal' | 'vertical';
+
 /** How {@link Image.transform} and {@link Image.rotate} sample the pixels between the source's */
 export type TransformMode = 'nearest-neighbor' | 'bilinear' | 'bicubic';
 
@@ -178,6 +181,8 @@ export type AffineTransform = readonly [a: number, b: number, c: number, d: numb
 
 // the sampling modes of Image.transform()
 const TRANSFORM_MODES: readonly string[] = ['nearest-neighbor', 'bilinear', 'bicubic'];
+/** @internal */
+export const FLIP_DIRECTIONS: readonly FlipDirection[] = ['horizontal', 'vertical'];
 
 /** Options of {@link Image.transform} */
 export interface TransformOptions {
@@ -2272,10 +2277,10 @@ export class Image {
 
     /**
      * Flips / mirrors the image horizontally or vertically
-     * @param direction The direction to flip
+     * @param direction The direction to flip, see {@link FlipDirection}
      */
-    flip(direction: 'horizontal' | 'vertical'): this {
-        oneOf(direction, ['horizontal', 'vertical'], 'flip direction');
+    flip(direction: FlipDirection): this {
+        oneOf(direction, FLIP_DIRECTIONS, 'flip direction');
         const u32 = this.__u32__;
         const {width, height} = this;
 

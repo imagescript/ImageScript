@@ -111,3 +111,29 @@ if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration 
     const shared = new Animation([new Frame(image), new Frame(image, {xOffset: 0})]).resize(50, 50);
     if (shared.frames[0].width !== 50 || shared.frames[1].width !== 50 || image.width !== 50) panic(`two frames of one image: ${shared.frames[0].width}, ${shared.frames[1].width}`);
 }
+
+// flip mirrors every frame and its place on the canvas, which keeps its size
+{
+    const left = new Image(4, 2).fill((x) => x === 0 ? 0xff0000ff : 0x0000ffff);
+    const flipped = new Animation([new Frame(left, {xOffset: 1, yOffset: 1}), new Frame(new Image(3, 3).fill(0x00ff00ff), {xOffset: 6, yOffset: 2})], {width: 10, height: 6});
+    flipped.flip('horizontal');
+    const [one, two] = flipped.frames;
+    if (flipped.width !== 10 || flipped.height !== 6) panic(`flip: the canvas should stay 10x6, got ${flipped}`);
+    if (one.xOffset !== 5 || one.yOffset !== 1 || two.xOffset !== 1 || two.yOffset !== 2) panic(`flip horizontal: offsets ${one.xOffset},${one.yOffset} ${two.xOffset},${two.yOffset}`);
+    if (one.image.getPixelAt(3, 0) !== 0xff0000ff || one.image.getPixelAt(0, 0) !== 0x0000ffff) panic('flip horizontal: the frame should be mirrored');
+    flipped.flip('vertical');
+    if (one.yOffset !== 3 || two.yOffset !== 1 || one.xOffset !== 5) panic(`flip vertical: offsets ${one.xOffset},${one.yOffset} ${two.yOffset}`);
+    // (an unknown direction is a TypeError naming the directions, like Image.flip's, and changes nothing)
+    throwsA(() => flipped.flip('diagonal'), TypeError, 'flip: an unknown direction');
+    if (one.xOffset !== 5 || one.image.getPixelAt(3, 1) !== 0xff0000ff) panic('flip: an unknown direction should change nothing');
+    // a canvas that follows the frames stays where it was
+    const following = new Animation([new Frame(new Image(2, 2), {xOffset: 3})]);
+    following.flip('horizontal');
+    if (following.width !== 5 || following.frames[0].xOffset !== 0) panic(`flip: a canvas following the frames: ${following} at ${following.frames[0].xOffset}`);
+    // a frame listed twice, or two frames of one image, are flipped once
+    const image = new Image(2, 1).fill(x => x ? 0x0000ffff : 0xff0000ff);
+    const held = new Frame(image, {xOffset: 1});
+    const repeated = new Animation([held, held, new Frame(image, {xOffset: 4})], {width: 8, height: 1}).flip('horizontal');
+    if (image.getPixelAt(0, 0) !== 0x0000ffff) panic('flip: an image of several frames should be flipped once');
+    if (repeated.frames[0].xOffset !== 5 || repeated.frames[1].xOffset !== 5 || repeated.frames[2].xOffset !== 2) panic(`flip: repeated frames at ${repeated.frames.map(f => f.xOffset)}`);
+}

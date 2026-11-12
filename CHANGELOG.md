@@ -107,7 +107,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `renderSVG()` throws for masks, clip paths, patterns, markers and filter images nested in each other so deeply that they would multiply (three per level took minutes at ten levels), and stops at 24 `feTurbulence` octaves, which are all that its output can hold. Shapes far outside the image no longer make rendering hang.
 - `renderSVG({ maxLayerPixels })` limits the layers SVG rendering uses at once (groups with opacity, masks, filters, ...; 16 bytes per pixel each), so nested ones can't multiply the memory of a small SVG: default `4 * maxPixels`. `renderSVG({ maxImagePixels })` limits the raster images an SVG references together (default `maxPixels`; each was limited on its own before).
 - `renderText({ maxPixels })`, default 16383², counting the outline, checked before anything is allocated.
-- `Animation.clone()` and `Animation.crop()`.
+- `Animation.clone()`, `Animation.crop()` and `Animation.flip()` (each frame mirrored, and its place on the canvas), and the `FlipDirection` type.
 - `resize({ width, height, fit })` on images, frames and animations: `'inside'` fits without padding, `'contain'` pads, and `'cover'` crops while keeping the aspect ratio; `background` sets the bars for `'contain'`.
 - `encodeJPEG()` accepts `subsampling: '4:4:4'` or `'4:2:0'`; the default stays 4:2:0 up to quality 90 and 4:4:4 above.
 - `Colors.gradient()` takes an array of evenly spaced colors, like the `stops` of the gradient functions.
