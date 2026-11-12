@@ -1,6 +1,6 @@
 {
   "name": "imagescript",
-  "version": "3.20.2",
+  "version": "3.20.3",
   "description": "Pure TypeScript image processing that runs everywhere",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
