@@ -266,6 +266,16 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(navy.dominantColor() === 0x00006eff, 'dominantColor: navy should beat a small yellow area');
         assert(new Image(4, 4).fill(0x000000ff).dominantColor() === 0x000000ff, 'dominantColor: all black falls back to black');
         assert(new Image(4, 4).dominantColor() === 0x000000ff, 'dominantColor: transparent image');
+        // the fullest bin of 16 levels per channel, averaged over its pixels: a color the image has, not the mix of two hues
+        {
+            const two = new Image(10, 1).fill(x => x < 6 ? 0xff0000ff : 0x0000ffff);
+            assert(two.dominantColor() === 0xff0000ff, 'dominantColor: the larger of two hues, not their mix');
+            const close = new Image(10, 1).fill(x => [0x40a0c0ff, 0x42a2c2ff, 0x44a4c4ff][x % 3]);
+            assert(close.dominantColor() === 0x42a2c2ff, 'dominantColor: the average of the pixels in the winning bin');
+            // (pixels that are less than half opaque don't count)
+            const faint = new Image(10, 1).fill(x => x < 8 ? 0x00ff0040 : 0xff0000ff);
+            assert(faint.dominantColor() === 0xff0000ff, 'dominantColor: faint pixels are ignored');
+        }
     }
 
     // PNGs use the smallest lossless color type

@@ -68,7 +68,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`rotate()` turns clockwise**, like CSS' `rotate()` (3.x turned counterclockwise): negate the angle for the old result. Its `fast` option is removed (the precise sampling is the default now) and `mode` (`'nearest-neighbor'`, `'bilinear'` or `'bicubic'`) samples like `transform()`.
 
-- **`dominantColor()`'s `threshold` is in channel values** (0-256) instead of steps of 4 (0-64): the default `60` is 3.x's `15`; multiply a threshold you give by 4.
+- **`dominantColor()` counts colors in a histogram, and its `threshold` is in channel values**: the colors are counted in 16 levels per channel (like sharp's `dominant`) and the average of the fullest bin is returned, instead of the average of the largest of 8 median cut clusters, so the result is a color the image has and not a mix of two hues; it can differ from 3.x's. The `threshold` is 0-256 instead of steps of 4 (0-64): the default `60` is 3.x's `15`; multiply a threshold you give by 4.
 
 - **`renderText()` takes the image's `width` and `height`**: `maxWidth` and `maxHeight` are `width` and `height`, which also set the image's size: lines wrap to the width (inside the outline), lines that don't fit the height are left out, and `horizontalAlign` and `verticalAlign` place the text in that box. Without them, the image is as large as the text, as before. `wrapHardBreaks` is removed: remove the line breaks from the text instead. An old `maxWidth` is ignored, so the text doesn't wrap: search for it. `0` no longer means no limit (it throws).
 

@@ -233,17 +233,22 @@ thrown once resizing started), `composite()`'s `mode`, `flip()` and `disposalMod
 Search your code for: `compression:`, `xOffset`, `yOffset`, `.bitmap =`, `duration:` above 655 seconds, and catch
 blocks that check for `RangeError` around `resize()`, `composite()`, `flip()` and `disposalMode`.
 
-### `dominantColor()` thresholds are channel values
+### `dominantColor()` counts colors in a histogram, thresholds are channel values
 
-The `threshold` of `dominantColor()` is in channel values (0-256): colors whose channels are all below it count as
-black, all above 255 minus it as white. In 3.x it counted in steps of 4 (0-64), so the default `15` meant 60. The
-default is the same; a threshold you give has to be multiplied by 4:
+3.x grouped the colors into 8 clusters (median cut) and returned the average of the largest one, which can lie between
+two hues when a cluster spans both. 4.0 counts the colors in 16 levels per channel (4096 bins, like sharp's `dominant`)
+and returns the average of the pixels in the fullest bin: a color the image has. The result can differ from 3.x's for
+images with many similar colors, and is the same for flat colors.
+
+The `threshold` is in channel values (0-256): colors whose channels are all below it count as black, all above 255
+minus it as white. In 3.x it counted in steps of 4 (0-64), so the default `15` meant 60. The default is the same; a
+threshold you give has to be multiplied by 4:
 
 | 3.x | 4.0 |
 | --- | --- |
 | `image.dominantColor(true, true, 15)`, `dominantColor({ threshold: 15 })` | `image.dominantColor({ threshold: 60 })` |
 
-Search your code for: `threshold:` near `dominantColor(`.
+Search your code for: `dominantColor(`, and compare the colors it returns.
 
 ### `renderText()` takes the image's size
 

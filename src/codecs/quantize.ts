@@ -52,16 +52,30 @@ interface Clusters {
 }
 
 /**
- * Finds the color of the largest cluster among the opaque pixels that pass the filter
- * @return packed RGB, or null if no pixel qualifies
+ * Finds the dominant color among the pixels that are at least half opaque and pass the filter: the colors are counted
+ * in a histogram of 16 levels per channel (4096 bins, like sharp's), and the average of the pixels in the fullest bin
+ * is the result, so it is a color the image has (a cluster's average can lie between two hues)
+ * @return RGB, or null if no pixel qualifies
  */
-export function dominantColor(pixels: Uint8Array, include: (r: number, g: number, b: number) => boolean, clusters = 8): [number, number, number] | null {
-    const { palette, weights } = medianCut(pixels, clusters, 4, include);
-    if (!weights.length) return null;
+export function dominantColor(pixels: Uint8Array, include: (r: number, g: number, b: number) => boolean): [number, number, number] | null {
+    const counts = new Uint32Array(4096), sums = new Float64Array(4096 * 3);
+    let found = false;
+    for (let i = 0; i < pixels.length; i += 4) {
+        if (pixels[i + 3] < 128) continue;
+        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        if (!include(r, g, b)) continue;
+        const bin = (r >> 4) << 8 | (g >> 4) << 4 | b >> 4;
+        counts[bin]++;
+        sums[bin * 3] += r;
+        sums[bin * 3 + 1] += g;
+        sums[bin * 3 + 2] += b;
+        found = true;
+    }
+    if (!found) return null;
 
     let best = 0;
-    for (let i = 1; i < weights.length; i++) if (weights[i] > weights[best]) best = i;
-    return [Math.round(palette[best * 3]), Math.round(palette[best * 3 + 1]), Math.round(palette[best * 3 + 2])];
+    for (let bin = 1; bin < 4096; bin++) if (counts[bin] > counts[best]) best = bin;
+    return [Math.round(sums[best * 3] / counts[best]), Math.round(sums[best * 3 + 1] / counts[best]), Math.round(sums[best * 3 + 2] / counts[best])];
 }
 
 interface Points {

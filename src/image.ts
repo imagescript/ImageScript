@@ -2173,8 +2173,8 @@ export class Image {
     }
 
     /**
-     * Gets the image's dominant color: the colors are grouped into a few clusters (median cut and k-means),
-     * the average color of the largest one is returned
+     * Gets the image's dominant color: the colors are counted in a histogram of 16 levels per channel, and the average
+     * of the pixels in the fullest bin is returned (so it is a color the image has, not a mix of two hues)
      * @param options Which colors to ignore, see {@link DominantColorOptions}
      * @return The image's dominant color (fully opaque); mostly transparent pixels are ignored.
      *     If every pixel is ignored as black or white, the filter is dropped
