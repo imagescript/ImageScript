@@ -1,4 +1,6 @@
 import { Image, alignedPixels } from './image.ts';
+import type { DecodeOptions } from './image.ts';
+import { MAX_PIXELS, decoding } from './util/limits.ts';
 import * as jpeg from './codecs/jpeg.ts';
 import * as codec from './codecs/gainmap.ts';
 import { BinaryData, view } from './util/mem.ts';
@@ -171,8 +173,8 @@ export class GainMap {
      * @internal from a decoded file: the map's JPEG, decoded now (a damaged one throws here, not in a later
      * operation); `apple`: an Apple gain map's headroom, its values converted to the parameters' scale
      */
-    static __from_jpeg__(map: Uint8Array, params: codec.Params, apple = 0): GainMap {
-        const { width, height, pixels } = jpeg.decode(map);
+    static __from_jpeg__(map: Uint8Array, params: codec.Params, apple = 0, maxPixels = MAX_PIXELS): GainMap {
+        const { width, height, pixels } = jpeg.decode(map, { maxPixels });
         const image = new Image(width, height);
         image.bitmap = alignedPixels(pixels);
         if (apple) {
@@ -354,13 +356,20 @@ export class GainMap {
      * Decodes a gain map JPEG with its parameters (hdrgm XMP or ISO 21496-1), like the second image in an Ultra HDR
      * JPEG, or the gain map of an Ultra HDR JPEG (or an iPhone's JPEG: its values converted to these parameters)
      * @param data The JPEG
+     * @param options The `maxPixels` limit, like {@link DecodeOptions.maxPixels} (a map larger than that throws a
+     *     {@link LimitError}); a damaged JPEG throws an error saying so, like {@link Image.decode}
      */
-    static async decode(data: BinaryData): Promise<GainMap> {
+    static async decode(data: BinaryData, options: Pick<DecodeOptions, 'maxPixels'> = {}): Promise<GainMap> {
+        checkOptions(options, 'GainMap.decode(data, { maxPixels: 1e8 })');
+        const { maxPixels = MAX_PIXELS } = options;
+        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
         const bytes = view(data);
-        const found = codec.find(bytes);
-        if (found) return GainMap.__from_jpeg__(found.map, found.params, found.apple);
-        const params = codec.readParams(bytes);
-        if (!params) throw new Error('No gain map (or no gain map parameters) found');
-        return GainMap.__from_jpeg__(bytes, params);
+        return decoding(() => {
+            const found = codec.find(bytes);
+            if (found) return GainMap.__from_jpeg__(found.map, found.params, found.apple, maxPixels);
+            const params = codec.readParams(bytes);
+            if (!params) throw new Error('No gain map (or no gain map parameters) found');
+            return GainMap.__from_jpeg__(bytes, params, 0, maxPixels);
+        });
     }
 }

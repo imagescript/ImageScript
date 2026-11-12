@@ -87,6 +87,25 @@ const meanValue = (image, left, top, right, bottom) => {
 			panic(`XMP only map: ${map.min} ${map.max} ${map.hdrCapacityMax} vs ${single.gainMap.min} ${single.gainMap.max}`);
 	}
 
+	// decoding a map alone takes the limit of the decode options, and a damaged one says so (like Image.decode)
+	{
+		const alone = await single.gainMap.encode();
+		const lib = require('..');
+		const map = await GainMap.decode(alone, {maxPixels: single.gainMap.width * single.gainMap.height});
+		if (map.width !== single.gainMap.width) panic('GainMap.decode with a limit that fits');
+		let error = null;
+		try { await GainMap.decode(alone, {maxPixels: 10}); } catch (err) { error = err; }
+		if (!(error instanceof lib.LimitError)) panic(`GainMap.decode over the limit: ${error}`);
+		error = null;
+		try { await GainMap.decode(new Uint8Array(100)); } catch (err) { error = err; }
+		if (!error || error instanceof lib.LimitError || !/damaged or truncated|No gain map/.test(error.message)) panic(`GainMap.decode of garbage: ${error && error.message}`);
+		for (const bad of [5, 'x', null]) {
+			error = null;
+			try { await GainMap.decode(alone, bad); } catch (err) { error = err; }
+			if (!(error instanceof TypeError)) panic(`GainMap.decode(data, ${bad}) should throw a TypeError`);
+		}
+	}
+
 	// made by hand: parameters checked, written and read back; per channel values
 	{
 		const image = new Image(64, 48).fill(0x808080ff);
