@@ -1,6 +1,9 @@
 // limits against decompression bombs: small files declaring huge images
 
-/** Thrown when an image exceeds a limit of the decode options (`maxPixels`) or the render options of SVGs */
+/**
+ * Thrown when an image exceeds a limit of the decode options (`maxPixels`) or the render options of SVGs
+ * @hideconstructor
+ */
 export class LimitError extends RangeError {
     /** `'LimitError'`: tells a limit apart from other `RangeError`s */
     override name = 'LimitError';

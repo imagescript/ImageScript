@@ -64,7 +64,8 @@ const redirects = {
     'Image.html': ['classes/Image.html', true],
     'Frame.html': ['classes/Frame.html', true],
     'GIF.html': ['classes/Animation.html', true],
-    'TextLayout.html': ['classes/TextLayout.html', true],
+    // (TextLayout isn't exported any more: its options are renderText()'s)
+    'TextLayout.html': ['interfaces/TextLayoutOptions.html', false],
     'global.html': ['functions/decode.html', false]
 };
 
