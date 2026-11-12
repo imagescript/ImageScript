@@ -797,16 +797,6 @@ export class Image {
     }
 
     /**
-     * Yields an [x, y] array for every pixel in the image (0-based), row by row
-     * @yields The coordinates of the pixel ([x, y])
-     */
-    *coordinates(): Generator<[x: number, y: number], void, undefined> {
-        for (let y = 0; y < this.height; y++)
-            for (let x = 0; x < this.width; x++)
-                yield [x, y];
-    }
-
-    /**
      * Yields an [x, y, color] array for every pixel in the image (0-based), row by row
      * @yields The coordinates and color of the pixel ([x, y, color])
      */

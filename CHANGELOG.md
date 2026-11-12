@@ -18,7 +18,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **The color helpers of `Image` are removed**: `Image.rgbaToColor()`, `Image.rgbToColor()`, `Image.hslaToColor()`, `Image.hslToColor()`, `Image.rgbaToHSLA()`, `Image.colorToRGBA()`, `Image.colorToRGB()` and `Image.gradient()` are now `Colors.fromRGBA()`, `Colors.fromRGB()`, `Colors.fromHSLA()`, `Colors.fromHSL()`, `Colors.toHSLA()`, `Colors.toRGBA()`, `Colors.toRGB()` and `Colors.gradient()`.
 
-- **Iterating over an image and `iterateWithColors()` are removed**: `for (const [x, y] of image)` is now `image.coordinates()`, and `image.iterateWithColors()` is `image.pixels()`, which yields `[x, y, color]`.
+- **Iterating over an image, `iterateWithColors()` and `coordinates()` are removed**: `for (const [x, y] of image)`, `image.coordinates()` and `image.iterateWithColors()` are `image.pixels()`, which yields `[x, y, color]` for every pixel (`for (const [x, y] of image.pixels())`).
 
 - **`PNGMetadata` is removed**: use `Metadata`, which all encoders take. The type is the same.
 

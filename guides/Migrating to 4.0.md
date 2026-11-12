@@ -344,7 +344,7 @@ any more, so `image.resize(256, 256, { mode: 'RESIZE_BICUBIC' })` throws.
 | `Image.colorToRGBA(color)` | `Colors.toRGBA(color)` |
 | `Image.colorToRGB(color)` | `Colors.toRGB(color)` |
 | `Image.gradient(colors)` | `Colors.gradient(colors)` |
-| `for (const [x, y] of image)` | `for (const [x, y] of image.coordinates())` |
+| `for (const [x, y] of image)`, `image.coordinates()` | `for (const [x, y] of image.pixels())`: `pixels()` yields `[x, y, color]` |
 | `image.iterateWithColors()` | `image.pixels()`, which yields `[x, y, color]` |
 
 The moved color helpers keep their argument shapes and results, except for the hue-unit change described above.
@@ -583,7 +583,7 @@ grep -rnE '\.encode\(' src
 grep -rnE 'rgbaToColor|rgbToColor|hslaToColor|hslToColor|rgbaToHSLA|colorToRGBA?|Image\.gradient' src
 
 # iteration over images
-grep -rnE 'iterateWithColors|for \(const \[[a-z]+, ?[a-z]+\] of' src
+grep -rnE 'iterateWithColors|coordinates\(|for \(const \[[a-z]+, ?[a-z]+\] of' src
 
 # types and classes
 grep -rnE 'PNGMetadata|AnimationEncoderOptions|AdjustOptions|TextOptions|FrameDisposalModeId|FrameDisposalModeName|SVGOptions|\bTextStyle\b|\bGIF\b' src

@@ -111,7 +111,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const image = new Image(3, 3);
         image.setPixelAt(0, 0, 0xff0000ff);
         assert(image.bitmap[0] === 0xff, 'setPixelAt(0, 0) should set the first pixel');
-        assert([...image.coordinates()][0].join() === '0,0' && [...image.coordinates()].pop().join() === '2,2', 'coordinates() should be 0-based');
+        assert([...image.pixels()][0].slice(0, 2).join() === '0,0' && [...image.pixels()].pop().slice(0, 2).join() === '2,2', 'pixels() should be 0-based');
 
         let threw = false;
         try { image.getPixelAt(3, 0); } catch { threw = true; }
@@ -393,14 +393,14 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(animation.width === 6 && animation.height === 4 && [...animation].every((f, i) => same(f.image, other.frames[i].image)), 'Animation.resize({height})');
     }
 
-    // coordinates() and pixels() yield every pixel row by row
+    // pixels() yields every pixel row by row (coordinates() is removed: it was pixels() without the colors)
     {
         const image = new Image(3, 2).fill((x, y) => Colors.fromRGBA(x * 50, y * 100, 7, 255));
-        const coordinates = [...image.coordinates()], pixels = [...image.pixels()];
-        assert(coordinates.length === 6 && pixels.length === 6, 'coordinates()/pixels() count');
-        assert(coordinates.every(([x, y], i) => x === i % 3 && y === Math.floor(i / 3)), 'coordinates() row by row');
+        const pixels = [...image.pixels()];
+        assert(pixels.length === 6, 'pixels() count');
+        assert(image.coordinates === undefined, 'coordinates() is removed');
         assert(pixels.every(([x, y, color], i) => x === i % 3 && y === Math.floor(i / 3) && color === Colors.fromRGBA(x * 50, y * 100, 7, 255)), 'pixels() row by row');
-        assert(coordinates[4].join() === '1,1' && pixels[4][2] === Colors.fromRGBA(50, 100, 7, 255), 'coordinates() and pixels() are row by row');
+        assert(pixels[4].slice(0, 2).join() === '1,1' && pixels[4][2] === Colors.fromRGBA(50, 100, 7, 255), 'pixels() is row by row');
     }
 
     // cropCircle({size}): 'contain' is the default

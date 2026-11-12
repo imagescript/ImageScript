@@ -19,8 +19,8 @@ try {
 if (new Image(1, 1).toString() !== 'Image<1x1>')
     panic('toString failed');
 
-for (const [x, y] of new Image(1, 1).coordinates())
-    if (x !== 0 || y !== 0) panic('coordinates failed');
+for (const [x, y] of new Image(1, 1).pixels())
+    if (x !== 0 || y !== 0) panic('pixels failed');
 
 for (const [x, y, color] of new Image(1, 1).fill(0xff8000ff).pixels())
     if (x !== 0 || y !== 0 || color !== 0xff8000ff) panic('pixels failed');
