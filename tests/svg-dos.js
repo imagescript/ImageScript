@@ -84,4 +84,13 @@ const timed = async (name, svg, limit = 5000) => {
             if (!error || !/inside each other|<use> references/.test(error.message)) panic(`${name}, 14 levels: should throw (${error && error.message})`);
         }
     }
+
+    // transform lists with many unclosed functions parsed in quadratic time (5 s at 280 KB)
+    {
+        const {error, time, image} = await timed('transform', `<svg ${NS} width="100" height="100"><rect width="10" height="10" transform="${'rotate('.repeat(100000)}"/></svg>`, 1000);
+        if (error) panic(`transform: ${error.message} after ${time} ms`);
+        // (and a function after the unclosed ones still applies)
+        const moved = await Image.renderSVG(`<svg ${NS} width="20" height="20"><rect width="10" height="10" transform="rotate(rotate(translate(10 0)"/></svg>`);
+        if (Colors.toRGBA(moved.getPixelAt(15, 5))[3] !== 255 || Colors.toRGBA(moved.getPixelAt(5, 5))[3] !== 0) panic('transform: the closed function should apply');
+    }
 })();

@@ -3643,7 +3643,7 @@ function strokePolygons(subpaths: Subpath[], halfWidth: number, cap: string | un
 
 function parseTransform(value: string): Matrix {
     let matrix = [1, 0, 0, 1, 0, 0];
-    const functions = /(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^)]*)\)/g;
+    const functions = /(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^()]*)\)/g;
 
     for (const [, name, args] of value.matchAll(functions)) {
         const a = parseNumberList(args);
