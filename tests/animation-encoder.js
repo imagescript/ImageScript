@@ -57,6 +57,30 @@ const metadata = {creationTime: 0, software: ''};
         if (!equal(file, expected)) panic('images and options: not the same file');
     }
 
+    // frames outside the canvas, or partly: cut to it like the Animation encoders do (they were passed through, which made
+    // GIF and WebP frames with the wrong pixels and APNG throw)
+    {
+        const make = () => [
+            new Frame(new Image(20, 20).fill(0xff0000ff), {duration: 40, xOffset: -5, yOffset: -5}),
+            new Frame(new Image(6, 6).fill(0x00ff00ff), {duration: 70, xOffset: 30, yOffset: 30}),
+            new Frame(new Image(20, 20).fill(0x0000ffff), {duration: 50, xOffset: 5, yOffset: 5}),
+            new Frame(new Image(4, 4).fill(0xffff00ff), {duration: 30, xOffset: -6, yOffset: 2, disposalMode: 'background'})
+        ];
+        for (const optimize of [false, true])
+            for (const format of ['gif', 'webp', 'apng']) {
+                const animation = new Animation(make(), {width: 10, height: 10});
+                const encoder = Animation[`${format}Encoder`](10, 10, {optimize, metadata});
+                for (const frame of make()) await encoder.add(frame);
+                const file = await encoder.finish();
+                const expected = await animation[`encode${format.toUpperCase().replace('WEBP', 'WebP')}`]({optimize, metadata});
+                if (!equal(file, expected)) panic(`frames outside the canvas, ${format}, optimize ${optimize}: not the same file`);
+            }
+        const encoder = Animation.gifEncoder(10, 10, {optimize: false, metadata});
+        await encoder.add(make()[0]);
+        const first = (await Animation.decode(await encoder.finish())).frames[0].image;
+        if (Colors.toRGBA(first.getPixelAt(0, 0)).join() !== '255,0,0,255') panic('a frame at -5, -5 should show its part inside the canvas');
+    }
+
     // errors
     const rejects = async (name, f) => {
         let error = null;

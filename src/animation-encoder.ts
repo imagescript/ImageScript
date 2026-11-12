@@ -19,6 +19,21 @@ interface Format {
 }
 
 /**
+ * A frame cut to the canvas: as it is when it lies inside, else the part inside (a copy), or a transparent pixel when
+ * it lies entirely outside (it shows nothing, its duration counts), like {@link Animation}'s encoders do
+ */
+function clipToCanvas(frame: InputFrame & { disposal: number }, width: number, height: number): InputFrame & { disposal: number } {
+    const { x, y, width: w, height: h } = frame;
+    if (x >= 0 && y >= 0 && x + w <= width && y + h <= height) return frame;
+    const left = Math.max(0, x), top = Math.max(0, y), right = Math.min(width, x + w), bottom = Math.min(height, y + h);
+    if (right <= left || bottom <= top) return { ...frame, x: 0, y: 0, width: 1, height: 1, disposal: 1, dispose: 0, pixels: new Uint8Array(4) };
+    const pixels = new Uint8Array((right - left) * (bottom - top) * 4);
+    for (let row = top; row < bottom; row++)
+        pixels.set(frame.pixels.subarray(((row - y) * w + left - x) * 4, ((row - y) * w + right - x) * 4), (row - top) * (right - left) * 4);
+    return { ...frame, x: left, y: top, width: right - left, height: bottom - top, pixels };
+}
+
+/**
  * Encodes an animation a frame at a time, without keeping all frames in memory: see {@link Animation.webpEncoder},
  * {@link Animation.gifEncoder} and {@link Animation.apngEncoder}. The file is the one an {@link Animation} of the
  * frames encodes to, but for unoptimized WebPs with frames WebP can't store as they are (disposed to the previous
@@ -75,8 +90,10 @@ export class AnimationEncoder {
             pixels: new Uint8Array(image.bitmap.buffer, image.bitmap.byteOffset, image.bitmap.byteLength).slice()
         };
         this.count++;
+        // (without the optimizer, which cuts frames to the canvas, a frame is cut here, like Animation does)
+        const given = this.optimizer ? input : clipToCanvas(input, this.width, this.height);
         return this.queue = this.queue.then(async () => {
-            if (!this.optimizer) return this.format.frame(input, false);
+            if (!this.optimizer) return this.format.frame(given, false);
             this.optimizer.push(input);
             for (const f of this.optimizer.take()) await this.format.frame(f, true);
         });
