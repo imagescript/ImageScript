@@ -1,4 +1,5 @@
 import { oneOf } from './util/options.ts';
+import type { Layout } from './render/text.ts';
 
 /** Where lines are wrapped: between words or at any character */
 export type WrapStyle = 'word' | 'char';
@@ -45,39 +46,18 @@ function boxSide(value: number | undefined, name: string): number | undefined {
 }
 
 /**
- * The layout options checked and with their defaults (internal: {@link Image.renderText} takes plain options)
+ * The layout options checked, with their defaults, for the text renderer
  * @internal
  */
-export class TextLayout {
-    /** The width of the box the lines are wrapped to and aligned in, if any */
-    width: number | undefined;
-    /** The height of the box the lines are cut off at and aligned in, if any */
-    height: number | undefined;
-    /** Whether to wrap between words or at any character */
-    wrapStyle: WrapStyle;
-    /** Where the lines are placed horizontally */
-    horizontalAlign: HorizontalAlign = 'left';
-    /** Where the text is placed vertically */
-    verticalAlign: VerticalAlign = 'top';
-
-    /**
-     * Creates a layout, missing options take their defaults
-     * @param options See {@link TextLayoutOptions}
-     */
-    constructor(options: TextLayoutOptions = {}) {
-        const { width, height, wrapStyle, verticalAlign, horizontalAlign } = options;
-        this.width = boxSide(width, 'width');
-        this.height = boxSide(height, 'height');
-
-        this.wrapStyle = wrapStyle === undefined ? 'word' : oneOf(wrapStyle, ['word', 'char'], 'wrapStyle');
-
-        if (horizontalAlign !== undefined) {
-            if (!HORIZONTAL.includes(horizontalAlign)) throw new TypeError(`horizontalAlign must be 'left', 'center' or 'right', not '${horizontalAlign}'`);
-            this.horizontalAlign = horizontalAlign;
-        }
-        if (verticalAlign !== undefined) {
-            if (!VERTICAL.includes(verticalAlign)) throw new TypeError(`verticalAlign must be 'top', 'middle' or 'bottom', not '${verticalAlign}'`);
-            this.verticalAlign = verticalAlign;
-        }
-    }
+export function textLayout(options: TextLayoutOptions): Layout {
+    const { width, height, wrapStyle, verticalAlign, horizontalAlign } = options;
+    if (horizontalAlign !== undefined && !HORIZONTAL.includes(horizontalAlign)) throw new TypeError(`horizontalAlign must be 'left', 'center' or 'right', not '${horizontalAlign}'`);
+    if (verticalAlign !== undefined && !VERTICAL.includes(verticalAlign)) throw new TypeError(`verticalAlign must be 'top', 'middle' or 'bottom', not '${verticalAlign}'`);
+    return {
+        width: boxSide(width, 'width'),
+        height: boxSide(height, 'height'),
+        wrapStyle: wrapStyle === undefined ? 'word' : oneOf(wrapStyle, ['word', 'char'], 'wrapStyle'),
+        horizontalAlign: horizontalAlign ?? 'left',
+        verticalAlign: verticalAlign ?? 'top'
+    };
 }

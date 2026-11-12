@@ -26,7 +26,7 @@ import * as svgRenderer from './render/svg.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { cicpTransform, colorSpaceTransform, profileTransform } from './util/icc.ts';
 import { ImageType } from './image-type.ts';
-import { TextLayout, TextLayoutOptions } from './text-layout.ts';
+import { textLayout, TextLayoutOptions } from './text-layout.ts';
 import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
@@ -2841,7 +2841,7 @@ export class Image {
         const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {}, maxPixels = MAX_PIXELS } = options;
         if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
         const { width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign } = options;
-        const layout = new TextLayout({ width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign });
+        const layout = textLayout({ width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign });
         const axes = textRenderer.axisValues(variations);
         const size = finite(options.size, 'font size');
         if (size < 0) throw new RangeError(`Invalid font size: ${size}`);

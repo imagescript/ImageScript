@@ -17,6 +17,7 @@ import { decode as decodePNG } from '../codecs/png.ts';
 import { resample, TRIANGLE } from '../util/resample.ts';
 import { MAX_PIXELS, LimitError } from '../util/limits.ts';
 
+/** the layout options checked and with their defaults (see textLayout() in text-layout.ts) */
 export interface Layout {
     /** the box the text is wrapped to, cut off at and aligned in (the image's size inside the outline); undefined: the text's size */
     width: number | undefined;
