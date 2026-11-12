@@ -68,6 +68,8 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`rotate()` turns clockwise**, like CSS' `rotate()` (3.x turned counterclockwise): negate the angle for the old result. Its `fast` option is removed (the precise sampling is the default now) and `mode` (`'nearest-neighbor'`, `'bilinear'` or `'bicubic'`) samples like `transform()`.
 
+- **`dominantColor()`'s `threshold` is in channel values** (0-256) instead of steps of 4 (0-64): the default `60` is 3.x's `15`; multiply a threshold you give by 4.
+
 - **The `fast` option of `resize()` and `scale()` is removed**, on `Image`, `Frame` and `Animation`: resizing always works like its default (`fast: true`); `{ fast: false }` is ignored. The precise path took 15-25% longer for opaque images, for results at most a step or two closer.
 
 - **`encodeJPEG()` composites transparent pixels onto a background**, black by default (`background` sets the color), instead of dropping the alpha and showing the stored color. Opaque images encode as before.

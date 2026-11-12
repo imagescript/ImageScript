@@ -1,7 +1,7 @@
 # Migrating to 4.0
 
 ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes twelve behaviors. Most of the
-removals are mechanical: the compiler points at them. The twelve behavior changes are not deprecations, nothing warns
+removals are mechanical: the compiler points at them. The thirteen behavior changes are not deprecations, nothing warns
 about them, and code keeps compiling while it does something else. Read the first section even if your build is clean.
 
 Node.js 22.13 or newer is required, as it was for 3.x (`engines` in `package.json`).
@@ -13,7 +13,7 @@ The recommended path:
    problems list, or a lint rule for deprecated APIs (typescript-eslint has `no-deprecated`), to get the full list.
 2. Fix every deprecation hint, using the tables below.
 3. Switch to 4.0, fix what the compiler reports with the [renamed and reshaped APIs](#renamed-and-reshaped-apis), and go
-   through the twelve behavior changes. The [checklist](#checklist) at the end has grep patterns
+   through the thirteen behavior changes. The [checklist](#checklist) at the end has grep patterns
    for finding the code they affect.
 
 ## Behavior changes
@@ -232,6 +232,18 @@ thrown once resizing started), `composite()`'s `mode`, `flip()` and `disposalMod
 Search your code for: `compression:`, `xOffset`, `yOffset`, `.bitmap =`, `duration:` above 655 seconds, and catch
 blocks that check for `RangeError` around `resize()`, `composite()`, `flip()` and `disposalMode`.
 
+### `dominantColor()` thresholds are channel values
+
+The `threshold` of `dominantColor()` is in channel values (0-256): colors whose channels are all below it count as
+black, all above 255 minus it as white. In 3.x it counted in steps of 4 (0-64), so the default `15` meant 60. The
+default is the same; a threshold you give has to be multiplied by 4:
+
+| 3.x | 4.0 |
+| --- | --- |
+| `image.dominantColor(true, true, 15)`, `dominantColor({ threshold: 15 })` | `image.dominantColor({ threshold: 60 })` |
+
+Search your code for: `threshold:` near `dominantColor(`.
+
 ### Encoded files have no creation time and no version by default
 
 In 3.x, every encoder wrote the time of encoding as the creation time and `ImageScript vX.Y.Z` as the software, so the
@@ -421,7 +433,7 @@ object under the names of their options. The options of each method are on its o
 | `image.composite(logo, 10, 20, { opacity: 0.5 })` | `image.composite(logo, { x: 10, y: 20, opacity: 0.5 })` |
 | `image.rotate(45, false)` | `image.rotate(-45, { expand: false })`: the angle is negated because [`rotate()` turns clockwise](#rotate-turns-clockwise) now |
 | `image.sharpen(2, 3)` | `image.sharpen({ amount: 2, radius: 3 })` |
-| `image.dominantColor(true, true, 15)` | `image.dominantColor({ ignoreBlack: true, ignoreWhite: true, threshold: 15 })` |
+| `image.dominantColor(true, true, 15)` | `image.dominantColor({ ignoreBlack: true, ignoreWhite: true, threshold: 60 })`: the threshold is in channel values now, see [below](#dominantcolor-thresholds-are-channel-values) |
 | `image.roundCorners(8)` | `image.roundCorners({ radius: 8 })` |
 | `image.fisheye(3)` | `image.fisheye({ strength: 3 })` |
 | `image.trim(color, options)`, `frame.trim(color, options)` | `image.trim({ color, ...options })`, `frame.trim({ color, ...options })` |
@@ -582,7 +594,7 @@ grep -rnE 'encodeGIF\(|gifEncoder\(|GIFEncodeOptions|encodeJPEG\(' src
 grep -rnE 'new Frame\(|Frame\.from\(|frame\w*\.[a-zA-Z]+\(' src
 
 # behavior changes without a compile error
-grep -rnE '\.(rotate|quantize|contain|encodeJPEG)\(|from(HSLA?)\(|toHSLA\(' src
+grep -rnE '\.(rotate|quantize|contain|encodeJPEG|dominantColor)\(|from(HSLA?)\(|toHSLA\(' src
 grep -rnE 'compression:|[xy]Offset|\.bitmap =|renderSVG\(|Creation Time|DateTime' src
 
 # GainMap
@@ -592,7 +604,7 @@ grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
 Also search for the variables that hold animations, and for `[0]`, `.map(`, `.filter(` and `.forEach(` on them: the
 search can't tell an animation from an array, so check the type of each receiver.
 
-Then compile with `tsc`, and run the tests that cover your decode and encode paths. The twelve behavior changes need
+Then compile with `tsc`, and run the tests that cover your decode and encode paths. The thirteen behavior changes need
 runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every resize fit mode, every HSL hue,
-every `rotate()`, every JPEG made from an image with transparency, every `quantize()`, the size changes of frames, the
+every `rotate()`, every `dominantColor()` threshold, every JPEG made from an image with transparency, every `quantize()`, the size changes of frames, the
 values that now throw, anything that reads the metadata of encoded files, and every SVG with images.

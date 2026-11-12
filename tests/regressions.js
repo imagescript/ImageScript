@@ -692,6 +692,8 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(base.clone().rotate(45, {expand: false}).width === 20 && base.clone().rotate(45).width > 20, 'rotate options');
         const navy = new Image(10, 10).fill(0x00002aff).composite(new Image(3, 3).fill(0xc8c800ff), {x: 0, y: 0});
         assert(navy.dominantColor({threshold: 0}) === 0x00002aff, 'dominantColor options');
+        // the threshold is in channel values: navy's brightest channel is 42 (the default, 60, is 3.x's 15 steps of 4)
+        assert(navy.dominantColor({threshold: 42}) === 0x00002aff && navy.dominantColor({threshold: 43}) !== 0x00002aff && navy.dominantColor() === navy.dominantColor({threshold: 60}), 'dominantColor threshold in channel values');
     }
 
     // type checks take any binary data

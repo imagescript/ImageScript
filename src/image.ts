@@ -605,11 +605,11 @@ export interface CropCircleOptions {
 
 /** Options of {@link Image.dominantColor} */
 export interface DominantColorOptions {
-    /** Whether to ignore dark colors (all channels below the threshold). Default: `true` */
+    /** Whether to ignore dark colors (all channels below `threshold`). Default: `true` */
     ignoreBlack?: boolean;
-    /** Whether to ignore light colors (all channels above 255 minus the threshold). Default: `true` */
+    /** Whether to ignore light colors (all channels above 255 minus `threshold`). Default: `true` */
     ignoreWhite?: boolean;
-    /** The black/white threshold (0-64, in steps of 4 channel values). Default: `15` */
+    /** How close (in channel values, 0-256) to black or white a color has to be to be ignored. Default: `60` */
     threshold?: number;
 }
 
@@ -2192,8 +2192,8 @@ export class Image {
     dominantColor(options?: DominantColorOptions): Color;
     dominantColor(options: DominantColorOptions = {}): Color {
         checkOptions(options, 'dominantColor({ ignoreBlack: false })');
-        const { ignoreBlack = true, ignoreWhite = true, threshold: bwThreshold = 0xf } = options;
-        const threshold = Math.min(64, Math.max(0, finite(bwThreshold, 'threshold'))) * 4;
+        const { ignoreBlack = true, ignoreWhite = true, threshold: bwThreshold = 60 } = options;
+        const threshold = Math.min(256, Math.max(0, finite(bwThreshold, 'threshold')));
         const pixels = this.__bytes__();
 
         const color = quantize.dominantColor(pixels, (r, g, b) =>
