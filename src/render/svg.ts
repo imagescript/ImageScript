@@ -701,13 +701,16 @@ function validProperty(name: string, value: string): boolean {
 // the most elements to render through <use> references (like librsvg's limit), and dashes of a path
 const MAX_INSTANCES = 100000;
 const MAX_OCTAVES = 24;
+// the most pixels (at least MIN_NESTED each) that masks, clip paths, pattern tiles, markers and filter images may take
+// when rendered inside each other, which can multiply: three of them per level take minutes at ten levels
+const MAX_NESTED = 2 ** 27, MIN_NESTED = 2 ** 14;
 const MAX_DASHES = 1000000;
 // the most pixels of a pattern's tile
 const MAX_TILE = 4096 * 1024;
 
 class Document {
     /** elements rendered through <use> references and embedded SVGs so far (shared with the embedded SVGs' documents) */
-    budget = { instances: 0 };
+    budget = { instances: 0, nested: 0, nesting: 0 };
     ids: Map<string, XNode>;
     active: Set<XNode>;
     root: XNode;
@@ -1579,9 +1582,11 @@ class Document {
 
                 const inner = { ...ctx, matrix, style: markerStyle, depth: ctx.depth + 1, viewport: viewBox ? { width: viewBox[2], height: viewBox[3] } : ctx.viewport, contextElement };
                 this.active.add(marker);
-                if (!clip) this.renderChildren(marker, inner);
-                else this.clipped(inner, Math.min(clip[0], clip[2]), Math.min(clip[1], clip[3]), Math.abs(clip[2] - clip[0]), Math.abs(clip[3] - clip[1]),
-                    layer => this.renderChildren(marker, { ...inner, layer }));
+                this.indirect(0, () => {
+                    if (!clip) this.renderChildren(marker, inner);
+                    else this.clipped(inner, Math.min(clip[0], clip[2]), Math.min(clip[1], clip[3]), Math.abs(clip[2] - clip[0]), Math.abs(clip[3] - clip[1]),
+                        layer => this.renderChildren(marker, { ...inner, layer }));
+                });
                 this.active.delete(marker);
             };
 
@@ -1825,8 +1830,8 @@ class Document {
 
         const tile = new Layer(width, height);
         this.active.add(node);
-        this.renderChildren(content, { ...ctx, matrix: contentMatrix, style: this.styleOf(content), layer: tile, depth: ctx.depth + 1,
-            viewport: viewBox ? { width: viewBox[2], height: viewBox[3] } : ctx.viewport });
+        this.indirect(width * height, () => this.renderChildren(content, { ...ctx, matrix: contentMatrix, style: this.styleOf(content), layer: tile, depth: ctx.depth + 1,
+            viewport: viewBox ? { width: viewBox[2], height: viewBox[3] } : ctx.viewport }));
         this.active.delete(node);
         // (the paint samples the tile while the shape it fills is drawn, right after: at most MAX_TILE pixels)
         tile.release();
@@ -2143,8 +2148,10 @@ class Document {
                 this.active.add(node);
                 const parentStyle = (target || node).parent && ((target || node).parent as XNode).name !== '#root' ? this.styleOf((target || node).parent as XNode) : null;
                 const ctx: Context = { matrix, style: parentStyle, viewport, layer, depth: 16 };
-                if (target) this.renderNode(target, ctx);
-                else this.renderImage(image as XNode, { ...ctx, style: this.computeStyle(image as XNode, this.styleOf(node)) });
+                this.indirect(width * height, () => {
+                    if (target) this.renderNode(target, ctx);
+                    else this.renderImage(image as XNode, { ...ctx, style: this.computeStyle(image as XNode, this.styleOf(node)) });
+                });
                 this.active.delete(node);
                 const pixmap = layer.toPixmap();
                 layer.release();
@@ -2246,8 +2253,25 @@ class Document {
         return { rect, primitives: [{ rect, linear: false, result: 'result', kind }] };
     }
 
+    /** runs the render of a mask, clip path, pattern tile, marker or filter image; the ones inside another one count against the budget of nested ones */
+    indirect<T>(pixels: number, render: () => T): T {
+        const budget = this.budget;
+        if (budget.nesting > 0 && (budget.nested += Math.max(pixels, MIN_NESTED)) > MAX_NESTED)
+            throw new Error('SVG: too many masks, clip paths, patterns, markers or filter images inside each other');
+        budget.nesting++;
+        try {
+            return render();
+        } finally {
+            budget.nesting--;
+        }
+    }
+
     // renders a clipPath into a coverage mask
     clipMask(clip: XNode, node: XNode, matrix: Matrix, context: Context): Float32Array {
+        return this.indirect(context.layer.width * context.layer.height, () => this.clipMaskOf(clip, node, matrix, context));
+    }
+
+    clipMaskOf(clip: XNode, node: XNode, matrix: Matrix, context: Context): Float32Array {
         const { width, height } = context.layer;
         const alpha = new Float32Array(width * height);
         const style = this.styleOf(clip);
@@ -2345,6 +2369,10 @@ class Document {
 
     // renders a mask's content and returns its luminance times alpha
     maskValues(mask: XNode, node: XNode, matrix: Matrix, context: Context): Float32Array {
+        return this.indirect(context.layer.width * context.layer.height, () => this.maskValuesOf(mask, node, matrix, context));
+    }
+
+    maskValuesOf(mask: XNode, node: XNode, matrix: Matrix, context: Context): Float32Array {
         const { width, height } = context.layer;
         const values = new Float32Array(width * height);
 

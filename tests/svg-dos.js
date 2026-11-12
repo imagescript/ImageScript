@@ -44,4 +44,44 @@ const timed = async (name, svg, limit = 5000) => {
             if (Buffer.compare(Buffer.from(image.bitmap), Buffer.from(reference.bitmap))) panic(`numOctaves ${octaves}: differs from 24`);
         }
     }
+
+    // masks, clip paths, patterns, markers and filter images that reference each other, three per level: the renders
+    // multiplied without a limit (minutes at ten levels, from two kilobytes)
+    {
+        const three = text => text.repeat(3);
+        const vectors = {
+            masks: n => {
+                let defs = '<mask id="m0"><rect width="100" height="100" fill="#fff"/></mask>';
+                for (let i = 1; i <= n; i++) defs += `<mask id="m${i}">${three(`<rect width="100" height="100" fill="#fff" mask="url(#m${i - 1})"/>`)}</mask>`;
+                return `<defs>${defs}</defs><rect width="100" height="100" mask="url(#m${n})"/>`;
+            },
+            'clip paths': n => {
+                let defs = '<clipPath id="c0"><rect width="100" height="100"/></clipPath>';
+                for (let i = 1; i <= n; i++) defs += `<clipPath id="c${i}">${three(`<rect width="100" height="100" clip-path="url(#c${i - 1})"/>`)}</clipPath>`;
+                return `<defs>${defs}</defs><rect width="100" height="100" clip-path="url(#c${n})"/>`;
+            },
+            markers: n => {
+                let defs = '<marker id="k0" markerWidth="4" markerHeight="4"><rect width="4" height="4"/></marker>';
+                for (let i = 1; i <= n; i++) defs += `<marker id="k${i}" markerWidth="4" markerHeight="4">${three(`<path d="M0 0 L2 2" marker-start="url(#k${i - 1})"/>`)}</marker>`;
+                return `<defs>${defs}</defs><path d="M10 10 L50 50" marker-start="url(#k${n})"/>`;
+            },
+            'filter images': n => {
+                let defs = '<g id="g0"><rect width="10" height="10"/></g>';
+                for (let i = 1; i <= n; i++) defs += `<filter id="f${i}" x="0" y="0" width="100" height="100" filterUnits="userSpaceOnUse"><feImage href="#g${i - 1}"/></filter><g id="g${i}">${three(`<rect width="100" height="100" filter="url(#f${i})"/>`)}</g>`;
+                return `<defs>${defs}</defs><use href="#g${n}"/>`;
+            },
+            patterns: n => {
+                let defs = '<pattern id="p0" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="5" height="5"/></pattern>';
+                for (let i = 1; i <= n; i++) defs += `<pattern id="p${i}" width="10" height="10" patternUnits="userSpaceOnUse">${three(`<rect width="10" height="10" fill="url(#p${i - 1})"/>`)}</pattern>`;
+                return `<defs>${defs}</defs><rect width="100" height="100" fill="url(#p${n})"/>`;
+            }
+        };
+        for (const [name, vector] of Object.entries(vectors)) {
+            // (a few levels are an ordinary document)
+            const ordinary = await timed(`${name}, 3 levels`, `<svg ${NS} width="100" height="100">${vector(3)}</svg>`);
+            if (ordinary.error) panic(`${name}, 3 levels: ${ordinary.error.message}`);
+            const {error, time} = await timed(`${name}, 14 levels`, `<svg ${NS} width="100" height="100">${vector(14)}</svg>`, 20000);
+            if (!error || !/inside each other|<use> references/.test(error.message)) panic(`${name}, 14 levels: should throw (${error && error.message})`);
+        }
+    }
 })();
