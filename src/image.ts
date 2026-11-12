@@ -811,6 +811,8 @@ export class Image {
         const color = gradientFunction(stops);
         finite(angle, 'angle');
         const image = new Image(width, height);
+        // (sizes with a fraction are truncated by the image: the pixels are written to that size)
+        ({ width, height } = image);
         const radians = angle * Math.PI / 180;
         // the direction (y points down, 0 degrees up), and the length of the line through the center to the corners
         const dx = Math.sin(radians), dy = -Math.cos(radians);
@@ -831,12 +833,14 @@ export class Image {
      */
     static radialGradient(width: number, height: number, options: RadialGradientOptions): Image {
         checkOptions(options, 'Image.radialGradient(100, 50, { stops })');
+        const image = new Image(width, height);
+        // (sizes with a fraction are truncated by the image: the pixels are written to that size)
+        ({ width, height } = image);
         const { stops, x: cx = width / 2, y: cy = height / 2, radius = Math.hypot(Math.max(cx, width - cx), Math.max(cy, height - cy)) } = options;
         const color = gradientFunction(stops);
         finite(cx, 'x');
         finite(cy, 'y');
         if (!(finite(radius, 'radius') > 0)) throw new RangeError('Invalid radius');
-        const image = new Image(width, height);
         const bitmap = new DataView(image.bitmap.buffer, image.bitmap.byteOffset, image.bitmap.byteLength);
         for (let y = 0, i = 0; y < height; y++)
             for (let x = 0; x < width; x++, i += 4)

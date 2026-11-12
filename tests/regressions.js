@@ -586,6 +586,11 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(px(radial, 4, 4)[0] > 240 && px(radial, 0, 0)[0] < 40 && px(radial, 0, 8).join() === px(radial, 8, 0).join(), 'radialGradient from the center to the farthest corner');
         const circle = Image.radialGradient(20, 20, {stops: [0xff0000ff, 0x0000ffff], x: 5.5, y: 5.5, radius: 4});
         assert(px(circle, 5, 5)[0] > 240 && px(circle, 15, 15).join() === '0,0,255,255' && px(circle, 9, 5)[2] > 200, 'radialGradient with a center and a radius');
+        // sizes with a fraction are truncated like Image's: the same gradient as the whole sizes (they threw out of the buffer)
+        for (const [name, make] of [['linearGradient', (w, h) => Image.linearGradient(w, h, {stops, angle: 70})], ['radialGradient', (w, h) => Image.radialGradient(w, h, {stops})]]) {
+            const fractional = make(5.7, 3.2), whole = make(5, 3);
+            assert(fractional.width === 5 && fractional.height === 3 && Buffer.from(fractional.bitmap).equals(Buffer.from(whole.bitmap)), `${name} with fractional sizes`);
+        }
         for (const [name, call] of Object.entries({
             'no stops': () => Image.linearGradient(2, 2, {stops: []}),
             'no stops (object)': () => Image.radialGradient(2, 2, {stops: {}}),
