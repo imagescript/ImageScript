@@ -16,7 +16,7 @@
 **ImageScript** decodes, edits and encodes images in pure TypeScript: no WebAssembly, no native binaries, and no
 runtime dependencies. It runs in Node.js 22.13+, Deno, Bun, browsers and edge runtimes (Cloudflare Workers, Vercel's
 Edge Runtime, Deno Deploy), works with `import` and, on supported Node.js versions, `require()`, and ships with type
-definitions. Large AVIF and JPEG XL operations, and lossless WebP encoding, can use multiple CPU cores when the runtime
+definitions (TypeScript 5.7 or newer: with older versions and `skipLibCheck`, the encoders' return types become `any`). Large AVIF and JPEG XL operations, and lossless WebP encoding, can use multiple CPU cores when the runtime
 supports it.
 
 ```sh
