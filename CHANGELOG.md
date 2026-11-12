@@ -92,7 +92,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Invalid choices throw a `TypeError` naming the valid ones**: the resize `mode` (an `Error`, thrown once resizing started, so `resize({ fit: 'cover' })` could move a frame's offsets before failing), `composite()`'s `mode`, `flip()`, `disposalMode` and `wrapStyle` (`RangeError`s; an empty or `null` `wrapStyle` was the default).
 
-- **No creation time and no version in encoded files by default**: the encoders only write a creation time when `metadata.creationTime` is given, so the same image encodes to the same bytes, and the default software is `'ImageScript'` without the version.
+- **No creation time and no version in encoded files by default**: the encoders only write a creation time when `metadata.creationTime` is given, so the same image encodes to the same bytes, and the default software is `'ImageScript'` without the version. `creationTime: null` and `software: null` leave the field out.
 
 - **Drawing an SVG image that can't be drawn throws**: an `href` that isn't a data URI or one of the `images`, an image that can't be decoded (with the decoding error as its `cause`), an unsupported data URI type or an embedded SVG that can't be read throw once they are drawn (images in `<defs>` or hidden ones don't); they drew nothing before.
 

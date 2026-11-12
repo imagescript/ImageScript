@@ -12,7 +12,7 @@ import * as exif from './codecs/exif.ts';
  * | GIF | software, comment (comment extensions) |
  * | TGA | author, comment, creation time, software (extension area) |
  *
- * Empty fields are left out. Without metadata, the files only say which software made them (`software`), so the same
+ * Empty fields (and `null` ones) are left out. Without metadata, the files only say which software made them (`software`), so the same
  * image always encodes to the same bytes
  */
 export interface Metadata {
@@ -24,10 +24,10 @@ export interface Metadata {
     description?: string;
     /** The image's copyright info */
     copyright?: string;
-    /** The image's creation time. Default: none (left out) */
-    creationTime?: string | number | Date;
-    /** The software used to create the image. Default: `'ImageScript'` (without a version), `''` leaves it out */
-    software?: string;
+    /** The image's creation time. Default: none (`null` leaves it out, too) */
+    creationTime?: string | number | Date | null;
+    /** The software used to create the image. Default: `'ImageScript'` (without a version), `null` leaves it out */
+    software?: string | null;
     /** A disclaimer for the image */
     disclaimer?: string;
     /** A warning for the image */
@@ -64,7 +64,7 @@ const TEXT_FIELDS = ['title', 'author', 'description', 'copyright', 'software', 
 export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
     const { creationTime, software } = metadata || {};
     const resolved: ResolvedMetadata = {};
-    if (creationTime !== undefined) {
+    if (creationTime !== undefined && creationTime !== null) {
         const time = new Date(creationTime);
         if (isNaN(time.getTime())) throw new RangeError('Invalid creation time');
         resolved.creationTime = time;

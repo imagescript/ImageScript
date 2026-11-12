@@ -235,7 +235,7 @@ blocks that check for `RangeError` around `resize()`, `composite()`, `flip()` an
 In 3.x, every encoder wrote the time of encoding as the creation time and `ImageScript vX.Y.Z` as the software, so the
 same image never encoded to the same bytes twice, and every file told which release made it. In 4.0, the creation time
 is only written when `metadata.creationTime` is given, and the default software is `'ImageScript'`, without a version
-(`software: ''` still leaves it out):
+(`software: null` leaves it out):
 
 | 3.x | 4.0 |
 | --- | --- |

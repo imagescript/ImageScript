@@ -40,6 +40,9 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
         Date.now = now;
         if (!Buffer.from(early).equals(Buffer.from(late))) panic(`${format}: encoding depends on the time`);
         if (has(await encode({software: ''}), 'ImageScript')) panic(`${format}: software: '' should leave it out`);
+        if (has(await encode({software: null}), 'ImageScript')) panic(`${format}: software: null should leave it out`);
+        // (null is no time: not the epoch)
+        if (!Buffer.from(await encode({creationTime: null})).equals(Buffer.from(await encode({})))) panic(`${format}: creationTime: null should be the default`);
         if (!has(await encode({software: 'custom tool'}), 'custom tool')) panic(`${format}: custom software missing`);
 
         const decoded = /gif|apng|animated/.test(format) ? (await Animation.decode(tagged)).frames[0] : await Image.decode(tagged);
