@@ -83,6 +83,7 @@ const rejects = async (name, fn, Type, pattern) => {
     await rejects('resize mode', () => image.clone().resize(4, 4, {mode: 'lanczos'}), TypeError, /resize mode must be 'nearest-neighbor', 'bilinear', 'bicubic' or 'area', not 'lanczos'/);
     await rejects('scale mode', () => image.clone().scale(2, {mode: 'lanczos'}), TypeError, /resize mode must be/);
     await rejects('blend mode', () => image.clone().composite(image, {mode: 'nope'}), TypeError, /blend mode must be/);
+    for (const source of [undefined, null, {}, 5, new Frame(image)]) await rejects(`composite source ${String(source)}`, () => image.clone().composite(source), TypeError, /takes an Image/);
 
     // scale() doesn't shrink a side below one pixel, like resize({ width }) keeping the aspect ratio
     {

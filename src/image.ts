@@ -1434,6 +1434,7 @@ export class Image {
     composite(source: Image, options?: CompositeOptions): this;
     composite(source: Image, options: CompositeOptions = {}): this {
         checkOptions(options, 'composite(source, { x: 10, y: 20 })');
+        if (!(source instanceof Image)) throw new TypeError('composite() takes an Image as its source, like image.composite(logo, { x: 10, y: 20 })');
         const { opacity = 1, mode = 'normal' } = options;
         let x = options.x ?? 0, y = options.y ?? 0;
         x = Math.trunc(finite(x, 'x'));
