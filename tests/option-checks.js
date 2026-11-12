@@ -83,6 +83,15 @@ const rejects = async (name, fn, Type, pattern) => {
     await rejects('resize mode', () => image.clone().resize(4, 4, {mode: 'lanczos'}), TypeError, /resize mode must be 'nearest-neighbor', 'bilinear', 'bicubic' or 'area', not 'lanczos'/);
     await rejects('scale mode', () => image.clone().scale(2, {mode: 'lanczos'}), TypeError, /resize mode must be/);
     await rejects('blend mode', () => image.clone().composite(image, {mode: 'nope'}), TypeError, /blend mode must be/);
+
+    // scale() doesn't shrink a side below one pixel, like resize({ width }) keeping the aspect ratio
+    {
+        const thin = new Image(7, 1).scale(0.5);
+        if (thin.width !== 3 || thin.height !== 1) panic(`new Image(7, 1).scale(0.5) is ${thin.width}x${thin.height}`);
+        const tiny = new Image(10, 3).scale(0.01);
+        if (tiny.width !== 1 || tiny.height !== 1) panic(`scale(0.01) is ${tiny.width}x${tiny.height}`);
+        for (const factor of [0, -1, NaN]) await rejects(`scale(${factor})`, () => image.clone().scale(factor), RangeError, /./);
+    }
     await rejects('flip direction', () => image.clone().flip('diagonal'), TypeError, /flip direction must be 'horizontal' or 'vertical'/);
     await rejects('disposal mode', () => new Frame(image, {disposalMode: 'none'}), TypeError, /disposal mode must be/);
     await rejects('wrapStyle', () => Image.renderText('hi', {font: new Uint8Array(4), size: 8, wrapStyle: 'line'}), TypeError, /wrapStyle must be 'word' or 'char'/);

@@ -980,7 +980,9 @@ export class Image {
      */
     protected __scale__(factor: number, mode: ResizeMode = 'bilinear', fast = true): Image {
         if (factor === 1) return this;
-        return this.__resize__(this.width * factor, this.height * factor, mode, fast);
+        // (a side doesn't shrink below one pixel, like resize({ width }) keeping the aspect ratio)
+        const size = (side: number): number => factor > 0 ? Math.max(1, side * factor) : side * factor;
+        return this.__resize__(size(this.width), size(this.height), mode, fast);
     }
 
     /**
