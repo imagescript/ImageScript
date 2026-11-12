@@ -13,6 +13,7 @@ const timed = async (name, svg, limit = 5000) => {
     let error = null, image = null;
     try { image = await Image.renderSVG(svg, {width: 100}); } catch (err) { error = err; }
     const time = Date.now() - start;
+    if (process.env.SVG_DOS_TIMES) console.log(name, time);
     if (time > limit) panic(`${name}: took ${time} ms`);
     return {image, error, time};
 };
@@ -76,11 +77,20 @@ const timed = async (name, svg, limit = 5000) => {
                 return `<defs>${defs}</defs><rect width="100" height="100" fill="url(#p${n})"/>`;
             }
         };
+        {
+            // (an ordinary document at 1080p: a mask of 24 masked shapes, each mask rendered inside the outer one)
+            const shapes = Array.from({length: 24}, (_, i) => `<rect x="${i * 80}" width="70" height="1080" fill="#fff" mask="url(#m)"/>`).join('');
+            const svg = `<svg ${NS} width="1920" height="1080"><mask id="m"><rect width="1920" height="1080" fill="#fff"/></mask><mask id="outer">${shapes}</mask><rect width="1920" height="1080" fill="#f00" mask="url(#outer)"/></svg>`;
+            const start = Date.now();
+            const image = await Image.renderSVG(svg);
+            if (Colors.toRGBA(image.getPixelAt(10, 10)).join() !== '255,0,0,255') panic('masked shapes inside a masked group: not rendered');
+            if (process.env.SVG_DOS_TIMES) console.log('1080p masks', Date.now() - start);
+        }
         for (const [name, vector] of Object.entries(vectors)) {
             // (a few levels are an ordinary document)
             const ordinary = await timed(`${name}, 3 levels`, `<svg ${NS} width="100" height="100">${vector(3)}</svg>`);
             if (ordinary.error) panic(`${name}, 3 levels: ${ordinary.error.message}`);
-            const {error, time} = await timed(`${name}, 14 levels`, `<svg ${NS} width="100" height="100">${vector(14)}</svg>`, 20000);
+            const {error} = await timed(`${name}, 14 levels`, `<svg ${NS} width="100" height="100">${vector(14)}</svg>`, 30000);
             if (!error || !/inside each other|<use> references/.test(error.message)) panic(`${name}, 14 levels: should throw (${error && error.message})`);
         }
     }

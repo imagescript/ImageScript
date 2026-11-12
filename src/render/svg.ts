@@ -703,7 +703,8 @@ const MAX_INSTANCES = 100000;
 const MAX_OCTAVES = 24;
 // the most pixels (at least MIN_NESTED each) that masks, clip paths, pattern tiles, markers and filter images may take
 // when rendered inside each other, which can multiply: three of them per level take minutes at ten levels
-const MAX_NESTED = 2 ** 27, MIN_NESTED = 2 ** 14;
+// (32 nested ones the size of a 1080p image, or 1024 small ones)
+const MAX_NESTED = 2 ** 26, MIN_NESTED = 2 ** 16;
 const MAX_DASHES = 1000000;
 // the most pixels of a pattern's tile
 const MAX_TILE = 4096 * 1024;
