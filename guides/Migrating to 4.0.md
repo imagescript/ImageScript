@@ -221,6 +221,8 @@ Several values that 3.x quietly changed into something else now throw, naming th
 | `image.bitmap = view` with a view that doesn't start at a multiple of 4 bytes | copied, so changes to the view no longer reached the image | a `TypeError`: pass an aligned view, or `view.slice()` for a copy |
 | `Colors.gradient()` at a `NaN` position | transparent black with two stops, a `RangeError` with more | a `RangeError` with any number of stops |
 | `encodeGIF()` of an animation without frames | a GIF that doesn't decode | an `Error`, like `encodeAPNG()` and `encodeWebP()` |
+| `quality` of `encodeJPEG()` | clamped to 1-100 | a number from 0 to 100 (0 is 1), else a `RangeError`, like the other lossy formats |
+| The source of `composite()` when it isn't an `Image` | a `TypeError` from inside (`Cannot read properties of undefined`) or nothing | a `TypeError` naming the call |
 
 A value outside a fixed set of choices is a `TypeError` naming them all, like `resize mode must be 'nearest-neighbor',
 'bilinear', 'bicubic' or 'area', not 'lanczos'`. This changes the error type of the resize `mode` (an `Error`, and only
