@@ -4,15 +4,6 @@
 export class LimitError extends RangeError {
     /** `'LimitError'`: tells a limit apart from other `RangeError`s */
     override name = 'LimitError';
-
-    /**
-     * Creates the error (ImageScript throws it, there's no need to create one)
-     * @param message Which limit was exceeded, and by what
-     * @param options The error's `cause`, like `Error`'s
-     */
-    constructor(message?: string, options?: ErrorOptions) {
-        super(message, options);
-    }
 }
 
 /** The default of the decode options' maxPixels: 16383 squared (like sharp's limitInputPixels) */
