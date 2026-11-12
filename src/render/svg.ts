@@ -2978,7 +2978,8 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
     // nearly sorted (the order of crossings of the same x doesn't matter: the span between them is empty, the winding
     // after them their sum)
     const rowStarts = scratch.i32(1, h + 1).fill(0, 0, h + 1), order = scratch.i32(2, numEdges);
-    const startRow = (e: number): number => Math.max(0, Math.floor(tops[e]) - y0);
+    // (edges that end above the image never cross a sample: they're left out)
+    const startRow = (e: number): number => bottoms[e] <= y0 ? h : Math.max(0, Math.floor(tops[e]) - y0);
     for (let e = 0; e < numEdges; e++) if (startRow(e) < h) rowStarts[startRow(e) + 1]++;
     for (let r = 0; r < h; r++) rowStarts[r + 1] += rowStarts[r];
     const placed = scratch.i32(3, h);
@@ -3035,8 +3036,9 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
             while (s0 < SAMPLES && !(py + OFFSETS[s0] >= top)) s0++;
             while (s1 < SAMPLES - 1 && py + OFFSETS[s1 + 1] < bottom) s1++;
             while (s1 >= 0 && !(py + OFFSETS[s1] < bottom)) s1--;
+            // (an edge ending far above the row has s1 below the Int32Array's range: it would wrap to a huge count)
             firsts[k] = s0;
-            lasts[k] = s1;
+            lasts[k] = Math.max(-1, s1);
             for (let s = s0; s <= s1; s++) counts[s]++;
             if (s1 >= s0) total += s1 - s0 + 1;
         }
