@@ -2176,7 +2176,8 @@ export class Image {
     /**
      * Rotates the image clockwise by the given angle in degrees (like CSS' `rotate()`; negative angles turn it
      * counterclockwise). Multiples of 90° move whole pixels; other angles resample the image (see
-     * {@link RotateOptions.mode}) and, by default, grow it so the corners fit
+     * {@link RotateOptions.mode}). By default the image grows so the corners fit (a quarter turn swaps width and
+     * height); with `expand: false` it keeps its size, also for quarter turns, and what doesn't fit is cut off
      * @param angle The angle in degrees, clockwise
      * @param options See {@link RotateOptions}
      */
@@ -2214,6 +2215,17 @@ export class Image {
                     else dst[x * height + height - 1 - y] = i;
                 }
 
+            if (!expand && out.width !== width) {
+                // (without `expand` the image keeps its size: the turned image is centered in it, what doesn't fit is cut off)
+                const canvas = new Image(width, height), target = canvas.__u32__, turned = out.__u32__;
+                const left = Math.floor((width - out.width) / 2), top = Math.floor((height - out.height) / 2);
+                for (let y = Math.max(0, top); y < Math.min(height, top + out.height); y++)
+                    for (let x = Math.max(0, left); x < Math.min(width, left + out.width); x++)
+                        target[y * width + x] = turned[(y - top) * out.width + x - left];
+                rotateGainMap(width, height);
+                this.__moved__?.(1, 1, 0, 0);
+                return this.__apply__(canvas);
+            }
             rotateGainMap(out.width, out.height);
             this.__moved__?.(1, 1, (width - out.width) / 2, (height - out.height) / 2);
             return this.__apply__(out);

@@ -98,4 +98,27 @@ const panic = msg => {
         try { source.clone().rotate(30, {mode: 'area'}); } catch (e) { error = e; }
         if (!(error instanceof TypeError)) panic(`rotate mode 'area' should throw a TypeError, got ${error}`);
     }
+
+    // right angles with `expand: false` keep the size like every other angle (they used to swap width and height):
+    // the turned image is centered, what doesn't fit is cut off
+    {
+        for (const [width, height] of [[4, 2], [5, 2], [2, 5], [3, 3], [6, 4]]) {
+            const source = new Image(width, height).fill((x, y) => Colors.fromRGBA(x * 10 + 1, y * 10 + 1, 7, 255));
+            for (const angle of [90, 180, 270, -90, 450]) {
+                const kept = source.clone().rotate(angle, {expand: false});
+                if (kept.width !== width || kept.height !== height) panic(`${width}x${height}.rotate(${angle}, { expand: false }) is ${kept.width}x${kept.height}`);
+                const turned = source.clone().rotate(angle);
+                const left = Math.floor((width - turned.width) / 2), top = Math.floor((height - turned.height) / 2);
+                for (let y = 0; y < height; y++)
+                    for (let x = 0; x < width; x++) {
+                        const tx = x - left, ty = y - top;
+                        const inside = tx >= 0 && ty >= 0 && tx < turned.width && ty < turned.height;
+                        const expected = inside ? turned.getPixelAt(tx, ty) : 0;
+                        if (kept.getPixelAt(x, y) !== expected) panic(`${width}x${height}.rotate(${angle}, { expand: false }): pixel ${x},${y} is ${kept.getPixelAt(x, y).toString(16)} instead of ${expected.toString(16)}`);
+                    }
+                if (angle !== 90 && angle !== 270 && angle !== -90 && angle !== 450 || width === height)
+                    if (Buffer.compare(Buffer.from(kept.bitmap), Buffer.from(turned.bitmap))) panic(`${width}x${height}.rotate(${angle}, { expand: false }) should equal the expanded one`);
+            }
+        }
+    }
 })();
