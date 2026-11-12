@@ -1356,14 +1356,14 @@ export class Image {
 
     /**
      * Scales the opacity of the image
-     * @param opacity The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
+     * @param factor The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
      */
-    opacity(opacity: number): this {
-        opacity = finite(opacity, 'opacity value');
-        if (opacity < 0)
+    opacity(factor: number): this {
+        factor = finite(factor, 'opacity value');
+        if (factor < 0)
             throw new RangeError('Invalid opacity value');
 
-        this.__set_channel_value__(opacity, 3);
+        this.__set_channel_value__(factor, 3);
 
         return this;
     }

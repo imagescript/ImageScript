@@ -490,7 +490,7 @@ false })` grows the image again), so search for them too.
 | `EncodeOptions` (type) as the options of `encodeTGA()` | `TGAEncodeOptions`. `EncodeOptions` is now the `metadata` that all encoder options extend |
 | `new GainMap(image, { gainMapMin, gainMapMax })`, `map.gainMapMin`, `map.gainMapMax` | `new GainMap(image, { min, max })`, `map.min`, `map.max` |
 | `Image.renderSVG(svg, { fonts })` | `Image.renderSVG(svg, { font })`, like `renderText()` (one font or an array). An old `fonts` is ignored, so text isn't drawn: search for it |
-| `setPixelAt(x, y, pixelColor)`, `lightness(value)`, `saturation(value)` (parameter names only) | `setPixelAt(x, y, color)`, `lightness(factor)`, `saturation(factor)` |
+| `setPixelAt(x, y, pixelColor)`, `lightness(value)`, `saturation(value)`, `opacity(opacity)` (parameter names only) | `setPixelAt(x, y, color)`, `lightness(factor)`, `saturation(factor)`, `opacity(factor)` |
 
 ### Fixed-length tuple types
 
