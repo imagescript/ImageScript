@@ -12,7 +12,7 @@ import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, oneOf, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, color as checkColor } from './util/options.ts';
+import { checkOptions, oneOf, pixelLimit, checkThreads, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
@@ -653,8 +653,8 @@ export class Animation {
         // (checked outside of decoding(), which reports RangeErrors as damaged data)
         checkOptions(options, 'Animation.decode(data, { maxPixels: 1e8 })');
         const { maxPixels = MAX_PIXELS, threads = 1 } = options;
-        if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
-        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
+        checkThreads(threads);
+        pixelLimit(maxPixels);
         const { toneMapping = 'reinhard' } = options;
         oneOf(toneMapping, TONE_MAPPINGS, 'toneMapping');
         return decoding(() => Animation.__decode__(input, options));

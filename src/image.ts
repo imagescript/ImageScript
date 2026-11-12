@@ -15,9 +15,6 @@ import { availableThreads } from './util/threads.ts';
 
 // (worker threads: the processors available, at most 8)
 const defaultThreads = (): number => Math.max(1, Math.min(availableThreads(), 8));
-const checkThreads = (threads: number): void => {
-    if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
-};
 import * as jxl from './codecs/jxl.ts';
 import type { ToneMapping } from './codecs/hdr.ts';
 import * as quantize from './codecs/quantize.ts';
@@ -32,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, oneOf, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, oneOf, pixelLimit, checkThreads, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -2629,7 +2626,7 @@ export class Image {
         checkOptions(options, 'Image.decode(data, { maxPixels: 1e8 })');
         const { applyOrientation = true, applyColorProfile = true, maxPixels = MAX_PIXELS, toneMapping = 'reinhard', threads = defaultThreads(), gainMap = true } = options;
         checkThreads(threads);
-        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
+        pixelLimit(maxPixels);
         oneOf(toneMapping, TONE_MAPPINGS, 'toneMapping');
         const data = view(input);
         const dataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -2763,10 +2760,10 @@ export class Image {
     static async renderSVG(svg: string | BinaryData, options: RenderSVGOptions = {}): Promise<Image> {
         checkOptions(options, 'renderSVG(svg, { width: 512 })');
         const { width: givenWidth, height: givenHeight, scale, maxPixels = MAX_PIXELS, font: fonts = [], images: givenImages = {} } = options;
-        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
+        pixelLimit(maxPixels);
         const { maxLayerPixels = 4 * Number(maxPixels), maxImagePixels = Number(maxPixels) } = options;
-        if (!(Number(maxLayerPixels) > 0)) throw new RangeError(`maxLayerPixels must be a positive number, not ${maxLayerPixels}`);
-        if (!(Number(maxImagePixels) > 0)) throw new RangeError(`maxImagePixels must be a positive number, not ${maxImagePixels}`);
+        pixelLimit(maxLayerPixels, 'maxLayerPixels');
+        pixelLimit(maxImagePixels, 'maxImagePixels');
         const sizes = [givenWidth, givenHeight, scale].filter(value => value !== undefined).length;
         if (sizes > 1) throw new TypeError('renderSVG() takes one of width, height and scale');
         const mode = givenWidth !== undefined ? 'width' : givenHeight !== undefined ? 'height' : 'scale';
@@ -2841,7 +2838,7 @@ export class Image {
         if (typeof text !== 'string' || !isOptions(options)) throw new TypeError('renderText() takes the text and an options object, like renderText(\'Hello\', { font, size: 32 })');
         if (options.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
         const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {}, maxPixels = MAX_PIXELS } = options;
-        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
+        pixelLimit(maxPixels);
         const { width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign } = options;
         const layout = textLayout({ width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign });
         const axes = textRenderer.axisValues(variations);

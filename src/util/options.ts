@@ -93,6 +93,17 @@ export function quality(value: number, name = 'quality'): number {
     return q;
 }
 
+/** A limit of pixels (`maxPixels`, ...): a number above 0, `Infinity` lifts it. Returns it as a number */
+export function pixelLimit(value: number, name = 'maxPixels'): number {
+    if (!(Number(value) > 0)) throw new RangeError(`${name} must be a positive number, not ${value}`);
+    return Number(value);
+}
+
+/** The `threads` option: a whole number of at least 1 */
+export function checkThreads(threads: number): void {
+    if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
+}
+
 /** An effort argument: an integer from 0 to max */
 export function effort(value: number, max: number): number {
     if (!Number.isInteger(value) || value < 0 || value > max) throw new RangeError(`effort must be an integer 0-${max}, not ${value}`);

@@ -73,6 +73,23 @@ const rejects = async (name, fn, Type, pattern) => {
         await rejects(`Animation.decode maxPixels ${maxPixels}`, () => Animation.decode(png, {maxPixels}), RangeError, /maxPixels/);
     }
     await rejects('Animation.decode threads 0', () => Animation.decode(png, {threads: 0}), RangeError, /threads must be/);
+    // (the shared checks of the limits and of threads: every option that takes one says so by its name)
+    {
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>';
+        const font = require('fs').readFileSync('./tests/fonts/opensans bold.ttf');
+        const map = await new Image(8, 8).fill(0x808080ff).encodeJPEG();
+        for (const bad of [0, -1, NaN]) {
+            await rejects(`renderSVG maxLayerPixels ${bad}`, () => Image.renderSVG(svg, {maxLayerPixels: bad}), RangeError, /maxLayerPixels must be a positive number/);
+            await rejects(`renderSVG maxImagePixels ${bad}`, () => Image.renderSVG(svg, {maxImagePixels: bad}), RangeError, /maxImagePixels must be a positive number/);
+            await rejects(`renderText maxPixels ${bad}`, () => Image.renderText('a', {font, size: 12, maxPixels: bad}), RangeError, /maxPixels must be a positive number/);
+            await rejects(`GainMap.decode maxPixels ${bad}`, () => require('..').GainMap.decode(map, {maxPixels: bad}), RangeError, /maxPixels must be a positive number/);
+        }
+        for (const threads of [0, -1, 1.5, NaN])
+            for (const [name, call] of Object.entries({'Image.decode': () => Image.decode(png, {threads}), 'encodeWebP': () => image.encodeWebP({threads}), 'encodeAVIF': () => image.encodeAVIF({threads}), 'encodeJXL': () => image.encodeJXL({threads})}))
+                await rejects(`${name} threads ${threads}`, call, RangeError, /threads must be a positive integer/);
+        // (Infinity lifts a limit)
+        await Image.renderText('a', {font, size: 12, maxPixels: Infinity});
+    }
 
     // Image.decode takes the options object of a GIF too: maxPixels counts its first frame
     const gif = await new Animation([new Frame(new Image(4, 4).fill(0xff0000ff))]).encodeGIF();

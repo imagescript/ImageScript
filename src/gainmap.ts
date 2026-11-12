@@ -4,7 +4,7 @@ import { MAX_PIXELS, decoding } from './util/limits.ts';
 import * as jpeg from './codecs/jpeg.ts';
 import * as codec from './codecs/gainmap.ts';
 import { BinaryData, view } from './util/mem.ts';
-import { finite, checkOptions, quality as checkQuality } from './util/options.ts';
+import { finite, checkOptions, pixelLimit, quality as checkQuality } from './util/options.ts';
 
 /** Options of {@link GainMap.encodeJPEG} */
 export interface GainMapEncodeOptions {
@@ -363,7 +363,7 @@ export class GainMap {
     static async decode(data: BinaryData, options: Pick<DecodeOptions, 'maxPixels'> = {}): Promise<GainMap> {
         checkOptions(options, 'GainMap.decode(data, { maxPixels: 1e8 })');
         const { maxPixels = MAX_PIXELS } = options;
-        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
+        pixelLimit(maxPixels);
         const bytes = view(data);
         return decoding(() => {
             const found = codec.find(bytes);
