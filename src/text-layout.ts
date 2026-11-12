@@ -34,8 +34,8 @@ export interface TextLayoutOptions {
     verticalAlign?: VerticalAlign;
 }
 
-const HORIZONTAL: readonly string[] = ['left', 'center', 'right'];
-const VERTICAL: readonly string[] = ['top', 'middle', 'bottom'];
+const HORIZONTAL: readonly HorizontalAlign[] = ['left', 'center', 'right'];
+const VERTICAL: readonly VerticalAlign[] = ['top', 'middle', 'bottom'];
 
 /** A size option: undefined, or a whole number of pixels from 1 */
 function boxSide(value: number | undefined, name: string): number | undefined {
@@ -51,13 +51,11 @@ function boxSide(value: number | undefined, name: string): number | undefined {
  */
 export function textLayout(options: TextLayoutOptions): Layout {
     const { width, height, wrapStyle, verticalAlign, horizontalAlign } = options;
-    if (horizontalAlign !== undefined && !HORIZONTAL.includes(horizontalAlign)) throw new TypeError(`horizontalAlign must be 'left', 'center' or 'right', not '${horizontalAlign}'`);
-    if (verticalAlign !== undefined && !VERTICAL.includes(verticalAlign)) throw new TypeError(`verticalAlign must be 'top', 'middle' or 'bottom', not '${verticalAlign}'`);
     return {
         width: boxSide(width, 'width'),
         height: boxSide(height, 'height'),
         wrapStyle: wrapStyle === undefined ? 'word' : oneOf(wrapStyle, ['word', 'char'], 'wrapStyle'),
-        horizontalAlign: horizontalAlign ?? 'left',
-        verticalAlign: verticalAlign ?? 'top'
+        horizontalAlign: horizontalAlign === undefined ? 'left' : oneOf(horizontalAlign, HORIZONTAL, 'horizontalAlign'),
+        verticalAlign: verticalAlign === undefined ? 'top' : oneOf(verticalAlign, VERTICAL, 'verticalAlign')
     };
 }

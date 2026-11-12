@@ -6,7 +6,7 @@ import * as jxl from './codecs/jxl.ts';
 import { availableThreads } from './util/threads.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { GainMap } from './gainmap.ts';
-import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize, alignedPixels, PNGEncodeOptions, WebPEncodeOptions, FlipDirection, FLIP_DIRECTIONS } from './image.ts';
+import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize, alignedPixels, PNGEncodeOptions, WebPEncodeOptions, FlipDirection, FLIP_DIRECTIONS, TONE_MAPPINGS } from './image.ts';
 import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
@@ -656,7 +656,7 @@ export class Animation {
         if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
         if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
         const { toneMapping = 'reinhard' } = options;
-        if (toneMapping !== 'reinhard' && toneMapping !== 'clamp') throw new TypeError(`toneMapping must be 'reinhard' or 'clamp', not ${String(toneMapping)}`);
+        oneOf(toneMapping, TONE_MAPPINGS, 'toneMapping');
         return decoding(() => Animation.__decode__(input, options));
     }
 

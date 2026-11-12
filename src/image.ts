@@ -180,7 +180,11 @@ export type TransformMode = 'nearest-neighbor' | 'bilinear' | 'bicubic';
 export type AffineTransform = readonly [a: number, b: number, c: number, d: number, e: number, f: number];
 
 // the sampling modes of Image.transform()
-const TRANSFORM_MODES: readonly string[] = ['nearest-neighbor', 'bilinear', 'bicubic'];
+const TRANSFORM_MODES: readonly TransformMode[] = ['nearest-neighbor', 'bilinear', 'bicubic'];
+const RESIZE_FITS: readonly ResizeFit[] = ['fill', 'inside', 'contain', 'cover'];
+const SUBSAMPLINGS: readonly string[] = ['4:4:4', '4:2:0'];
+/** @internal */
+export const TONE_MAPPINGS: readonly ToneMapping[] = ['reinhard', 'clamp'];
 /** @internal */
 export const FLIP_DIRECTIONS: readonly FlipDirection[] = ['horizontal', 'vertical'];
 
@@ -1751,7 +1755,6 @@ export class Image {
      */
     quantize(options: QuantizeOptions = {}): this {
         checkOptions(options, 'image.quantize({ colors: 16 })');
-        if (typeof options !== 'object' || options === null) throw new TypeError('quantize takes an options object');
         // (JavaScript callers can give both: checked below)
         const { colors, palette, dither = 'floyd-steinberg', ditherStrength = 0.85 } = options as DitherOptions & { colors?: number, palette?: Color[] };
 
@@ -1844,9 +1847,8 @@ export class Image {
         if (matrix === null || typeof matrix !== 'object' || matrix.length !== 6) throw new RangeError('A transform has 6 values: [a, b, c, d, e, f]');
         // (numbers only: a string is a mistake in data like this)
         const values = Array.from({ length: 6 }, (_, i) => finite(typeof matrix[i] === 'number' ? matrix[i] : NaN, 'transform value'));
-        if (typeof options !== 'object' || options === null) throw new TypeError('transform takes an options object');
         const { origin = {}, expand = true, mode = 'bilinear' } = options;
-        if (!TRANSFORM_MODES.includes(mode)) throw new TypeError(`transform mode must be one of ${TRANSFORM_MODES.map(name => `'${name}'`).join(', ')}, not ${String(mode)}`);
+        oneOf(mode, TRANSFORM_MODES, 'transform mode');
         const { x: pivotX = this.width / 2, y: pivotY = this.height / 2 } = origin;
         finite(pivotX, 'origin x');
         finite(pivotY, 'origin y');
@@ -2205,7 +2207,7 @@ export class Image {
     rotate(angle: number, options: RotateOptions = {}): this {
         checkOptions(options, 'rotate(angle, { expand: false })');
         const { expand = true, mode = 'bilinear' } = options;
-        if (!TRANSFORM_MODES.includes(mode)) throw new TypeError(`rotate mode must be one of ${TRANSFORM_MODES.map(name => `'${name}'`).join(', ')}, not ${String(mode)}`);
+        oneOf(mode, TRANSFORM_MODES, 'rotate mode');
         // (counterclockwise from here on: the image's y axis points down, so this turns it clockwise on screen)
         angle = ((-finite(angle, 'angle') % 360) + 360) % 360;
         if (angle === 0) return this;
@@ -2448,7 +2450,7 @@ export class Image {
         checkOptions(options, 'encodeJPEG({ quality: 80 })');
         const { quality: qualityOption = 90, subsampling, background = 0x000000ff, metadata = {}, gainMap: gainMapOption = true } = options;
         const quality = checkQuality(qualityOption);
-        if (subsampling !== undefined && subsampling !== '4:4:4' && subsampling !== '4:2:0') throw new TypeError(`subsampling must be '4:4:4' or '4:2:0', not ${String(subsampling)}`);
+        if (subsampling !== undefined) oneOf(subsampling, SUBSAMPLINGS, 'subsampling');
         const backgroundColor = checkColor(background, 'background');
         const m = resolveMetadata(metadata);
         const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined, subsampling };
@@ -2554,7 +2556,7 @@ export class Image {
         const { quality = 60, alphaQuality = 100, subsampling = '4:4:4', effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true } = options;
         checkEffort(effort, 2);
         checkThreads(threads);
-        if (subsampling !== '4:4:4' && subsampling !== '4:2:0') throw new TypeError(`subsampling must be '4:4:4' or '4:2:0', not ${String(subsampling)}`);
+        oneOf(subsampling, SUBSAMPLINGS, 'subsampling');
         const exif = exifData(resolveMetadata(metadata));
         return avifEnc.encode(this.__bytes__(), this.width, this.height, {
             quality: checkQuality(quality), alphaQuality: checkQuality(alphaQuality, 'alphaQuality'), subsampling, effort, exif, threads, gainMap: this.__gain_map_pixels__(gainMap)
@@ -2628,7 +2630,7 @@ export class Image {
         const { applyOrientation = true, applyColorProfile = true, maxPixels = MAX_PIXELS, toneMapping = 'reinhard', threads = defaultThreads(), gainMap = true } = options;
         checkThreads(threads);
         if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
-        if (toneMapping !== 'reinhard' && toneMapping !== 'clamp') throw new TypeError(`toneMapping must be 'reinhard' or 'clamp', not ${String(toneMapping)}`);
+        oneOf(toneMapping, TONE_MAPPINGS, 'toneMapping');
         const data = view(input);
         const dataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
 
@@ -2973,7 +2975,7 @@ export function resizeArguments(widthOrOptions: number | ResizeToOptions, height
     }
     const { width, height: optionsHeight, fit = 'fill', ...rest } = widthOrOptions;
     if (width === undefined && optionsHeight === undefined) throw new TypeError('resize() needs a width, a height or both');
-    if (!['fill', 'inside', 'contain', 'cover'].includes(fit)) throw new TypeError(`fit must be 'fill', 'inside', 'contain' or 'cover', not ${String(fit)}`);
+    oneOf(fit, RESIZE_FITS, 'fit');
     return [width === undefined ? undefined : finite(width, 'width'), optionsHeight === undefined ? undefined : finite(optionsHeight, 'height'), rest, fit];
 }
 
