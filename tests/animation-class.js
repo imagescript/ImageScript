@@ -86,3 +86,28 @@ if (sized.width !== 4 || sized.height !== 4 || sized.duration !== 30) panic(`siz
 if (sized.toString() !== 'Animation<4x4x30ms>') panic(`toString: ${sized.toString()}`);
 const first = new Image(2, 2);
 if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration !== 5) panic('Frame from an image');
+
+// a frame listed twice (to hold it, or in a ping-pong), or two frames of one image, change once
+{
+    const shape = frames => frames.map(frame => [frame.xOffset, frame.yOffset, frame.width, frame.height]).join(';');
+    const same = (label, operate, build) => {
+        const f = new Frame(build(), {duration: 10});
+        const repeated = operate(new Animation([f, f, f]));
+        const distinct = operate(new Animation([0, 1, 2].map(() => new Frame(build(), {duration: 10}))));
+        if (repeated.width !== distinct.width || repeated.height !== distinct.height) panic(`${label}: canvas ${repeated.width}x${repeated.height} instead of ${distinct.width}x${distinct.height}`);
+        if (shape(repeated.frames) !== shape(distinct.frames)) panic(`${label}: frames ${shape(repeated.frames)} instead of ${shape(distinct.frames)}`);
+        for (let i = 0; i < 3; i++)
+            if (Buffer.compare(Buffer.from(repeated.frames[i].image.bitmap), Buffer.from(distinct.frames[i].image.bitmap))) panic(`${label}: frame ${i} has other pixels`);
+    };
+    const gradient = (width, height) => () => new Image(width, height).fill((x, y) => 0xff | (x * 255 / width | 0) << 24 | (y * 255 / height | 0) << 16);
+    same('resize', animation => animation.resize(50, 50), gradient(100, 100));
+    same('scale', animation => animation.scale(2), gradient(100, 100));
+    same('crop', animation => animation.crop(10, 10, 50, 50), gradient(100, 100));
+    same('trim', animation => animation.trim(), () => new Image(40, 40).fill(0).composite(new Image(10, 10).fill(0xff0000ff), {x: 10, y: 10}));
+    same('resize contain', animation => animation.resize({width: 100, height: 100, fit: 'contain'}), gradient(100, 50));
+    same('resize cover', animation => animation.resize({width: 60, height: 60, fit: 'cover'}), gradient(100, 50));
+
+    const image = new Image(100, 100).fill(0xff0000ff);
+    const shared = new Animation([new Frame(image), new Frame(image, {xOffset: 0})]).resize(50, 50);
+    if (shared.frames[0].width !== 50 || shared.frames[1].width !== 50 || image.width !== 50) panic(`two frames of one image: ${shared.frames[0].width}, ${shared.frames[1].width}`);
+}

@@ -239,11 +239,17 @@ export class Animation {
         const canvas = canvasSize(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
 
         const sx = width / originalWidth, sy = height / originalHeight;
-        for (const frame of this.frames) {
+        // (a frame listed twice, or two frames of one image, change once: the sizes and offsets are worked out before anything does)
+        const changes = this.__distinct__().map(frame => {
             // scale both edges so adjacent frames stay aligned
             const left = Math.round(frame.xOffset * sx), top = Math.round(frame.yOffset * sy);
             const right = Math.round((frame.xOffset + frame.width) * sx), bottom = Math.round((frame.yOffset + frame.height) * sy);
-            frame.image.resize(Math.max(1, right - left), Math.max(1, bottom - top), options);
+            return { frame, left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
+        });
+        const resized = new Set<Image>();
+        for (const { frame, left, top, width, height } of changes) {
+            if (!resized.has(frame.image)) frame.image.resize(width, height, options);
+            resized.add(frame.image);
             frame.xOffset = left;
             frame.yOffset = top;
         }
@@ -266,7 +272,7 @@ export class Animation {
         width = Math.min(Math.floor(finite(width, 'width')), this.width - x);
         height = Math.min(Math.floor(finite(height, 'height')), this.height - y);
         if (!(width >= 1 && height >= 1)) throw new RangeError('The crop region has to overlap the canvas');
-        for (const frame of this.frames) {
+        for (const frame of this.__distinct__()) {
             frame.xOffset -= x;
             frame.yOffset -= y;
         }
@@ -286,7 +292,7 @@ export class Animation {
         const [boxWidth, boxHeight] = canvasSize(Math.floor(finite(width, 'width')), Math.floor(finite(height, 'height')));
         this.resize({ width: boxWidth, height: boxHeight, fit: 'inside', ...resizeOpts });
         const x = (boxWidth - this.width) / 2 | 0, y = (boxHeight - this.height) / 2 | 0;
-        for (const frame of this.frames) {
+        for (const frame of this.__distinct__()) {
             frame.xOffset += x;
             frame.yOffset += y;
         }
@@ -416,6 +422,16 @@ export class Animation {
         this.frames = frames;
         this.__canvas__ = [probe.width, probe.height];
         return this;
+    }
+
+    /**
+     * The frames without repeats: a frame can be listed several times (to hold it, or in a ping-pong), and a change to
+     * it has to apply once
+     * @internal
+     * @ignore
+     */
+    __distinct__(): Frame[] {
+        return [...new Set(this.__frames__)];
     }
 
     /**
