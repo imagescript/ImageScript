@@ -301,7 +301,8 @@ const meanValue = (image, left, top, right, bottom) => {
 	}
 
 	// invalid arguments throw before the image or its map changes
-	for (const [name, call] of [['blur', i => i.blur('5')], ['fill', i => i.fill('red')], ['resize cover', i => i.resize({width: -1, height: 10, fit: 'cover'})]]) {
+	for (const [name, call] of [['blur', i => i.blur('5')], ['fill', i => i.fill('red')], ['resize cover', i => i.resize({width: -1, height: 10, fit: 'cover'})],
+		['resize cover that can\'t be allocated', i => i.resize({width: 1, height: 1e9, fit: 'cover'})], ['fill that throws halfway', i => i.fill((x, y) => y > 2 ? NaN : 0xff0000ff)]]) {
 		const image = single.clone();
 		let threw = false;
 		try { call(image); } catch { threw = true; }

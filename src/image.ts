@@ -1098,10 +1098,13 @@ export class Image {
         if (typeof color !== 'function') color = checkColor(color);
 
         if (typeof color === 'function') {
+            // (written to a copy first: a function that throws leaves the image as it was)
+            const pixels = new Uint8ClampedArray(this.bitmap.length), out = new DataView(pixels.buffer);
             let offset = 0;
             for (let y = 0; y < this.height; y++)
                 for (let x = 0; x < this.width; x++, offset += 4)
-                    view.setUint32(offset, checkColor(color(x, y)), false);
+                    out.setUint32(offset, checkColor(color(x, y)), false);
+            this.bitmap.set(pixels);
         } else {
             view.setUint32(0, color, false);
             const u32 = new Uint32Array(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength / 4);
@@ -1239,9 +1242,11 @@ export class Image {
         if (resizeOpts.mode !== 'nearest-neighbor' && width >= 1 && height >= 1) {
             const region = { x: ~~((resizedWidth - width) / 2), y: ~~((resizedHeight - height) / 2), width, height };
             const fx = resizedWidth / this.width, fy = resizedHeight / this.height;
+            // (resampled first: this can fail to allocate, and the gain map has to stay as it was then)
+            const resized = this.__resize__(resizedWidth, resizedHeight, resizeOpts.mode, region);
             this.__gain_map__?.__transform__(this.width, this.height, width, height, (X, Y) => [(X + region.x) / fx, (Y + region.y) / fy], Math.min(fx, fy));
             this.__moved__?.(fx, fy, region.x, region.y);
-            return this.__apply__(this.__resize__(resizedWidth, resizedHeight, resizeOpts.mode, region));
+            return this.__apply__(resized);
         }
         this.resize(resizedWidth, resizedHeight, resizeOpts);
         return this.crop((this.width - width) / 2, (this.height - height) / 2, width, height);
