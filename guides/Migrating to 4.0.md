@@ -245,10 +245,9 @@ through a dark red (`7f00007f`) and one from red to transparent blue through pur
 
 ### Images use a copy of the gain map they are given
 
-`image.gainMap = map` stores a copy. 3.x had no gain maps, but in the 4.0 release candidates the image kept the object,
-so two images given one map changed it for both when either was resized or cropped. Now every image has its own, and
-changes to `map` after assigning it don't reach the image. `image.gainMap` itself returns the image's own map, which
-the image's methods keep up to date.
+`image.gainMap = map` stores a copy. 3.x kept the object, so two images given one map changed it for both when either
+was resized or cropped. Now every image has its own, and changes to `map` after assigning it don't reach the image.
+`image.gainMap` returns the image's own map, which the image's methods keep up to date.
 
 ### `dominantColor()` counts colors in a histogram, thresholds are channel values
 
