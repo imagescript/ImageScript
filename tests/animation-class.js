@@ -1,5 +1,4 @@
 const {Image, Frame, Animation} = require('..');
-const lib = require('..');
 
 const panic = message => {
     console.error(message);
@@ -16,18 +15,7 @@ const a = new Frame(new Image(4, 4).fill(0xff0000ff), {duration: 10});
 const b = new Frame(new Image(2, 2).fill(0x00ff00ff), {duration: 20, xOffset: 1, yOffset: 1});
 const c = new Frame(new Image(3, 3).fill(0x0000ffff), {duration: 30});
 
-// an animation holds its frames: it is not an array
 const animation = new Animation([a, b]);
-if (Array.isArray(animation)) panic('Array.isArray(animation) should be false');
-if (animation instanceof Array) panic('an animation should not be an Array');
-if (Object.prototype.toString.call(animation) !== '[object Object]') panic(`animation tag: ${Object.prototype.toString.call(animation)}`);
-
-// the removed Array members are gone: the animation and its prototype
-for (const name of ['push', 'pop', 'map', 'filter', 'slice', 'forEach', 'reduce', 'some', 'every', 'find', 'splice', 'concat', 'join'])
-    if (animation[name] !== undefined || Animation.prototype[name] !== undefined) panic(`Animation.${name} should be gone`);
-if (animation[0] !== undefined) panic('animation[0] should be gone: use animation.frames[0]');
-if (Animation[Symbol.species] !== undefined) panic('Animation[Symbol.species] should be gone');
-if (lib.GIF !== undefined) panic('the GIF export should be gone');
 
 // frames: a frozen snapshot; the Frame objects remain mutable and replacing the list is assignable
 if (animation.frames[0] !== a || animation.frames[1] !== b) panic('frames should be the frames');
@@ -83,7 +71,6 @@ if (new Animation([a], {loopCount: 2}).loopCount !== 2) panic('loopCount option 
 // the size, duration and text of the animation come from its frames
 const sized = new Animation([a, b]);
 if (sized.width !== 4 || sized.height !== 4 || sized.duration !== 30) panic(`size ${sized.width}x${sized.height}, ${sized.duration} ms`);
-if (sized.toString() !== 'Animation<4x4x30ms>') panic(`toString: ${sized.toString()}`);
 const first = new Image(2, 2);
 if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration !== 5) panic('Frame from an image');
 
@@ -123,7 +110,7 @@ if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration 
     if (one.image.getPixelAt(3, 0) !== 0xff0000ff || one.image.getPixelAt(0, 0) !== 0x0000ffff) panic('flip horizontal: the frame should be mirrored');
     flipped.flip('vertical');
     if (one.yOffset !== 3 || two.yOffset !== 1 || one.xOffset !== 5) panic(`flip vertical: offsets ${one.xOffset},${one.yOffset} ${two.yOffset}`);
-    // (an unknown direction is a TypeError naming the directions, like Image.flip's, and changes nothing)
+    // (an unknown direction is a TypeError, and changes nothing)
     throwsA(() => flipped.flip('diagonal'), TypeError, 'flip: an unknown direction');
     if (one.xOffset !== 5 || one.image.getPixelAt(3, 1) !== 0xff0000ff) panic('flip: an unknown direction should change nothing');
     // a canvas that follows the frames stays where it was

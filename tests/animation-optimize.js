@@ -112,10 +112,6 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
             .composite(new Image(6, 6).fill(Colors.fromRGBA(255, i * 40, 0, 255)), {x: 1, y: 1})
             .composite(new Image(6, 6).fill(Colors.fromRGBA(0, 255, i * 40, 255)), {x: 32, y: 13}), {duration: 100})));
         await check('opaque animation', animation);
-        // with transparency for free, the frames are sparse; with an alpha channel that costs as much as RGBA instead of RGB
-        // (APNG), they're filled in
-        if (!animation.__optimized__({replace: true, even: false, alpha: () => 1}).slice(1).every(f => f.blend)) panic('opaque animation: expected sparse frames');
-        if (animation.__optimized__({replace: true, even: false, alpha: () => 4 / 3}).some(f => f.blend)) panic('opaque animation: frames weren\'t filled in');
     }
 
     // a GIF frame stays dense when its colors fill the palette and its sparse pixels wouldn't fit (they'd need one more

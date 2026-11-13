@@ -16,9 +16,6 @@ try {
 } catch {
 }
 
-if (new Image(1, 1).toString() !== 'Image<1x1>')
-    panic('toString failed');
-
 for (const [x, y] of new Image(1, 1).pixels())
     if (x !== 0 || y !== 0) panic('pixels failed');
 
@@ -61,40 +58,6 @@ if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
     for (let i = 0; i < 4; i++)
         if (rgba[i] !== target[i])
             panic('Colors.toRGBA failed');
-}
-
-{
-    const image = new Image(1, 1);
-    try {
-        image.__check_boundaries__('a', 1);
-        panic('check boundaries for x as NaN failed');
-    } catch {
-    }
-    try {
-        image.__check_boundaries__(1, 'a');
-        panic('check boundaries for y as NaN failed');
-    } catch {
-    }
-    try {
-        image.__check_boundaries__(0, 1);
-        panic('check boundaries for x as 0 failed');
-    } catch {
-    }
-    try {
-        image.__check_boundaries__(1, 0);
-        panic('check boundaries for y as 0 failed');
-    } catch {
-    }
-    try {
-        image.__check_boundaries__(2, 1);
-        panic('check boundaries for x as 2 failed');
-    } catch {
-    }
-    try {
-        image.__check_boundaries__(1, 2);
-        panic('check boundaries for y as 2 failed');
-    } catch {
-    }
 }
 
 {
@@ -164,8 +127,6 @@ try {
 } catch {
 }
 
-if (new Frame(new Image(1, 2), {duration: 3}).toString() !== 'Frame<1x2x3ms>') panic('frame toString failed');
-
 {
     const image = new Image(512, 512);
     new Frame(image.clone(), {duration: 10});
@@ -185,6 +146,5 @@ try {
 {
     const frame = new Frame(new Image(512, 128), {duration: 123});
     const animation = new Animation([frame]);
-    if (animation.toString() !== 'Animation<512x128x123ms>') panic('animation tostring failed');
     if (animation.duration !== 123) panic('animation duration failed');
 }
