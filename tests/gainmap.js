@@ -65,7 +65,6 @@ const meanValue = (image, left, top, right, bottom) => {
 
 		// re-encoded (its pixels used): close; a quarter of the size
 		const used = await Image.decode(files[name]);
-		void used.gainMap.image;
 		const reencoded = await Image.decode(await used.encodeJPEG({quality: 90, gainMap: {quality: 90}}));
 		let sum = 0;
 		const a = reencoded.gainMap.image.bitmap, b = used.gainMap.image.bitmap;

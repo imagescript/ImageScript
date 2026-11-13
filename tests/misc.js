@@ -105,7 +105,7 @@ if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
     for (const func of funcs)
         for (const value of toFail)
             try {
-                func.call(image, toFail);
+                func.call(image, value);
                 panic(`${func.name} failed with value ${JSON.stringify(value)}`);
             } catch {
             }

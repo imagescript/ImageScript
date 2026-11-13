@@ -171,7 +171,7 @@ const throws = (call, type, message) => {
         assert(outputs.size === 4, 'encodeGIF: every dither method gives its own result');
         const none = await image.encodeGIF({colors: 4, metadata: {creationTime: 0}, ditherStrength: 0});
         const noDither = await image.encodeGIF({colors: 4, metadata: {creationTime: 0}, dither: 'none'});
-        assert(Buffer.from(none).equals(Buffer.from(noDither)) || none.length > 0, 'encodeGIF: strength 0');
+        assert(Buffer.from(none).equals(Buffer.from(noDither)), 'encodeGIF: ditherStrength 0 is no dithering');
         const animation = new Animation([new Frame(image.clone()), new Frame(image.clone().flip('horizontal'))]);
         const decoded = await Animation.decode(await animation.encodeGIF({colors: 16, dither: 'atkinson'}));
         assert(decoded.length === 2 && distinct(decoded.frames[0].image) <= 16, 'Animation.encodeGIF with palette options');

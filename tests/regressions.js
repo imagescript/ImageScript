@@ -611,7 +611,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         throws(() => square().dropShadow({x: NaN}), RangeError, 'NaN offset');
         const translucent = new Image(6, 6).fill(0xffffff80);
         const shadowed = translucent.clone().dropShadow({color: 0x000000ff});
-        assert(px(shadowed, 2, 2).join() === px(translucent, 2, 2).join() || px(shadowed, 2, 2)[3] >= 128, 'dropShadow keeps translucent pixels over their shadow');
+        assert(px(shadowed, 2, 2)[3] >= 128, 'dropShadow keeps translucent pixels over their shadow');
 
         // gain maps grow with the image
         const hdr = square();
@@ -628,7 +628,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const clipped = square().outline({width: 2, expand: false});
         assert(clipped.width === 10 && px(clipped, 2, 4).join() === '0,0,0,255' && px(clipped, 4, 4).join() === '255,128,64,255', 'outline({expand: false}) keeps the size');
         assert(square().outline({width: 0}).width === 10 && Buffer.from(square().outline({width: 0}).bitmap).equals(Buffer.from(square().bitmap)), 'outline({width: 0}) does nothing');
-        assert(px(square().outline({width: 1, color: 0x00ff0080}), 2 + 2, 2 + 4).slice(3).join() === '128' || Math.abs(alphaAt(square().outline({width: 1, color: 0x00ff0080}), 3 - 1 + 1, 3 + 2 + 1) - 128) <= 1, 'outline with a translucent color');
+        assert(Math.abs(alphaAt(square().outline({width: 1, color: 0x00ff0080}), 3 - 1 + 1, 3 + 2 + 1) - 128) <= 1, 'outline with a translucent color');
         const holey = new Image(9, 9).fill((x, y) => x >= 2 && x < 7 && y >= 2 && y < 7 && !(x === 4 && y === 4) ? 0xffffffff : 0);
         assert(alphaAt(holey.clone().outline({width: 1, color: 0x000000ff}), 1 + 4, 1 + 4) === 255, 'outline fills small holes of the shape');
         throws(() => square().outline({width: -1}), RangeError, 'negative outline width');
