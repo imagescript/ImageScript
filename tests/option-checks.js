@@ -1,4 +1,4 @@
-const {Image, Frame, Animation} = require('..');
+const {Image, Frame, Animation, LimitError} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -61,6 +61,8 @@ const rejects = async (name, fn, Type, pattern) => {
     await rejects('dominantColor threshold NaN', () => image.dominantColor({threshold: NaN}), RangeError, /threshold/);
     await rejects('renderSVG scale NaN', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {scale: NaN}), RangeError, /SVG scale/);
     await rejects('renderSVG maxPixels 0', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {maxPixels: 0}), RangeError, /maxPixels/);
+    // (the message names the render options, not the decode options)
+    await rejects('renderSVG maxPixels names the render options', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {maxPixels: 15}), LimitError, /SVG too large to render: 4x4 pixels exceed the limit of 15 \(the render options' maxPixels\)/);
     await rejects('renderSVG maxPixels exceeded', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {maxPixels: 15}), RangeError, /maxPixels/);
     if ((await Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {maxPixels: 16})).width !== 4)
         panic('renderSVG: maxPixels should allow an output that fits');

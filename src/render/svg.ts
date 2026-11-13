@@ -23,7 +23,7 @@ import { FontFace, FontStyle, fontFace, layOutText, parseFontFamilies, parseVari
 import { rasterizeGlyph } from './text.ts';
 import { renderPaintGlyph } from './colr.ts';
 import { decodeSync as decodePNG } from '../codecs/png.ts';
-import { MAX_PIXELS, LimitError, checkPixels } from '../util/limits.ts';
+import { MAX_PIXELS, LimitError } from '../util/limits.ts';
 
 const UNSUPPORTED = new Set(['filter', 'pattern', 'marker', 'foreignObject', 'script', 'style', 'title', 'desc', 'metadata',
     'defs', 'clipPath', 'mask', 'linearGradient', 'radialGradient', 'stop', 'symbol', 'font', 'font-face', 'animate', 'animateTransform', 'animateMotion', 'set']);
@@ -190,7 +190,8 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
 
     if (!Number.isSafeInteger(outWidth) || !Number.isSafeInteger(outHeight))
         throw new RangeError(`SVG output dimensions are too large: ${outWidth}x${outHeight}`);
-    checkPixels(outWidth, outHeight, maxPixels);
+    if (!(outWidth * outHeight <= maxPixels))
+        throw new LimitError(`SVG too large to render: ${outWidth}x${outHeight} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
 
     // (rendering is synchronous: the layers allocated until it returns are this render's)
     const previous = layerBudget;
