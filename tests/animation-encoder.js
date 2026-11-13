@@ -57,8 +57,7 @@ const metadata = {creationTime: 0, software: ''};
         if (!equal(file, expected)) panic('images and options: not the same file');
     }
 
-    // frames outside the canvas, or partly: cut to it like the Animation encoders do (they were passed through, which made
-    // GIF and WebP frames with the wrong pixels and APNG throw)
+    // frames outside the canvas, or partly: cut to it like the Animation encoders do
     {
         const make = () => [
             new Frame(new Image(20, 20).fill(0xff0000ff), {duration: 40, xOffset: -5, yOffset: -5}),

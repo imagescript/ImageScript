@@ -105,7 +105,7 @@ const meanValue = (image, left, top, right, bottom) => {
 		}
 	}
 
-	// the checks between the values name them (they run when the map is cloned or encoded, not when one is set)
+	// the checks between the values run when the map is cloned or encoded, not when one is set
 	{
 		const map = new GainMap(new Image(4, 4).fill(0x808080ff), {max: 2});
 		map.min = 5;

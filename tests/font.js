@@ -91,7 +91,7 @@ const panic = message => {
             return -1;
         };
 
-        // line metrics match the previous (fontdue based) renderer, glyphs are placed with subpixel precision
+        // line metrics, glyphs placed with subpixel precision
         const single = await render('Hi');
         if (single.width !== 40 || single.height !== 55) panic(`layout: unexpected size ${single.width}x${single.height}`);
 

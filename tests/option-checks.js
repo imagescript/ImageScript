@@ -5,7 +5,7 @@ const panic = message => {
     process.exit(1);
 };
 
-// invalid options throw a RangeError (or TypeError) naming them, before any work, instead of failing somewhere inside
+// invalid options throw a RangeError (or TypeError), before any work, instead of failing somewhere inside
 // an encoder or being ignored
 const rejects = async (name, fn, Type) => {
     try {
@@ -36,7 +36,7 @@ const rejects = async (name, fn, Type) => {
         await rejects(`Animation.encodeWebP effort ${effort}`, () => animation().encodeWebP({effort}), RangeError);
         await rejects(`webpEncoder effort ${effort}`, () => encoded(Animation.webpEncoder(8, 8, {effort})), RangeError);
     }
-    // (JPEG quality was clamped silently, like the other lossy formats' now throws)
+    // (out-of-range JPEG qualities throw, they aren't clamped)
     for (const quality of [-5, 101, 1000, NaN, Infinity]) {
         await rejects(`encodeJPEG quality ${quality}`, () => image.encodeJPEG({quality}), RangeError);
     }
@@ -83,7 +83,7 @@ const rejects = async (name, fn, Type) => {
                 await rejects(`${name} threads ${threads}`, call, RangeError);
     }
 
-    // a value outside a fixed set of choices is a TypeError naming them all
+    // a value outside a fixed set of choices is a TypeError
     await rejects('resize mode', () => image.clone().resize(4, 4, {mode: 'lanczos'}), TypeError);
     await rejects('scale mode', () => image.clone().scale(2, {mode: 'lanczos'}), TypeError);
     await rejects('blend mode', () => image.clone().composite(image, {mode: 'nope'}), TypeError);

@@ -237,7 +237,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const nearest = new Image(4, 1).fill((x) => Colors.fromRGB(x, 0, 0)).resize(2, 1, {mode: 'nearest-neighbor'});
         assert(rgba(nearest, 0, 0)[0] === 1 && rgba(nearest, 1, 0)[0] === 3, 'nearest neighbor should sample pixel centers');
 
-        // (the upper case names of the removed Image.RESIZE_* constants are unknown modes too)
+        // (upper case names are unknown modes too)
         for (const unknown of ['RESIZE_FOO', 'RESIZE_BILINEAR', 'RESIZE_AREA']) {
             let threw = false;
             try { checker.clone().resize(8, 8, {mode: unknown}); } catch { threw = true; }
@@ -342,7 +342,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
     {
         const frame = new Frame(new Image(1, 1), {duration: 100, xOffset: 0, yOffset: 0, disposalMode: 'previous'});
         assert(frame.disposalMode === 'previous', 'disposalMode should be a name, got ' + frame.disposalMode);
-        // the numeric ids (0-3) are not accepted any more, the names are
+        // disposal modes are names: the numeric ids are a TypeError
         let threw = false;
         try { frame.disposalMode = 0; } catch (e) { threw = e instanceof TypeError; }
         assert(threw && frame.disposalMode === 'previous', 'disposalMode should only take names');
@@ -558,7 +558,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(px(radial, 4, 4)[0] > 240 && px(radial, 0, 0)[0] < 40 && px(radial, 0, 8).join() === px(radial, 8, 0).join(), 'radialGradient from the center to the farthest corner');
         const circle = Image.radialGradient(20, 20, {stops: [0xff0000ff, 0x0000ffff], x: 5.5, y: 5.5, radius: 4});
         assert(px(circle, 5, 5)[0] > 240 && px(circle, 15, 15).join() === '0,0,255,255' && px(circle, 9, 5)[2] > 200, 'radialGradient with a center and a radius');
-        // sizes with a fraction are truncated like Image's: the same gradient as the whole sizes (they threw out of the buffer)
+        // sizes with a fraction are truncated like Image's: the same gradient as the whole sizes 
         for (const [name, make] of [['linearGradient', (w, h) => Image.linearGradient(w, h, {stops, angle: 70})], ['radialGradient', (w, h) => Image.radialGradient(w, h, {stops})]]) {
             const fractional = make(5.7, 3.2), whole = make(5, 3);
             assert(fractional.width === 5 && fractional.height === 3 && Buffer.from(fractional.bitmap).equals(Buffer.from(whole.bitmap)), `${name} with fractional sizes`);
@@ -664,7 +664,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(base.clone().rotate(45, {expand: false}).width === 20 && base.clone().rotate(45).width > 20, 'rotate options');
         const navy = new Image(10, 10).fill(0x00002aff).composite(new Image(3, 3).fill(0xc8c800ff), {x: 0, y: 0});
         assert(navy.dominantColor({threshold: 0}) === 0x00002aff, 'dominantColor options');
-        // the threshold is in channel values: navy's brightest channel is 42 (the default, 60, is 3.x's 15 steps of 4)
+        // the threshold is in channel values: navy's brightest channel is 42 (the default is 60)
         assert(navy.dominantColor({threshold: 42}) === 0x00002aff && navy.dominantColor({threshold: 43}) !== 0x00002aff && navy.dominantColor() === navy.dominantColor({threshold: 60}), 'dominantColor threshold in channel values');
     }
 
@@ -934,7 +934,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         await tooLarge('tiff samples', () => Image.decode(tiff));
         await tooLarge('gif frames', () => Animation.decode(gif, {maxPixels: 4000 * 4000 * 10}));
                 await tooLarge('maxPixels', () => Image.decode(png(100, 100), {maxPixels: 9999}));
-        // (the limit's error is exported, and tells itself from other RangeErrors by its name)
+        // (the limit's error is a LimitError, which is a RangeError)
         {
             let error = null;
             try { await Image.decode(png(100, 100), {maxPixels: 9999}); } catch (err) { error = err; }

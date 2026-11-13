@@ -121,7 +121,7 @@ const panic = msg => {
             }
     }
 
-    // right angles with `expand: false` keep the size like every other angle (they used to swap width and height):
+    // right angles with `expand: false` keep the size like every other angle :
     // the turned image is centered, what doesn't fit is cut off
     {
         for (const [width, height] of [[4, 2], [5, 2], [2, 5], [3, 3], [6, 4]]) {
