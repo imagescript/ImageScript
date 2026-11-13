@@ -447,6 +447,10 @@ export interface WebPEncodeOptions extends EncodeOptions {
     /**
      * For lossless compression, the maximum worker threads to use. Small images or runtimes that cannot share memory
      * between workers use one thread
+     * @remarks
+     * Where workers can't start, the work runs on the calling thread with the same output. That includes browser pages
+     * that aren't cross-origin isolated and ones that load the package from another origin (a CDN such as jsDelivr),
+     * which browsers don't allow to start workers
      * @defaultValue The available processors, up to 8
      */
     threads?: number;
@@ -626,6 +630,10 @@ export interface DecodeOptions {
     /**
      * Maximum worker threads for formats and image sizes that can be decoded in parallel. Small images may use one
      * thread because starting workers can take longer than decoding them
+     * @remarks
+     * Where workers can't start, the work runs on the calling thread with the same output. That includes browser pages
+     * that aren't cross-origin isolated and ones that load the package from another origin (a CDN such as jsDelivr),
+     * which browsers don't allow to start workers
      * @defaultValue The available processors, up to 8 (one in runtimes that cannot share memory between workers)
      */
     threads?: number;
@@ -647,6 +655,10 @@ export interface JXLEncodeOptions extends EncodeOptions {
     /**
      * Maximum worker threads for compression. Small images or runtimes that cannot share memory between workers use
      * one thread
+     * @remarks
+     * Where workers can't start, the work runs on the calling thread with the same output. That includes browser pages
+     * that aren't cross-origin isolated and ones that load the package from another origin (a CDN such as jsDelivr),
+     * which browsers don't allow to start workers
      * @defaultValue The available processors, up to 8
      */
     threads?: number;
@@ -684,6 +696,10 @@ export interface AVIFEncodeOptions extends EncodeOptions {
     /**
      * Maximum worker threads for compression. Small images or runtimes that cannot share memory between workers use
      * one thread
+     * @remarks
+     * Where workers can't start, the work runs on the calling thread with the same output. That includes browser pages
+     * that aren't cross-origin isolated and ones that load the package from another origin (a CDN such as jsDelivr),
+     * which browsers don't allow to start workers
      * @defaultValue The available processors, up to 8
      */
     threads?: number;
@@ -2841,7 +2857,7 @@ export class Image {
      * const webp = await image.resize({ width: 800 }).encodeWebP({ quality: 80 });
      * ```
      * @param input The binary data to decode
-     * @param options See {@link DecodeOptions}. JPEGs, TIFFs and PNGs are rotated/mirrored as their orientation tag
+     * @param options See {@link DecodeOptions}. JPEGs, TIFFs, PNGs, WebPs and JPEG XLs are rotated/mirrored as their orientation
      *     (Exif, for PNGs also XMP) says by default: photos taken with a rotated camera are stored sideways
      * @return The decoded image
      * @throws {@link LimitError} if the image has more than `options.maxPixels` pixels (checked before its pixels are

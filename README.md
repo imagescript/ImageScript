@@ -39,6 +39,12 @@ Without a bundler, import it from jsDelivr in the browser:
 </script>
 ```
 
+The codecs that can use worker threads (large AVIF and JPEG XL images, lossless WebP; the `threads` option) do so in
+Node.js, Deno and Bun, and in browsers on cross-origin isolated pages. Where workers can't start, the work runs on the
+calling thread: the output is the same, only slower, and nothing warns about it. Browsers refuse workers from another
+origin, so the jsDelivr example above runs single-threaded; serve the package from your own origin (on a cross-origin
+isolated page) to get threads.
+
 ---
 
 ### Example
