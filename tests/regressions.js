@@ -986,7 +986,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(nested.width === 100, 'deeply nested elements should render');
     }
     {
-        // NaN and the infinities throw instead of drawing black, transparent or nothing; numeric strings still work
+        // NaN and the infinities throw instead of drawing black, transparent or nothing; numeric strings are refused
         const {Image, Frame, Animation} = require('..');
         const image = () => new Image(8, 8).fill(0xff0000ff);
         const calls = {
@@ -1022,8 +1022,11 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
                 if (!await Image.renderText('a', { font, size: 12, [side]: value }).then(() => false, e => e instanceof RangeError)) panic(`renderText: ${side} ${String(value)} should throw a RangeError`);
         if (!await Image.renderText('a', { font, size: 12, width: 6, strokeWidth: 3 }).then(() => false, e => e instanceof RangeError)) panic('renderText: a width the outline fills should throw');
 
-        const strings = image().crop('1', '1', '4', '4').rotate('45').opacity('0.5').composite(image(), {x: '1', y: '2'});
-        if (strings.width !== 6) panic('numeric strings should keep working');
+        for (const [name, call] of Object.entries({crop: () => image().crop('1', 1, 4, 4), rotate: () => image().rotate('45'), opacity: () => image().opacity('0.5'),
+            composite: () => image().composite(image(), {x: '1', y: 2}), resize: () => image().resize('4', 4), quantize: () => image().quantize({colors: '4'}),
+            trim: () => image().trim({tolerance: '0.1'}), colorToAlpha: () => image().colorToAlpha({transparencyThreshold: '0'}), gradient: () => Colors.gradient([1, 2])('0.5'),
+            maxPixels: () => Image.decode(new Uint8Array(1), {maxPixels: '100'}), threads: () => Image.decode(new Uint8Array(1), {threads: '2'}), null: () => image().rotate(null)}))
+            assert(await Promise.resolve().then(call).then(() => false, e => e instanceof TypeError), `${name}: a numeric string (or null) should throw a TypeError`);
     }
     {
         // SVG parsing doesn't backtrack: long malformed styles, references, lengths and colors parse in linear time

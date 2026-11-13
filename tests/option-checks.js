@@ -26,8 +26,10 @@ const rejects = async (name, fn, Type) => {
     };
 
     for (const effort of [-1, 3, 1.5, NaN, '1', null]) {
-        await rejects(`encodeAVIF effort ${effort}`, () => image.encodeAVIF({effort}), RangeError);
-        await rejects(`encodeJXL effort ${effort}`, () => image.encodeJXL({effort}), RangeError);
+        // (what isn't a number is a TypeError)
+        const type = typeof effort === 'number' ? RangeError : TypeError;
+        await rejects(`encodeAVIF effort ${effort}`, () => image.encodeAVIF({effort}), type);
+        await rejects(`encodeJXL effort ${effort}`, () => image.encodeJXL({effort}), type);
     }
     for (const effort of [-1, 7, 1.5, NaN]) {
         // (lossless WebP doesn't use it, but checks it)
@@ -109,8 +111,9 @@ const rejects = async (name, fn, Type) => {
 
     // compression levels are integers 0-9, like efforts (out of range ones aren't clamped)
     for (const compression of [-1, 10, 99, 4.5, NaN, '4', null]) {
-        await rejects(`encodePNG compression ${compression}`, () => image.encodePNG({compression}), RangeError);
-        await rejects(`encodeAPNG compression ${compression}`, () => animation().encodeAPNG({compression}), RangeError);
+        const type = typeof compression === 'number' ? RangeError : TypeError;
+        await rejects(`encodePNG compression ${compression}`, () => image.encodePNG({compression}), type);
+        await rejects(`encodeAPNG compression ${compression}`, () => animation().encodeAPNG({compression}), type);
     }
 
     // colors are integers from -2^31 (what bitwise operators return) to 2^32 - 1: others throw instead of wrapping

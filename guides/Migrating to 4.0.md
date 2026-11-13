@@ -1,7 +1,7 @@
 # Migrating to 4.0
 
-ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes twelve behaviors. Most of the
-removals are mechanical: the compiler points at them. The fourteen behavior changes are not deprecations, nothing warns
+ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes sixteen behaviors. Most of the
+removals are mechanical: the compiler points at them. The sixteen behavior changes are not deprecations, nothing warns
 about them, and code keeps compiling while it does something else. Read the first section even if your build is clean.
 
 Node.js 22.13 or newer is required, as it was for 3.x (`engines` in `package.json`).
@@ -13,7 +13,7 @@ The recommended path:
    problems list, or a lint rule for deprecated APIs (typescript-eslint has `no-deprecated`), to get the full list.
 2. Fix every deprecation hint, using the tables below.
 3. Switch to 4.0, fix what the compiler reports with the [renamed and reshaped APIs](#renamed-and-reshaped-apis), and go
-   through the fourteen behavior changes. The [checklist](#checklist) at the end has grep patterns
+   through the sixteen behavior changes. The [checklist](#checklist) at the end has grep patterns
    for finding the code they affect.
 
 ## Behavior changes
@@ -235,6 +235,20 @@ thrown once resizing started), `composite()`'s `mode`, `flip()` and `disposalMod
 
 Search your code for: `compression:`, `xOffset`, `yOffset`, `.bitmap =`, `duration:` above 655 seconds, and catch
 blocks that check for `RangeError` around `resize()`, `composite()`, `flip()` and `disposalMode`.
+
+### Gradients blend transparency premultiplied
+
+`Colors.gradient()`, and so `Image.linearGradient()` and `radialGradient()`, blend colors with an alpha below 255
+premultiplied, like CSS does. 3.x blended the channels as they are, so a gradient from transparent black to red went
+through a dark red (`7f00007f`) and one from red to transparent blue through purple; now the middle of the first is
+`ff00007f` and what fades out leaves no color behind. Gradients between opaque colors are unchanged.
+
+### Images use a copy of the gain map they are given
+
+`image.gainMap = map` stores a copy. 3.x had no gain maps, but in the 4.0 release candidates the image kept the object,
+so two images given one map changed it for both when either was resized or cropped. Now every image has its own, and
+changes to `map` after assigning it don't reach the image. `image.gainMap` itself returns the image's own map, which
+the image's methods keep up to date.
 
 ### `dominantColor()` counts colors in a histogram, thresholds are channel values
 
@@ -631,7 +645,7 @@ grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
 Also search for the variables that hold animations, and for `[0]`, `.map(`, `.filter(` and `.forEach(` on them: the
 search can't tell an animation from an array, so check the type of each receiver.
 
-Then compile with `tsc`, and run the tests that cover your decode and encode paths. The fourteen behavior changes need
+Then compile with `tsc`, and run the tests that cover your decode and encode paths. The sixteen behavior changes need
 runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every resize fit mode, every HSL hue,
 every `rotate()`, every `dominantColor()` threshold, all text rendered with a size, every JPEG made from an image with transparency, every `quantize()`, the size changes of frames, the
-values that now throw, anything that reads the metadata of encoded files, and every SVG with images.
+values that now throw, gradients with transparent stops, gain maps given to images, anything that reads the metadata of encoded files, and every SVG with images.

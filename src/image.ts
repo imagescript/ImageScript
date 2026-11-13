@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, oneOf, pixelLimit, checkThreads, gainMapScale, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, nonNegative, positive, oneOf, pixelLimit, checkThreads, gainMapScale, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -1405,6 +1405,7 @@ export class Image {
      * @ignore
      */
     __trim_bounds__(color: Color | undefined, { tolerance = 0 }: TrimOptions): [number, number, number, number] | null {
+        finite(tolerance, 'tolerance');
         if (!(tolerance >= 0 && tolerance <= 1)) throw new RangeError('Invalid tolerance, it has to be between 0 and 1');
 
         const bitmap = this.bitmap;
@@ -2306,6 +2307,8 @@ export class Image {
         checkOptions(options, 'colorToAlpha({ color: 0xffffffff })');
         const { color: colorOption, transparencyThreshold = 0, opacityThreshold = 1 } = options;
         let color = colorOption;
+        finite(transparencyThreshold, 'transparencyThreshold');
+        finite(opacityThreshold, 'opacityThreshold');
         if (!(transparencyThreshold >= 0 && opacityThreshold <= 1 && transparencyThreshold < opacityThreshold))
             throw new RangeError('Invalid thresholds, they have to satisfy 0 <= transparencyThreshold < opacityThreshold <= 1');
 
@@ -2594,10 +2597,10 @@ export class Image {
     /**
      * Applies a fisheye (barrel distortion) effect
      * @param options See {@link FisheyeOptions}
+     * @throws `RangeError` if the strength is 0 or less
      */
     fisheye(options?: FisheyeOptions): this;
     fisheye(options: FisheyeOptions = {}): this {
-     * @throws `RangeError` if the strength is 0 or less
         checkOptions(options, 'fisheye({ strength: 3 })');
         const strength = positive(options.strength ?? 2, 'strength');
         const r = new Image(this.width, this.height);
@@ -2992,7 +2995,7 @@ export class Image {
         checkOptions(options, 'renderSVG(svg, { width: 512 })');
         const { width: givenWidth, height: givenHeight, scale, maxPixels = MAX_PIXELS, font: fonts = [], images: givenImages = {} } = options;
         pixelLimit(maxPixels);
-        const { maxLayerPixels = 4 * Number(maxPixels), maxImagePixels = Number(maxPixels) } = options;
+        const { maxLayerPixels = 4 * maxPixels, maxImagePixels = maxPixels } = options;
         pixelLimit(maxLayerPixels, 'maxLayerPixels');
         pixelLimit(maxImagePixels, 'maxImagePixels');
         const sizes = [givenWidth, givenHeight, scale].filter(value => value !== undefined).length;
@@ -3023,7 +3026,7 @@ export class Image {
         const source = typeof svg === 'string' ? svg : view(svg);
         const images = new Map<string, svgRenderer.RasterImage | svgRenderer.ImageError>();
         const shown = (href: string): string => JSON.stringify(href.length > 100 ? `${href.slice(0, 100)}...` : href);
-        let imagePixels = Number(maxImagePixels);
+        let imagePixels = maxImagePixels;
         for (const { href, data } of svgRenderer.imageReferences(source)) {
             const value = given.get(href) ?? data;
             if (!value) continue;
@@ -3053,7 +3056,7 @@ export class Image {
             }
         }
 
-        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, (Array.isArray(fonts) ? fonts : [fonts]).map(font => view(font)), Number(maxPixels), Number(maxLayerPixels));
+        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, (Array.isArray(fonts) ? fonts : [fonts]).map(font => view(font)), maxPixels, maxLayerPixels);
         const image = new Image(width, height);
         image.bitmap.set(pixels);
 
@@ -3099,7 +3102,7 @@ export class Image {
         if (layout.width !== undefined) layout.width -= 2 * pad;
         if (layout.height !== undefined) layout.height -= 2 * pad;
         // color glyph layers in the text color take it without its alpha, which applies to the whole color glyph
-        const rendered = await textRenderer.render(fonts.map(view), size, text, layout, hinting, (r << 24 | g << 16 | b << 8 | 255) >>> 0, featureList(features), axes, Number(maxPixels), pad);
+        const rendered = await textRenderer.render(fonts.map(view), size, text, layout, hinting, (r << 24 | g << 16 | b << 8 | 255) >>> 0, featureList(features), axes, maxPixels, pad);
 
         const width = rendered.width + 2 * pad, height = rendered.height + 2 * pad;
         const coverage = new Uint8Array(width * height);

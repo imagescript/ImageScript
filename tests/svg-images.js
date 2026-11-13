@@ -187,8 +187,8 @@ const crc32 = bytes => {
         await throwsA(Image.renderSVG(svg(body, 4, 3), {images: two, maxPixels: 23}), RangeError, 'two images over maxPixels');
         await Image.renderSVG(svg(body), {images: {'a.png': logo, 'b.png': other}, maxImagePixels: 1});
         await Image.renderSVG(svg(body, 4, 3), {images: two, maxPixels: 23, maxImagePixels: Infinity});
-        for (const value of [0, -1, NaN, 'many'])
-            await throwsA(Image.renderSVG(svg(body), {images: two, maxImagePixels: value}), RangeError, `maxImagePixels ${value}`);
+        for (const [value, type] of [[0, RangeError], [-1, RangeError], [NaN, RangeError], ['many', TypeError], ['100', TypeError]])
+            await throwsA(Image.renderSVG(svg(body), {images: two, maxImagePixels: value}), type, `maxImagePixels ${value}`);
     }
 
     // maxLayerPixels: the layers alive at once (nested groups with opacity each take one), by default 4 * maxPixels

@@ -24,14 +24,19 @@ export function oneOf<T extends string>(value: unknown, allowed: readonly T[], n
     return value as T;
 }
 
+/** Throws a TypeError naming the argument unless it is a number (NaN and the infinities are numbers) */
+export function checkNumber(value: unknown, name: string): void {
+    if (typeof value !== 'number') throw new TypeError(`${name} must be a number, not ${value === null ? 'null' : typeof value}`);
+}
+
 /**
- * A number argument, converted like arithmetic does (numeric strings keep working); NaN and the infinities throw
- * a RangeError naming the argument
+ * A number argument: anything that isn't a number (a numeric string included) throws a TypeError, NaN and the
+ * infinities a RangeError, both naming the argument
  */
 export function finite(value: number, name: string): number {
-    const number = Number(value);
-    if (!Number.isFinite(number)) throw new RangeError(`Invalid ${name}: ${value}`);
-    return number;
+    checkNumber(value, name);
+    if (!Number.isFinite(value)) throw new RangeError(`Invalid ${name}: ${value}`);
+    return value;
 }
 
 /**
@@ -86,6 +91,20 @@ export function fitDuration(duration: number, format: keyof typeof DURATION_LIMI
     return duration;
 }
 
+/** A number of 0 or more, finite: a negative one throws a RangeError naming the argument */
+export function nonNegative(value: number, name: string): number {
+    finite(value, name);
+    if (value < 0) throw new RangeError(`${name} must be 0 or more, not ${value}`);
+    return value;
+}
+
+/** A number above 0, finite: 0 and negative ones throw a RangeError naming the argument */
+export function positive(value: number, name: string): number {
+    finite(value, name);
+    if (!(value > 0)) throw new RangeError(`${name} must be above 0, not ${value}`);
+    return value;
+}
+
 /** A quality argument (0-100) of the encoders that take one, finite and in range */
 export function quality(value: number, name = 'quality'): number {
     const q = finite(value, name);
@@ -95,8 +114,9 @@ export function quality(value: number, name = 'quality'): number {
 
 /** A limit of pixels (`maxPixels`, ...): a number above 0, `Infinity` lifts it. Returns it as a number */
 export function pixelLimit(value: number, name = 'maxPixels'): number {
-    if (!(Number(value) > 0)) throw new RangeError(`${name} must be a positive number, not ${value}`);
-    return Number(value);
+    checkNumber(value, name);
+    if (!(value > 0)) throw new RangeError(`${name} must be a positive number, not ${value}`);
+    return value;
 }
 
 /** The `scale` of a gain map: above 0 and at most 1 (1 is the size of the image) */
@@ -108,17 +128,20 @@ export function gainMapScale(value: number): number {
 
 /** The `threads` option: a whole number of at least 1 */
 export function checkThreads(threads: number): void {
+    checkNumber(threads, 'threads');
     if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
 }
 
 /** An effort argument: an integer from 0 to max */
 export function effort(value: number, max: number): number {
+    checkNumber(value, 'effort');
     if (!Number.isInteger(value) || value < 0 || value > max) throw new RangeError(`effort must be an integer 0-${max}, not ${value}`);
     return value;
 }
 
 /** A zlib compression level (PNG's and APNG's): an integer from 0 to 9, like effort */
 export function compressionLevel(value: number): number {
+    checkNumber(value, 'compression level');
     if (!Number.isInteger(value) || value < 0 || value > 9) throw new RangeError(`compression level must be an integer 0-9, not ${value}`);
     return value;
 }

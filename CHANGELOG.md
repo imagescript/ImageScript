@@ -135,11 +135,6 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `scale()` keeps each side at least one pixel like `resize()`, where `new Image(7, 1).scale(0.5)` threw.
 - A damaged JPEG XL whose blend refers to a channel that doesn't exist throws the decoding error instead of a `TypeError` from inside the decoder.
 - The gain map's checks across its values (`min` and `max`, `hdrCapacityMin` and `hdrCapacityMax`) name the values that conflict, since they apply when the map is cloned or encoded, not when a value is set.
-- `renderSVG()` parses `transform` lists in linear time: a long list of unclosed functions took 4.8 s at 280 KB.
-
-## 3.20.1
-
-### Performance
 - `Animation.crop()` clips a region that starts outside the canvas like `Image.crop()` does: `crop(-5, -5, 10, 10)` of a 20x20 canvas gave 10x10 instead of 5x5.
 - `Animation.resize()` resizes frames that share one `Image` at different offsets to the size their edges give (they got the first one's width, so a frame could reach past the canvas), and throws for a width or height below one pixel instead of returning 1x1.
 - The GIF encoders throw a `RangeError` for a canvas wider or higher than 65535 pixels (it was stored modulo 65536: 70000 became 4464), and all encoders for an animation without a canvas (every frame outside it), which WebP wrote as 16777216x16777216.
@@ -147,6 +142,11 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `resize({ fit: 'cover' })` and `fill()` leave an image (and its gain map) as it was when they throw: a `cover` that couldn't allocate its result had already changed the gain map, and a `fill()` function that threw halfway had written half the pixels.
 - `Colors.gradient()` with one color throws for a `NaN` position like the others.
 - TIFF files that ask for far more memory than they are are refused before anything is allocated: YCbCr subsampling factors other than 1, 2 and 4 (65534x65535 took 4 GB and 5 s for a 32 KB file) and more than 32 samples per pixel (1 GB for 33 KB), and the memory of the YCbCr units counts against `maxPixels`.
+- `renderSVG()` parses `transform` lists in linear time: a long list of unclosed functions took 4.8 s at 280 KB.
+
+## 3.20.1
+
+### Performance
 
 - Drawing on an image with a gain map (an HDR photo) is much faster: `drawBox()` and `drawCircle()` only recompute the part of the map they cover, instead of the whole map for every call. 400 scanlines over a 1820x1820 Ultra HDR photo take 0.3 s instead of 5.8 s, with the same result.
 - `composite()` onto or from an image with a gain map is up to twice as fast: 1820x1820 with a blend mode like `'add'` takes 0.22 s instead of 0.48 s, with the same result. Gain maps stay in sync with the pixels as before.

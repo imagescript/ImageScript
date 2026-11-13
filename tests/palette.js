@@ -137,8 +137,8 @@ const blockError = (original, result) => {
         ];
         for (const [fn, type, label] of bad) throwsA(fn, type, label);
         if (!Buffer.from(image.bitmap).equals(snapshot)) panic('a failed quantize changed the image');
-        // numeric strings are accepted like the other numeric options
-        if (colorsOf(photo(9, 9).quantize({colors: '4'})).size > 4) panic('colors: "4" not accepted');
+        // numeric strings are refused like they are by the other numeric options
+        throwsA(() => photo(9, 9).quantize({colors: '4'}), TypeError, 'colors: "4"');
     }
 
     // edge sizes, and a plain pixel stays what it was

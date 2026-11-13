@@ -1,4 +1,4 @@
-import { finite, color as checkColor } from './util/options.ts';
+import { finite, checkNumber, color as checkColor } from './util/options.ts';
 import type { Color } from './image.ts';
 
 /** Clamps and rounds a channel value to 0..255 */
@@ -60,6 +60,12 @@ export function rgbaToHSLA(r: number, g: number, b: number, a: number): [h: numb
     }
 
     return [h, s, l, a / 255];
+}
+
+/** A position along a gradient: a number (the infinities are fine, they reach the ends), not NaN */
+function checkPosition(position: number): void {
+    checkNumber(position, 'gradient position');
+    if (Number.isNaN(position)) throw new RangeError(`Invalid gradient position: ${position}`);
 }
 
 function gradientBetween(startColor: Color, endColor: Color): (position: number) => Color {
@@ -215,13 +221,13 @@ export class Colors {
         if (positions.length === 0) throw new RangeError('Invalid gradient point count');
         else if (positions.length === 1) {
             return position => {
-                if (Number.isNaN(position)) throw new RangeError(`Invalid gradient position: ${position}`);
+                checkPosition(position);
                 return values[0];
             };
         } else if (positions.length === 2) {
             const gradient = gradientBetween(values[0], values[1]);
             return position => {
-                if (Number.isNaN(position)) throw new RangeError(`Invalid gradient position: ${position}`);
+                checkPosition(position);
                 if (position <= positions[0]) return values[0];
                 if (position >= positions[1]) return values[1];
                 return gradient((position - positions[0]) / (positions[1] - positions[0]));
@@ -251,7 +257,7 @@ export class Colors {
 
         // (every stop at the same position: a hard edge between the first and the last color)
         if (!gradients.length) return position => {
-            if (Number.isNaN(position)) throw new RangeError(`Invalid gradient position: ${position}`);
+            checkPosition(position);
             return position <= minDef ? values[0] : values[values.length - 1];
         };
 

@@ -485,10 +485,10 @@ const panic = message => {
         await tooLarge('an outline over the default maxPixels', {strokeWidth: 10000});
         const unlimited = await Image.renderText('hi', {font, size: 16, strokeWidth: 3, maxPixels: Infinity});
         if (unlimited.width !== plain.width + 6) panic('maxPixels: Infinity should lift the limit');
-        for (const maxPixels of [0, -1, NaN, 'many']) {
+        for (const [maxPixels, type] of [[0, RangeError], [-1, RangeError], [NaN, RangeError], ['many', TypeError], ['100', TypeError]]) {
             let error = null;
             try { await Image.renderText('hi', {font, size: 16, maxPixels}); } catch (err) { error = err; }
-            if (!(error instanceof RangeError)) panic(`renderText maxPixels ${maxPixels} should throw a RangeError`);
+            if (!(error instanceof type)) panic(`renderText maxPixels ${maxPixels} should throw a ${type.name}`);
         }
     }
 })();

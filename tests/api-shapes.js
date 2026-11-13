@@ -42,10 +42,9 @@ const throws = (call, type, message) => {
         throws(() => { frame.xOffset = Infinity; }, RangeError, 'frame.xOffset = Infinity');
         throws(() => { frame.yOffset = NaN; }, RangeError, 'frame.yOffset = NaN');
         assert(frame.duration === 50 && frame.xOffset === 1 && frame.yOffset === 2, 'frame: a failed set keeps the value');
-        frame.duration = '40';
-        assert(frame.duration === 40, 'frame.duration: numeric strings are converted');
+        throws(() => { frame.duration = '40'; }, TypeError, 'frame.duration = \'40\'');
         const copy = frame.clone();
-        assert(copy.duration === 40 && copy.xOffset === 1 && copy.yOffset === 2, 'Frame.clone keeps duration and offsets');
+        assert(copy.duration === 50 && copy.xOffset === 1 && copy.yOffset === 2, 'Frame.clone keeps duration and offsets');
     }
 
     // an animation's canvas: its own size once set, frames outside it are clipped when encoding
