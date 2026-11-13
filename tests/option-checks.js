@@ -119,7 +119,13 @@ const rejects = async (name, fn, Type) => {
         await rejects(`fill color ${color}`, () => image.clone().fill(color), RangeError);
         await rejects(`fill function color ${color}`, () => image.clone().fill(() => color), RangeError);
     }
-    await rejects('fill function without a color', () => image.clone().fill(() => undefined), RangeError);
+    // values that do nothing useful throw: a negative radius, a fisheye strength that leaves an empty image
+    await rejects('roundCorners radius -1', () => image.clone().roundCorners({radius: -1}), RangeError);
+    await rejects('fisheye strength -1', () => image.clone().fisheye({strength: -1}), RangeError);
+    await rejects('fisheye strength 0', () => image.clone().fisheye({strength: 0}), RangeError);
+    image.clone().roundCorners({radius: 0});
+    image.clone().roundCorners({radius: 1e6});
+    await rejects('fill function without a color', () => image.clone().fill(() => undefined), TypeError);
     if (new Image(1, 1).setPixelAt(0, 0, 0xff << 24 | 0xff).getPixelAt(0, 0) !== 0xff0000ff) panic('a negative (signed) color should be read as unsigned');
     if (new Image(1, 1).fill(-1).getPixelAt(0, 0) !== 0xffffffff) panic('fill(-1) should be white');
 

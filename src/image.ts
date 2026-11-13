@@ -455,7 +455,7 @@ export interface WebPEncodeOptions extends EncodeOptions {
 /** Options of {@link Image.roundCorners} */
 export interface RoundCornersOptions {
     /**
-     * The radius of the corners
+     * The radius of the corners, 0 or more; one above half the smaller side is cut to that
      * @defaultValue A quarter of the smaller side
      */
     radius?: number;
@@ -464,7 +464,8 @@ export interface RoundCornersOptions {
 /** Options of {@link Image.fisheye} */
 export interface FisheyeOptions {
     /**
-     * The distortion strength (exponent of the radial mapping), higher values bulge the center more
+     * The distortion strength (exponent of the radial mapping), above 0: higher values bulge the center more. At 1 and
+     * below, the picture shrinks into the middle of the image (0 and negative strengths leave nothing of it)
      * @defaultValue `2`
      */
     strength?: number;
@@ -2571,8 +2572,8 @@ export class Image {
     roundCorners(options: RoundCornersOptions = {}): this {
         checkOptions(options, 'roundCorners({ radius: 10 })');
         let radius = options.radius ?? Math.min(this.width, this.height) / 4;
-        radius = finite(radius, 'radius');
-        radius = Math.max(0, Math.min(radius, this.width / 2, this.height / 2));
+        radius = nonNegative(radius, 'radius');
+        radius = Math.min(radius, this.width / 2, this.height / 2);
         const size = Math.ceil(radius);
 
         // coverage of the top left corner, mirrored onto the others
@@ -2596,8 +2597,9 @@ export class Image {
      */
     fisheye(options?: FisheyeOptions): this;
     fisheye(options: FisheyeOptions = {}): this {
+     * @throws `RangeError` if the strength is 0 or less
         checkOptions(options, 'fisheye({ strength: 3 })');
-        const strength = finite(options.strength ?? 2, 'strength');
+        const strength = positive(options.strength ?? 2, 'strength');
         const r = new Image(this.width, this.height);
 
         const w = this.width;

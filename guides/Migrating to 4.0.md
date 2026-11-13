@@ -220,6 +220,9 @@ Several values that 3.x quietly changed into something else now throw, naming th
 | Frame durations over what the format stores (GIF and APNG 655350 ms, WebP 16777215 ms) | cut to the format's limit | a `RangeError`, like loop counts that don't fit. Unchanged frames that are merged are split at the limit instead |
 | `frame.xOffset`, `frame.yOffset` (and encoder `add()` offsets) | stored as given, fractions included (`0.4`) | truncated to integers when set, like image sizes, so the offset you read is the one that is encoded |
 | `image.bitmap = view` with a view that doesn't start at a multiple of 4 bytes | copied, so changes to the view no longer reached the image | a `TypeError`: pass an aligned view, or `view.slice()` for a copy |
+| A number given as a string (`'0.5'`), `null` or a boolean where a number goes (`opacity('0.5')`, `quality: '50'`, `frame.duration = '40'`, `maxPixels: '100'`, `Colors.gradient()`'s positions) | converted by some methods (`'0.5'` was `0.5`, `null` was `0`), rejected by others | a `TypeError` naming the value, by all of them |
+| `roundCorners({ radius })` below 0 | clamped to 0 | a `RangeError` |
+| `fisheye({ strength })` of 0 or less | an empty image | a `RangeError` |
 | `Colors.gradient()` at a `NaN` position | transparent black with two stops, a `RangeError` with more | a `RangeError` with any number of stops |
 | `encodeGIF()` of an animation without frames | a GIF that doesn't decode | an `Error`, like `encodeAPNG()` and `encodeWebP()` |
 | `quality` of `encodeJPEG()` | clamped to 1-100 | a number from 0 to 100 (0 is 1), else a `RangeError`, like the other lossy formats |
