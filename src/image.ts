@@ -103,6 +103,8 @@ export type ResizeToOptions = ResizeOptions & (
          * @defaultValue `'fill'`
          */
         fit?: 'fill' | 'inside';
+        /** Only with `fit: 'contain'` */
+        background?: never;
     }
     | {
         /** The exact width of the box */
@@ -124,6 +126,8 @@ export type ResizeToOptions = ResizeOptions & (
         height: number;
         /** Keeps the aspect ratio and crops to the exact box */
         fit: 'cover';
+        /** Only with `fit: 'contain'` */
+        background?: never;
     }
 );
 
@@ -209,6 +213,7 @@ export type AffineTransform = readonly [a: number, b: number, c: number, d: numb
 // the sampling modes of Image.transform()
 const TRANSFORM_MODES: readonly TransformMode[] = ['nearest-neighbor', 'bilinear', 'bicubic'];
 const RESIZE_FITS: readonly ResizeFit[] = ['fill', 'inside', 'contain', 'cover'];
+const CIRCLE_FITS: readonly NonNullable<CropCircleOptions['fit']>[] = ['contain', 'cover'];
 const SUBSAMPLINGS: readonly string[] = ['4:4:4', '4:2:0'];
 /** @internal */
 export const TONE_MAPPINGS: readonly ToneMapping[] = ['reinhard', 'clamp'];
@@ -730,12 +735,12 @@ export interface TextStyleOptions {
 /** Options of {@link Image.cropCircle} */
 export interface CropCircleOptions {
     /**
-     * The circle's size: `'contain'` fits it inside the image (the smaller dimension is its diameter, no hard edges),
+     * How the circle fits the image: `'contain'` fits it inside the image (the smaller dimension is its diameter, no hard edges),
      * `'cover'` covers the image (the larger dimension is its diameter, the corners of a rectangular image stay
      * transparent on the shorter side)
      * @defaultValue `'contain'`
      */
-    size?: 'contain' | 'cover';
+    fit?: 'contain' | 'cover';
     /**
      * Share of the radius (0..1) over which the edge fades out
      * @defaultValue `0`
@@ -1456,11 +1461,11 @@ export class Image {
      * @see {@link Image.roundCorners} for rounded corners
      */
     cropCircle(options: CropCircleOptions = {}): this {
-        checkOptions(options, 'cropCircle({ size: \'cover\' })');
-        const { size = 'contain', feathering = 0 } = options;
+        checkOptions(options, 'cropCircle({ fit: \'cover\' })');
+        const { fit = 'contain', feathering = 0 } = options;
         finite(feathering, 'feathering');
-        if (size !== 'contain' && size !== 'cover') throw new TypeError(`Invalid circle size: ${String(size)}`);
-        const radius = (size === 'cover' ? Math.max : Math.min)(this.width, this.height) / 2;
+        oneOf(fit, CIRCLE_FITS, 'fit');
+        const radius = (fit === 'cover' ? Math.max : Math.min)(this.width, this.height) / 2;
         const cx = this.width / 2, cy = this.height / 2;
         // width of the soft edge, at least the one pixel of antialiasing
         const band = Math.min(1, Math.max(0, feathering)) * radius;

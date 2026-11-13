@@ -426,16 +426,16 @@ Each of them extends the options of the format's still images: `GIFAnimationEnco
 | `Image.renderText(font, size, text, options)` | `Image.renderText(text, { font, size, ...options })` |
 | `TextOptions` (type) | `RenderTextOptions` |
 | `verticalAlign: 'right'`, `horizontalAlign: 'bottom'` (the other axis' values) | `horizontalAlign` takes `'left'`, `'center'` or `'right'`, `verticalAlign` takes `'top'`, `'middle'` or `'bottom'`. Other values throw a `TypeError` |
-| `image.cropCircle(true)` | `image.cropCircle({ size: 'cover' })` |
-| `image.cropCircle(true, feathering)` | `image.cropCircle({ size: 'cover', feathering })` |
-| `image.cropCircle(false)` | `image.cropCircle()`, the default `size: 'contain'` |
-| `image.cropCircle({ max: true })` | `image.cropCircle({ size: 'cover' })` |
+| `image.cropCircle(true)` | `image.cropCircle({ fit: 'cover' })` |
+| `image.cropCircle(true, feathering)` | `image.cropCircle({ fit: 'cover', feathering })` |
+| `image.cropCircle(false)` | `image.cropCircle()`, the default `fit: 'contain'` |
+| `image.cropCircle({ max: true })` | `image.cropCircle({ fit: 'cover' })` |
 | `PNGMetadata` (type) | `Metadata`, which all encoders take |
 
 `renderText()` takes the text first. The font, the size, the color, the layout options ({@link TextLayoutOptions}) and
 the style are all in the one options object, documented in {@link RenderTextOptions}. Crop options are in
 {@link CropCircleOptions}. A key that is not an option is ignored without an error, so
-`cropCircle({ max: true })` quietly becomes the default `contain`: change it to `size: 'cover'`.
+`cropCircle({ max: true })` quietly becomes the default `contain`: change it to `fit: 'cover'`.
 
 ### Positional arguments
 
@@ -566,7 +566,7 @@ A method that takes options now throws a `TypeError` when its argument is anythi
 That covers numbers, strings, booleans and `null`. The message names the form that works, for example:
 
 ```text
-TypeError: cropCircle() takes an options object, like cropCircle({ size: 'cover' }), not boolean
+TypeError: cropCircle() takes an options object, like cropCircle({ fit: 'cover' }), not boolean
 ```
 
 This is how the positional calls you missed show up at runtime. It applies to every method that takes options,

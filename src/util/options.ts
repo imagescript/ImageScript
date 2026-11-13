@@ -5,7 +5,7 @@ export function isOptions<T>(value: T): value is Extract<T, object> {
 
 /**
  * Checks that the options argument of a method is left out or an object: anything else throws a TypeError instead of
- * being ignored silently, naming the form that works (`usage`, e.g. `cropCircle({ size: 'cover' })`)
+ * being ignored silently, naming the form that works (`usage`, e.g. `cropCircle({ fit: 'cover' })`)
  */
 export function checkOptions(value: unknown, usage: string): void {
     if (value !== undefined && !isOptions(value)) throw new TypeError(`${usage.split('(')[0]}() takes an options object, like ${usage}, not ${value === null ? 'null' : typeof value}`);

@@ -400,16 +400,16 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(pixels[4].slice(0, 2).join() === '1,1' && pixels[4][2] === Colors.fromRGBA(50, 100, 7, 255), 'pixels() is row by row');
     }
 
-    // cropCircle({size}): 'contain' is the default
+    // cropCircle({fit}): 'contain' is the default
     {
         const wide = new Image(40, 20).fill(Colors.fromRGBA(200, 100, 50, 255));
         const same = (a, b) => Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
-        assert(same(wide.clone().cropCircle(), wide.clone().cropCircle({size: 'contain'})), 'cropCircle() is contain');
-        assert(!same(wide.clone().cropCircle({size: 'cover'}), wide.clone().cropCircle({size: 'contain'})), 'cover differs from contain');
-        assert(wide.clone().cropCircle({size: 'contain'}).getPixelAt(20, 1) >>> 0 !== 0 && (wide.clone().cropCircle({size: 'contain'}).getPixelAt(1, 10) & 0xff) === 0, 'contain: the circle fits the height');
+        assert(same(wide.clone().cropCircle(), wide.clone().cropCircle({fit: 'contain'})), 'cropCircle() is contain');
+        assert(!same(wide.clone().cropCircle({fit: 'cover'}), wide.clone().cropCircle({fit: 'contain'})), 'cover differs from contain');
+        assert(wide.clone().cropCircle({fit: 'contain'}).getPixelAt(20, 1) >>> 0 !== 0 && (wide.clone().cropCircle({fit: 'contain'}).getPixelAt(1, 10) & 0xff) === 0, 'contain: the circle fits the height');
         let threw = false;
-        try { wide.clone().cropCircle({size: 'max'}); } catch (e) { threw = e instanceof TypeError; }
-        assert(threw, 'cropCircle({size}) validates');
+        try { wide.clone().cropCircle({fit: 'max'}); } catch (e) { threw = e instanceof TypeError; }
+        assert(threw, 'cropCircle({fit}) validates');
     }
 
     // the encoders take the options of the encode functions

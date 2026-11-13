@@ -22,7 +22,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`PNGMetadata` is removed**: use `Metadata`, which all encoders take. The type is the same.
 
-- **The `max` argument of `cropCircle()` is removed**: `cropCircle(true, feathering)` and `cropCircle({ max: true })` are now `cropCircle({ size: 'cover', feathering })`, and `cropCircle(false)` is `cropCircle()`, the default `size: 'contain'`.
+- **The `max` argument of `cropCircle()` is removed**: `cropCircle(true, feathering)` and `cropCircle({ max: true })` are now `cropCircle({ fit: 'cover', feathering })`, and `cropCircle(false)` is `cropCircle()`, the default `size: 'contain'`.
 
 - **The positional forms of `Image.renderText()` are removed**: `Image.renderText(font, size, text, color?, layout?, style?)` and `Image.renderText(font, size, text, options?)` are now `Image.renderText(text, { font, size, color, ...layout, ...style })`.
 
@@ -135,6 +135,13 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 ## 3.20.1
 
 ### Performance
+- `Animation.crop()` clips a region that starts outside the canvas like `Image.crop()` does: `crop(-5, -5, 10, 10)` of a 20x20 canvas gave 10x10 instead of 5x5.
+- `Animation.resize()` resizes frames that share one `Image` at different offsets to the size their edges give (they got the first one's width, so a frame could reach past the canvas), and throws for a width or height below one pixel instead of returning 1x1.
+- The GIF encoders throw a `RangeError` for a canvas wider or higher than 65535 pixels (it was stored modulo 65536: 70000 became 4464), and all encoders for an animation without a canvas (every frame outside it), which WebP wrote as 16777216x16777216.
+- `Animation.decode()` of a JPEG XL animation counts the pixels of all frames against `maxPixels`, like the other formats; a frame was counted alone.
+- `resize({ fit: 'cover' })` and `fill()` leave an image (and its gain map) as it was when they throw: a `cover` that couldn't allocate its result had already changed the gain map, and a `fill()` function that threw halfway had written half the pixels.
+- `Colors.gradient()` with one color throws for a `NaN` position like the others.
+- TIFF files that ask for far more memory than they are are refused before anything is allocated: YCbCr subsampling factors other than 1, 2 and 4 (65534x65535 took 4 GB and 5 s for a 32 KB file) and more than 32 samples per pixel (1 GB for 33 KB), and the memory of the YCbCr units counts against `maxPixels`.
 
 - Drawing on an image with a gain map (an HDR photo) is much faster: `drawBox()` and `drawCircle()` only recompute the part of the map they cover, instead of the whole map for every call. 400 scanlines over a 1820x1820 Ultra HDR photo take 0.3 s instead of 5.8 s, with the same result.
 - `composite()` onto or from an image with a gain map is up to twice as fast: 1820x1820 with a blend mode like `'add'` takes 0.22 s instead of 0.48 s, with the same result. Gain maps stay in sync with the pixels as before.
@@ -177,7 +184,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `resize({ width })` and `resize({ height })` on images, frames and animations: the missing side keeps the aspect
   ratio, `resize({ width: 256, mode: 'bicubic' })`.
 - `image.coordinates()` yields `[x, y]` and `image.pixels()` yields `[x, y, color]` for every pixel, row by row.
-- `cropCircle({ size: 'contain' | 'cover' })`: `'contain'` (the default, as before) keeps the circle inside the image.
+- `cropCircle({ fit: 'contain' | 'cover' })`: `'contain'` (the default, as before) keeps the circle inside the image.
 - `Image.renderText(text, { font, size, color, layout, ...style })`: the text first, everything else in the options.
   `layout` is `TextLayoutOptions` or a `TextLayout`: `Image.renderText('Hi', { font, size: 32, layout: { maxWidth: 400 } })`.
 - `Infinity` as the loop count of animations that loop forever (`new Animation(frames, { loopCount: Infinity })`,
@@ -201,7 +208,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
   `APNGAnimationEncoderOptions`: they are the same as `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`,
   `GIFEncodeOptions` and `APNGEncodeOptions` with `loopCount`, which are all the types there are in 4.0.
 - `encode()`: use `encodePNG()`, which takes the same arguments. Removed in 4.0.
-- `cropCircle(max, feathering)` and the `max` option: use `cropCircle({ size: 'contain' | 'cover' })`. Removed in 4.0.
+- `cropCircle(max, feathering)` and the `max` option: use `cropCircle({ fit: 'contain' | 'cover' })`. Removed in 4.0.
 
 ### Documentation
 

@@ -134,14 +134,14 @@ const sameImage = (image, reference, label) => {
     if (new Frame(new Image(20, 12)).resize(10, 6, {mode: 'area'}).width !== 10) panic('Frame.resize(10, 6, { mode })');
     if (new Animation([new Frame(new Image(20, 12))]).resize(10, 6, {mode: 'area'}).frames[0].width !== 10) panic('Animation.resize(10, 6, { mode })');
 
-    // cropCircle takes its size and feathering in the options object only
+    // cropCircle takes its fit and feathering in the options object only
     for (const [label, bad] of Object.entries({'true': true, 'false': false, 'a number': 0.5, 'a string': 'cover', 'null': null, 'a typed array': new Uint8Array(2)})) {
         const image = photo.clone();
         await refuses(`cropCircle(${label})`, () => image.cropCircle(bad));
         sameImage(image, photo, `cropCircle(${label})`);
     }
-    for (const fine of [undefined, {}, {size: 'cover'}, {size: 'contain', feathering: 0.1}]) photo.clone().cropCircle(fine);
-    await refuses('cropCircle with an unknown size', () => photo.clone().cropCircle({size: 'huge'}));
+    for (const fine of [undefined, {}, {fit: 'cover'}, {fit: 'contain', feathering: 0.1}]) photo.clone().cropCircle(fine);
+    await refuses('cropCircle with an unknown fit', () => photo.clone().cropCircle({fit: 'huge'}));
 
     // renderText(text, { font, size, ... }) is the only form: the font first is refused too
     const ok = await Image.renderText('Hi', {font, size: 24});
