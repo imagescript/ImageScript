@@ -86,6 +86,17 @@ if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration 
     throwsA(() => new Animation([new Frame(picture())]).crop(-20, 0, 10, 10), RangeError, 'a region outside the canvas');
 }
 
+// frames of one image at different offsets resize to the sizes their edges give, each its own
+{
+    const shared = new Image(9, 4).fill(0xff0000ff);
+    const animation = new Animation([new Frame(shared), new Frame(shared, {xOffset: 3})], {width: 12, height: 4}).resize(2, 4);
+    const [first, second] = animation.frames;
+    if (first.width !== 2 || second.width !== 1 || second.xOffset !== 1) panic(`shared image: widths ${first.width}, ${second.width}, second at ${second.xOffset}; canvas ${animation.width}`);
+    if (first.image === second.image) panic('frames that need different sizes can\'t share the image');
+    if (second.xOffset + second.width > animation.width) panic('a frame reaches past the canvas');
+    throwsA(() => new Animation([new Frame(new Image(4, 4))]).resize(0, 0), RangeError, 'resize(0, 0)');
+}
+
 // a frame listed twice (to hold it, or in a ping-pong), or two frames of one image, change once
 {
     const shape = frames => frames.map(frame => [frame.xOffset, frame.yOffset, frame.width, frame.height]).join(';');

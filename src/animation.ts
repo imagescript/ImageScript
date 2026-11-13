@@ -219,6 +219,7 @@ export class Animation {
      * @param width The new width
      * @param height The new height
      * @param options See {@link ResizeOptions}
+     * @throws `RangeError` if the width or height is less than 1 pixel, or the animation has no canvas
      */
     resize(width: number, height: number, options?: ResizeOptions): this;
     /**
@@ -237,6 +238,9 @@ export class Animation {
         }
         const originalWidth = this.width, originalHeight = this.height;
         if (!originalWidth || !originalHeight) throw new RangeError('An animation without frames or canvas can\'t be resized');
+        // (a side that is given has to be a pixel at least, like Image.resize() wants; one that follows the other can't be less)
+        if (givenWidth !== undefined && Math.round(givenWidth) < 1) throw new RangeError('The animation has to be at least 1 pixel wide');
+        if (givenHeight !== undefined && Math.round(givenHeight) < 1) throw new RangeError('The animation has to be at least 1 pixel high');
         // a side left out follows the other one, keeping the aspect ratio
         let width = givenWidth ?? originalWidth / originalHeight * (givenHeight as number);
         let height = givenHeight ?? originalHeight / originalWidth * width;
@@ -251,10 +255,19 @@ export class Animation {
             const right = Math.round((frame.xOffset + frame.width) * sx), bottom = Math.round((frame.yOffset + frame.height) * sy);
             return { frame, left, top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) };
         });
-        const resized = new Set<Image>();
+        const shared = new Set<Image>(), seen = new Set<Image>();
+        for (const { frame } of changes) (seen.has(frame.image) ? shared : seen).add(frame.image);
+        const originals = new Map<Image, Image>(Array.from(shared, image => [image, image.clone()]));
+        const resized = new Map<Image, string>();
         for (const { frame, left, top, width, height } of changes) {
-            if (!resized.has(frame.image)) frame.image.resize(width, height, options);
-            resized.add(frame.image);
+            const size = `${width}x${height}`, done = resized.get(frame.image), original = originals.get(frame.image);
+            if (done === undefined) {
+                resized.set(frame.image, size);
+                frame.image.resize(width, height, options);
+            } else if (done !== size && original) {
+                // (the frame's image was resized already: the copy of the original is what the others start from)
+                frame.image = original.clone().resize(width, height, options);
+            }
             frame.xOffset = left;
             frame.yOffset = top;
         }
