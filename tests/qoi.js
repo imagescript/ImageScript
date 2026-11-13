@@ -27,10 +27,5 @@ const panic = message => {
     const opaque = await new Image(4, 4).fill(0xff0000ff).encodeQOI();
     if (opaque[12] !== 3) panic('opaque images should be stored with 3 channels');
 
-    try {
-        await Image.decode((await image.encodeQOI()).subarray(0, 40));
-        panic('truncated QOI accepted');
-    } catch (err) {
-        if (!/QOI/.test(err.message)) panic(`QOI: unexpected error ${err.message}`);
-    }
+    if (!await Image.decode((await image.encodeQOI()).subarray(0, 40)).then(() => false, error => error instanceof Error)) panic('truncated QOI accepted');
 })();

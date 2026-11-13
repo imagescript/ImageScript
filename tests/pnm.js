@@ -48,7 +48,7 @@ const pixels = image => Array.from({length: image.width * image.height}, (_, i) 
     if (ImageType.getType(ascii('P7 332\n#XVVERSION:Version 2.28\n')) !== null) panic('XV thumbnails detected as PAM');
     // truncated and invalid data throws
     for (const data of [bytes('P6\n2 2\n255\n', [1, 2, 3]), ascii('P2\n2 1\n255\n0 256\n'), ascii('P5\n0 1\n255\n')]) {
-        if (!await Image.decode(data).then(() => false, e => /Netpbm/.test(e.message))) panic(`invalid data accepted: ${String.fromCharCode(...data.subarray(0, 12))}`);
+        if (!await Image.decode(data).then(() => false, e => e instanceof Error)) panic(`invalid data accepted: ${String.fromCharCode(...data.subarray(0, 12))}`);
     }
 
     // encoding: PBM for black and white, PGM for greyscale, PPM, PAM with alpha

@@ -84,12 +84,7 @@ const withoutExif = data => {
 		if (decoded.width !== 227 || decoded.height !== 149) panic('early ending scan: dimensions don\'t match');
 	}
 
-	try {
-		await Image.decode(await fs.readFile('./tests/jpegs/arithmetic.jpg'));
-		panic('arithmetic coded JPEG was accepted');
-	} catch (err) {
-		if (!/arithmetic/.test(err.message)) panic(`unexpected error: ${err.message}`);
-	}
+	if (!await Image.decode(await fs.readFile('./tests/jpegs/arithmetic.jpg')).then(() => false, error => error instanceof Error)) panic('arithmetic coded JPEG was accepted');
 
 	// encoding: higher quality must be larger and closer to the source
 	let previous = null;

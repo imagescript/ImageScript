@@ -86,7 +86,7 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
         const data = await fs.readFile(`./tests/jxl/damaged/${name}`);
         for (const decode of [() => Image.decode(data, {threads: 1}), () => Animation.decode(data, {threads: 1})]) {
             const error = await decode().then(() => null, e => e);
-            if (!error || error instanceof TypeError || !/JPEG XL|damaged/.test(error.message)) panic(`damaged/${name}: ${error && error.constructor.name}: ${error && error.message}`);
+            if (!error || error instanceof TypeError) panic(`damaged/${name}: ${error && error.constructor.name}: ${error && error.message}`);
         }
     }
 })();

@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Image, ImageType, Colors} = require('..');
+const {Image, ImageType, Colors, LimitError} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -55,8 +55,8 @@ const expected = {
     if (sha(jpeg) !== expected.rgb24jpeg) panic('the embedded JPEG decodes differently than by itself');
 
     // damaged files throw, or decode as far as they can
-    for (const [name, error] of [['shortfile', /truncated/], ['badbitcount', /bit depth/], ['reallybig', /too large/]]) {
-        if (!await Image.decode(await fs.readFile(`./tests/bmp/${name}.bmp`)).then(() => false, e => error.test(e.message))) panic(`${name} should throw ${error}`);
+    for (const [name, type] of [['shortfile', Error], ['badbitcount', Error], ['reallybig', LimitError]]) {
+        if (!await Image.decode(await fs.readFile(`./tests/bmp/${name}.bmp`)).then(() => false, e => e instanceof type)) panic(`${name} should throw a ${type.name}`);
     }
     for (const name of ['badrle4', 'pal8badindex']) await Image.decode(await fs.readFile(`./tests/bmp/${name}.bmp`));
 

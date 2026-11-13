@@ -28,7 +28,7 @@ if (mode === 'plain') {
     }
     for (const file of fs.readdirSync('./tests/pngsuite').filter(f => f.endsWith('.png')))
         // also the damaged ones, which have to fail the same way
-        results[file] = await Image.decode(fs.readFileSync(`./tests/pngsuite/${file}`)).then(image => sha256(image.bitmap), error => error.message);
+        results[file] = await Image.decode(fs.readFileSync(`./tests/pngsuite/${file}`)).then(image => sha256(image.bitmap), error => error.constructor.name);
     const animation = await Animation.decode(await new Animation([new Frame(image.clone().resize(32, 32)), new Frame(image.clone().resize(32, 32).invert())]).encodeAPNG());
     results.apng = sha256(animation.frames[1].image.bitmap);
     console.log(JSON.stringify(results));

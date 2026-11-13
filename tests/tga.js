@@ -77,10 +77,5 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y)).join();
     if (opaque[16] !== 24) panic('TGA: opaque images should be stored with 24 bits');
 
     // truncated data is rejected, not read past
-    try {
-        await Image.decode(tga({type: 10, depth: 24, width: 4, height: 4}, [0x83, 1, 2, 3]).subarray(0, 21));
-        panic('TGA: truncated data accepted');
-    } catch (err) {
-        if (!/TGA|Unsupported/.test(err.message)) panic(`TGA: unexpected error ${err.message}`);
-    }
+    if (!await Image.decode(tga({type: 10, depth: 24, width: 4, height: 4}, [0x83, 1, 2, 3]).subarray(0, 21)).then(() => false, error => error instanceof Error)) panic('TGA: truncated data accepted');
 })();

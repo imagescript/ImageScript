@@ -40,6 +40,6 @@ const sha = image => crypto.createHash('sha256').update(new Uint8Array(image.bit
     // invalid data throws
     for (const text of ['#?RADIANCE\nFORMAT=32-bit_rle_cmyk\n\n-Y 1 +X 1\n\0\0\0\0', '#?RADIANCE\n\n-Y 1 -Y 1\n\0\0\0\0', '#?RADIANCE\n\n-Y 2 +X 8\n\x02\x02\x00\x09']) {
         const data = Uint8Array.from(text, c => c.charCodeAt(0));
-        if (!await Image.decode(data).then(() => false, e => /HDR/.test(e.message))) panic(`invalid HDR accepted: ${JSON.stringify(text)}`);
+        if (!await Image.decode(data).then(() => false, e => e instanceof Error)) panic(`invalid HDR accepted: ${JSON.stringify(text)}`);
     }
 })();

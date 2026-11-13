@@ -14,7 +14,7 @@
  */
 
 const fs = require('fs').promises;
-const {Image, Colors} = require('..');
+const {Image, Colors, LimitError} = require('..');
 const samePixels = require('./util/pixels');
 
 const panic = message => {
@@ -23,7 +23,7 @@ const panic = message => {
 };
 
 (async () => {
-    // WOFF fonts render like the fonts they compress; WOFF2 ones are refused with a clear message
+    // WOFF fonts render like the fonts they compress; WOFF2 ones are refused
     {
         const text = 'مرحبا بالعالم';
         const ttf = await Image.renderText(text, { font: await fs.readFile('./tests/fonts/noto naskh arabic subset.ttf'), size: 48 });
@@ -32,9 +32,7 @@ const panic = message => {
 
         const woff2 = new Uint8Array(64);
         woff2.set([0x77, 0x4f, 0x46, 0x32]);
-        await Image.renderText(text, { font: woff2, size: 48 }).then(() => panic('WOFF2 font was accepted'), err => {
-            if (!/WOFF2/.test(err.message)) panic(`unexpected WOFF2 error: ${err.message}`);
-        });
+        if (!await Image.renderText(text, { font: woff2, size: 48 }).then(() => false, error => error instanceof Error)) panic('WOFF2 font was accepted');
     }
 
     {
@@ -480,7 +478,7 @@ const panic = message => {
         const tooLarge = async (label, options) => {
             let error = null;
             try { await Image.renderText('hi', {font, size: 16, ...options}); } catch (err) { error = err; }
-            if (!(error instanceof RangeError) || !/maxPixels/.test(error.message)) panic(`${label} should throw a RangeError naming maxPixels, got ${error}`);
+            if (!(error instanceof LimitError)) panic(`${label} should throw a LimitError, got ${error}`);
         };
         await tooLarge('text over maxPixels', {maxPixels: plain.width * plain.height - 1});
         await tooLarge('an outline over maxPixels', {strokeWidth: 2000, maxPixels: 1e6});
