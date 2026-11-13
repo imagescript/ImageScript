@@ -891,11 +891,15 @@ export class Image {
 
     /**
      * Replaces the gain map
+     * @remarks
+     * The image uses a copy of the map: changing the image (resizing it, say) changes its own map only, also when the
+     * same map was given to other images, and later changes to the map you gave don't reach the image
      * @param gainMap The new gain map, or `null` to remove it
+     * @throws `TypeError` if it isn't a {@link GainMap} or `null`
      */
     set gainMap(gainMap: GainMap | null) {
         if (gainMap !== null && !(gainMap instanceof GainMap)) throw new TypeError('The gain map has to be a GainMap or null');
-        this.__gain_map__ = gainMap;
+        this.__gain_map__ = gainMap?.clone() ?? null;
     }
 
     /**

@@ -329,6 +329,26 @@ const meanValue = (image, left, top, right, bottom) => {
 		if (gainsOf(inverted).some(g => Math.abs(g) > 0.02)) panic('invert: the map still boosts');
 	}
 
+	// a map given to images is copied: resizing or cropping one image leaves the others' maps (and the map given) alone
+	{
+		const given = new GainMap(new Image(8, 8).fill(0x808080ff), {max: 2});
+		const a = new Image(64, 64), b = new Image(64, 64), c = new Image(64, 64);
+		a.gainMap = given;
+		b.gainMap = given;
+		c.gainMap = given;
+		b.resize(32, 32);
+		c.crop(0, 0, 16, 16);
+		const size = image => `${image.gainMap.image.width}x${image.gainMap.image.height}`;
+		if (size(a) !== '8x8' || given.image.width !== 8) panic(`a map shared by images: ${size(a)} and ${given.image.width}x${given.image.height} after the others changed, expected 8x8`);
+		if (size(b) !== '4x4' || size(c) !== '2x2') panic(`the images' own maps: ${size(b)} and ${size(c)}, expected 4x4 and 2x2`);
+		given.max = 4;
+		if (a.gainMap.max[0] !== 2) panic('a map changed after it was given to an image reached the image');
+		// (the image's own map stays live: it is the object the getter returns, and the image's operations update it)
+		const own = a.gainMap;
+		a.resize(32, 32);
+		if (a.gainMap !== own || own.image.width !== 4) panic('the image\'s own map should be the same object, resized');
+	}
+
 	// other formats don't carry it, removing works
 	const removed = single.clone();
 	removed.gainMap = null;
