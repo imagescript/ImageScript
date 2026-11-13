@@ -17,6 +17,25 @@ const throwsA = async (fn, type, label) => {
     const photo = new Image(12, 8).fill((x, y) => Colors.fromRGBA(x * 20, y * 30, 90, 255));
     const two = new Animation([new Frame(photo.clone(), {duration: 50}), new Frame(photo.clone().invert(), {duration: 70})]);
 
+    // an APNG that is cut off keeps the frames that arrived whole, like a GIF does; one that ends properly with fewer
+    // frames than it announces, or has no whole frame, doesn't (the default image shows, or it throws)
+    {
+        const frames = [0xff0000ff, 0x00ff00ff, 0x0000ffff, 0xffff00ff].map(color => new Frame(new Image(48, 48).fill((x, y) => (color ^ (x * 0x01000000 + y * 0x00010000)) >>> 0 | 0xff), {duration: 40}));
+        const apng = await new Animation(frames).encodeAPNG({compression: 0});
+        const complete = await Animation.decode(apng);
+        if (complete.length !== 4) panic(`the APNG should have 4 frames, got ${complete.length}`);
+        const counts = [];
+        for (let cut = apng.length - 12; cut > apng.length / 3; cut -= 997) {
+            const decoded = await Animation.decode(apng.subarray(0, cut)).catch(() => null);
+            if (!decoded) continue;
+            counts.push(decoded.length);
+            decoded.frames.forEach((frame, i) => { if (sha256(frame.image.bitmap) !== sha256(complete.frames[i].image.bitmap)) panic(`a frame of the APNG cut at ${cut} differs from the whole file's`); });
+        }
+        if (!counts.includes(2) && !counts.includes(3)) panic(`cut APNGs should decode with the frames that arrived whole, got ${counts}`);
+        if (counts.some((n, i) => i && n > counts[i - 1])) panic('more frames from less data');
+        await throwsA(() => Animation.decode(apng.subarray(0, 60)), Error, 'an APNG cut before its first frame');
+    }
+
     // multiple frames: an Animation, with every frame
     const gif = await fs.readFile('./tests/targets/gif.gif');
     const gifFrames = await decode(gif);

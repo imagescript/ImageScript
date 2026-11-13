@@ -498,6 +498,8 @@ interface Parsed {
     frames: Array<{ control: APNGFrameControl, data: Uint8Array[] }>;
     /** set if the animation is broken, which makes decoders fall back to the default image */
     animationError: boolean;
+    /** set for an animation that ends before its IEND chunk: the frames that are there are what it has (the last one can be cut) */
+    truncated: boolean;
 }
 
 function parse(array: Uint8Array): Parsed {
@@ -518,6 +520,7 @@ function parse(array: Uint8Array): Parsed {
     let current: Parsed['frames'][number] | null = null;
     let sequence = 0;
     let animationError = false;
+    let ended = false, truncated = false;
 
     let offset = 8;
     while (offset + 8 <= array.length) {
@@ -585,7 +588,7 @@ function parse(array: Uint8Array): Parsed {
         else if (type === iCCP) iccp ??= chunk;
         else if (type === sRGB) srgb = true;
         else if (type === tEXt || type === zTXt || type === iTXt) text.push({ type, chunk });
-        else if (type === IEND) break;
+        else if (type === IEND) { ended = true; break; }
 
         offset = end + 4;
     }
@@ -603,9 +606,15 @@ function parse(array: Uint8Array): Parsed {
     // more frames than announced are ignored; fewer (or none) make the animation invalid
     if (animation) {
         if (frames.length > animation.frames) frames.length = animation.frames;
-        if (!frames.length || frames.length < animation.frames || frames.some(f => !f.data.length)) animationError = true;
+        // a file cut short keeps the frames that arrived (the last one may be cut: the decoder checks), like it does
+        // for GIF; one that ends properly with fewer frames than it announced is invalid
+        if (!ended) {
+            truncated = true;
+            while (frames.length && !frames[frames.length - 1].data.length) frames.pop();
+        }
+        if (!frames.length || (frames.length < animation.frames && !truncated) || frames.some(f => !f.data.length)) animationError = true;
     }
-    return { header, palette, transparency, idat, exif, iccp: srgb ? null : iccp, text, animation, frames, animationError };
+    return { header, palette, transparency, idat, exif, iccp: srgb ? null : iccp, text, animation, frames, animationError, truncated };
 }
 
 // the interlace passes of an image ([x start, y start, x step, y step, width, height]) and its inflated size
@@ -734,12 +743,20 @@ export async function decodeAnimation(array: Uint8Array, firstFrameOnly = false,
     const frames: APNGFrame[] = [];
     for (const { control: c, data } of p.frames) {
         if (!c.width || !c.height || c.x + c.width > width || c.y + c.height > height) throw new Error('PNG: invalid APNG frame region');
+        let pixels: Uint8Array;
+        try {
+            pixels = await decodeImageData(p, data, c.width, c.height);
+        } catch (error) {
+            // (the last frame of a file that is cut off can be incomplete: the ones before it are what the file has)
+            if (p.truncated && frames.length) break;
+            throw error;
+        }
         frames.push({
             x: c.x, y: c.y, width: c.width, height: c.height, duration: c.delay,
             // DISPOSE_OP_PREVIOUS on the first frame means background
             dispose: !frames.length && c.dispose === 2 ? 1 : c.dispose,
             blend: c.blend,
-            pixels: await decodeImageData(p, data, c.width, c.height)
+            pixels
         });
         if (firstFrameOnly) break;
     }

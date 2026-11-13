@@ -102,5 +102,12 @@ const panic = message => {
 
         const unknown = await Animation.decode(Buffer.concat([binary.subarray(0, -1), Buffer.from([0x99, 0x3b])]));
         if (unknown.length !== 30) panic(`unknown block: ${unknown.length} frames decoded`);
+
+        // cut off before the first frame is whole: there is no image, not a blank one
+        for (const length of [13, 20, 40]) {
+            for (const [name, decode] of [['Animation.decode', () => Animation.decode(binary.subarray(0, length))], ['Image.decode', () => Image.decode(binary.subarray(0, length))]]) {
+                if (!await decode().then(() => false, error => error instanceof Error)) panic(`${name} of ${length} bytes should throw`);
+            }
+        }
     }
 })();

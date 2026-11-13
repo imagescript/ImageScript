@@ -140,6 +140,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - The GIF encoders throw a `RangeError` for a canvas wider or higher than 65535 pixels (it was stored modulo 65536: 70000 became 4464), and all encoders for an animation without a canvas (every frame outside it), which WebP wrote as 16777216x16777216.
 - `Animation.decode()` of a JPEG XL animation counts the pixels of all frames against `maxPixels`, like the other formats; a frame was counted alone.
 - `resize({ fit: 'cover' })` and `fill()` leave an image (and its gain map) as it was when they throw: a `cover` that couldn't allocate its result had already changed the gain map, and a `fill()` function that threw halfway had written half the pixels.
+- A GIF cut off before its first frame is whole, or without its trailer and frames, is an error like a cut-off WebP or JPEG XL (it decoded as a blank image), and an APNG that is cut off keeps the frames that arrived whole like a GIF does (it showed the first frame only).
 - `Colors.gradient()` with one color throws for a `NaN` position like the others.
 - TIFF files that ask for far more memory than they are are refused before anything is allocated: YCbCr subsampling factors other than 1, 2 and 4 (65534x65535 took 4 GB and 5 s for a 32 KB file) and more than 32 samples per pixel (1 GB for 33 KB), and the memory of the YCbCr units counts against `maxPixels`.
 - `renderSVG()` parses `transform` lists in linear time: a long list of unclosed functions took 4.8 s at 280 KB.

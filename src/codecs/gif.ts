@@ -249,8 +249,8 @@ export function decode(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX
     try {
         parse();
     } catch (err) {
-        // truncated files keep every frame decoded so far, like browsers do
-        if (err !== UNEXPECTED_END) throw err;
+        // truncated files keep every frame decoded so far, like browsers do; one without a whole frame has no image
+        if (err !== UNEXPECTED_END || !frames.length) throw err;
     }
 
     checkPixels(width, height, maxPixels, Math.max(1, frames.length));
@@ -260,7 +260,7 @@ export function decode(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX
         while (reader.offset < data.length) {
             const block = reader.u8();
 
-            if (block === 0x3b) break; // trailer
+            if (block === 0x3b) return; // trailer
 
             if (block === 0x21) {
                 const label = reader.u8();
@@ -297,7 +297,7 @@ export function decode(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX
 
             if (block !== 0x2c) {
                 // unknown block, stop gracefully with whatever frames were decoded
-                if (frames.length) break;
+                if (frames.length) return;
                 throw new Error(`GIF: unknown block type 0x${block.toString(16)}`);
             }
 
@@ -335,8 +335,10 @@ export function decode(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX
             }
 
             frames.push({ x, y, width: fw, height: fh, delay, dispose, indices: ordered, colors, transparentIndex });
-            if (firstFrameOnly) break;
+            if (firstFrameOnly) return;
         }
+        // (no trailer: the data was cut off)
+        throw UNEXPECTED_END;
     }
 }
 
