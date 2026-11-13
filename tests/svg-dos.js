@@ -19,6 +19,15 @@ const timed = async (name, svg, limit = 5000) => {
 };
 
 (async () => {
+    // many shapes starting in different rows, most of them beside the canvas: activating the edges of a row shifted
+    // half of the active ones for each (80000 triangles took 8.7 s)
+    {
+        let d = '';
+        for (let i = 0; i < 80000; i++) d += `M${(i * 7919) % 100000} ${(i * 7) % 30} l4 0 l-2 ${30 + i % 10} z`;
+        const {error} = await timed('80000 triangles', `<svg ${NS} width="100" height="100"><path d="${d}"/></svg>`);
+        if (error) panic(`80000 triangles: ${error.message}`);
+    }
+
     // edges far above the canvas: their sub-scanline range wrapped in an Int32Array and ran two billion iterations
     for (const [name, shape] of [
         ['circle r=1e9', '<circle r="1e9"/>'],

@@ -143,6 +143,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - A GIF cut off before its first frame is whole, or without its trailer and frames, is an error like a cut-off WebP or JPEG XL (it decoded as a blank image), and an APNG that is cut off keeps the frames that arrived whole like a GIF does (it showed the first frame only).
 - `Colors.gradient()` with one color throws for a `NaN` position like the others.
 - TIFF files that ask for far more memory than they are are refused before anything is allocated: YCbCr subsampling factors other than 1, 2 and 4 (65534x65535 took 4 GB and 5 s for a 32 KB file) and more than 32 samples per pixel (1 GB for 33 KB), and the memory of the YCbCr units counts against `maxPixels`.
+- `renderSVG()` rasterizes shapes with many edges in near linear time: the edges that start in a row were inserted one by one into the sorted active ones, so text of 20000 glyphs took 15 s (now 0.4 s) and 8000 random curves 18 s (now 2.3 s).
 - `renderSVG()` parses `transform` lists in linear time: a long list of unclosed functions took 4.8 s at 280 KB.
 
 ## 3.20.1

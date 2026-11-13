@@ -3044,11 +3044,11 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
         let kept = 0;
         for (let k = 0; k < numActive; k++) if (bottoms[active[k]] > py) active[kept++] = active[k];
         numActive = kept;
-        for (let k = rowStarts[py - y0]; k < rowStarts[py - y0 + 1]; k++) active[numActive++] = order[k];
-        // (insertion sort by x in the row's middle: nearly sorted from the row before)
         const mid = py + 0.5;
-        for (let k = 0; k < numActive; k++) {
-            const e = active[k], key = xs[e] + (Math.min(Math.max(mid, tops[e]), bottoms[e]) - tops[e]) * slopes[e];
+        const keyOf = (e: number): number => xs[e] + (Math.min(Math.max(mid, tops[e]), bottoms[e]) - tops[e]) * slopes[e];
+        // (insertion sort by x in the row's middle: the edges kept are nearly sorted from the row before)
+        for (let k = 0; k < kept; k++) {
+            const e = active[k], key = keyOf(e);
             let j = k - 1;
             for (; j >= 0 && keys[j] > key; j--) {
                 keys[j + 1] = keys[j];
@@ -3056,6 +3056,29 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
             }
             keys[j + 1] = key;
             active[j + 1] = e;
+        }
+        // the edges that start in the row are sorted among themselves and merged from the back (inserting each one
+        // shifted half of the active ones: text of thousands of glyphs took quadratic time)
+        const added = rowStarts[py - y0 + 1] - rowStarts[py - y0];
+        if (added) {
+            const first = rowStarts[py - y0];
+            const newKeys = scratch.f64(6, added), ranks = scratch.i32(7, added).subarray(0, added);
+            for (let n = 0; n < added; n++) {
+                newKeys[n] = keyOf(order[first + n]);
+                ranks[n] = n;
+            }
+            ranks.sort((a, b) => newKeys[a] - newKeys[b]);
+            let i = kept - 1, n = added - 1, out = kept + added - 1;
+            while (n >= 0) {
+                if (i >= 0 && keys[i] > newKeys[ranks[n]]) {
+                    keys[out] = keys[i];
+                    active[out--] = active[i--];
+                } else {
+                    keys[out] = newKeys[ranks[n]];
+                    active[out--] = order[first + ranks[n--]];
+                }
+            }
+            numActive += added;
         }
 
         // each active edge's crossings go to the sub-scanlines it spans (the bounds by the test of each sub-scanline,
