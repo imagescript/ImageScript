@@ -121,6 +121,17 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `RenderSVGOptions` is a union of the sizes (`width`, `height` or `scale`, TypeScript reports a call with more than one, which throws at runtime) and `SVGResourceOptions`, the limits, fonts and images.
 - `renderSVG({ font })` takes a single font without an array, like `renderText()`.
 
+### Fixes
+
+- `Animation.resize()`, `scale()`, `crop()`, `trim()` and `flip()` change a frame once when the animation lists the same `Frame` (or two frames share one `Image`) more than once, as a hold or a ping-pong does; each listing resized or moved it again before (`new Animation([f, f, f]).resize(50, 50)` made 13x13 frames).
+- The animation encoders (`Animation.webpEncoder()`, `gifEncoder()` and `apngEncoder()`) cut frames to the canvas like `Animation.encode*()` does when `optimize` is `false`: a frame reaching over the edge lost the part it covered (GIF, WebP) or threw (APNG).
+- `AnimationEncoder.add()` rejects its promise for invalid frames instead of throwing synchronously, so `encoder.add(frame).catch()` sees them.
+- `Image.linearGradient()` and `radialGradient()` work with fractional sizes (`width / 2`, ...) at the truncated size of the image; they threw a `RangeError` because they wrote past the pixels.
+- `scale()` keeps each side at least one pixel like `resize()`, where `new Image(7, 1).scale(0.5)` threw.
+- A damaged JPEG XL whose blend refers to a channel that doesn't exist throws the decoding error instead of a `TypeError` from inside the decoder.
+- The gain map's checks across its values (`min` and `max`, `hdrCapacityMin` and `hdrCapacityMax`) name the values that conflict, since they apply when the map is cloned or encoded, not when a value is set.
+- `renderSVG()` parses `transform` lists in linear time: a long list of unclosed functions took 4.8 s at 280 KB.
+
 ## 3.20.1
 
 ### Performance
