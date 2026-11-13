@@ -492,7 +492,7 @@ false })` grows the image again), so search for them too.
 | 3.x | 4.0 |
 | --- | --- |
 | `image.rotate(angle, { resize: false })` | `image.rotate(-angle, { expand: false })`, like `transform()`, `outline()` and `dropShadow()` (the angle negated, as [`rotate()` turns clockwise](#rotate-turns-clockwise)) |
-| `image.rotate(angle, { fast: false })`, `{ fast: true }` | `image.rotate(-angle)`: the precise bilinear sampling is the default now, `fast` is removed. `mode` picks `'nearest-neighbor'`, `'bilinear'` or `'bicubic'`, like `transform()` |
+| `image.rotate(angle, { fast: false })`, `{ fast: true }` | `image.rotate(-angle)`: the bilinear sampling is the `fast: true` one (the same pixels, `fast: false` is removed: it differed by a step at most). `mode` picks `'nearest-neighbor'`, `'bilinear'` or `'bicubic'`, like `transform()` |
 | `resize(w, h, { fast: false })`, `scale(f, { fast: false })`, `{ fast: true }` | `resize(w, h)`, `scale(f)`: `fast` is removed, resizing always works like its default `fast: true` (8-bit rounding between the passes, at most a step or two off the precise result) |
 | `ResizeModes.AREA` and the other `ResizeModes` | `'area'` and the other names, see [constants and modes](#constants-and-modes) |
 | `FrameDisposalModes.BACKGROUND` and the other `FrameDisposalModes` | `'background'` and the other names |

@@ -66,7 +66,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`renderSVG()` takes `width`, `height` or `scale`**: `{ size: 512, mode: 'width' }` is `{ width: 512 }`, `{ size: 2 }` is `{ scale: 2 }`; `SVGScaleModes` and `SVGScaleMode` are removed. More than one of them throws a `TypeError`.
 
-- **`rotate()` turns clockwise**, like CSS' `rotate()` (3.x turned counterclockwise): negate the angle for the old result. Its `fast` option is removed (the precise sampling is the default now) and `mode` (`'nearest-neighbor'`, `'bilinear'` or `'bicubic'`) samples like `transform()`.
+- **`rotate()` turns clockwise**, like CSS' `rotate()` (3.x turned counterclockwise): negate the angle for the old result. Its `fast` option is removed (the bilinear sampling is always the 8-bit one that `fast: true` was, with the same pixels) and `mode` (`'nearest-neighbor'`, `'bilinear'` or `'bicubic'`) picks the sampling like `transform()`'s.
 
 - **`dominantColor()` counts colors in a histogram, and its `threshold` is in channel values**: the colors are counted in 16 levels per channel (like sharp's `dominant`) and the average of the fullest bin is returned, instead of the average of the largest of 8 median cut clusters, so the result is a color the image has and not a mix of two hues; it can differ from 3.x's. The `threshold` is 0-256 instead of steps of 4 (0-64): the default `60` is 3.x's `15`; multiply a threshold you give by 4.
 

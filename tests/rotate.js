@@ -99,6 +99,30 @@ const panic = msg => {
         if (!(error instanceof TypeError)) panic(`rotate mode 'area' should throw a TypeError, got ${error}`);
     }
 
+    // the bilinear rotation samples 8-bit pixels (about twice as fast as the precise sampling transform() does): it
+    // stays within a step of it for opaque pixels, translucent ones within 2.5 steps where they show (premultiplied,
+    // alpha within 2)
+    {
+        const photo = (await Image.decode(await fs.readFile('./bench/inputs/photo.jpg'))).crop(700, 300, 400, 300);
+        const transparent = photo.clone();
+        for (let i = 0; i < transparent.bitmap.length; i += 4) transparent.bitmap[i + 3] = (i >> 2) % transparent.width * 255 / (transparent.width - 1);
+        for (const source of [photo, transparent])
+            for (const [angle, expand] of [[30, false], [-17.5, false], [123, false], [0.3, false]]) {
+                // (transform's turn is clockwise as well: the same matrix as the rotation's)
+                const rad = angle * Math.PI / 180;
+                const a = source.clone().transform([Math.cos(rad), Math.sin(rad), -Math.sin(rad), Math.cos(rad), 0, 0], {expand}).bitmap, b = source.clone().rotate(angle, {expand}).bitmap;
+                let opaque = 0, shown = 0;
+                for (let i = 0; i < a.length; i++) {
+                    if (a[i] === b[i]) continue;
+                    const al = a[i | 3], bl = b[i | 3];
+                    if ((i & 3) === 3) shown = Math.max(shown, Math.abs(a[i] - b[i]));
+                    else if (al === 255 && bl === 255) opaque = Math.max(opaque, Math.abs(a[i] - b[i]));
+                    else shown = Math.max(shown, Math.abs(a[i] * al - b[i] * bl) / 255);
+                }
+                if (opaque > 1 || shown > 2.5) panic(`bilinear rotate ${angle}: ${opaque} (opaque), ${shown} (shown)`);
+            }
+    }
+
     // right angles with `expand: false` keep the size like every other angle (they used to swap width and height):
     // the turned image is centered, what doesn't fit is cut off
     {

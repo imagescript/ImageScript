@@ -35,6 +35,7 @@ import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
 import { multiply, invert } from './util/matrix.ts';
 import { sampleAffine } from './util/affine.ts';
+import { rotateBilinear } from './util/rotate.ts';
 import * as gainMapCodec from './codecs/gainmap.ts';
 
 /** A color as a 32-bit RGBA integer (`0xRRGGBBAA`) */
@@ -2257,6 +2258,11 @@ export class Image {
         const outHeight = expand ? Math.round(Math.abs(width * sin) + Math.abs(height * cos)) : height;
         const out = new Image(outWidth, outHeight);
         rotateGainMap(outWidth, outHeight);
+        // bilinear: 8-bit sampling, about twice as fast, within a step of the precise sampling below (tests/rotate.js)
+        if (mode === 'bilinear' && rotateBilinear(this.bitmap, width, height, out.bitmap, outWidth, outHeight, sin, cos)) {
+            this.__moved__?.(1, 1, (width - outWidth) / 2, (height - outHeight) / 2);
+            return this.__apply__(out);
+        }
         // the source position of each output position (pixel centers), around the middles of both images
         const inverse: [number, number, number, number, number, number] = [cos, sin, -sin, cos,
             width / 2 - cos * outWidth / 2 + sin * outHeight / 2, height / 2 - sin * outWidth / 2 - cos * outHeight / 2];
