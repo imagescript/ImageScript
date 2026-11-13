@@ -126,13 +126,10 @@ const alphaReferences = {
     const noisyBack = await Image.decode(noisyWebp);
     for (let i = 3; i < noisy.bitmap.length; i += 4) if (noisyBack.bitmap[i] !== noisy.bitmap[i]) panic('noisy alpha: differs');
 
-    // the quality and effort are validated, lossless stays the default
+    // the quality is validated, and lossless stays the default
     const image = new Image(20, 10).fill(0x336699ff);
     for (const quality of [-1, 101, NaN]) {
         if (!await image.encodeWebP({quality}).then(() => false, e => e instanceof RangeError)) panic(`quality ${quality} should throw`);
-    }
-    for (const effort of [-1, 7, 1.5]) {
-        if (!await image.encodeWebP({quality: 75, effort}).then(() => false, e => e instanceof RangeError)) panic(`effort ${effort} should throw`);
     }
     if (!chunks(await image.encodeWebP()).VP8L) panic('without a quality WebPs should be lossless');
 

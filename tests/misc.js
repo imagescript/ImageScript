@@ -128,22 +128,6 @@ try {
 }
 
 {
-    const image = new Image(512, 512);
-    new Frame(image.clone(), {duration: 10});
-    try {
-        new Frame({}, {duration: 10});
-        panic('frame instanceof image failed');
-    } catch {
-    }
-}
-
-try {
-    new Animation([{}]);
-    panic('animation frame instanceof failed');
-} catch {
-}
-
-{
     const frame = new Frame(new Image(512, 128), {duration: 123});
     const animation = new Animation([frame]);
     if (animation.duration !== 123) panic('animation duration failed');

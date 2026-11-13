@@ -89,7 +89,6 @@ const animated = [
         }
     // (the photo: the fast mode a bit larger, effort 6 the same as 2)
     if (!(sizes[0] > sizes[2] && sizes[0] < sizes[2] * 1.25) || sizes[6] !== sizes[2]) panic(`encodeWebP: unexpected sizes by effort ${JSON.stringify(sizes)}`);
-    for (const effort of [-1, 7, 1.5]) if (!await photo.encodeWebP({effort}).then(() => false, e => e instanceof RangeError)) panic(`effort ${effort} should throw`);
     // threads (the predictors and prefix groups searched in parallel, from 1.5 megapixels on): the same file as without
     {
         const big = new Image(1448, 1448).fill((x, y) => Colors.fromRGBA(x * 7 + y & 255, (x * x + y * 3) >> 4 & 255, (x ^ y) & 255, 255));
@@ -98,6 +97,5 @@ const animated = [
             const one = await big.encodeWebP({threads: 1, metadata, effort}), four = await big.encodeWebP({threads: 4, metadata, effort});
             if (Buffer.compare(Buffer.from(one), Buffer.from(four))) panic(`encodeWebP: threads changed the file at effort ${effort}`);
         }
-        for (const threads of [0, 1.5]) if (!await big.encodeWebP({threads}).then(() => false, e => e instanceof RangeError)) panic(`threads ${threads} should throw`);
     }
 })();

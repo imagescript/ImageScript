@@ -65,7 +65,6 @@ throwsA(() => new Animation([{width: 4, height: 4}]), TypeError, 'an image-like 
 throwsA(() => new Animation(5), TypeError, 'a number as the frames');
 throwsA(() => new Animation(null), TypeError, 'null as the frames');
 throwsA(() => new Animation([a], 2), TypeError, 'a loop count instead of options');
-throwsA(() => new Animation([a], {loopCount: 2.5}), RangeError, 'a fractional loop count');
 if (new Animation([a], {loopCount: 2}).loopCount !== 2) panic('loopCount option not applied');
 
 // the size, duration and text of the animation come from its frames

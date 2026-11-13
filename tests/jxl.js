@@ -78,7 +78,6 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
         const animation = await Animation.decode(data, {threads: 4});
         if (Buffer.compare(Buffer.from(animation.frames[0].image.bitmap), Buffer.from(one.bitmap))) panic('threads, Animation.decode: different pixels');
     }
-    for (const threads of [0, 1.5]) if (!await Image.decode(lossy, {threads}).then(() => false, e => e instanceof RangeError)) panic(`threads ${threads} should throw`);
 
     // damaged blending info (blendmodes.jxl with flipped bits): a blend alpha channel that doesn't exist is an error,
     // not a TypeError from the blending

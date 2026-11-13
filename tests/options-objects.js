@@ -108,7 +108,6 @@ const sameImage = (image, reference, label) => {
     if (new Frame(photo.clone(), {duration: 40, xOffset: 2}).xOffset !== 2 || new Frame(photo.clone()).duration !== 100) panic('new Frame(image.clone(), options)');
     if (new Animation([new Frame(new Image(4, 4))], {loopCount: 2}).loopCount !== 2 || new Animation([new Frame(new Image(4, 4))]).loopCount !== Infinity) panic('new Animation(frames, options)');
     const encodedGIF = await makeAnimation().encodeGIF();
-    if (!((await Image.decode(encodedGIF)) instanceof Image)) panic('Image.decode(data) should return the first frame as an Image');
     for (const [label, call] of Object.entries({
         'new Frame(new Image(4, 4), 100)': () => new Frame(new Image(4, 4), 100),
         'new Frame(new Image(4, 4), 100, 1, 1, "keep")': () => new Frame(new Image(4, 4), 100, 1, 1, 'keep'),

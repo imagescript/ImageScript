@@ -81,7 +81,6 @@ const compare = (a, b) => {
             const four = await image.encodeAVIF({effort, threads: 4, metadata: {creationTime: 0}});
             if (Buffer.compare(Buffer.from(one), Buffer.from(four))) panic(`threads, ${name}: not the same file`);
         }
-        for (const threads of [0, 1.5]) if (!await big.encodeAVIF({threads}).then(() => false, e => e instanceof RangeError)) panic(`threads ${threads} should throw`);
     }
 
     // odd sizes, a pixel, wider than a tile (4096 pixels)

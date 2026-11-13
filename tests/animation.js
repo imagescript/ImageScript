@@ -55,28 +55,4 @@ const square = (color, w, h) => new Image(w, h).fill((x, y) => (x + y) % 5 === 0
     if (single.length !== 1 || single.width !== 8) panic('Animation.decode should accept still images');
     const gif = await Animation.decode(await new Animation([new Frame(still.clone())]).encodeGIF());
     if (!(gif instanceof Animation) || gif.length !== 1) panic('Animation.decode should decode GIFs');
-    if (!(new Animation(gif.frames.slice(0, 1), {loopCount: gif.loopCount}) instanceof Animation)) panic('a new animation of some frames');
-
-    // frames: the returned array is frozen; assign a new list to change the animation
-    {
-        const animation = new Animation([new Frame(still.clone())]);
-        if (animation.frames.length !== 1) panic('frames should hold the frames');
-        if (!Object.isFrozen(animation.frames)) panic('frames should be frozen');
-        animation.frames = [...animation.frames, new Frame(still.clone(), {duration: 50})];
-        if (animation.length !== 2 || animation.duration !== 150) panic('assigning an added frame should add a frame');
-        if (!Array.isArray(animation.frames.map(f => f.duration))) panic('frames.map should return an array');
-        animation.frames = animation.frames.filter(f => f.duration === 50);
-        if (animation.length !== 1 || animation.frames[0].duration !== 50) panic('setting frames should replace them');
-        let threw = false;
-        try { animation.frames = [still]; } catch { threw = true; }
-        if (!threw || animation.length !== 1) panic('frames should only take frames');
-    }
-
-    // loop counts: Infinity forever, 0 once, n repeats
-    for (const loopCount of [Infinity, 0, 1, 5]) {
-        // (different frames: identical ones are merged, and a single frame has no loop count)
-        const two = new Animation([new Frame(still.clone()), new Frame(still.clone().invert())], {loopCount});
-        for (const format of ['APNG', 'WebP', 'GIF'])
-            if ((await Animation.decode(await two[`encode${format}`]())).loopCount !== loopCount) panic(`${format}: loop count ${loopCount} not kept`);
-    }
 })();

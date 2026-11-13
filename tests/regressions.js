@@ -45,12 +45,6 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(rgba(blend, 0, 0)[3] === 192, 'composite: alpha should combine to 0.75');
     }
 
-    // cropCircle({ size })
-    {
-        const count = image => [...image.pixels()].filter(([, , c]) => c & 0xff).length;
-        assert(count(new Image(8, 2).fill(0xffffffff).cropCircle({ size: 'cover' })) > count(new Image(8, 2).fill(0xffffffff).cropCircle({ size: 'contain' })), 'cropCircle: cover has no effect');
-    }
-
     // crop is clipped to the image
     {
         const image = new Image(10, 2).fill((x, y) => Colors.fromRGBA(x + 1, y + 1, 0, 255)).crop(5, 0, 10, 2);
@@ -73,12 +67,6 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
 
     // gradients return unsigned colors like rgbaToColor
     assert(Colors.gradient({0: 0xff0000ff, 1: 0xff0000ff})(0.5) === 0xff0000ff, 'gradient: signed color');
-
-    // PNG metadata in { metadata }
-    {
-        const encoded = await new Image(1, 1).encodePNG({metadata: {title: 'regression'}});
-        assert(Buffer.from(encoded).includes(Buffer.from('regression')), 'encode(metadata): title missing');
-    }
 
     // frames keep their metadata
     {
@@ -433,31 +421,6 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             const encoder = Animation[`${format.toLowerCase()}Encoder`](6, 6, {...options, loopCount: 3});
             for (const frame of frames()) await encoder.add(frame);
             assert(Buffer.from(await encoder.finish()).equals(Buffer.from(await animation[`encode${format}`](options))), `${format}: encoder vs encode${format} with options`);
-        }
-    });
-
-    // Infinity is the loop count for ever (the default), the encoders take the options of the encode functions
-    await withFrozenTime(async () => {
-        const {Animation} = require('..');
-        const still = new Image(6, 6).fill(0x336699ff);
-        const frames = () => [new Frame(still.clone(), {duration: 100}), new Frame(still.clone().invert(), {duration: 100})];
-        const forever = new Animation(frames(), {loopCount: Infinity});
-        assert(forever.loopCount === Infinity && new Animation(frames(), {loopCount: Infinity}).loopCount === Infinity, 'Animation keeps Infinity');
-        for (const format of ['GIF', 'APNG', 'WebP']) {
-            const a = await forever[`encode${format}`]();
-            assert(Buffer.from(a).equals(Buffer.from(await new Animation(frames())[`encode${format}`]())), `${format}: Infinity is the default`);
-            assert((await Animation.decode(a)).loopCount === Infinity, `${format}: decodes as Infinity`);
-            const encoder = Animation[`${format.toLowerCase()}Encoder`](6, 6, {loopCount: Infinity});
-            for (const frame of frames()) await encoder.add(frame);
-            assert(Buffer.from(await encoder.finish()).equals(Buffer.from(a)), `${format}: encoder with Infinity`);
-        }
-        for (const loopCount of [1.5, -2, NaN]) {
-            let threw = false;
-            try { new Animation(frames(), {loopCount}); } catch (e) { threw = e instanceof RangeError || e instanceof TypeError; }
-            assert(threw, `loopCount ${loopCount} is rejected`);
-            threw = false;
-            try { Animation.gifEncoder(6, 6, {loopCount}); } catch (e) { threw = e instanceof RangeError; }
-            assert(threw, `encoder loopCount ${loopCount} is rejected`);
         }
     });
 

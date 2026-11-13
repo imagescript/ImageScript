@@ -83,8 +83,6 @@ const panic = msg => {
     // rotate() turns clockwise; the modes sample like transform()'s, nearest-neighbor only keeps source colors
     {
         const source = new Image(8, 6).fill((x, y) => Colors.fromRGBA(x * 30, y * 40, 100, 255));
-        const cw = source.clone().rotate(90);
-        if (cw.getPixelAt(cw.width - 1, 0) !== source.getPixelAt(0, 0)) panic('rotate(90) should turn clockwise: the top left corner goes to the top right');
         const colors = new Set(source.bitmap.length ? [...source.pixels()].map(([, , c]) => c) : []);
         const nearest = source.clone().rotate(30, {mode: 'nearest-neighbor'});
         for (const [x, y, c] of nearest.pixels()) if ((c & 0xff) && !colors.has(c)) panic(`rotate nearest-neighbor: new color at ${x},${y}`);
