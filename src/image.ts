@@ -30,7 +30,7 @@ import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts'
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
 import { isOptions, checkOptions, finite, nonNegative, positive, oneOf, pixelLimit, checkThreads, gainMapScale, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
-import { MAX_PIXELS, LimitError, decoding } from './util/limits.ts';
+import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
 import { multiply, invert } from './util/matrix.ts';
@@ -2106,6 +2106,7 @@ export class Image {
      * (`image.dropShadow({ blur: 8, color: 0xff2fb9ff })`, with `spread` to make it stronger). The image grows to fit
      * the shadow, unless `expand` is `false`
      * @param options See {@link ShadowOptions}
+     * @throws {@link LimitError} if the size or offset of the shadow would make the image larger than an image can be
      */
     dropShadow(options: ShadowOptions = {}): this {
         checkOptions(options, 'image.dropShadow({ blur: 8 })');
@@ -2153,6 +2154,7 @@ export class Image {
      * Draws an outline around the image's shape (its alpha): the sticker effect for cut-out images, or an outline for
      * text. The image grows to fit it, unless `expand` is `false`
      * @param options See {@link OutlineOptions}
+     * @throws {@link LimitError} if the width would make the image larger than an image can be
      */
     outline(options: OutlineOptions = {}): this {
         checkOptions(options, 'image.outline({ width: 4 })');
@@ -2187,6 +2189,7 @@ export class Image {
      * @ignore
      */
     protected __shape_layer__(margin: number): Image {
+        checkGrowth(this.width + 2 * margin, this.height + 2 * margin, 'The shadow or outline');
         const layer = new Image(this.width + 2 * margin, this.height + 2 * margin);
         for (let y = 0; y < this.height; y++)
             for (let x = 0; x < this.width; x++)
@@ -2203,6 +2206,7 @@ export class Image {
     protected __under__(layer: Image, layerX: number, layerY: number, grow: { left: number, top: number, right: number, bottom: number }): this {
         const { left, top, right, bottom } = grow;
         const width = this.width + left + right, height = this.height + top + bottom;
+        checkGrowth(width, height, 'The shadow or outline');
         const result = new Image(width, height);
         result.composite(layer, { x: layerX + left, y: layerY + top });
         const map = this.__gain_map__;

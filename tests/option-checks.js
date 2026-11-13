@@ -195,6 +195,15 @@ const rejects = async (name, fn, Type) => {
         await rejects('encodeGIF without frames', () => new Animation([]).encodeGIF(), Error);
     }
 
+    // a shadow or outline too large for an image fails with a LimitError, before it allocates
+    {
+        const {LimitError} = require('..');
+        const small = new Image(10, 10).fill(0xff0000ff);
+        await rejects('dropShadow blur 1e5', () => small.clone().dropShadow({blur: 1e5}), LimitError);
+        await rejects('dropShadow x 1e9', () => small.clone().dropShadow({x: 1e9}), LimitError);
+        await rejects('outline width 1e5', () => small.clone().outline({width: 1e5}), LimitError);
+    }
+
     // a canvas the format can't store throws instead of wrapping (GIF stores 16 bits, an empty one has nothing to store)
     {
         const wide = new Animation([new Frame(new Image(2, 1).fill(0xff0000ff))], {width: 70000, height: 1});
