@@ -176,6 +176,17 @@ const rejects = async (name, fn, Type) => {
         await rejects('encodeGIF without frames', () => new Animation([]).encodeGIF(), Error);
     }
 
+    // a canvas the format can't store throws instead of wrapping (GIF stores 16 bits, an empty one has nothing to store)
+    {
+        const wide = new Animation([new Frame(new Image(2, 1).fill(0xff0000ff))], {width: 70000, height: 1});
+        await rejects('encodeGIF canvas 70000 wide', () => wide.encodeGIF(), RangeError);
+        await rejects('gifEncoder canvas 70000 wide', () => encoded(Animation.gifEncoder(70000, 1)), RangeError);
+        const empty = new Animation([new Frame(new Image(4, 4).fill(0xff0000ff), {xOffset: -10, yOffset: -10})]);
+        for (const format of ['GIF', 'APNG', 'WebP']) await rejects(`encode${format} canvas without area`, () => empty[`encode${format}`](), RangeError);
+        const decoded = await Animation.decode(await wide.clone().resize(65535, 1).encodeGIF());
+        if (decoded.width !== 65535) panic(`GIF at the largest canvas: width ${decoded.width}`);
+    }
+
     // valid values keep working
     for (const effort of [0, 1, 2]) await image.encodeAVIF({effort});
     for (const subsampling of ['4:4:4', '4:2:0']) await image.encodeAVIF({quality: 50, subsampling});

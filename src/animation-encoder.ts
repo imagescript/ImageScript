@@ -122,7 +122,7 @@ export class AnimationEncoder {
     /** @internal */
     static __webp__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
         const loops = fitLoops(loopCount(count), 'WebP');
-        canvas(width, height);
+        canvas(width, height, 'WebP');
         if (width > 1 << 24 || height > 1 << 24) throw new RangeError('WebP: canvas too large');
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
         const resolved = resolveMetadata(metadata), chunks: Uint8Array[] = [];
@@ -155,7 +155,7 @@ export class AnimationEncoder {
         const checked = paletteOptions(colors, dither, ditherStrength);
         const palette = { colors: checked.colors as number, dither: checked.dither, strength: checked.strength };
         const loops = fitLoops(loopCount(count), 'GIF');
-        canvas(width, height);
+        canvas(width, height, 'GIF');
         const comments = gifComments(resolveMetadata(metadata));
         // (the first frame is encoded last: it needs a transparent index if any frame restores the background)
         let first: gifCodec.GIFFrame | null = null, restores = false;
@@ -184,7 +184,7 @@ export class AnimationEncoder {
     static __apng__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, compression: compressionOption = 4 }: APNGEncodeOptions & AnimationOptions): AnimationEncoder {
         const compression = compressionLevel(compressionOption);
         const loops = fitLoops(loopCount(count), 'APNG');
-        canvas(width, height);
+        canvas(width, height, 'APNG');
         const text = pngText(resolveMetadata(metadata));
         // the frames are kept compressed (quickly): the pixel format, and whether opaque animations are stored without
         // transparency, depend on all of them; then they are converted and compressed one at a time, like encodeAPNG
@@ -230,8 +230,10 @@ export class AnimationEncoder {
     }
 }
 
-function canvas(width: number, height: number): void {
+function canvas(width: number, height: number, format: 'GIF' | 'APNG' | 'WebP'): void {
     if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`Invalid canvas size: ${width}x${height}`);
+    // (the GIF header stores the size in 16 bits, WebP in 24; larger ones would wrap)
+    if (format === 'GIF' && (width > 0xffff || height > 0xffff)) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${width}x${height}`);
 }
 
 // a frame in the WebP codec's terms (odd offsets: one transparent pixel more on the left/top, blending makes it

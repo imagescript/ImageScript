@@ -491,6 +491,10 @@ export class Animation {
             if (!(frame instanceof Frame)) throw new Error('Animation contains invalid frames');
             fitDuration(frame.duration, format);
         }
+        const { width, height } = this;
+        if (width < 1 || height < 1) throw new RangeError('The animation has no canvas: every frame lies outside of it');
+        if (format === 'GIF' && (width > 0xffff || height > 0xffff)) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${width}x${height}`);
+        if (format === 'WebP' && (width > 1 << 24 || height > 1 << 24)) throw new RangeError('WebP: canvas too large');
     }
 
     /**
@@ -500,7 +504,8 @@ export class Animation {
      * after the frames are composited
      * @param options See {@link GIFAnimationEncodeOptions}
      * @throws `Error` if the animation has no frames
-     * @throws `RangeError` if the loop count or a frame's duration is more than GIF stores
+     * @throws `RangeError` if the loop count or a frame's duration is more than GIF stores, or the canvas is wider or
+     * higher than 65535 pixels
      */
     encodeGIF(options?: GIFAnimationEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodeGIF(options: GIFAnimationEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
