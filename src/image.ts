@@ -62,13 +62,25 @@ export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' 
 
 /** Options of {@link Image.composite} */
 export interface CompositeOptions {
-    /** The x position to place the source at. Default: `0` */
+    /**
+     * The x position to place the source at
+     * @defaultValue `0`
+     */
     x?: number;
-    /** The y position to place the source at. Default: `0` */
+    /**
+     * The y position to place the source at
+     * @defaultValue `0`
+     */
     y?: number;
-    /** Opacity of the source (0..1). Default: `1` */
+    /**
+     * Opacity of the source (0..1)
+     * @defaultValue `1`
+     */
     opacity?: number;
-    /** How the colors are mixed. Default: `'normal'` */
+    /**
+     * How the colors are mixed
+     * @defaultValue `'normal'`
+     */
     mode?: BlendMode;
 }
 
@@ -87,7 +99,8 @@ export type ResizeToOptions = ResizeOptions & (
         height?: number;
         /**
          * `'fill'` stretches to the exact size; `'inside'` keeps the aspect ratio and makes the image as large as fits
-         * inside it, so one side can be smaller. Default: `'fill'`
+         * inside it, so one side can be smaller
+         * @defaultValue `'fill'`
          */
         fit?: 'fill' | 'inside';
     }
@@ -98,7 +111,10 @@ export type ResizeToOptions = ResizeOptions & (
         height: number;
         /** Keeps the aspect ratio and pads to the exact box */
         fit: 'contain';
-        /** For `'contain'`, the color of the bars. Default: `0x00000000` (transparent) */
+        /**
+         * For `'contain'`, the color of the bars
+         * @defaultValue `0x00000000` (transparent)
+         */
         background?: Color;
     }
     | {
@@ -115,15 +131,24 @@ type ResizeRuntimeOptions = ResizeOptions & { background?: Color };
 
 /** Options of {@link Image.scale} and {@link Image.resize} */
 export interface ResizeOptions {
-    /** The resizing mode. Default: `'bilinear'` */
+    /**
+     * The resizing mode
+     * @defaultValue `'bilinear'`
+     */
     mode?: ResizeMode;
 }
 
 /** Options of {@link Image.sharpen} */
 export interface SharpenOptions {
-    /** How strongly to sharpen (0 does nothing). Default: `1` */
+    /**
+     * How strongly to sharpen (0 does nothing)
+     * @defaultValue `1`
+     */
     amount?: number;
-    /** The radius of the blur the image is compared with (larger values sharpen coarser details). Default: `1` */
+    /**
+     * The radius of the blur the image is compared with (larger values sharpen coarser details)
+     * @defaultValue `1`
+     */
     radius?: number;
 }
 
@@ -138,10 +163,14 @@ export type DitherMethod = 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered';
 export interface DitherOptions {
     /**
      * How to spread small color changes across nearby pixels to make gradients look smoother with few colors, see
-     * {@link DitherMethod}. Default: `'floyd-steinberg'`
+     * {@link DitherMethod}
+     * @defaultValue `'floyd-steinberg'`
      */
     dither?: DitherMethod;
-    /** How strongly to apply dithering: `0` disables it (like `'none'`); `1` applies it fully. Default: `0.85` */
+    /**
+     * How strongly to apply dithering: `0` disables it (like `'none'`); `1` applies it fully
+     * @defaultValue `0.85`
+     */
     ditherStrength?: number;
 }
 
@@ -153,7 +182,7 @@ export type QuantizeOptions = DitherOptions & ({
     /**
      * The maximum number of colors to keep (2-256). Images with fewer distinct colors keep them exactly; otherwise
      * ImageScript chooses a smaller set of representative colors. Give `palette` instead to choose exact colors.
-     * Default: `256`
+     * @defaultValue `256`
      */
     colors?: number;
     /** Not with `colors`: give one of them */
@@ -190,56 +219,86 @@ export const FLIP_DIRECTIONS: readonly FlipDirection[] = ['horizontal', 'vertica
 export interface TransformOptions {
     /**
      * The point the transform is applied around, in pixels: a rotation turns around it, a scale grows from it.
-     * Default: the middle of the image. It only decides where the result lies on a canvas that stays as large as the
-     * image (`expand: false`)
+     * It only decides where the result lies on a canvas that stays as large as the image (`expand: false`)
+     * @defaultValue The middle of the image
      */
     origin?: {
-        /** The x position of the point in pixels. Default: half the width */
+        /**
+         * The x position of the point in pixels
+         * @defaultValue Half the width
+         */
         x?: number;
-        /** The y position of the point in pixels. Default: half the height */
+        /**
+         * The y position of the point in pixels
+         * @defaultValue Half the height
+         */
         y?: number;
     };
     /**
      * Whether to make the image as large as the transformed one, which then fills it (a rotated image grows to fit its
      * corners, a skewed one gets wider). Without it, the image keeps its size and the parts outside are lost.
-     * Default: `true`
+     * @defaultValue `true`
      */
     expand?: boolean;
     /**
      * How the pixels between the source's are sampled: `'nearest-neighbor'` (hard pixels, no smoothing, for pixel art),
-     * `'bilinear'` (smooth), `'bicubic'` (sharper, slower, can overshoot a little at hard edges). Default: `'bilinear'`
+     * `'bilinear'` (smooth), `'bicubic'` (sharper, slower, can overshoot a little at hard edges)
+     * @defaultValue `'bilinear'`
      */
     mode?: TransformMode;
 }
 
 /** Options of {@link Image.dropShadow} */
 export interface ShadowOptions {
-    /** How far to move the shadow to the right (negative values: to the left), in pixels. Default: `0` */
+    /**
+     * How far to move the shadow to the right (negative values: to the left), in pixels
+     * @defaultValue `0`
+     */
     x?: number;
-    /** How far to move the shadow down (negative values: up), in pixels. Default: `0` */
+    /**
+     * How far to move the shadow down (negative values: up), in pixels
+     * @defaultValue `0`
+     */
     y?: number;
-    /** How soft the shadow's edge is: the standard deviation of a gaussian blur in pixels, like {@link Image.blur}. Default: `0` */
+    /**
+     * How soft the shadow's edge is: the standard deviation of a gaussian blur in pixels, like {@link Image.blur}
+     * @defaultValue `0`
+     */
     blur?: number;
-    /** How far to grow the shadow's shape before blurring it, in pixels. Default: `0` */
+    /**
+     * How far to grow the shadow's shape before blurring it, in pixels
+     * @defaultValue `0`
+     */
     spread?: number;
-    /** The shadow's color, its alpha is the shadow's opacity. Default: `0x00000080` (50% black) */
+    /**
+     * The shadow's color, its alpha is the shadow's opacity
+     * @defaultValue `0x00000080` (50% black)
+     */
     color?: Color;
     /**
      * Whether to make the image larger so the shadow isn't cut off. Without it, the image keeps its size and the part
-     * of the shadow outside is lost. Default: `true`
+     * of the shadow outside is lost
+     * @defaultValue `true`
      */
     expand?: boolean;
 }
 
 /** Options of {@link Image.outline} */
 export interface OutlineOptions {
-    /** The outline's width in pixels. Default: `1` */
+    /**
+     * The outline's width in pixels
+     * @defaultValue `1`
+     */
     width?: number;
-    /** The outline's color. Default: `0x000000ff` */
+    /**
+     * The outline's color
+     * @defaultValue `0x000000ff`
+     */
     color?: Color;
     /**
      * Whether to make the image larger so the outline isn't cut off. Without it, the image keeps its size and the
-     * outline is cut where the image ends. Default: `true`
+     * outline is cut where the image ends
+     * @defaultValue `true`
      */
     expand?: boolean;
 }
@@ -258,18 +317,28 @@ export interface LinearGradientOptions extends GradientOptions {
     /**
      * The direction of the gradient in degrees, like CSS' `linear-gradient()`: `0` goes up, `90` to the right, `180`
      * down, `270` to the left. The first stop is at the start of the line through the center that touches the
-     * corners. Default: `180`
+     * corners
+     * @defaultValue `180`
      */
     angle?: number;
 }
 
 /** Options of {@link Image.radialGradient} */
 export interface RadialGradientOptions extends GradientOptions {
-    /** The x position of the center in pixels. Default: the middle of the image */
+    /**
+     * The x position of the center in pixels
+     * @defaultValue The middle of the image
+     */
     x?: number;
-    /** The y position of the center in pixels. Default: the middle of the image */
+    /**
+     * The y position of the center in pixels
+     * @defaultValue The middle of the image
+     */
     y?: number;
-    /** The radius of the last stop in pixels. Default: the distance to the farthest corner */
+    /**
+     * The radius of the last stop in pixels
+     * @defaultValue The distance to the farthest corner
+     */
     radius?: number;
 }
 
@@ -285,16 +354,23 @@ export interface EncodeOptions {
  */
 export interface GainMapEmbedOptions {
     /**
-     * The map's quality (1-100, like the format's `quality`; for JPEG XL 100 is lossless). Default: `90`
+     * The map's quality (1-100, like the format's `quality`; for JPEG XL 100 is lossless)
+     * @defaultValue `90`
      */
     quality?: number;
-    /** The map's size as a factor of the image's (0-1). Default: the map's own size */
+    /**
+     * The map's size as a factor of the image's (0-1)
+     * @defaultValue The map's own size
+     */
     scale?: number;
 }
 
 /** Options of {@link Image.encodePNG} */
 export interface PNGEncodeOptions extends EncodeOptions {
-    /** The compression level (0-9), higher is smaller but slower. Default: `4` */
+    /**
+     * The compression level (0-9), higher is smaller but slower
+     * @defaultValue `4`
+     */
     compression?: number;
 }
 
@@ -306,29 +382,34 @@ export interface TGAEncodeOptions extends EncodeOptions {}
 export interface GIFEncodeOptions extends EncodeOptions, DitherOptions {
     /**
      * The maximum colors in each frame's palette (2-256, including transparency). Frames with fewer colors keep them
-     * exactly; otherwise ImageScript chooses representative colors. Default: `256`
+     * exactly; otherwise ImageScript chooses representative colors
+     * @defaultValue `256`
      */
     colors?: number;
 }
 
 /** Options of {@link Image.encodeJPEG} */
 export interface JPEGEncodeOptions extends EncodeOptions {
-    /** The JPEG quality (0-100, 0 is the same as 1). Default: `90` */
+    /**
+     * The JPEG quality (0-100, 0 is the same as 1)
+     * @defaultValue `90`
+     */
     quality?: number;
     /**
      * How much color detail to keep: `'4:4:4'` keeps it all; `'4:2:0'` stores less color detail to make a smaller
-     * file (often hard to notice in photos, but more visible around colored edges). Default: `'4:2:0'` up to quality
-     * 90, `'4:4:4'` above
+     * file (often hard to notice in photos, but more visible around colored edges)
+     * @defaultValue `'4:2:0'` up to quality 90, `'4:4:4'` above
      */
     subsampling?: '4:4:4' | '4:2:0';
     /**
      * The background color to combine with transparent pixels, since JPEG doesn't support transparency. Opaque images
-     * are encoded as they are. Default: `0x000000ff` (black)
+     * are encoded as they are
+     * @defaultValue `0x000000ff` (black)
      */
     background?: Color;
     /**
      * Whether to write the image's {@link Image.gainMap} (an Ultra HDR JPEG, brighter on HDR displays), or how.
-     * Default: `true` (written if there is one)
+     * @defaultValue `true` (written if there is one)
      */
     gainMap?: boolean | GainMapEmbedOptions;
 }
@@ -342,35 +423,45 @@ export interface WebPEncodeOptions extends EncodeOptions {
     quality?: number;
     /**
      * Compression effort (0-6): higher values usually take longer but may make smaller files. For lossless images,
-     * `0` prioritizes speed; `2` and above spend more time reducing file size. Default: `2`
+     * `0` prioritizes speed; `2` and above spend more time reducing file size
+     * @defaultValue `2`
      */
     effort?: number;
     /**
      * For lossy compression: improve color detail around sharp edges (for example, red text on a blue background).
-     * This can take longer and make graphics larger. Default: `false`
+     * This can take longer and make graphics larger
+     * @defaultValue `false`
      */
     sharpYuv?: boolean;
     /**
      * For lossy compression, the transparency (alpha) channel's quality (0-100). Lower values may make the image
-     * smaller but can make transparency look less smooth. Default: `100` (full quality)
+     * smaller but can make transparency look less smooth
+     * @defaultValue `100` (full quality)
      */
     alphaQuality?: number;
     /**
      * For lossless compression, the maximum worker threads to use. Small images or runtimes that cannot share memory
-     * between workers use one thread. Default: the available processors, up to 8
+     * between workers use one thread
+     * @defaultValue The available processors, up to 8
      */
     threads?: number;
 }
 
 /** Options of {@link Image.roundCorners} */
 export interface RoundCornersOptions {
-    /** The radius of the corners. Default: a quarter of the smaller side */
+    /**
+     * The radius of the corners
+     * @defaultValue A quarter of the smaller side
+     */
     radius?: number;
 }
 
 /** Options of {@link Image.fisheye} */
 export interface FisheyeOptions {
-    /** The distortion strength (exponent of the radial mapping), higher values bulge the center more. Default: `2` */
+    /**
+     * The distortion strength (exponent of the radial mapping), higher values bulge the center more
+     * @defaultValue `2`
+     */
     strength?: number;
 }
 
@@ -379,7 +470,8 @@ export interface SVGResourceOptions {
     /**
      * Maximum total pixels in the rendered output. Output over the limit throws a RangeError before anything is
      * rendered. It's also the default of {@link SVGResourceOptions.maxLayerPixels} and
-     * {@link SVGResourceOptions.maxImagePixels}. Default: `268402689` (16383²); `Infinity` disables the limit
+     * {@link SVGResourceOptions.maxImagePixels}
+     * @defaultValue `268402689` (16383²); `Infinity` disables the limit
      */
     maxPixels?: number;
     /**
@@ -388,13 +480,15 @@ export interface SVGResourceOptions {
      * output's size, 16 bytes per pixel) while their content is drawn, so deeply nested ones multiply the memory a
      * small SVG takes. Exceeding it throws a RangeError. With the defaults, rendering can take about 90 bytes per pixel
      * of `maxPixels` (64 for the layers, up to 20 for the images, 4 for the output): lower `maxPixels` to bound it for
-     * untrusted SVGs. Default: `4 * maxPixels`; `Infinity` disables the limit
+     * untrusted SVGs
+     * @defaultValue `4 * maxPixels`; `Infinity` disables the limit
      */
     maxLayerPixels?: number;
     /**
      * Maximum total pixels of the raster images the SVG references (data URIs and {@link SVGResourceOptions.images}),
      * decoded together; already-decoded {@link Image} values are used as supplied and don't count. Drawing an image
-     * beyond the limit throws a RangeError. Default: `maxPixels`; `Infinity` disables the limit
+     * beyond the limit throws a RangeError
+     * @defaultValue `maxPixels`; `Infinity` disables the limit
      */
     maxImagePixels?: number;
     /**
@@ -405,7 +499,8 @@ export interface SVGResourceOptions {
      * other families and text without one get the first font's family; characters a face doesn't have come from the
      * other fonts (TrueType, OpenType or WOFF). Fonts the SVG embeds with `@font-face` (in data: URIs) are used too,
      * before these for their family names. Without any fonts text isn't rendered. One font can be given without an
-     * array. Default: `[]`
+     * array
+     * @defaultValue `[]`
      */
     font?: BinaryData | BinaryData[];
     /**
@@ -414,7 +509,8 @@ export interface SVGResourceOptions {
      * JPEG, WebP, GIF's first frame, ...) or {@link Image}s, decoded like data URI images are, and only for the hrefs
      * the SVG references. Nothing else is read: no files and no URLs, so drawing an image whose href isn't given (and
      * isn't a data URI) throws, as does drawing one that can't be decoded. SVG documents can't be given this way, use a
-     * data URI for them. Default: `{}`
+     * data URI for them
+     * @defaultValue `{}`
      */
     images?: Record<string, BinaryData | Image>;
 }
@@ -424,7 +520,10 @@ export interface SVGResourceOptions {
  * more; by default the SVG's own size), and the limits, fonts and images (see {@link SVGResourceOptions})
  */
 export type RenderSVGOptions = SVGResourceOptions & ({
-    /** The width in pixels, the height follows the SVG's aspect ratio. Default: the SVG's own width */
+    /**
+     * The width in pixels, the height follows the SVG's aspect ratio
+     * @defaultValue The SVG's own width
+     */
     width?: number;
     /** Not with `width`: give one of `width`, `height` and `scale` */
     height?: never;
@@ -442,7 +541,10 @@ export type RenderSVGOptions = SVGResourceOptions & ({
     width?: never;
     /** Not with `scale`: give one of `width`, `height` and `scale` */
     height?: never;
-    /** A factor of the SVG's own size (`2` renders it twice as large). Default: `1` */
+    /**
+     * A factor of the SVG's own size (`2` renders it twice as large)
+     * @defaultValue `1`
+     */
     scale: number;
 });
 
@@ -462,11 +564,15 @@ export interface RenderTextOptions extends TextStyleOptions, TextLayoutOptions {
     font: BinaryData | BinaryData[];
     /** Font size in pixels (per em) */
     size: number;
-    /** The text color. Default: `0xffffffff` */
+    /**
+     * The text color
+     * @defaultValue `0xffffffff`
+     */
     color?: Color;
     /**
      * Maximum total pixels of the rendered image (the outline included): larger text throws a RangeError before its
-     * pixels are allocated. Default: `268402689` (16383²); `Infinity` disables the limit
+     * pixels are allocated
+     * @defaultValue `268402689` (16383²); `Infinity` disables the limit
      */
     maxPixels?: number;
 }
@@ -475,7 +581,8 @@ export interface RenderTextOptions extends TextStyleOptions, TextLayoutOptions {
 export interface DecodeOptions {
     /**
      * Whether to rotate or mirror the image according to its saved orientation information, so photos taken with a
-     * rotated camera display upright. This applies to every animation frame too. Default: `true`
+     * rotated camera display upright. This applies to every animation frame too
+     * @defaultValue `true`
      */
     applyOrientation?: boolean;
     /**
@@ -483,7 +590,8 @@ export interface DecodeOptions {
      * colors to sRGB, the standard used by most screens and browsers. Common RGB and gray profiles described by a
      * color matrix and tone curves are converted, as are AVIFs using other color ranges (such as Display P3 or BT.2020).
      * Colors outside sRGB are clipped. Profiles that rely on lookup tables, CMYK profiles and profiles already in
-     * sRGB are left unchanged. Default: `true`
+     * sRGB are left unchanged
+     * @defaultValue `true`
      */
     applyColorProfile?: boolean;
     /**
@@ -492,25 +600,27 @@ export interface DecodeOptions {
      * {@link Animation.decode} counts all frames together because each frame uses a full canvas. The decoded image
      * takes 4 bytes per pixel (about 1 GiB at the default), and decoding needs more while it runs: for 8-bit images,
      * about 4-7 bytes per pixel for PNG, JPEG, WebP, GIF and the simpler formats, about 14 for AVIF and about 30 for
-     * JPEG XL (more with high bit depths). Lower it to bound the memory of servers decoding untrusted files. Default:
-     * `268402689` (16383²); `Infinity` disables the limit
+     * JPEG XL (more with high bit depths). Lower it to bound the memory of servers decoding untrusted files
+     * @defaultValue `268402689` (16383²); `Infinity` disables the limit
      */
     maxPixels?: number;
     /**
      * How high-dynamic-range images (which can be brighter than a standard screen's white) become 8-bit sRGB.
      * `'reinhard'` gently compresses bright highlights so the brightest pixel becomes white; images that are not HDR
-     * stay unchanged. `'clamp'` clips anything brighter than white. Default: `'reinhard'`
+     * stay unchanged. `'clamp'` clips anything brighter than white
+     * @defaultValue `'reinhard'`
      */
     toneMapping?: ToneMapping;
     /**
      * Whether to read extra HDR brightness data (a gain map) from supported JPEG, AVIF and JPEG XL images into
-     * {@link Image.gainMap}. For animations, this also reads maps from supported JPEG XL frames. Default: `true`
+     * {@link Image.gainMap}. For animations, this also reads maps from supported JPEG XL frames
+     * @defaultValue `true`
      */
     gainMap?: boolean;
     /**
      * Maximum worker threads for formats and image sizes that can be decoded in parallel. Small images may use one
-     * thread because starting workers can take longer than decoding them. Default: the available processors, up to 8
-     * (one in runtimes that cannot share memory between workers)
+     * thread because starting workers can take longer than decoding them
+     * @defaultValue The available processors, up to 8 (one in runtimes that cannot share memory between workers)
      */
     threads?: number;
 }
@@ -524,62 +634,85 @@ export interface JXLEncodeOptions extends EncodeOptions {
     quality?: number;
     /**
      * Compression effort (0-2): higher values usually take longer but may make smaller files. `0` prioritizes speed;
-     * `2` spends the most time compressing. Default: `1`
+     * `2` spends the most time compressing
+     * @defaultValue `1`
      */
     effort?: number;
     /**
      * Maximum worker threads for compression. Small images or runtimes that cannot share memory between workers use
-     * one thread. Default: the available processors, up to 8
+     * one thread
+     * @defaultValue The available processors, up to 8
      */
     threads?: number;
     /**
      * Whether to write the image's {@link Image.gainMap}, the extra data used to show brighter highlights on HDR
-     * displays. Default: `true` (written if there is one)
+     * displays
+     * @defaultValue `true` (written if there is one)
      */
     gainMap?: boolean | GainMapEmbedOptions;
 }
 
 /** Options of {@link Image.encodeAVIF} */
 export interface AVIFEncodeOptions extends EncodeOptions {
-    /** 0-100, like avifenc's: higher is better and larger, 100 is lossless. Default: `60` */
+    /**
+     * 0-100, like avifenc's: higher is better and larger, 100 is lossless
+     * @defaultValue `60`
+     */
     quality?: number;
-    /** The quality of the transparency channel, if the image has transparency. Default: `100` (lossless) */
+    /**
+     * The quality of the transparency channel, if the image has transparency
+     * @defaultValue `100` (lossless)
+     */
     alphaQuality?: number;
     /**
      * How much color detail to keep: `'4:4:4'` keeps it all; `'4:2:0'` stores less color detail to make a smaller
-     * file. Default: `'4:4:4'`
+     * file
+     * @defaultValue `'4:4:4'`
      */
     subsampling?: '4:4:4' | '4:2:0';
-    /** How hard the encoder searches for the best modes: 0-2, faster to smaller. Default: `1` */
+    /**
+     * How hard the encoder searches for the best modes: 0-2, faster to smaller
+     * @defaultValue `1`
+     */
     effort?: number;
     /**
      * Maximum worker threads for compression. Small images or runtimes that cannot share memory between workers use
-     * one thread. Default: the available processors, up to 8
+     * one thread
+     * @defaultValue The available processors, up to 8
      */
     threads?: number;
     /**
      * Whether to write the image's {@link Image.gainMap}, the extra data used to show brighter highlights on HDR
-     * displays. Default: `true` (written if there is one)
+     * displays
+     * @defaultValue `true` (written if there is one)
      */
     gainMap?: boolean | GainMapEmbedOptions;
 }
 
 /** Text style options of {@link Image.renderText} */
 export interface TextStyleOptions {
-    /** Width of an outline around the glyphs in pixels. Default: `0` */
+    /**
+     * Width of an outline around the glyphs in pixels
+     * @defaultValue `0`
+     */
     strokeWidth?: number;
-    /** Color of the outline. Default: `0x000000ff` */
+    /**
+     * Color of the outline
+     * @defaultValue `0x000000ff`
+     */
     strokeColor?: Color;
     /**
      * Whether to run the hinting instructions of TrueType fonts, which align stems and edges with the pixel grid for
      * crisper text at small sizes (like Windows renders text); the glyphs of hinted fonts are then placed on whole
-     * pixels. Fonts without instructions (and CFF/OpenType outlines) aren't affected. Default: `true`
+     * pixels. Fonts without instructions (and CFF/OpenType outlines) aren't affected
+     * @defaultValue `true`
      */
     hinting?: boolean;
     /**
      * OpenType features by their tags, for the whole text: `true` turns one on (like `tnum` for tabular numbers,
      * `smcp` for small caps, `ss01` for a stylistic set), `false` off (also the ones on by default, like `liga` or
-     * `kern`), a number picks an alternate (`salt: 2`). Fonts without a feature ignore it. Default: `{}`
+     * `kern`), a number picks an alternate (`salt: 2`). Fonts without a feature ignore it
+     * @defaultValue `{}`
      */
     features?: Record<string, boolean | number>;
     /**
@@ -588,7 +721,8 @@ export interface TextStyleOptions {
      * right), `italic` (`true`/`false`), `opticalSize` (the size the glyphs are designed for, in pixels; default: the
      * font size, like browsers' `font-optical-sizing: auto`), and other axes by their 4-character tag (like Roboto
      * Flex's `GRAD: 50`). Values outside an axis's range are clamped, axes a font doesn't have are ignored, fonts
-     * without axes aren't affected. Default: `{}` (the fonts' default instances)
+     * without axes aren't affected
+     * @defaultValue `{}` (the fonts' default instances)
      */
     variations?: Record<string, number | boolean>;
 }
@@ -598,20 +732,33 @@ export interface CropCircleOptions {
     /**
      * The circle's size: `'contain'` fits it inside the image (the smaller dimension is its diameter, no hard edges),
      * `'cover'` covers the image (the larger dimension is its diameter, the corners of a rectangular image stay
-     * transparent on the shorter side). Default: `'contain'`
+     * transparent on the shorter side)
+     * @defaultValue `'contain'`
      */
     size?: 'contain' | 'cover';
-    /** Share of the radius (0..1) over which the edge fades out. Default: `0` */
+    /**
+     * Share of the radius (0..1) over which the edge fades out
+     * @defaultValue `0`
+     */
     feathering?: number;
 }
 
 /** Options of {@link Image.dominantColor} */
 export interface DominantColorOptions {
-    /** Whether to ignore dark colors (all channels below `threshold`). Default: `true` */
+    /**
+     * Whether to ignore dark colors (all channels below `threshold`)
+     * @defaultValue `true`
+     */
     ignoreBlack?: boolean;
-    /** Whether to ignore light colors (all channels above 255 minus `threshold`). Default: `true` */
+    /**
+     * Whether to ignore light colors (all channels above 255 minus `threshold`)
+     * @defaultValue `true`
+     */
     ignoreWhite?: boolean;
-    /** How close (in channel values, 0-256) to black or white a color has to be to be ignored. Default: `60` */
+    /**
+     * How close (in channel values, 0-256) to black or white a color has to be to be ignored
+     * @defaultValue `60`
+     */
     threshold?: number;
 }
 
@@ -619,13 +766,15 @@ export interface DominantColorOptions {
 export interface RotateOptions {
     /**
      * Whether to make the image larger so the rotated corners aren't cut off. Without it, the image keeps its size and
-     * the parts outside are lost. Default: `true`
+     * the parts outside are lost
+     * @defaultValue `true`
      */
     expand?: boolean;
     /**
      * How the pixels between the source's are sampled for angles that aren't multiples of 90° (those move whole
      * pixels): `'nearest-neighbor'` (hard pixels, for pixel art), `'bilinear'` (smooth) or `'bicubic'` (sharper, can
-     * overshoot a little at hard edges), like {@link TransformOptions.mode}. Default: `'bilinear'`
+     * overshoot a little at hard edges), like {@link TransformOptions.mode}
+     * @defaultValue `'bilinear'`
      */
     mode?: TransformMode;
 }
@@ -639,7 +788,8 @@ export interface TrimOptions {
     color?: Color;
     /**
      * How far (0-1) a pixel's channels may be from the color for it to be trimmed, e.g. for JPEG artifacts or
-     * antialiasing. Default: `0`
+     * antialiasing
+     * @defaultValue `0`
      */
     tolerance?: number;
 }
@@ -648,9 +798,15 @@ export interface TrimOptions {
 export interface ColorToAlphaOptions {
     /** The color to remove, by default the color of the top left pixel (e.g. a background) */
     color?: Color;
-    /** Pixels at most this far from the color (0-1) become fully transparent. Default: 0 */
+    /**
+     * Pixels at most this far from the color (0-1) become fully transparent
+     * @defaultValue 0
+     */
     transparencyThreshold?: number;
-    /** Pixels at least this far from the color (0-1) stay fully opaque. Default: 1 */
+    /**
+     * Pixels at least this far from the color (0-1) stay fully opaque
+     * @defaultValue 1
+     */
     opacityThreshold?: number;
 }
 

@@ -24,9 +24,15 @@ export interface Metadata {
     description?: string;
     /** The image's copyright info */
     copyright?: string;
-    /** The image's creation time. Default: none (`null` leaves it out, too) */
+    /**
+     * The image's creation time
+     * @defaultValue None (`null` leaves it out, too)
+     */
     creationTime?: string | number | Date | null;
-    /** The software used to create the image. Default: `'ImageScript'` (without a version), `null` leaves it out */
+    /**
+     * The software used to create the image
+     * @defaultValue `'ImageScript'` (without a version), `null` leaves it out
+     */
     software?: string | null;
     /** A disclaimer for the image */
     disclaimer?: string;

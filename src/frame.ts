@@ -17,13 +17,25 @@ const DISPOSAL_MODES: readonly FrameDisposalMode[] = ['any', 'keep', 'previous',
 
 /** Options of {@link Frame} */
 export interface FrameOptions {
-    /** The frame's duration in milliseconds. Default: `100` */
+    /**
+     * The frame's duration in milliseconds
+     * @defaultValue `100`
+     */
     duration?: number;
-    /** The frame's offset on the x-axis. Default: `0` */
+    /**
+     * The frame's offset on the x-axis
+     * @defaultValue `0`
+     */
     xOffset?: number;
-    /** The frame's offset on the y-axis. Default: `0` */
+    /**
+     * The frame's offset on the y-axis
+     * @defaultValue `0`
+     */
     yOffset?: number;
-    /** The frame's disposal mode, see {@link Frame.disposalMode}. Default: `'keep'` */
+    /**
+     * The frame's disposal mode, see {@link Frame.disposalMode}
+     * @defaultValue `'keep'`
+     */
     disposalMode?: FrameDisposalMode;
 }
 

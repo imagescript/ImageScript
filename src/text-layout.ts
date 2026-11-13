@@ -12,24 +12,30 @@ export type VerticalAlign = 'top' | 'middle' | 'bottom';
 export interface TextLayoutOptions {
     /**
      * The image's width in pixels: lines are wrapped to fit into it (inside the outline, see
-     * {@link TextStyleOptions.strokeWidth}) and placed in it by `horizontalAlign`. Default: the widest line's width
+     * {@link TextStyleOptions.strokeWidth}) and placed in it by `horizontalAlign`
+     * @defaultValue The widest line's width
      */
     width?: number;
     /**
      * The image's height in pixels: lines that don't fit are left out, and the text is placed in it by `verticalAlign`.
-     * Default: the height of the lines
+     * @defaultValue The height of the lines
      */
     height?: number;
-    /** Whether to wrap between words or at any character. Default: `'word'` */
+    /**
+     * Whether to wrap between words or at any character
+     * @defaultValue `'word'`
+     */
     wrapStyle?: WrapStyle;
     /**
      * Where the lines are placed horizontally: `'left'`, `'center'` or `'right'` in the `width`, or (without one)
-     * relative to the widest line. Default: `'left'`
+     * relative to the widest line
+     * @defaultValue `'left'`
      */
     horizontalAlign?: HorizontalAlign;
     /**
      * Where the text is placed vertically in the `height`: `'top'`, `'middle'` or `'bottom'`. When not all lines fit,
-     * these keep the first, the middle or the last lines. Without a `height`, it has no effect. Default: `'top'`
+     * these keep the first, the middle or the last lines. Without a `height`, it has no effect
+     * @defaultValue `'top'`
      */
     verticalAlign?: VerticalAlign;
 }

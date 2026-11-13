@@ -8,7 +8,10 @@ import { finite, checkOptions, pixelLimit, quality as checkQuality } from './uti
 
 /** Options of {@link GainMap.encodeJPEG} */
 export interface GainMapEncodeOptions {
-    /** The JPEG quality (1-100). Default: `90` */
+    /**
+     * The JPEG quality (1-100)
+     * @defaultValue `90`
+     */
     quality?: number;
 }
 
@@ -17,24 +20,45 @@ export type GainMapChannelValues = number | readonly [red: number, green: number
 
 /** Options of the {@link GainMap} constructor */
 export interface GainMapOptions {
-    /** Extra brightness at the map's darkest value (0); `-1` means half as bright. Default: `0` (no change) */
+    /**
+     * Extra brightness at the map's darkest value (0); `-1` means half as bright
+     * @defaultValue `0` (no change)
+     */
     min?: GainMapChannelValues;
-    /** Extra brightness at the map's brightest value (255); `2` means four times as bright. Default: `2` */
+    /**
+     * Extra brightness at the map's brightest value (255); `2` means four times as bright
+     * @defaultValue `2`
+     */
     max?: GainMapChannelValues;
-    /** How quickly the brightness changes between `min` and `max`; `1` changes it evenly. Default: `1` */
+    /**
+     * How quickly the brightness changes between `min` and `max`; `1` changes it evenly
+     * @defaultValue `1`
+     */
     gamma?: GainMapChannelValues;
     /**
      * Small brightness offset added before applying the boost, to keep black from being boosted indefinitely.
-     * Default: `1/64`
+     * @defaultValue `1/64`
      */
     offsetSDR?: GainMapChannelValues;
-    /** Small brightness offset subtracted from the result. Default: `1/64` */
+    /**
+     * Small brightness offset subtracted from the result
+     * @defaultValue `1/64`
+     */
     offsetHDR?: GainMapChannelValues;
-    /** How bright a display must be before the map starts to apply; `0` is standard-screen brightness. Default: `0` */
+    /**
+     * How bright a display must be before the map starts to apply; `0` is standard-screen brightness
+     * @defaultValue `0`
+     */
     hdrCapacityMin?: number;
-    /** How bright a display must be for the map to apply fully. Default: the largest value in `max` */
+    /**
+     * How bright a display must be for the map to apply fully
+     * @defaultValue The largest value in `max`
+     */
     hdrCapacityMax?: number;
-    /** Whether the boost uses the original image's colors (`false`: the brighter HDR colors). Default: `true` */
+    /**
+     * Whether the boost uses the original image's colors (`false`: the brighter HDR colors)
+     * @defaultValue `true`
+     */
     useBaseColorSpace?: boolean;
 }
 

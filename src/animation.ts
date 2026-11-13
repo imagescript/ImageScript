@@ -30,8 +30,8 @@ function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uin
 export interface AnimationOptions {
     /**
      * How many times to repeat the animation: `Infinity` loops forever, 0 plays once, 1 plays twice, ... Anything else
-     * throws: a RangeError unless it is an integer from 0 or `Infinity`, a TypeError unless it is a number. Default:
-     * `Infinity`
+     * throws: a RangeError unless it is an integer from 0 or `Infinity`, a TypeError unless it is a number
+     * @defaultValue `Infinity`
      */
     loopCount?: number;
 }
@@ -39,11 +39,15 @@ export interface AnimationOptions {
 /** Options of {@link Animation}'s constructor: the canvas size and the loop count */
 export interface AnimationCanvasOptions extends AnimationOptions {
     /**
-     * The canvas width in pixels: frames (or the parts of them) outside the canvas aren't encoded. Default: the
-     * frames' right edge (the largest `xOffset + width`), following the frames until a canvas size is set
+     * The canvas width in pixels: frames (or the parts of them) outside the canvas aren't encoded
+     * @defaultValue The frames' right edge (the largest `xOffset + width`), following the frames until a canvas size is
+     *     set
      */
     width?: number;
-    /** The canvas height in pixels, like `width`. Default: the frames' bottom edge (the largest `yOffset + height`) */
+    /**
+     * The canvas height in pixels, like `width`
+     * @defaultValue The frames' bottom edge (the largest `yOffset + height`)
+     */
     height?: number;
 }
 
@@ -52,7 +56,8 @@ export interface AnimationEncodeOptions extends EncodeOptions {
     /**
      * Whether to store each frame as the area that changed since the frame before and merge identical frames, which
      * usually makes files a lot smaller. The file shows the same animation either way, but only decodes to the same
-     * frames without it, which also encodes faster when little changes. Default: `true`
+     * frames without it, which also encodes faster when little changes
+     * @defaultValue `true`
      */
     optimize?: boolean;
 }
