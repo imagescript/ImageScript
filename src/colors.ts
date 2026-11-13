@@ -63,20 +63,23 @@ export function rgbaToHSLA(r: number, g: number, b: number, a: number): [h: numb
 }
 
 function gradientBetween(startColor: Color, endColor: Color): (position: number) => Color {
-    const sr = startColor >>> 24;
-    const sg = startColor >> 16 & 0xff;
-    const sb = startColor >> 8 & 0xff;
-    const sa = startColor & 0xff;
-    const er = (endColor >>> 24) - sr;
-    const eg = (endColor >> 16 & 0xff) - sg;
-    const eb = (endColor >> 8 & 0xff) - sb;
-    const ea = (endColor & 0xff) - sa;
+    const sr = startColor >>> 24, sg = startColor >> 16 & 0xff, sb = startColor >> 8 & 0xff, sa = startColor & 0xff;
+    const er = (endColor >>> 24) - sr, eg = (endColor >> 16 & 0xff) - sg, eb = (endColor >> 8 & 0xff) - sb, ea = (endColor & 0xff) - sa;
 
+    // opaque colors blend directly
+    if (sa === 255 && ea === 0) return position => {
+        const r = sr + position * er, g = sg + position * eg, b = sb + position * eb;
+        return (((r & 0xff) << 24) | ((g & 0xff) << 16) | ((b & 0xff) << 8) | 0xff) >>> 0;
+    };
+
+    // with transparency the colors blend premultiplied (like CSS does), so a color doesn't leak from what is invisible
+    const pr = sr * sa / 255, pg = sg * sa / 255, pb = sb * sa / 255;
+    const dr = (er + sr) * (ea + sa) / 255 - pr, dg = (eg + sg) * (ea + sa) / 255 - pg, db = (eb + sb) * (ea + sa) / 255 - pb;
     return position => {
-        const r = sr + position * er;
-        const g = sg + position * eg;
-        const b = sb + position * eb;
         const a = sa + position * ea;
+        if (a <= 0) return 0;
+        const k = 255 / a;
+        const r = Math.min(255, (pr + position * dr) * k + 1e-9), g = Math.min(255, (pg + position * dg) * k + 1e-9), b = Math.min(255, (pb + position * db) * k + 1e-9);
         return (((r & 0xff) << 24) | ((g & 0xff) << 16) | ((b & 0xff) << 8) | (a & 0xff)) >>> 0;
     };
 }
@@ -211,7 +214,10 @@ export class Colors {
 
         if (positions.length === 0) throw new RangeError('Invalid gradient point count');
         else if (positions.length === 1) {
-            return () => values[0];
+            return position => {
+                if (Number.isNaN(position)) throw new RangeError(`Invalid gradient position: ${position}`);
+                return values[0];
+            };
         } else if (positions.length === 2) {
             const gradient = gradientBetween(values[0], values[1]);
             return position => {

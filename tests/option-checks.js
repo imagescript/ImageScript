@@ -138,6 +138,16 @@ const rejects = async (name, fn, Type) => {
         const {Colors} = require('..');
         await rejects('gradient of 2 at NaN', () => Colors.gradient([0xff0000ff, 0x0000ffff])(NaN), RangeError);
         await rejects('gradient of 3 at NaN', () => Colors.gradient([0xff0000ff, 0x00ff00ff, 0x0000ffff])(NaN), RangeError);
+        await rejects('gradient of 1 at NaN', () => Colors.gradient([0xff0000ff])(NaN), RangeError);
+
+        // colors blend premultiplied, like CSS: what fades out leaves no dark color behind
+        const fade = Colors.gradient([0x00000000, 0xff0000ff]);
+        const [fr, fg, fb, fa] = Colors.toRGBA(fade(0.5));
+        if (fr !== 255 || fg !== 0 || fb !== 0 || Math.abs(fa - 127.5) > 1) panic(`transparent to red at the middle: ${[fr, fg, fb, fa]}, CSS gives 255,0,0,~128`);
+        if (fade(0) !== 0 || fade(1) !== 0xff0000ff) panic('a gradient should start and end with its colors');
+        const [gr, gg, gb] = Colors.toRGBA(Colors.gradient([0xff0000ff, 0x0000ff00])(0.5));
+        if (gr !== 255 || gg !== 0 || gb !== 0) panic(`red to transparent blue at the middle: ${[gr, gg, gb]}, the invisible end shouldn't tint it`);
+        if (Colors.gradient([0xff0000ff, 0x0000ffff])(0.5) !== 0x7f007fff) panic('opaque colors blend as they did');
         const edge = Colors.gradient({0: 0xff0000ff, 0.5: 0x00ff00ff, '0.50': 0x0000ffff, 1: 0xffffffff});
         if ([0.25, 0.5, 0.75].some(p => Number.isNaN(edge(p)))) panic('a gradient with two stops at one position');
         const single = Colors.gradient({0.5: 0xff0000ff, '0.50': 0x00ff00ff, '5e-1': 0x0000ffff});
