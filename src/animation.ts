@@ -272,16 +272,16 @@ export class Animation {
      * @param height The new canvas height
      */
     crop(x: number, y: number, width: number, height: number): this {
-        x = Math.max(0, Math.floor(finite(x, 'x')));
-        y = Math.max(0, Math.floor(finite(y, 'y')));
-        width = Math.min(Math.floor(finite(width, 'width')), this.width - x);
-        height = Math.min(Math.floor(finite(height, 'height')), this.height - y);
-        if (!(width >= 1 && height >= 1)) throw new RangeError('The crop region has to overlap the canvas');
+        // (the part of the region that lies on the canvas)
+        const left = Math.max(0, Math.floor(finite(x, 'x'))), top = Math.max(0, Math.floor(finite(y, 'y')));
+        const right = Math.min(this.width, Math.floor(finite(x, 'x')) + Math.floor(finite(width, 'width')));
+        const bottom = Math.min(this.height, Math.floor(finite(y, 'y')) + Math.floor(finite(height, 'height')));
+        if (!(right - left >= 1 && bottom - top >= 1)) throw new RangeError('The crop region has to overlap the canvas');
         for (const frame of this.__distinct__()) {
-            frame.xOffset -= x;
-            frame.yOffset -= y;
+            frame.xOffset -= left;
+            frame.yOffset -= top;
         }
-        this.__canvas__ = [width, height];
+        this.__canvas__ = [right - left, bottom - top];
         this.frames = this.__clipped_frames__();
         return this;
     }

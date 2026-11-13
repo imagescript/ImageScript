@@ -73,6 +73,19 @@ if (sized.width !== 4 || sized.height !== 4 || sized.duration !== 30) panic(`siz
 const first = new Image(2, 2);
 if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration !== 5) panic('Frame from an image');
 
+// crop() clips the region to the canvas like Image.crop() does: the canvas is the part of the region that overlaps it
+{
+    const picture = () => new Image(20, 20).fill((x, y) => 0xff | x << 24 | y << 16);
+    for (const [x, y, width, height] of [[-5, -5, 10, 10], [15, 15, 10, 10], [-5, 4, 30, 6], [2, 3, 4, 5]]) {
+        const cropped = new Animation([new Frame(picture())]).crop(x, y, width, height);
+        const expected = picture().crop(x, y, width, height);
+        if (cropped.width !== expected.width || cropped.height !== expected.height) panic(`crop(${x}, ${y}, ${width}, ${height}): canvas ${cropped.width}x${cropped.height}, Image.crop gives ${expected.width}x${expected.height}`);
+        const frame = cropped.frames[0];
+        if (Buffer.compare(Buffer.from(frame.image.bitmap), Buffer.from(expected.bitmap)) || frame.xOffset !== 0 || frame.yOffset !== 0) panic(`crop(${x}, ${y}, ${width}, ${height}): the frame isn't what Image.crop keeps`);
+    }
+    throwsA(() => new Animation([new Frame(picture())]).crop(-20, 0, 10, 10), RangeError, 'a region outside the canvas');
+}
+
 // a frame listed twice (to hold it, or in a ping-pong), or two frames of one image, change once
 {
     const shape = frames => frames.map(frame => [frame.xOffset, frame.yOffset, frame.width, frame.height]).join(';');
