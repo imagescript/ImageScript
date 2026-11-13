@@ -65,6 +65,15 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
     // the pixel limit
     if (await Image.decode(lossy, {maxPixels: 100}).then(() => true, () => false)) panic('maxPixels was ignored');
 
+    // an animation's frames count together, like those of the other formats
+    {
+        const animation = await Animation.decode(animated);
+        const total = animation.frames.reduce((sum, frame) => sum + frame.width * frame.height, 0);
+        if (animation.length < 2) panic('the animated file should have frames');
+        if (await Animation.decode(animated, {maxPixels: total - 1}).then(() => false, error => error.name === 'LimitError') !== true) panic('maxPixels should count every frame');
+        await Animation.decode(animated, {maxPixels: total});
+    }
+
     // threads (groups, Gaborish, EPF and the XYB conversion in parallel, from 4 megapixels): the same pixels as without,
     // lossy (with alpha) and lossless
     const big = new Image(2304, 2048);

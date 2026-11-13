@@ -13,7 +13,7 @@ import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { checkOptions, oneOf, pixelLimit, checkThreads, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, color as checkColor } from './util/options.ts';
-import { MAX_PIXELS, decoding } from './util/limits.ts';
+import { MAX_PIXELS, decoding, checkPixels } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 
 // frames decoded fully composited, as full canvas frames
@@ -56,7 +56,9 @@ export interface AnimationEncodeOptions extends EncodeOptions {
     /**
      * Whether to store each frame as the area that changed since the frame before and merge identical frames, which
      * usually makes files a lot smaller. The file shows the same animation either way, but only decodes to the same
-     * frames without it, which also encodes faster when little changes
+     * frames without it, which also encodes faster when little changes. The exception is GIF, which has no partial
+     * transparency: without `optimize`, a semi-transparent pixel becomes opaque or transparent in its own frame, with
+     * it the frames are composited first
      * @defaultValue `true`
      */
     optimize?: boolean;
@@ -766,6 +768,8 @@ export class Animation {
                 const image = new Image(decoded.width, decoded.height);
                 image.bitmap = alignedPixels(decoded.pixels);
                 frames.push(new Frame(image, { duration: decoded.duration, disposalMode: 'background' }));
+                // (all frames count, like those of the other formats)
+                checkPixels(decoded.width, decoded.height, maxPixels, frames.length);
                 orientation = decoded.orientation;
                 loops = fromPlays(decoded.loopCount);
                 animated ||= decoded.animated;
