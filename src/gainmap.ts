@@ -47,8 +47,8 @@ const perChannel = (value: GainMapChannelValues, name: string): number[] => {
 
 /**
  * A gain map is a small companion image that tells a high-dynamic-range (HDR) display how much brighter to show each
- * part of a photo. Standard displays ignore it and show the regular-brightness image.
- *
+ * part of a photo. Standard displays ignore it and show the regular-brightness image
+ * @remarks
  * {@link Image.decode} reads gain maps from supported JPEG, AVIF and JPEG XL images into {@link Image.gainMap};
  * {@link Image.encodeJPEG}, {@link Image.encodeAVIF} and {@link Image.encodeJXL} can write them. The map covers the
  * whole image, at any resolution. Each pixel's value (0-255) controls how much extra brightness to add at that
@@ -348,6 +348,7 @@ export class GainMap {
      * Encodes the gain map alone: a JPEG with its parameters (hdrgm XMP and ISO 21496-1), like the second image in an
      * Ultra HDR JPEG
      * @param options See {@link GainMapEncodeOptions}
+     * @see {@link Image.encodeJPEG} for the image with its gain map embedded
      */
     encodeJPEG(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodeJPEG(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>> {
@@ -361,8 +362,9 @@ export class GainMap {
      * Decodes a gain map JPEG with its parameters (hdrgm XMP or ISO 21496-1), like the second image in an Ultra HDR
      * JPEG, or the gain map of an Ultra HDR JPEG (or an iPhone's JPEG: its values converted to these parameters)
      * @param data The JPEG
-     * @param options The `maxPixels` limit, like {@link DecodeOptions.maxPixels} (a map larger than that throws a
-     *     {@link LimitError}); a damaged JPEG throws an error saying so, like {@link Image.decode}
+     * @param options The `maxPixels` limit, like {@link DecodeOptions.maxPixels}
+     * @throws {@link LimitError} if the map has more than `options.maxPixels` pixels
+     * @throws `Error` if the data has no gain map (or no parameters for it), or is damaged
      */
     static async decode(data: BinaryData, options: Pick<DecodeOptions, 'maxPixels'> = {}): Promise<GainMap> {
         checkOptions(options, 'GainMap.decode(data, { maxPixels: 1e8 })');

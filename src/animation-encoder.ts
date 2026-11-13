@@ -35,11 +35,12 @@ function clipToCanvas(frame: InputFrame & { disposal: number }, width: number, h
 
 /**
  * Encodes an animation a frame at a time, without keeping all frames in memory: see {@link Animation.webpEncoder},
- * {@link Animation.gifEncoder} and {@link Animation.apngEncoder}. The file is the one an {@link Animation} of the
- * frames encodes to, but for unoptimized WebPs with frames WebP can't store as they are (disposed to the previous
- * frame, or disposed with odd offsets): from the first of them on, the frames are the canvas they show (the same
- * animation, blending rounds differently by 1 at most). APNGs keep their frames compressed until the end: their pixel
- * format depends on all of them
+ * {@link Animation.gifEncoder} and {@link Animation.apngEncoder}
+ * @remarks
+ * The file is the one an {@link Animation} of the frames encodes to, but for unoptimized WebPs with frames WebP can't
+ * store as they are (disposed to the previous frame, or disposed with odd offsets): from the first of them on, the
+ * frames are the canvas they show (the same animation, blending rounds differently by 1 at most). APNGs keep their
+ * frames compressed until the end: their pixel format depends on all of them
  */
 export class AnimationEncoder {
     private optimizer: Optimizer | null;
@@ -70,6 +71,9 @@ export class AnimationEncoder {
      * default). The options override the frame's. The pixels are copied right away, the image can change afterwards
      * @param frame The frame or image
      * @param options See {@link FrameOptions}
+     * @throws `TypeError` if the frame isn't a {@link Frame} or an {@link Image}
+     * @throws `RangeError` if the duration is negative or more than the format stores
+     * @throws `Error` if the encoder is finished
      */
     async add(frame: Frame | Image, options: FrameOptions = {}): Promise<void> {
         checkOptions(options, 'encoder.add(frame, { duration: 40 })');
@@ -100,7 +104,10 @@ export class AnimationEncoder {
         });
     }
 
-    /** Encodes the rest and returns the file. The encoder can't be used afterwards */
+    /**
+     * Encodes the rest and returns the file. The encoder can't be used afterwards
+     * @throws `Error` if no frame was added, or the encoder is finished already
+     */
     async finish(): Promise<Uint8Array<ArrayBuffer>> {
         if (this.finished) throw new Error('The animation encoder is finished');
         this.finished = true;

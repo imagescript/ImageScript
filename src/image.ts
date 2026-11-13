@@ -706,6 +706,7 @@ export class Image {
      * Creates a new image with the given dimensions, all pixels transparent black
      * @param width The width in pixels
      * @param height The height in pixels
+     * @throws `RangeError` if the width or height is not a number of at least 1, or the image is too large to allocate
      */
     constructor(width: number, height: number) {
         width = Math.trunc(finite(width, 'width'));
@@ -866,6 +867,8 @@ export class Image {
      * @param x The x coordinate
      * @param y The y coordinate
      * @returns The color value (`0xRRGGBBAA`)
+     * @throws `RangeError` if the position isn't inside the image
+     * @see {@link Image.pixels} to go over every pixel
      */
     getPixelAt(x: number, y: number): Color {
         x = Math.trunc(finite(x, 'x'));
@@ -879,6 +882,7 @@ export class Image {
      * @param x The x coordinate
      * @param y The y coordinate
      * @param color The new color (`0xRRGGBBAA`)
+     * @throws `RangeError` if the position isn't inside the image
      */
     setPixelAt(x: number, y: number, color: Color): this {
         x = Math.trunc(finite(x, 'x'));
@@ -1009,6 +1013,11 @@ export class Image {
     resize(width: number, height: number, options?: ResizeOptions): this;
     /**
      * Resizes the image: to the given width or height (the other side keeps the aspect ratio), or to both
+     * @example
+     * ```ts
+     * image.resize({ width: 300, height: 200, fit: 'cover' }); // fills 300x200, cropping what doesn't fit
+     * image.resize({ width: 150 });                            // 150 wide, the height keeps the aspect ratio
+     * ```
      * @param options The size and how to resize, see {@link ResizeToOptions}
      * @returns The resized image
      */
@@ -1279,6 +1288,7 @@ export class Image {
     /**
      * Crops the image into a circle with an antialiased edge
      * @param options See {@link CropCircleOptions}
+     * @see {@link Image.roundCorners} for rounded corners
      */
     cropCircle(options: CropCircleOptions = {}): this {
         checkOptions(options, 'cropCircle({ size: \'cover\' })');
@@ -1443,8 +1453,13 @@ export class Image {
 
     /**
      * Composites (overlays) the source onto this image
+     * @example
+     * ```ts
+     * image.composite(overlay, { x: 10, y: 10, opacity: 0.5, mode: 'multiply' });
+     * ```
      * @param source The image to place
      * @param options Position, opacity and blend mode, see {@link CompositeOptions}
+     * @throws `TypeError` if the source isn't an {@link Image}
      */
     composite(source: Image, options?: CompositeOptions): this;
     composite(source: Image, options: CompositeOptions = {}): this {
@@ -1744,12 +1759,16 @@ export class Image {
     }
 
     /**
-     * Reduces the image to a palette of at most 256 colors (or a fixed one), in place, optionally dithered, e.g.
-     * `image.quantize({ colors: 16, dither: 'floyd-steinberg' })` or `image.quantize({ palette: [0x0f380fff, 0x306230ff,
-     * 0x8bac0fff, 0x9bbc0fff] })` for a Game Boy look. Transparent pixels (alpha 0) keep their color and don't count
-     * towards the palette; the other pixels keep their alpha and only their RGB is reduced. The result is deterministic.
-     * With a gain map (an HDR image), the HDR highlights are dropped, like {@link Image.invert} does: the map is neutral
-     * afterwards
+     * Reduces the image to a palette of at most 256 colors (or a fixed one), in place, optionally dithered
+     * @remarks
+     * Transparent pixels (alpha 0) keep their color and don't count towards the palette; the other pixels keep their alpha
+     * and only their RGB is reduced. The result is deterministic. With a gain map (an HDR image), the HDR highlights are
+     * dropped, like {@link Image.invert} does: the map is neutral afterwards
+     * @example
+     * ```ts
+     * image.quantize({ colors: 16, dither: 'floyd-steinberg' });
+     * image.quantize({ palette: [0x0f380fff, 0x306230ff, 0x8bac0fff, 0x9bbc0fff] }); // a Game Boy look
+     * ```
      * @param options See {@link QuantizeOptions}
      */
     quantize(options: QuantizeOptions = {}): this {
@@ -1790,14 +1809,18 @@ export class Image {
     /**
      * Mixes the colors of every pixel with a color matrix, like SVG's `feColorMatrix`: the new red, green, blue and alpha
      * are each a sum of the old red, green, blue and alpha times a factor, plus an offset. Grayscale, sepia, tints,
-     * swapped channels, color blindness simulation or a mix of those in one pass.
-     *
+     * swapped channels, color blindness simulation or a mix of those in one pass
+     * @remarks
      * The values are 20 numbers, four rows of `[red, green, blue, alpha, offset]` for the new red, green, blue and alpha,
      * with the colors and the offsets as 0 to 1 (like CSS and SVG): `[1, 0, 0, 0, 0,  0, 1, 0, 0, 0,  0, 0, 1, 0, 0,
      * 0, 0, 0, 1, 0]` changes nothing, `[0, 0, 1, 0, 0,  0, 1, 0, 0, 0,  1, 0, 0, 0, 0,  0, 0, 0, 1, 0]` swaps red and
      * blue. Nine numbers are the first three rows without the alpha and the offsets (the alpha stays as it is). The
      * colors are the sRGB values, not premultiplied, and the results are clamped. With a gain map (an HDR image), the
      * HDR highlights follow the change as they do for other color changes
+     * @example
+     * ```ts
+     * image.colorMatrix([0.393, 0.769, 0.189,  0.349, 0.686, 0.168,  0.272, 0.534, 0.131]); // sepia
+     * ```
      * @param matrix The 9 or 20 values
      */
     colorMatrix(matrix: ArrayLike<number>): this {
@@ -1826,8 +1849,13 @@ export class Image {
 
     /**
      * Moves every point of the image with an affine transform, in one resampling: rotation, scaling, skew, flips and
-     * shifts in any mix and around any point. The six numbers are SVG's `matrix(a b c d e f)`: a point (x, y) of the
-     * image ends up at (a x + c y + e, b x + d y + f), with y pointing down.
+     * shifts in any mix and around any point
+     * @remarks
+     * The six numbers are SVG's `matrix(a b c d e f)`: a point (x, y) of the image ends up at (a x + c y + e,
+     * b x + d y + f), with y pointing down. The image grows to hold the result (`expand: false` keeps its size), so a shift
+     * only shows with `expand: false`. The edges fade, like the pixels outside were transparent. A transform that flattens
+     * the image (a factor of 0) is refused. With a gain map (an HDR image), the map moves with the image
+     * @example
      * ```ts
      * image.transform([1, 0, Math.tan(-0.3), 1, 0, 0]);             // slanted like italics, around the middle
      * image.transform([0.5, 0, 0, 0.5, 0, 0], { origin: { x: 0, y: 0 } }); // half the size
@@ -1835,11 +1863,9 @@ export class Image {
      * const a = Math.PI / 6;
      * image.transform([Math.cos(a), Math.sin(a), -Math.sin(a), Math.cos(a), 0, 0]); // turned 30° clockwise
      * ```
-     * The image grows to hold the result (`expand: false` keeps its size), so a shift only shows with `expand: false`.
-     * The edges fade, like the pixels outside were transparent. A transform that flattens the image (a factor of 0) is
-     * refused. With a gain map (an HDR image), the map moves with the image
      * @param matrix The six values [a, b, c, d, e, f]
      * @param options See {@link TransformOptions}
+     * @see {@link Image.rotate} for turning by an angle
      */
     transform(matrix: AffineTransform, options: TransformOptions = {}): this {
         checkOptions(options, 'image.transform([1, 0, 0, 1, 0, 0], { expand: false })');
@@ -2158,6 +2184,7 @@ export class Image {
     /**
      * Gets the average color of the image, weighting each pixel by its opacity
      * @returns The average color (fully opaque), black for fully transparent images
+     * @see {@link Image.dominantColor} for the color that most of the image has
      */
     averageColor(): Color {
         let r = 0, g = 0, b = 0, weight = 0;
@@ -2179,6 +2206,7 @@ export class Image {
      * @param options Which colors to ignore, see {@link DominantColorOptions}
      * @return The image's dominant color (fully opaque); mostly transparent pixels are ignored.
      *     If every pixel is ignored as black or white, the filter is dropped
+     * @see {@link Image.averageColor} for the mix of all colors
      */
     dominantColor(options?: DominantColorOptions): Color;
     dominantColor(options: DominantColorOptions = {}): Color {
@@ -2199,8 +2227,14 @@ export class Image {
      * counterclockwise). Multiples of 90° move whole pixels; other angles resample the image (see
      * {@link RotateOptions.mode}). By default the image grows so the corners fit (a quarter turn swaps width and
      * height); with `expand: false` it keeps its size, also for quarter turns, and what doesn't fit is cut off
+     * @example
+     * ```ts
+     * image.rotate(90);                          // a quarter turn clockwise: width and height swap
+     * image.rotate(-15, { expand: false });      // 15° counterclockwise, the size stays and the corners are cut off
+     * ```
      * @param angle The angle in degrees, clockwise
      * @param options See {@link RotateOptions}
+     * @see {@link Image.transform} for skews, flips and shifts
      */
     rotate(angle: number, options?: RotateOptions): this;
     rotate(angle: number, options: RotateOptions = {}): this {
@@ -2361,6 +2395,7 @@ export class Image {
     /**
      * Rounds the image's corners, with antialiased edges
      * @param options See {@link RoundCornersOptions}
+     * @see {@link Image.cropCircle} for a circle
      */
     roundCorners(options?: RoundCornersOptions): this;
     roundCorners(options: RoundCornersOptions = {}): this {
@@ -2587,13 +2622,14 @@ export class Image {
     }
 
     /**
-     * Encodes the image as JPEG XL: losslessly (the default) like libjxl's `cjxl -e 3` (a palette of up to 1024 colors,
-     * else palettes of channels using few of their values; YCoCg; the weighted predictor in contexts of its error;
-     * grayscale if the image is), at effort 0 the codestream byte for byte like `cjxl -e 1` on CPUs with AVX2 or NEON
-     * (its fast lossless mode: the gradient predictor, a palette if the image has at most 511 colors besides black,
-     * else YCoCg), or lossy with a quality (like `cjxl -q`: XYB, varblocks of libjxl's search, chroma from luma, the
-     * edge preserving filter). Alpha (if the image has transparency) is lossless either way. The codestream is in the
-     * container, with the metadata as Exif
+     * Encodes the image as JPEG XL: losslessly (the default), or lossy with a quality. Alpha (if the image has
+     * transparency) is lossless either way. The codestream is in the container, with the metadata as Exif
+     * @remarks
+     * Lossless works like libjxl's `cjxl -e 3` (a palette of up to 1024 colors, else palettes of channels using few of
+     * their values; YCoCg; the weighted predictor in contexts of its error; grayscale if the image is), at effort 0 the
+     * codestream byte for byte like `cjxl -e 1` on CPUs with AVX2 or NEON (its fast lossless mode: the gradient predictor,
+     * a palette if the image has at most 511 colors besides black, else YCoCg). Lossy works like `cjxl -q`: XYB, varblocks
+     * of libjxl's search, chroma from luma, the edge preserving filter
      * @param options See {@link JXLEncodeOptions}
      */
     async encodeJXL(options: JXLEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
@@ -2618,14 +2654,24 @@ export class Image {
 
     /**
      * Decodes an image (PNG, JPEG, TIFF, WebP, BMP, ICO, CUR, QOI, PBM, PGM, PPM, PAM, PFM, Radiance HDR, TGA, AVIF or
-     * JPEG XL). For animations (GIFs, animated WebPs, AVIF image sequences, JPEG XL animations) this is the first frame,
-     * composed onto the canvas as {@link Animation.decode} has it, and decoding stops after it: use
-     * {@link Animation.decode} for all frames. For APNGs this is the default image, which is what viewers without APNG
-     * support show; for icons and cursors it's their largest image
+     * JPEG XL)
+     * @remarks
+     * For animations (GIFs, animated WebPs, AVIF image sequences, JPEG XL animations) this is the first frame, composed
+     * onto the canvas as {@link Animation.decode} has it, and decoding stops after it: use {@link Animation.decode} for all
+     * frames. For APNGs this is the default image, which is what viewers without APNG support show; for icons and cursors
+     * it's their largest image
+     * @example
+     * ```ts
+     * const image = await Image.decode(bytes); // the file's bytes, e.g. from fs.readFile() or fetch()
+     * const webp = await image.resize({ width: 800 }).encodeWebP({ quality: 80 });
+     * ```
      * @param input The binary data to decode
      * @param options See {@link DecodeOptions}. JPEGs, TIFFs and PNGs are rotated/mirrored as their orientation tag
      *     (Exif, for PNGs also XMP) says by default: photos taken with a rotated camera are stored sideways
      * @return The decoded image
+     * @throws {@link LimitError} if the image has more than `options.maxPixels` pixels (checked before its pixels are
+     *     allocated)
+     * @throws `Error` if the data isn't a supported image, or is damaged or truncated (the underlying error is its `cause`)
      */
     static async decode(input: BinaryData, options: DecodeOptions = {}): Promise<Image> {
         checkOptions(options, 'Image.decode(data, { maxPixels: 1e8 })');
@@ -2744,12 +2790,15 @@ export class Image {
     }
 
     /**
-     * Creates a new image from the given SVG.
+     * Creates a new image from the given SVG
+     * @remarks
      * Supports shapes, paths, transforms, use/symbol, CSS styles, gradients, patterns, strokes, markers, clip paths,
      * masks, opacity, blend modes, filters (all primitives and the filter functions) and images embedded as data URIs
      * (PNG, JPEG, GIF, WebP, SVG) or given with {@link SVGResourceOptions.images}, and text with the given or embedded fonts
      * (see {@link SVGResourceOptions.font}). Hrefs are resolved from the options and the data URIs only, never from files or URLs:
-     * drawing an image that isn't given, or can't be decoded, throws.
+     * drawing an image that isn't given, or can't be decoded, throws. SVGs from untrusted sources are fine to render: the
+     * size of the output, the layers and the images are limited by the options, and so is the work nested masks, clip
+     * paths, patterns, markers and filter images can multiply
      * @example
      * ```ts
      * const logo = await Image.renderSVG(
@@ -2760,6 +2809,11 @@ export class Image {
      * @param svg The SVG content
      * @param options See {@link RenderSVGOptions}
      * @return The rendered SVG graphic
+     * @throws {@link LimitError} if the output, the layers or the images exceed the limits of the options
+     * @throws `RangeError` if the requested size is below 1 pixel (or a scale isn't above 0)
+     * @throws `Error` if the SVG can't be parsed (it has no `<svg>` element), an image in it can't be drawn (it isn't given
+     *     or can't be decoded), or masks, clip paths, patterns, markers and filter images are nested so deeply that they
+     *     would multiply
      */
     static renderSVG(svg: string | BinaryData, options?: RenderSVGOptions): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, options: RenderSVGOptions = {}): Promise<Image> {
@@ -2835,11 +2889,19 @@ export class Image {
     }
 
     /**
-     * Creates a new image containing the rendered text.
+     * Creates a new image containing the rendered text
+     * @example
+     * ```ts
+     * const label = await Image.renderText('Hello, world', { font: fontBytes, size: 48, color: 0xffffffff });
+     * ```
      * @param text Text to render
      * @param options The font and size, color, layout and style, see {@link RenderTextOptions}. Without a `width` or
      *     `height`, the image grows by the outline width on every side; with one, it has exactly that size
      * @return The rendered text
+     * @throws `TypeError` if the text isn't a string, or the options aren't an object with a `font`
+     * @throws `Error` if the font can't be read
+     * @throws {@link LimitError} if the image would have more than `options.maxPixels` pixels (checked before anything is
+     *     allocated)
      */
     static async renderText(text: string, options: RenderTextOptions): Promise<Image> {
         if (typeof text !== 'string' || !isOptions(options)) throw new TypeError('renderText() takes the text and an options object, like renderText(\'Hello\', { font, size: 32 })');

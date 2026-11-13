@@ -28,7 +28,8 @@ export interface FrameOptions {
 }
 
 /**
- * A frame of an {@link Animation}: an {@link Image} ({@link Frame.image}) with a duration, offsets and a disposal mode.
+ * A frame of an {@link Animation}: an {@link Image} ({@link Frame.image}) with a duration, offsets and a disposal mode
+ * @remarks
  * The frame has the methods that change the image's size (`resize()` including its `'contain'` and `'cover'` fit
  * modes, `scale()`, `crop()`, `trim()`, `rotate()`, `transform()`, `dropShadow()` and `outline()`), which move the
  * offsets along so the frame stays in place in the animation; every other change goes to the image

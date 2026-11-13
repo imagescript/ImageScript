@@ -98,6 +98,14 @@ export class Animation {
 
     /**
      * Creates a new animation
+     * @example
+     * ```ts
+     * const animation = new Animation([
+     *     new Frame(new Image(64, 64).fill(0xff0000ff), { duration: 200 }),
+     *     new Frame(new Image(64, 64).fill(0x0000ffff), { duration: 200 })
+     * ], { loopCount: 2 });
+     * const gif = await animation.encodeGIF();
+     * ```
      * @param frames The frames to create the animation from
      * @param options The canvas size and the loop count, see {@link AnimationCanvasOptions}
      */
@@ -486,6 +494,8 @@ export class Animation {
      * animation shows, but not necessarily to the same frames. Semi-transparent pixels become opaque or transparent
      * after the frames are composited
      * @param options See {@link GIFAnimationEncodeOptions}
+     * @throws `Error` if the animation has no frames
+     * @throws `RangeError` if the loop count or a frame's duration is more than GIF stores
      */
     encodeGIF(options?: GIFAnimationEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodeGIF(options: GIFAnimationEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
@@ -517,6 +527,8 @@ export class Animation {
      * merged (unless the `optimize` option is false): the file shows exactly the same animation, but doesn't
      * necessarily decode to the same frames
      * @param options See {@link APNGEncodeOptions}
+     * @throws `Error` if the animation has no frames
+     * @throws `RangeError` if the loop count or a frame's duration is more than APNG stores
      */
     encodeAPNG(options?: APNGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodeAPNG(options: APNGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
@@ -536,6 +548,8 @@ export class Animation {
      * changed since the frame before, identical frames are merged (unless the `optimize` option is false): the file
      * shows the same animation, but doesn't necessarily decode to the same frames
      * @param options See {@link WebPAnimationEncodeOptions}
+     * @throws `Error` if the animation has no frames
+     * @throws `RangeError` if the loop count or a frame's duration is more than WebP stores
      */
     async encodeWebP(options: WebPAnimationEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'animation.encodeWebP({ quality: 80 })');
@@ -609,6 +623,13 @@ export class Animation {
      * An encoder that makes an animated WebP a frame at a time, like {@link Animation.encodeWebP} (the same file),
      * without keeping the frames in memory: `await encoder.add(frame)` for each frame (a {@link Frame}, or an image
      * with `{ duration }`), then `await encoder.finish()` for the file
+     * @example
+     * ```ts
+     * const encoder = Animation.webpEncoder(64, 64, { quality: 80 });
+     * for (const color of [0xff0000ff, 0x00ff00ff, 0x0000ffff])
+     *     await encoder.add(new Image(64, 64).fill(color), { duration: 200 });
+     * const webp = await encoder.finish();
+     * ```
      * @param width The canvas width
      * @param height The canvas height
      * @param options See {@link WebPAnimationEncodeOptions}, and {@link AnimationOptions.loopCount}
@@ -645,8 +666,15 @@ export class Animation {
 
     /**
      * Decodes an animated GIF, APNG, WebP or JPEG XL into fully composited frames (still images become a single frame)
+     * @example
+     * ```ts
+     * const animation = await Animation.decode(gifBytes);
+     * const webp = await animation.resize({ width: 320 }).encodeWebP({ quality: 75 });
+     * ```
      * @param input The binary data to decode
      * @param options See {@link DecodeOptions}
+     * @throws {@link LimitError} if the frames have more than `options.maxPixels` pixels together
+     * @throws `Error` if the data isn't a supported image, or is damaged or truncated
      */
     static decode(input: BinaryData, options?: DecodeOptions): Promise<Animation>;
     static async decode(input: BinaryData, options: DecodeOptions = {}): Promise<Animation> {
