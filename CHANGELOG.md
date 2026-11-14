@@ -128,6 +128,8 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### Fixes
 
+- `image.composite(image, { x, y })` onto itself (or an image sharing its pixels) read pixels it had already overwritten, and differed from compositing a copy.
+- `dominantColor({ threshold })` outside 0-256, `GainMap.encodeJPEG({ quality: 0 })` and a `metadata` that is not an object throw instead of being clamped or ignored.
 - `Animation.resize()` changes a frame once when the animation lists the same `Frame` (or two frames share one `Image`) more than once, as a hold or a ping-pong does; each listing resized or moved it again before (`new Animation([f, f, f]).resize(50, 50)` made 13x13 frames).
 - The animation encoders (`Animation.webpEncoder()`, `gifEncoder()` and `apngEncoder()`) cut frames to the canvas like `Animation.encode*()` does when `optimize` is `false`: a frame reaching over the edge lost the part it covered (GIF, WebP) or threw (APNG).
 - `AnimationEncoder.add()` rejects its promise for invalid frames instead of throwing synchronously, so `encoder.add(frame).catch()` sees them.
