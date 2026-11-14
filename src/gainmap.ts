@@ -63,7 +63,8 @@ export interface GainMapOptions {
 }
 
 const perChannel = (value: GainMapChannelValues, name: string): number[] => {
-    if (typeof value !== 'number' && !Array.isArray(value)) throw new TypeError(`${name} must be a number or an array of 3 numbers, not ${value === null ? 'null' : typeof value}`);
+    const given: unknown = value;
+    if (typeof given !== 'number' && !Array.isArray(given)) throw new TypeError(`${name} must be a number or an array of 3 numbers, not ${given === null ? 'null' : typeof given}`);
     const values: number[] = typeof value === 'number' ? [value, value, value] : Array.from(value);
     if (values.length === 1) values.push(values[0], values[0]);
     if (values.length !== 3) throw new RangeError(`${name} must be a number or an array of 3 numbers`);
