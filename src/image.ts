@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, nonNegative, positive, unitInterval, oneOf, pixelLimit, checkThreads, gainMapScale, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, nonNegative, positive, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -2695,24 +2695,24 @@ export class Image {
         const quality = checkQuality(qualityOption);
         if (subsampling !== undefined) oneOf(subsampling, SUBSAMPLINGS, 'subsampling');
         const backgroundColor = checkColor(background, 'background');
+        const embed = gainMapEmbed(gainMapOption);
         const m = resolveMetadata(metadata);
         const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined, subsampling };
 
         // transparent pixels: composited onto the opaque background (with the gain map, so the HDR light dims alike)
-        const source = this.__flattened__(backgroundColor, gainMapOption !== false) ?? this;
+        const source = this.__flattened__(backgroundColor, embed !== null) ?? this;
         const gainMap = source.__gain_map__;
-        if (!gainMap || gainMapOption === false) return jpeg.encode(source.__bytes__(), source.width, source.height, quality, base);
+        if (!gainMap || !embed) return jpeg.encode(source.__bytes__(), source.width, source.height, quality, base);
 
         // the gain map's JPEG first: the primary's XMP holds its length
-        const { quality: mapQuality, scale } = typeof gainMapOption === 'object' && gainMapOption !== null ? gainMapOption : {} as GainMapEmbedOptions;
+        const { quality: mapQuality, scale } = embed;
         let width: number | undefined, height: number | undefined;
         if (scale !== undefined) {
-            const s = gainMapScale(scale);
-            width = Math.max(1, Math.round(this.width * s));
-            height = Math.max(1, Math.round(this.height * s));
+            width = Math.max(1, Math.round(this.width * scale));
+            height = Math.max(1, Math.round(this.height * scale));
         }
         const params = gainMap.__params__();
-        const map = gainMapCodec.mapWithMetadata(gainMap.__body__(mapQuality === undefined ? undefined : Math.max(1, checkQuality(mapQuality, 'gain map quality')), width, height), params);
+        const map = gainMapCodec.mapWithMetadata(gainMap.__body__(mapQuality, width, height), params);
         const primary = jpeg.encode(source.__bytes__(), source.width, source.height, quality, { ...base, segments: gainMapCodec.primarySegments(map.length) });
         return gainMapCodec.finish(primary, map);
     }
@@ -2812,14 +2812,13 @@ export class Image {
      * @ignore
      */
     protected __gain_map_pixels__(option: boolean | { quality?: number, scale?: number }): { pixels: Uint8Array, width: number, height: number, params: gainMapCodec.Params, quality: number } | undefined {
+        const embed = gainMapEmbed(option);
         const gainMap = this.__gain_map__;
-        if (!gainMap || option === false) return undefined;
-        const { quality = 90, scale } = typeof option === 'object' && option !== null ? option : {} as { quality?: number, scale?: number };
-        const mapQuality = Math.max(1, checkQuality(quality, 'gain map quality'));
+        if (!gainMap || !embed) return undefined;
+        const { quality: mapQuality = 90, scale } = embed;
         let map = gainMap.image;
         if (scale !== undefined) {
-            const s = gainMapScale(scale);
-            const width = Math.max(1, Math.round(this.width * s)), height = Math.max(1, Math.round(this.height * s));
+            const width = Math.max(1, Math.round(this.width * scale)), height = Math.max(1, Math.round(this.height * scale));
             if (width !== map.width || height !== map.height) map = map.clone().resize(width, height);
         }
         return { pixels: map.__bytes__(), width: map.width, height: map.height, params: gainMap.__params__(), quality: mapQuality };

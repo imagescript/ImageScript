@@ -126,6 +126,24 @@ export function pixelLimit(value: number, name = 'maxPixels'): number {
     return value;
 }
 
+/**
+ * The `gainMap` option of the encoders that embed one: `true`, `false` or an object with the map's `quality` (1-100)
+ * and `scale`; anything else throws a TypeError. Returns the options, null for `false`
+ */
+export function gainMapEmbed(value: unknown): { quality?: number, scale?: number } | null {
+    if (value === false) return null;
+    if (value === true) return {};
+    if (typeof value !== 'object' || value === null) throw new TypeError(`gainMap must be true, false or an options object like { quality: 90, scale: 0.5 }, not ${value === null ? 'null' : typeof value === 'string' ? `'${value}'` : typeof value}`);
+    const { quality: q, scale } = value as { quality?: unknown, scale?: unknown };
+    const options: { quality?: number, scale?: number } = {};
+    if (q !== undefined) {
+        options.quality = quality(q as number, 'gain map quality');
+        if (options.quality < 1) throw new RangeError(`gain map quality must be 1-100, not ${options.quality}`);
+    }
+    if (scale !== undefined) options.scale = gainMapScale(scale as number);
+    return options;
+}
+
 /** The `scale` of a gain map: above 0 and at most 1 (1 is the size of the image) */
 export function gainMapScale(value: number): number {
     const scale = finite(value, 'gain map scale');

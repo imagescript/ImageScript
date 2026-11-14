@@ -388,11 +388,11 @@ export interface LossyOptions {
  * @returns undefined without a quality: lossless
  */
 export function lossyOptions(quality: number | undefined, effort: number, sharp: boolean, alphaQuality: number): LossyOptions | undefined {
-    // (checked for lossless images too, which don't use it)
+    // (checked for lossless images too, which don't use them)
     checkEffort(effort, 6);
+    const a = checkQuality(alphaQuality, 'alphaQuality');
     if (quality === undefined) return undefined;
-    const q = checkQuality(quality), a = checkQuality(alphaQuality, 'alphaQuality');
-    return { quality: q, method: effort, sharp, alphaQuality: Math.round(a) };
+    return { quality: checkQuality(quality), method: effort, sharp, alphaQuality: Math.round(a) };
 }
 
 /**
