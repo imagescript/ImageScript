@@ -112,4 +112,28 @@ const timed = async (name, svg, limit = 5000) => {
         const moved = await Image.renderSVG(`<svg ${NS} width="20" height="20"><rect width="10" height="10" transform="rotate(rotate(translate(10 0)"/></svg>`);
         if (Colors.toRGBA(moved.getPixelAt(15, 5))[3] !== 255 || Colors.toRGBA(moved.getPixelAt(5, 5))[3] !== 0) panic('transform: the closed function should apply');
     }
+
+    // half a million dashes or more render in a 64 MB heap: the ones beside the image are left out, the others are
+    // stroked a batch at a time (a 157 byte SVG took 650 MB, and failed in a 256 MB heap)
+    {
+        let zigzag = 'M0 0';
+        for (let i = 1; i <= 200; i++) zigzag += ` L${i % 2 ? 500 : 0} ${i * 2.5}`;
+        const script = `
+            const {Image} = require(${JSON.stringify(require.resolve('..'))});
+            const NS = 'xmlns="http://www.w3.org/2000/svg"';
+            (async () => {
+                const beside = await Image.renderSVG(\`<svg \${NS} width="100" height="10"><path d="M0 5 L100000 5" stroke="black" stroke-dasharray="0.1"/></svg>\`);
+                const across = await Image.renderSVG(\`<svg \${NS} width="500" height="500"><path d="${zigzag}" fill="none" stroke="black" stroke-dasharray="0.2"/></svg>\`);
+                let a = 0, b = 0;
+                for (let i = 3; i < beside.bitmap.length; i += 4) a += beside.bitmap[i];
+                for (let i = 3; i < across.bitmap.length; i += 4) b += across.bitmap[i];
+                console.log(a, b);
+            })();`;
+        const child = require('child_process').spawnSync(process.execPath, ['--max-old-space-size=64', '-e', script], {encoding: 'utf8'});
+        if (child.status !== 0) panic(`dashes in a 64 MB heap: ${child.stderr.split('\n').find(line => /heap|Error/.test(line)) ?? child.status}`);
+        const [beside, across] = child.stdout.trim().split(' ').map(Number);
+        // (half of the line shows: dashes of 0.1 with gaps as long; the zigzag about half of its length too)
+        if (Math.abs(beside / (100 * 255) - 0.5) > 0.05) panic(`dashes beside the image: ${beside / 255} pixels covered of the line's 100, expected about half`);
+        if (!(across > 0)) panic('the dashed zigzag shows nothing');
+    }
 })();

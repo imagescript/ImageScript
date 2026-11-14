@@ -702,6 +702,19 @@ function validProperty(name: string, value: string): boolean {
 // the most elements to render through <use> references (like librsvg's limit), and dashes of a path
 const MAX_INSTANCES = 100000;
 const MAX_OCTAVES = 24;
+// the dashes stroked and rasterized at once
+const DASH_BATCH = 20000;
+
+// the next n items of an iterator (fewer at its end)
+function take<T>(iterator: Iterator<T>, n: number): T[] {
+    const items: T[] = [];
+    while (items.length < n) {
+        const next = iterator.next();
+        if (next.done) break;
+        items.push(next.value);
+    }
+    return items;
+}
 // the most pixels (at least MIN_NESTED each) that masks, clip paths, pattern tiles, markers and filter images may take
 // when rendered inside each other, which can multiply: three of them per level take minutes at ten levels
 // (32 nested ones the size of a 1080p image, or 1024 small ones)
@@ -1526,15 +1539,56 @@ class Document {
         const strokeWidth = parseLength(style['stroke-width'], ctx.viewport, 16, 'diagonal');
         if (!stroke || !(strokeWidth > 0)) return;
 
-        let lines = subpaths;
+        const lines = subpaths;
         const fontSize = parseNumber(style['font-size'], 16);
         const dashes = parseDashArray(style['stroke-dasharray'], ctx.viewport, fontSize);
-        if (dashes) lines = dash(subpaths, dashes, parseLength(style['stroke-dashoffset'], ctx.viewport, fontSize, 'diagonal'));
+        const miterLimit = Math.max(1, parseNumber(style['stroke-miterlimit'], 4));
+        if (dashes) {
+            // dashes whose stroke can't reach the layer are left out (their polygons would be anyway, see rasterize):
+            // the stroke reaches past a dash's points by half its width, at most the miter limit times that at a
+            // join, scaled by the matrix (its Frobenius norm is at least how much it stretches)
+            const reach = strokeWidth / 2 * Math.max(miterLimit, Math.SQRT2) * Math.hypot(matrix[0], matrix[1], matrix[2], matrix[3]) + 1;
+            const visible = (points: number[]): boolean => {
+                let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+                for (let i = 0; i < points.length; i += 2) {
+                    const x = matrix[0] * points[i] + matrix[2] * points[i + 1] + matrix[4], y = matrix[1] * points[i] + matrix[3] * points[i + 1] + matrix[5];
+                    x0 = Math.min(x0, x);
+                    x1 = Math.max(x1, x);
+                    y0 = Math.min(y0, y);
+                    y1 = Math.max(y1, y);
+                }
+                return !(x1 + reach <= 0 || x0 - reach >= layer.width || y1 + reach <= 0 || y0 - reach >= layer.height);
+            };
+            // stroked and rasterized a batch of dashes at a time, their coverage added up: dashes don't overlap (but at
+            // sharp turns of wide strokes), so it's the same, and a million dashes don't take a gigabyte at once
+            const generated = dash(subpaths, dashes, parseLength(style['stroke-dashoffset'], ctx.viewport, fontSize, 'diagonal'), visible);
+            let total: Coverage | null = null;
+            for (let batch = take(generated, DASH_BATCH); batch.length; batch = take(generated, DASH_BATCH)) {
+                const coverage = this.strokeCoverage(batch, strokeWidth, miterLimit, tolerance, ctx);
+                if (!coverage) continue;
+                if (batch.length < DASH_BATCH && !total) {
+                    total = coverage;
+                    break;
+                }
+                total ??= { x0: 0, y0: 0, w: layer.width, h: layer.height, data: new Float32Array(layer.width * layer.height) };
+                for (let y = 0; y < coverage.h; y++)
+                    for (let x = 0, o = y * coverage.w, t = (coverage.y0 + y) * total.w + coverage.x0; x < coverage.w; x++)
+                        total.data[t + x] = Math.min(1, total.data[t + x] + coverage.data[o + x]);
+            }
+            if (total) layer.fill(crisp(total, style), stroke);
+            return;
+        }
 
-        const polygons = strokePolygons(lines, strokeWidth / 2, style['stroke-linecap'], style['stroke-linejoin'],
-            Math.max(1, parseNumber(style['stroke-miterlimit'], 4)), tolerance).map(points => transformPoints(points, matrix));
-        const coverage = rasterize(polygons, false, layer.width, layer.height);
+        const coverage = this.strokeCoverage(lines, strokeWidth, miterLimit, tolerance, ctx);
         if (coverage) layer.fill(crisp(coverage, style), stroke);
+    }
+
+    // the coverage of the stroke of lines
+    strokeCoverage(lines: Subpath[], strokeWidth: number, miterLimit: number, tolerance: number, ctx: Context): Coverage | null {
+        const style = ctx.style as Style;
+        const polygons = strokePolygons(lines, strokeWidth / 2, style['stroke-linecap'], style['stroke-linejoin'],
+            miterLimit, tolerance).map(points => transformPoints(points, ctx.matrix));
+        return rasterize(polygons, false, ctx.layer.width, ctx.layer.height);
     }
 
     // draws the markers of a shape (like usvg's markers, crates/usvg/src/parser/marker.rs)
@@ -2972,6 +3026,17 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
     for (const points of polygons) {
         const n = points.length >> 1;
         if (n < 2) continue;
+        // a polygon entirely beside the image has a winding number of 0 everywhere on it: it's left out (a dashed line
+        // reaching far past the image has a million dashes there)
+        let px0 = Infinity, py0 = Infinity, px1 = -Infinity, py1 = -Infinity;
+        for (let i = 0; i < n; i++) {
+            const x = points[i * 2], y = points[i * 2 + 1];
+            if (x < px0) px0 = x;
+            if (x > px1) px1 = x;
+            if (y < py0) py0 = y;
+            if (y > py1) py1 = y;
+        }
+        if (px1 <= 0 || px0 >= width || py1 <= 0 || py0 >= height) continue;
 
         for (let i = 0; i < n; i++) {
             const ax = points[i * 2], ay = points[i * 2 + 1];
@@ -3020,7 +3085,6 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
     for (let e = 0; e < numEdges; e++) if (startRow(e) < h) order[placed[startRow(e)]++] = e;
     let numActive = 0;
     const active = scratch.i32(4, numEdges), keys = scratch.f64(4, numEdges), firsts = scratch.i32(5, numEdges), lasts = scratch.i32(6, numEdges);
-    const counts = new Int32Array(SAMPLES), starts = new Int32Array(SAMPLES), ends = new Int32Array(SAMPLES);
 
     const span = (a: number, b: number): void => {
         a = Math.max(a, x0) - x0;
@@ -3081,10 +3145,8 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
             numActive += added;
         }
 
-        // each active edge's crossings go to the sub-scanlines it spans (the bounds by the test of each sub-scanline,
-        // sy >= top and sy < bottom), each sub-scanline's in the edges' order
-        counts.fill(0);
-        let total = 0;
+        // the sub-scanlines each active edge spans (the bounds by the test of each sub-scanline, sy >= top and
+        // sy < bottom)
         for (let k = 0; k < numActive; k++) {
             const e = active[k], top = tops[e], bottom = bottoms[e];
             let s0 = Math.max(0, Math.ceil((top - py) * SAMPLES - 0.5)), s1 = Math.min(SAMPLES - 1, Math.ceil((bottom - py) * SAMPLES - 0.5) - 1);
@@ -3095,33 +3157,27 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
             // (an edge ending far above the row has s1 below the Int32Array's range: it would wrap to a huge count)
             firsts[k] = s0;
             lasts[k] = Math.max(-1, s1);
-            for (let s = s0; s <= s1; s++) counts[s]++;
-            if (s1 >= s0) total += s1 - s0 + 1;
-        }
-        const crossings = scratch.f64(5, 2 * total);
-        for (let s = 0, at = 0; s < SAMPLES; s++) {
-            starts[s] = at;
-            at += 2 * counts[s];
-        }
-        for (let s = 0; s < SAMPLES; s++) ends[s] = starts[s];
-        for (let k = 0; k < numActive; k++) {
-            const e = active[k];
-            for (let s = firsts[k]; s <= lasts[k]; s++) {
-                const sy = py + OFFSETS[s];
-                crossings[ends[s]++] = xs[e] + (sy - tops[e]) * slopes[e];
-                crossings[ends[s]++] = dirs[e];
-            }
         }
 
+        // each sub-scanline's crossings, in the edges' order (nearly sorted by x), one sub-scanline at a time: all of
+        // them at once took 16 times the memory of the active edges
+        const crossings = scratch.f64(5, 2 * numActive);
         for (let s = 0; s < SAMPLES; s++) {
-            const base = starts[s], end = ends[s];
-            if (end - base < 4) continue;
+            const sy = py + OFFSETS[s];
+            let end = 0;
+            for (let k = 0; k < numActive; k++) {
+                if (s < firsts[k] || s > lasts[k]) continue;
+                const e = active[k];
+                crossings[end++] = xs[e] + (sy - tops[e]) * slopes[e];
+                crossings[end++] = dirs[e];
+            }
+            if (end < 4) continue;
 
             // insertion sort pairs by x
-            for (let i = base + 2; i < end; i += 2) {
+            for (let i = 2; i < end; i += 2) {
                 const x = crossings[i], dir = crossings[i + 1];
                 let j = i - 2;
-                for (; j >= base && crossings[j] > x; j -= 2) {
+                for (; j >= 0 && crossings[j] > x; j -= 2) {
                     crossings[j + 2] = crossings[j];
                     crossings[j + 3] = crossings[j + 1];
                 }
@@ -3130,7 +3186,7 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
             }
 
             let winding = 0;
-            for (let i = base; i < end - 2; i += 2) {
+            for (let i = 0; i < end - 2; i += 2) {
                 winding += crossings[i + 1];
                 if (evenOdd ? winding & 1 : winding !== 0) span(crossings[i], crossings[i + 2]);
             }
@@ -3495,10 +3551,9 @@ function transformPoints(points: number[], m: Matrix): number[] {
     return out;
 }
 
-// splits polylines into dashes
-function dash(subpaths: Subpath[], pattern: number[], offset: number): Subpath[] {
+// splits polylines into dashes, the ones visible says can be seen, as they are made (a path can have a million)
+function* dash(subpaths: Subpath[], pattern: number[], offset: number, visible: (points: number[]) => boolean = () => true): Generator<Subpath> {
     const total = pattern.reduce((a, b) => a + b, 0);
-    const result: Subpath[] = [];
 
     // too many dashes stroke the path solid, as Skia does (they'd take any amount of memory)
     let length = 0;
@@ -3506,7 +3561,10 @@ function dash(subpaths: Subpath[], pattern: number[], offset: number): Subpath[]
         const pts = closed ? [...points, points[0], points[1]] : points;
         for (let i = 0; i + 3 < pts.length; i += 2) length += Math.hypot(pts[i + 2] - pts[i], pts[i + 3] - pts[i + 1]);
     }
-    if (!(length / total * pattern.length <= MAX_DASHES)) return subpaths;
+    if (!(length / total * pattern.length <= MAX_DASHES)) {
+        yield* subpaths;
+        return;
+    }
 
     for (const { points, closed } of subpaths) {
         const pts = closed ? [...points, points[0], points[1]] : points;
@@ -3539,7 +3597,7 @@ function dash(subpaths: Subpath[], pattern: number[], offset: number): Subpath[]
                     if (on) {
                         if (current) {
                             current.push(mx, my);
-                            result.push({ points: current, closed: false, direction: [(bx - ax) / length, (by - ay) / length] });
+                            if (visible(current)) yield { points: current, closed: false, direction: [(bx - ax) / length, (by - ay) / length] };
                         }
                         current = null;
                     } else current = [mx, my];
@@ -3553,10 +3611,8 @@ function dash(subpaths: Subpath[], pattern: number[], offset: number): Subpath[]
             }
         }
 
-        if (on && current && current.length >= 4) result.push({ points: current, closed: false });
+        if (on && current && current.length >= 4 && visible(current)) yield { points: current, closed: false };
     }
-
-    return result;
 }
 
 // builds fill polygons (counter-clockwise, to be filled nonzero) for stroked polylines
