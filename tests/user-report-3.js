@@ -101,4 +101,13 @@ const has = (bytes, text) => Buffer.from(bytes).includes(Buffer.from(text, 'lati
         await rejects('metadata comment object', () => image.encodeJPEG({metadata: {comment: {}}}), TypeError);
         await image.encodePNG({metadata: {title: '', comment: null}});
     }
+
+    // software: null (and nothing else) writes no Exif block at all, not an empty one
+    for (const [name, encode] of Object.entries({jpeg: o => image.encodeJPEG(o), webp: o => image.encodeWebP(o), 'lossy webp': o => image.encodeWebP({quality: 80, ...o}), avif: o => image.encodeAVIF({effort: 0, ...o}), jxl: o => image.encodeJXL(o)})) {
+        const bare = await encode({metadata: {software: null}});
+        if (has(bare, 'MM\0*')) panic(`${name}: software: null still writes an Exif block`);
+        if (!has(await encode({metadata: {software: null, author: 'me'}}), 'me')) panic(`${name}: the Exif block is missing with an author`);
+        const decoded = await Image.decode(bare);
+        if (decoded.width !== 8) panic(`${name}: the file without Exif doesn't decode`);
+    }
 })();

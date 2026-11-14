@@ -445,10 +445,8 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const withExif = Buffer.concat([png.subarray(0, png.length - 12), chunk('eXIf', tiff(6)), png.subarray(png.length - 12)]);
         const webp = Buffer.from(await new Animation(source(), {loopCount: 2}).encodeWebP({metadata: {software: ''}}));
         const exifChunk = Buffer.concat([Buffer.from('EXIF'), Buffer.from(new Uint8Array(new Uint32Array([tiff(6).length]).buffer)), tiff(6)]);
-        // (the encoder's own EXIF chunk, with the creation time, becomes one decoders skip)
-        const own = webp.indexOf('EXIF', 12, 'latin1');
-        assert(own > 12, 'the animated WebP has an EXIF chunk of its own');
-        webp.write('JUNK', own, 'latin1');
+        // (without metadata to write, the encoder adds no EXIF chunk of its own)
+        assert(webp.indexOf('EXIF', 12, 'latin1') === -1, 'the animated WebP without metadata has an EXIF chunk');
         const webpWithExif = Buffer.concat([webp, exifChunk]);
         webpWithExif.writeUInt32LE(webpWithExif.length - 8, 4);
         // (the VP8X flags: bit 3 is Exif)

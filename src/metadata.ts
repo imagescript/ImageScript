@@ -111,7 +111,9 @@ export function pngText(m: ResolvedMetadata): Record<string, string | undefined>
  * @internal Exif data (a TIFF header and IFDs) for JPEG, WebP, AVIF and JPEG XL
  * @ignore
  */
-export function exifData(m: ResolvedMetadata): Uint8Array {
+export function exifData(m: ResolvedMetadata): Uint8Array | undefined {
+    // (an Exif block without any field is left out)
+    if (!m.description && !m.software && !m.creationTime && !m.author && !m.copyright) return undefined;
     return exif.encode({
         description: m.description,
         software: m.software,
