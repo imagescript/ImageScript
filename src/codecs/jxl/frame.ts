@@ -56,7 +56,11 @@ class Sections {
     private single: BitReader | null = null;
 
     constructor(private readonly d: Uint8Array, private readonly t: TOC) {
-        if (t.offsets.length === 1) this.single = new BitReader(d, t.offsets[0], t.offsets[0] + t.sizes[0]);
+        if (t.offsets.length === 1) {
+            // (a frame of one section that the data ends in: its missing bytes would read as zeros)
+            if (t.offsets[0] + t.sizes[0] > d.length) throw new Error('JPEG XL: truncated data');
+            this.single = new BitReader(d, t.offsets[0], t.offsets[0] + t.sizes[0]);
+        }
     }
 
     /** the reader of section i (LfGlobal, the LF groups, HfGlobal, then the pass groups) */

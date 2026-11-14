@@ -51,6 +51,8 @@ export interface WebPAnimation {
 interface Chunk {
     type: number;
     data: Uint8Array;
+    /** the chunk is cut off: the data ends before its size says */
+    cut?: boolean;
 }
 
 function chunks(data: Uint8Array, start: number, end: number): Chunk[] {
@@ -62,7 +64,7 @@ function chunks(data: Uint8Array, start: number, end: number): Chunk[] {
         const size = view.getUint32(offset + 4, true);
         const dataStart = offset + 8;
         // tolerate a truncated last chunk, the bitstream decoders report missing data
-        out.push({ type, data: data.subarray(dataStart, Math.min(end, dataStart + size)) });
+        out.push({ type, data: data.subarray(dataStart, Math.min(end, dataStart + size)), cut: dataStart + size > end });
         offset = dataStart + size + (size & 1);
     }
     return out;
@@ -205,7 +207,9 @@ export function decodeAnimation(data: Uint8Array, firstFrameOnly = false, maxPix
         background = (d[3] << 24 | d[2] << 16 | d[1] << 8 | d[0]) >>> 0;
         loopCount = d[4] | d[5] << 8;
     }
-    const anmf = list.filter(c => c.type === ANMF);
+    // (a frame whose chunk is cut off is incomplete: the whole ones before it are the animation)
+    const anmf = list.filter(c => c.type === ANMF && !c.cut);
+    if (!anmf.length && list.some(c => c.type === ANMF)) throw new Error('WebP: unexpected end of data');
     for (const { data } of anmf) if (data.length < 16) throw new Error('WebP: invalid ANMF chunk');
 
     function* frames(): Generator<WebPFrame> {

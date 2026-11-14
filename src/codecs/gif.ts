@@ -465,11 +465,19 @@ function readSubBlocks(reader: ByteReader): Uint8Array {
     const blocks = [];
     let total = 0;
 
-    for (let length; reader.offset < reader.data.length && (length = reader.u8());) {
+    // (the terminating zero length block: without it the data was cut off, and the image data is incomplete)
+    let terminated = false;
+    while (reader.offset < reader.data.length) {
+        const length = reader.u8();
+        if (!length) {
+            terminated = true;
+            break;
+        }
         const block = reader.slice(length);
         blocks.push(block);
         total += block.length;
     }
+    if (!terminated) throw UNEXPECTED_END;
 
     const out = new Uint8Array(total);
     let offset = 0;
