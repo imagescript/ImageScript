@@ -19,6 +19,14 @@ const timed = async (name, svg, limit = 5000) => {
 };
 
 (async () => {
+    // thousands of huge overlapping strokes cross every row of the image thousands of times: a LimitError, not 40 seconds
+    {
+        let d = 'M2 112';
+        for (let i = 0; i < 6000; i++) d += ` Q${(i * 37) % 100 - 50} ${(i * 91) % 400} ${(i * 53) % 100 - 50} ${(i * 29) % 400}`;
+        const {error, time} = await timed('huge overlapping strokes', `<svg ${NS} width="1" height="300"><g transform="scale(6 15)"><path d="${d}" fill="none" stroke="black" stroke-width="1e3" stroke-linejoin="round"/></g></svg>`, 12000);
+        if (!error || error.name !== 'LimitError') panic(`huge overlapping strokes: expected a LimitError, got ${error} after ${time} ms`);
+    }
+
     // many shapes starting in different rows, most of them beside the canvas: activating the edges of a row shifted
     // half of the active ones for each (80000 triangles took 8.7 s)
     {

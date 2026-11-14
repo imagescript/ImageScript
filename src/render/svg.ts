@@ -194,8 +194,9 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         throw new LimitError(`SVG too large to render: ${outWidth}x${outHeight} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
 
     // (rendering is synchronous: the layers allocated until it returns are this render's)
-    const previous = layerBudget;
+    const previous = layerBudget, previousCrossings = crossingsLeft;
     layerBudget = { left: maxLayerPixels, limit: maxLayerPixels };
+    crossingsLeft = MAX_CROSSINGS;
     try {
         const canvas = new Layer(outWidth, outHeight);
         // (a transform on the root element (SVG 2) applies before the viewBox mapping)
@@ -203,6 +204,7 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         return { width: outWidth, height: outHeight, pixels: canvas.toRGBA() };
     } finally {
         layerBudget = previous;
+        crossingsLeft = previousCrossings;
     }
 }
 
@@ -720,6 +722,11 @@ function take<T>(iterator: Iterator<T>, n: number): T[] {
 // (32 nested ones the size of a 1080p image, or 1024 small ones)
 const MAX_NESTED = 2 ** 26, MIN_NESTED = 2 ** 16;
 const MAX_DASHES = 1000000;
+// the most edge crossings one render rasterizes (the crossings of all shapes' edges with all sub-scanlines, which
+// take about 40 ns each, so 5 s): thousands of huge overlapping strokes cross every sub-scanline thousands of times
+const MAX_CROSSINGS = 2 ** 27;
+// what is left of it in the render that runs (rendering is synchronous), unlimited outside of one
+let crossingsLeft = Infinity;
 // the most pixels of a pattern's tile
 const MAX_TILE = 4096 * 1024;
 
@@ -3172,6 +3179,8 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
                 crossings[end++] = dirs[e];
             }
             if (end < 4) continue;
+            if ((crossingsLeft -= end >> 1) < 0)
+                throw new LimitError(`SVG too complex: its shapes' edges cross the rows of the image more than ${MAX_CROSSINGS} times (many large overlapping strokes or shapes)`);
 
             // insertion sort pairs by x
             for (let i = 2; i < end; i += 2) {
@@ -3682,13 +3691,24 @@ function strokePolygons(subpaths: Subpath[], halfWidth: number, cap: string | un
             const dot = prev[0] * next[0] + prev[1] * next[1];
             if (Math.abs(cross) < 1e-9 && dot > 0) continue;
 
+            // the outer side of the turn
+            const side = cross > 0 ? -1 : 1;
+
             if (join === 'round') {
-                circle(vx, vy);
+                // the wedge of the circle on the outer side, between the two segments' normals (the rest of the circle
+                // lies in the segments: a whole circle per vertex made 256 points of every one of a curve's thousands)
+                const turn = Math.acos(Math.max(-1, Math.min(1, dot)));
+                const steps = Math.max(1, Math.ceil(turn / (2 * Math.PI / circleSegments)));
+                const start = Math.atan2(side * prev[0], side * -prev[1]), sweep = side === -1 ? turn : -turn;
+                const wedge = [vx, vy];
+                for (let k = 0; k <= steps; k++) {
+                    const a = start + sweep * k / steps;
+                    wedge.push(vx + Math.cos(a) * halfWidth, vy + Math.sin(a) * halfWidth);
+                }
+                add(wedge);
                 continue;
             }
 
-            // the outer side of the turn
-            const side = cross > 0 ? -1 : 1;
             const ax = vx + side * -prev[1] * halfWidth, ay = vy + side * prev[0] * halfWidth;
             const bx = vx + side * -next[1] * halfWidth, by = vy + side * next[0] * halfWidth;
 
