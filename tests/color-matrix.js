@@ -43,12 +43,13 @@ const IDENTITY = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
         const sepia = [0.393, 0.769, 0.189, 0, 0, 0.349, 0.686, 0.168, 0, 0, 0.272, 0.534, 0.131, 0, 0, 0, 0, 0, 1, 0];
         check(same(photo(20, 15).colorMatrix(sepia), photo(20, 15).sepia()), 'colorMatrix: the sepia matrix is sepia()');
 
+        // (what isn't an array at all is a TypeError, the wrong number of values or a bad value a RangeError)
         for (const [label, bad] of Object.entries({
             'eight values': new Array(8).fill(1), 'twenty-one values': new Array(21).fill(0), 'none': [], 'a number': 5, 'null': null, 'NaN': [...IDENTITY.slice(0, 19), NaN],
             'a string': [...IDENTITY.slice(0, 19), '1'], 'Infinity': [Infinity, ...IDENTITY.slice(1)]
         })) {
             const image = photo(4, 4), before = image.bitmap.slice();
-            throwsA(() => image.colorMatrix(bad), RangeError, `colorMatrix with ${label}`);
+            throwsA(() => image.colorMatrix(bad), typeof bad === 'object' && bad !== null ? RangeError : TypeError, `colorMatrix with ${label}`);
             check(Buffer.from(image.bitmap).equals(Buffer.from(before)), `colorMatrix with ${label}: the image should be unchanged`);
         }
 

@@ -94,7 +94,7 @@ const photo = (width, height) => new Image(width, height).fill((x, y) => Colors.
 
         // invalid input is refused, before the image changes
         for (const [label, bad, type] of [
-            ['five values', [1, 0, 0, 1, 0], RangeError], ['seven values', [1, 0, 0, 1, 0, 0, 0], RangeError], ['null', null, RangeError], ['NaN', [1, 0, 0, NaN, 0, 0], RangeError],
+            ['five values', [1, 0, 0, 1, 0], RangeError], ['seven values', [1, 0, 0, 1, 0, 0, 0], RangeError], ['null', null, TypeError], ['a string', 'matrix(1 0 0 1 0 0)', TypeError], ['NaN', [1, 0, 0, NaN, 0, 0], RangeError],
             ['Infinity', [1, 0, 0, 1, Infinity, 0], RangeError], ['a string', [1, 0, 0, 1, 0, '0'], RangeError], ['all zeros', [0, 0, 0, 0, 0, 0], RangeError],
             ['a flat matrix', [1, 2, 2, 4, 0, 0], RangeError], ['a zero scale', [0, 0, 0, 1, 0, 0], RangeError], ['too large', [1e6, 0, 0, 1e6, 0, 0], RangeError]
         ]) {

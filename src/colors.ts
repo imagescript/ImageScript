@@ -212,6 +212,7 @@ export class Colors {
      * @return The gradient generator. The function argument is the position in the gradient (0..1).
      */
     static gradient(stops: Record<number, Color> | Color[]): (position: number) => Color {
+        if (typeof stops !== 'object' || stops === null) throw new TypeError(`gradient() takes an array of colors or an object of positions and colors, not ${stops === null ? 'null' : typeof stops}`);
         let colors: Record<number, Color>;
         if (Array.isArray(stops)) {
             if (!stops.length) throw new RangeError('Invalid gradient point count');

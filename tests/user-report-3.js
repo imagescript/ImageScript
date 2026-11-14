@@ -80,4 +80,25 @@ const has = (bytes, text) => Buffer.from(bytes).includes(Buffer.from(text, 'lati
         await image.encodeWebP({quality: 80, sharpYuv: true});
         await animation.encodeGIF({optimize: false});
     }
+
+    // the type of an argument that isn't a number is a TypeError (the wrong number of values a RangeError)
+    {
+        const font = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
+        await rejects('transform string', () => image.clone().transform('matrix(1 0 0 1 0 0)'), TypeError);
+        await rejects('transform 5 values', () => image.clone().transform([1, 0, 0, 1, 0]), RangeError);
+        await rejects('colorMatrix()', () => image.clone().colorMatrix(), TypeError);
+        await rejects('colorMatrix string', () => image.clone().colorMatrix('1 0 0'), TypeError);
+        await rejects('colorMatrix 8 values', () => image.clone().colorMatrix([1, 0, 0, 0, 1, 0, 0, 0]), RangeError);
+        await rejects('feature "on"', () => Image.renderText('x', {font, size: 12, features: {liga: 'on'}}), TypeError);
+        await rejects('feature 300', () => Image.renderText('x', {font, size: 12, features: {liga: 300}}), RangeError);
+        await rejects('variation "bold"', () => Image.renderText('x', {font, size: 12, variations: {weight: 'bold'}}), TypeError);
+        await rejects('variation NaN', () => Image.renderText('x', {font, size: 12, variations: {weight: NaN}}), RangeError);
+        await rejects('linearGradient without options', () => Image.linearGradient(4, 4), TypeError);
+        await rejects('radialGradient without options', () => Image.radialGradient(4, 4), TypeError);
+        await rejects('linearGradient without stops', () => Image.linearGradient(4, 4, {}), TypeError);
+        await rejects('Colors.gradient(5)', () => Colors.gradient(5), TypeError);
+        await rejects('metadata title 123', () => image.encodePNG({metadata: {title: 123}}), TypeError);
+        await rejects('metadata comment object', () => image.encodeJPEG({metadata: {comment: {}}}), TypeError);
+        await image.encodePNG({metadata: {title: '', comment: null}});
+    }
 })();

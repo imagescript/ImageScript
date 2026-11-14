@@ -842,6 +842,7 @@ function featureList(features: Record<string, boolean | number>): Array<[string,
     return Object.entries(features).map(([tag, value]) => {
         if (!/^[\x20-\x7e]{4}$/.test(tag)) throw new RangeError(`Invalid OpenType feature tag: ${JSON.stringify(tag)}`);
         if (typeof value === 'boolean') return [tag, value ? 1 : 0];
+        if (typeof value !== 'number') throw new TypeError(`The value of the OpenType feature ${tag} must be a boolean or a number, not ${value === null ? 'null' : typeof value}`);
         if (!Number.isInteger(value) || value < 0 || value > 255) throw new RangeError(`Invalid value of the OpenType feature ${tag}: ${value}`);
         return [tag, value];
     });
@@ -1014,6 +1015,7 @@ export class Image {
      */
     static linearGradient(width: number, height: number, options: LinearGradientOptions): Image {
         checkOptions(options, 'Image.linearGradient(100, 50, { stops, angle: 90 })');
+        if (options === undefined) throw new TypeError('Image.linearGradient(width, height, options) needs the stops in the options');
         const { stops, angle = 180 } = options;
         const color = gradientFunction(stops);
         finite(angle, 'angle');
@@ -1043,6 +1045,7 @@ export class Image {
         const image = new Image(width, height);
         // (sizes with a fraction are truncated by the image: the pixels are written to that size)
         ({ width, height } = image);
+        if (options === undefined) throw new TypeError('Image.radialGradient(width, height, options) needs the stops in the options');
         const { stops, x: cx = width / 2, y: cy = height / 2, radius = Math.hypot(Math.max(cx, width - cx), Math.max(cy, height - cy)) } = options;
         const color = gradientFunction(stops);
         finite(cx, 'x');
@@ -2023,8 +2026,8 @@ export class Image {
      * @param matrix The 9 or 20 values
      */
     colorMatrix(matrix: ArrayLike<number>): this {
-        if (matrix === null || typeof matrix !== 'object' || (matrix.length !== 9 && matrix.length !== 20))
-            throw new RangeError('A color matrix has 9 or 20 values');
+        if (matrix === null || typeof matrix !== 'object') throw new TypeError(`colorMatrix() takes an array of 9 or 20 values, not ${matrix === null ? 'null' : typeof matrix}`);
+        if (matrix.length !== 9 && matrix.length !== 20) throw new RangeError('A color matrix has 9 or 20 values');
         const m = new Float64Array(20);
         // (numbers only: a string is a mistake in data like this)
         const value = (v: unknown): number => finite(typeof v === 'number' ? v : NaN, 'color matrix value');
@@ -2068,7 +2071,8 @@ export class Image {
      */
     transform(matrix: AffineTransform, options: TransformOptions = {}): this {
         checkOptions(options, 'image.transform([1, 0, 0, 1, 0, 0], { expand: false })');
-        if (matrix === null || typeof matrix !== 'object' || matrix.length !== 6) throw new RangeError('A transform has 6 values: [a, b, c, d, e, f]');
+        if (matrix === null || typeof matrix !== 'object') throw new TypeError(`transform() takes an array of 6 values, like transform([1, 0, 0, 1, 0, 0]), not ${matrix === null ? 'null' : typeof matrix}`);
+        if (matrix.length !== 6) throw new RangeError('A transform has 6 values: [a, b, c, d, e, f]');
         // (numbers only: a string is a mistake in data like this)
         const values = Array.from({ length: 6 }, (_, i) => finite(typeof matrix[i] === 'number' ? matrix[i] : NaN, 'transform value'));
         const { origin = {}, expand = true, mode = 'bilinear' } = options;

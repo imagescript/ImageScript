@@ -451,10 +451,11 @@ const panic = message => {
         if (!same(regular, await render({ZZZZ: 1}))) panic('variable font: axes it doesn\'t have should be ignored');
         const plain = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
         if (!same(await Image.renderText(text, { font: plain, size: 32 }), await Image.renderText(text, { font: plain, size: 32, variations: {weight: 900} }))) panic('fonts without axes shouldn\'t change');
-        for (const variations of [{wieght: 700}, {weight: NaN}, {weight: '700'}]) {
+        // (an unknown axis or a value out of range is a RangeError, a value of the wrong type a TypeError)
+        for (const [variations, type] of [[{wieght: 700}, RangeError], [{weight: NaN}, RangeError], [{weight: '700'}, TypeError], [{weight: null}, TypeError]]) {
             let error = null;
             try { await render(variations); } catch (err) { error = err; }
-            if (!(error instanceof RangeError)) panic(`variations ${JSON.stringify(variations)} should be rejected`);
+            if (!(error instanceof type)) panic(`variations ${JSON.stringify(variations)} should be rejected with a ${type.name}`);
         }
     }
 

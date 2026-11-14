@@ -124,7 +124,8 @@ export function axisValues(variations: Record<string, number | boolean>): Record
         const tag = AXES[key] ?? (key.length === 4 ? key : null);
         if (!tag) throw new RangeError(`Unknown font variation ${key}: use weight, width, slant, italic, opticalSize or an axis tag`);
         const v = typeof value === 'boolean' ? +value : value;
-        if (typeof v !== 'number' || !Number.isFinite(v)) throw new RangeError(`Invalid font variation ${key}: ${String(value)}`);
+        if (typeof v !== 'number') throw new TypeError(`The font variation ${key} must be a number or a boolean, not ${v === null ? 'null' : typeof v}`);
+        if (!Number.isFinite(v)) throw new RangeError(`Invalid font variation ${key}: ${String(value)}`);
         values[tag] = v;
     }
     return values;
