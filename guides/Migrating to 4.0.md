@@ -271,7 +271,9 @@ Search your code for: `dominantColor(`, and compare the colors it returns.
 (inside the outline of `strokeWidth`), the lines that don't fit the height are left out, and `horizontalAlign` and
 `verticalAlign` place the text in that box. In 3.x the image was only as wide as the widest line and as high as the
 lines, so the alignment only moved lines against each other. Without a `width` or `height` the image is as large as
-the text, as before. `wrapHardBreaks` is removed:
+the text, as before. `horizontalAlign` defaults to the start of each paragraph's direction: left for left-to-right text
+and right for right-to-left text (Arabic, Hebrew, ...), where 3.x aligned everything to the left; pass
+`horizontalAlign: 'left'` for the old placement. `wrapHardBreaks` is removed:
 
 | 3.x | 4.0 |
 | --- | --- |

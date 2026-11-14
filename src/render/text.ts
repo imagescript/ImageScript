@@ -23,7 +23,8 @@ export interface Layout {
     width: number | undefined;
     height: number | undefined;
     wrapStyle: 'word' | 'char';
-    horizontalAlign: 'left' | 'center' | 'right';
+    /** undefined: the start of each paragraph's direction (left for left-to-right text, right for right-to-left) */
+    horizontalAlign: 'left' | 'center' | 'right' | undefined;
     verticalAlign: 'top' | 'middle' | 'bottom';
 }
 
@@ -89,6 +90,8 @@ interface Line {
     glyphs: PlacedGlyph[];
     /** the right edge of the ink */
     extent: number;
+    /** whether the line's paragraph runs right to left (its start is on the right) */
+    rtl: boolean;
 }
 
 // glyphs are rasterized at quarter pixel offsets
@@ -252,8 +255,8 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
     let color: Uint8ClampedArray | null = null;
 
     for (const [n, line] of visible.entries()) {
-        let offset = layout.horizontalAlign === 'right' ? width - line.extent
-            : layout.horizontalAlign === 'center' ? (width - line.extent) / 2 : 0;
+        const align = layout.horizontalAlign ?? (line.rtl ? 'right' : 'left');
+        let offset = align === 'right' ? width - line.extent : align === 'center' ? (width - line.extent) / 2 : 0;
         if (primary.hinter) offset = Math.round(offset);
         const baseline = top + ascent + n * lineHeight;
 
@@ -425,7 +428,8 @@ const isSpace = (codepoint: number): boolean => codepoint === 0x20 || codepoint 
 /** breaks a paragraph into lines and shapes them (reordered by the bidirectional algorithm) */
 function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => SizedFont, size: number, features: Features): Line[] {
     const n = p.codepoints.length;
-    if (!n) return [{ glyphs: [], extent: 0 }];
+    const rtl = (p.bidi.level & 1) === 1;
+    if (!n) return [{ glyphs: [], extent: 0, rtl }];
 
     // the width of each character's cluster in the paragraph shaped as one line (characters within a cluster have
     // none, and lines can't break inside clusters)
@@ -480,7 +484,7 @@ function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => Size
         const { glyphs } = ranges.length === 1 ? whole : shapeRange(p, start, end, shifted, font, size, features);
         let extent = 0;
         for (const { x, dx, glyph } of glyphs) if (glyph.ink) extent = Math.max(extent, x + dx + glyph.ink.right);
-        return { glyphs, extent };
+        return { glyphs, extent, rtl };
     });
 }
 

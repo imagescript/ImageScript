@@ -146,4 +146,27 @@ const has = (bytes, text) => Buffer.from(bytes).includes(Buffer.from(text, 'lati
         const none = await Image.renderSVG(svg('width="50"'));
         if (none.width !== 50 || none.height !== 100) panic('without a viewBox the other side is the default 100');
     }
+
+    // a right-to-left paragraph is aligned to the right by default (the start of its direction), a left-to-right one to
+    // the left; horizontalAlign overrides both
+    {
+        const fonts = await Promise.all(['opensans bold.ttf', 'noto naskh arabic subset.ttf'].map(name => fs.readFile(`./tests/fonts/${name}`)));
+        const inkEdges = image => {
+            let left = image.width, right = -1;
+            for (const [x, , color] of image.pixels()) if (color & 0xff) { left = Math.min(left, x); right = Math.max(right, x); }
+            return [left, right];
+        };
+        const arabic = await Image.renderText('مرحبا بالعالم مرحبا بالعالم مرحبا بالعالم', {font: fonts, size: 24, width: 150});
+        const [, arabicRight] = inkEdges(arabic.extract(0, 0, 150, 30)), [arabicLeft] = inkEdges(arabic);
+        if (arabicRight < 140) panic(`a right-to-left paragraph should start at the right edge, its first line ends at ${arabicRight}`);
+        if (arabicLeft < 2) panic('a wrapped right-to-left paragraph should be ragged on the left');
+        const latin = await Image.renderText('Hello world hello world hello world hello', {font: fonts, size: 24, width: 150});
+        if (inkEdges(latin.extract(0, 0, 150, 30))[0] > 6) panic('a left-to-right paragraph starts at the left');
+        const forcedLeft = await Image.renderText('مرحبا بالعالم', {font: fonts, size: 24, width: 150, horizontalAlign: 'left'});
+        if (inkEdges(forcedLeft)[0] > 6) panic('horizontalAlign left places right-to-left text on the left');
+        // each paragraph by its own direction
+        const mixed = await Image.renderText('Hello\nمرحبا', {font: fonts, size: 24, width: 150});
+        const lineHeight = mixed.height / 2;
+        if (inkEdges(mixed.extract(0, 0, 150, lineHeight))[0] > 6 || inkEdges(mixed.extract(0, lineHeight, 150, lineHeight))[1] < 140) panic('mixed paragraphs should each start at their own side');
+    }
 })();

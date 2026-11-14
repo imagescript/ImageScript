@@ -29,7 +29,8 @@ export interface TextLayoutOptions {
     /**
      * Where the lines are placed horizontally: `'left'`, `'center'` or `'right'` in the `width`, or (without one)
      * relative to the widest line
-     * @defaultValue `'left'`
+     * @defaultValue The paragraph's direction: `'left'` for left-to-right text, `'right'` for right-to-left text
+     *     (Arabic, Hebrew, ...), like the `start` of CSS' `text-align`
      */
     horizontalAlign?: HorizontalAlign;
     /**
@@ -61,7 +62,7 @@ export function textLayout(options: TextLayoutOptions): Layout {
         width: boxSide(width, 'width'),
         height: boxSide(height, 'height'),
         wrapStyle: wrapStyle === undefined ? 'word' : oneOf(wrapStyle, ['word', 'char'], 'wrapStyle'),
-        horizontalAlign: horizontalAlign === undefined ? 'left' : oneOf(horizontalAlign, HORIZONTAL, 'horizontalAlign'),
+        horizontalAlign: horizontalAlign === undefined ? undefined : oneOf(horizontalAlign, HORIZONTAL, 'horizontalAlign'),
         verticalAlign: verticalAlign === undefined ? 'top' : oneOf(verticalAlign, VERTICAL, 'verticalAlign')
     };
 }
