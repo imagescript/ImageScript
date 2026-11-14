@@ -13,21 +13,24 @@
 
 ---
 
-**ImageScript** decodes, edits and encodes images in pure TypeScript: no WebAssembly, no native binaries, no
-dependencies. It runs in Node.js 22.13+, Deno, Bun, browsers and edge runtimes (Cloudflare Workers, Vercel's Edge
-Runtime, Deno Deploy), works with both `import` and `require()`, and ships with type definitions. Large images are
-encoded and decoded on several threads wherever the runtime supports workers.
+**ImageScript** decodes, edits and encodes images in pure TypeScript: no WebAssembly, no native binaries, and no
+runtime dependencies. It runs in Node.js 22.13+, Deno, Bun, browsers and edge runtimes (Cloudflare Workers, Vercel's
+Edge Runtime, Deno Deploy), works with `import` and, on supported Node.js versions, `require()`, and ships with type
+definitions (TypeScript 5.7 or newer: with older versions and `skipLibCheck`, the encoders' return types become `any`). Large AVIF and JPEG XL operations, and lossless WebP encoding, can use multiple CPU cores when the runtime
+supports it.
 
 ```sh
 npm install imagescript              # Node.js, Bun and bundlers
 deno add jsr:@matmen/imagescript     # Deno
 ```
 
+Upgrading from 3.x? Read [Migrating to 4.0](https://github.com/imagescript/ImageScript/blob/v4/guides/Migrating%20to%204.0.md) first.
+
 Without a bundler, import it from jsDelivr in the browser:
 
 ```html
 <script type="module">
-  import { Image } from 'https://cdn.jsdelivr.net/npm/imagescript@3/+esm';
+  import { Image } from 'https://cdn.jsdelivr.net/npm/imagescript@4/+esm';
 
   const image = await Image.decode(await fetch('photo.jpg').then(r => r.arrayBuffer()));
   image.resize({ width: 256 });
@@ -35,6 +38,15 @@ Without a bundler, import it from jsDelivr in the browser:
   document.body.append(Object.assign(document.createElement('img'), { src: url }));
 </script>
 ```
+
+The codecs that can use worker threads (large AVIF and JPEG XL images, lossless WebP; the `threads` option) do so in
+Node.js, Deno and Bun, and in browsers on cross-origin isolated pages. Where workers can't start, the work runs on the
+calling thread: the output is the same, only slower, and nothing warns about it. Browsers refuse workers from another
+origin, so the jsDelivr example above runs single-threaded; serve the package from your own origin (on a cross-origin
+isolated page) to get threads.
+
+Bundlers that write one file (esbuild, webpack) don't copy the worker's module: serve `dist/util/worker.js` next to the
+bundle, or the same single-threaded fallback is used. Vite and Rollup emit it.
 
 ---
 
@@ -45,7 +57,7 @@ import { Image } from 'imagescript';
 import { readFile, writeFile } from 'node:fs/promises';
 
 const image = await Image.decode(await readFile('input.jpg'));
-image.resize({ width: 256 }).roundCorners(16);
+image.resize({ width: 256 }).roundCorners({ radius: 16 });
 await writeFile('output.png', await image.encodePNG());
 ```
 
@@ -71,17 +83,23 @@ await writeFile('output.png', await image.encodePNG());
 | GIF, APNG (animations) | ✓ | ✓ |
 | BMP, QOI, TGA, Netpbm | ✓ | ✓ |
 | TIFF, ICO/CUR, Radiance HDR | ✓ | |
-| [HDR gain maps](https://imagescript.dev/classes/GainMap.html) (Ultra HDR and iPhone JPEGs, AVIF, JPEG XL) | ✓ | ✓, kept through edits |
+| [HDR gain maps](https://imagescript.dev/classes/GainMap.html) (brighter highlights on HDR displays; JPEG, AVIF, JPEG XL) | ✓ | ✓ |
 
 [Animations](https://imagescript.dev/classes/Animation.html) can be decoded from GIF, APNG, WebP and JPEG XL,
 and encoded as GIF, APNG or WebP, all at once or
-[frame by frame](https://imagescript.dev/classes/Animation.html#webpencoder). Embedded color profiles (Display
-P3, Adobe RGB, ...) are converted to sRGB when decoding, so images look the way browsers show them.
+[frame by frame](https://imagescript.dev/classes/Animation.html#webpencoder). Lossless encoding keeps every pixel
+exactly; lossy encoding makes smaller files by approximating some image detail.
 
-- [Text rendering](https://imagescript.dev/classes/Image.html#rendertext) with TrueType, OpenType and WOFF fonts:
-  all scripts, color emoji, variable fonts
+Embedded color profiles are converted to sRGB, the standard color format for most screens, where supported. CMYK and
+lookup-table profiles are left unchanged.
+
+Supported image operations preserve gain maps; editing pixels directly with `image.bitmap` or `setPixelAt()` does not.
+
+- [Text rendering](https://imagescript.dev/classes/Image.html#rendertext) with TrueType, OpenType and WOFF fonts
+  (not WOFF2; some OpenType outline formats are unsupported): right-to-left text and scripts where letters connect or
+  combine, plus color emoji and variable TrueType fonts
 - [SVG rendering](https://imagescript.dev/classes/Image.html#rendersvg), including text (with fonts you pass
-  or fonts embedded in the SVG)
+  or fonts embedded in the SVG); no automatic fetching of external images or fonts
 - [Resizing](https://imagescript.dev/classes/Image.html#resize),
   [cropping](https://imagescript.dev/classes/Image.html#crop),
   [rotating](https://imagescript.dev/classes/Image.html#rotate),

@@ -1,52 +1,55 @@
+/**
+ * @packageDocumentation
+ * @document ../guides/Migrating to 4.0.md
+ */
+// (the guide is attached to the entry module: as a project document it turned the docs into a module "index", every
+// page's file name prefixed with it, e.g. classes/index.Image.html instead of classes/Image.html)
 import { BinaryData } from './util/mem.ts';
 import { Image, DecodeOptions } from './image.ts';
-import { GIF } from './gif.ts';
-import { Animation, AnimationDecodeOptions } from './animation.ts';
-import { isOptions } from './util/options.ts';
+import { Animation } from './animation.ts';
+import { checkOptions } from './util/options.ts';
+import * as png from './codecs/png.ts';
 import * as webp from './codecs/webp.ts';
 import { view } from './util/mem.ts';
 import { ImageType } from './image-type.ts';
 
-export { Image, ResizeModes, SVGScaleModes } from './image.ts';
+export { Image } from './image.ts';
 export { Colors } from './colors.ts';
-export type { Color, ColorFunction, ResizeMode, SVGScaleMode, PNGMetadata, TextStyle, DecodeOptions, CompositeOptions, BlendMode, CropCircleOptions, DominantColorOptions, RotateOptions, ColorToAlphaOptions, ResizeOptions, ResizeToOptions, AdjustOptions, SharpenOptions, PNGEncodeOptions, JPEGEncodeOptions, WebPEncodeOptions, AVIFEncodeOptions, JXLEncodeOptions, EncodeOptions, SVGOptions, TextOptions, RenderTextOptions, ShadowOptions, OutlineOptions, QuantizeOptions, TransformOptions, TransformMode, GradientOptions, LinearGradientOptions, RadialGradientOptions, RoundCornersOptions, FisheyeOptions, TrimOptions } from './image.ts';
-export { Frame, FrameDisposalModes } from './frame.ts';
-export type { FrameDisposalModeName, FrameDisposalModeId, FrameOptions } from './frame.ts';
+export type { Color, ColorFunction, ResizeMode, ResizeFit, TextStyleOptions, DecodeOptions, CompositeOptions, BlendMode, CropCircleOptions, DominantColorOptions, RotateOptions, ColorToAlphaOptions, ResizeOptions, ResizeToOptions, SharpenOptions, PNGEncodeOptions, JPEGEncodeOptions, WebPEncodeOptions, AVIFEncodeOptions, JXLEncodeOptions, EncodeOptions, TGAEncodeOptions, GIFEncodeOptions, DitherMethod, DitherOptions, GainMapEmbedOptions, RenderSVGOptions, SVGResourceOptions, RenderTextOptions, ShadowOptions, OutlineOptions, QuantizeOptions, TransformOptions, TransformMode, FlipDirection, AffineTransform, GradientOptions, LinearGradientOptions, RadialGradientOptions, RoundCornersOptions, FisheyeOptions, TrimOptions } from './image.ts';
+export { Frame } from './frame.ts';
+export type { FrameDisposalMode, FrameOptions } from './frame.ts';
 export { GainMap } from './gainmap.ts';
-export type { GainMapOptions, GainMapEncodeOptions } from './gainmap.ts';
-export { GIF } from './gif.ts';
+export type { GainMapOptions, GainMapEncodeOptions, GainMapChannelValues } from './gainmap.ts';
 export { Animation } from './animation.ts';
-export type { AnimationOptions, AnimationDecodeOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
+export type { AnimationOptions, AnimationCanvasOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFAnimationEncodeOptions, APNGEncodeOptions } from './animation.ts';
 export { AnimationEncoder } from './animation-encoder.ts';
-export type { AnimationEncoderOptions, WebPAnimationEncoderOptions, GIFAnimationEncoderOptions, APNGAnimationEncoderOptions } from './animation-encoder.ts';
-export { TextLayout } from './text-layout.ts';
 export type { TextLayoutOptions, WrapStyle, HorizontalAlign, VerticalAlign } from './text-layout.ts';
 export { ImageType } from './image-type.ts';
+export { LimitError } from './util/limits.ts';
 export type { ImageTypeName } from './image-type.ts';
 export type { ToneMapping } from './codecs/hdr.ts';
 export type { BinaryData } from './util/mem.ts';
 export type { Metadata } from './metadata.ts';
 
 /**
- * Decodes any supported image: GIFs are returned as {@link GIF} (an {@link Animation}), animated WebPs as
- * {@link Animation}, everything else (including APNGs, as their default image) as {@link Image}.
- * {@link Animation.decode} decodes the frames of GIFs, APNGs and WebPs
- * @param data The image data
- * @param options See {@link AnimationDecodeOptions} (for animations) and {@link DecodeOptions} (for images)
+ * Decodes any supported image. A file with more than one frame or an explicit animation marker (including a one-frame
+ * APNG or animated WebP) is returned as an {@link Animation}; otherwise it is an {@link Image}. A one-frame animation
+ * keeps its timing, offsets and loop metadata. Static formats (PNG, JPEG, AVIF, ...) are Images, and AVIF image
+ * sequences decode to their first frame, as {@link Image.decode} does. The options are passed on to
+ * {@link Animation.decode} or {@link Image.decode}.
+ * @param input The image data
+ * @param options See {@link DecodeOptions}
  */
-export function decode(data: BinaryData, options?: AnimationDecodeOptions & DecodeOptions): Promise<GIF | Animation | Image>;
-/**
- * Decodes any supported image: GIFs are returned as {@link GIF} (an {@link Animation}), animated WebPs as
- * {@link Animation}, everything else (including APNGs, as their default image) as {@link Image}.
- * {@link Animation.decode} decodes the frames of GIFs, APNGs and WebPs
- * @param data The image data
- * @param onlyExtractFirstFrame Whether to end animation decoding after the first frame
- */
-export function decode(data: BinaryData, onlyExtractFirstFrame?: boolean): Promise<GIF | Animation | Image>;
-export function decode(data: BinaryData, onlyFirstFrameOrOptions: boolean | (AnimationDecodeOptions & DecodeOptions) = false): Promise<GIF | Animation | Image> {
-    const { onlyFirstFrame = false, applyOrientation, maxPixels, toneMapping } = isOptions(onlyFirstFrameOrOptions) ? onlyFirstFrameOrOptions : { onlyFirstFrame: onlyFirstFrameOrOptions };
-    const type = ImageType.getType(data);
-    if (type === 'gif') return GIF.decode(data, { onlyFirstFrame, maxPixels });
-    if (type === 'webp' && webp.isAnimated(view(data))) return Animation.decode(data, { onlyFirstFrame, maxPixels });
-    return Image.decode(data, { applyOrientation, maxPixels, toneMapping });
+export function decode(input: BinaryData, options?: DecodeOptions): Promise<Image | Animation>;
+export async function decode(input: BinaryData, options: DecodeOptions = {}): Promise<Image | Animation> {
+    checkOptions(options, 'decode(data, { maxPixels: 1e8 })');
+    const bytes = view(input);
+    const type = ImageType.getType(bytes);
+    const animated = type === 'gif' || type === 'jxl' || (type === 'webp' && webp.isAnimated(bytes)) || (type === 'png' && png.isAnimated(bytes));
+    if (!animated) return Image.decode(input, options);
+
+    const animation = await Animation.decode(input, options);
+    if (animation.length !== 1 || Animation.__is_animated__(animation)) return animation;
+    // the only frame, as an image: its pixels and gain map
+    return animation.frames[0].image;
 }

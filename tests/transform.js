@@ -1,4 +1,4 @@
-const {Image, Frame, GainMap} = require('..');
+const {Image, Frame, GainMap, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -15,7 +15,7 @@ const throwsA = (fn, type, label) => {
 const px = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
 const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
 // an opaque image where every pixel is different
-const photo = (width, height) => new Image(width, height).fill((x, y) => Image.rgbaToColor((x * 37 + y * 11) % 256, (x * 5 + y * 91) % 256, (x * y + x) % 256, 255));
+const photo = (width, height) => new Image(width, height).fill((x, y) => Colors.fromRGBA((x * 37 + y * 11) % 256, (x * 5 + y * 91) % 256, (x * y + x) % 256, 255));
 
 (async () => {
     // transform
@@ -28,16 +28,16 @@ const photo = (width, height) => new Image(width, height).fill((x, y) => Image.r
         // flips and quarter turns are exact (the library's rotate() turns counterclockwise)
         check(same(source.clone().transform([-1, 0, 0, 1, 0, 0]), source.clone().flip('horizontal')), 'transform: flipped horizontally');
         check(same(source.clone().transform([1, 0, 0, -1, 0, 0]), source.clone().flip('vertical')), 'transform: flipped vertically');
-        check(same(source.clone().transform([0, -1, 1, 0, 0, 0]), source.clone().rotate(90)), 'transform: turned 90 degrees counterclockwise');
+        check(same(source.clone().transform([0, -1, 1, 0, 0, 0]), source.clone().rotate(-90)), 'transform: turned 90 degrees counterclockwise');
         check(same(source.clone().transform([-1, 0, 0, -1, 0, 0]), source.clone().rotate(180)), 'transform: turned 180 degrees');
-        check(same(source.clone().transform([0, 1, -1, 0, 0, 0]), source.clone().rotate(270)), 'transform: turned 270 degrees');
+        check(same(source.clone().transform([0, 1, -1, 0, 0, 0]), source.clone().rotate(-270)), 'transform: turned 270 degrees');
         const turned = source.clone().transform([0, -1, 1, 0, 0, 0]);
         check(turned.width === 9 && turned.height === 13, `transform: a quarter turn swaps the size: ${turned.width}x${turned.height}`);
 
-        // any angle: close to rotate() (counterclockwise 30 degrees), on a canvas that keeps its size
+        // any angle: rotate() (counterclockwise 30 degrees: -30), on a canvas that keeps its size
         const angle = 30 * Math.PI / 180, big = photo(40, 30);
         const ours = big.clone().transform([Math.cos(angle), -Math.sin(angle), Math.sin(angle), Math.cos(angle), 0, 0], {expand: false});
-        const theirs = big.clone().rotate(30, {resize: false});
+        const theirs = big.clone().rotate(-30, {expand: false});
         let total = 0;
         for (let i = 0; i < ours.bitmap.length; i++) total += Math.abs(ours.bitmap[i] - theirs.bitmap[i]);
         check(ours.width === 40 && ours.height === 30 && total / ours.bitmap.length < 3, `transform: a rotation by any angle is rotate()'s (mean difference ${total / ours.bitmap.length})`);
@@ -106,15 +106,9 @@ const photo = (width, height) => new Image(width, height).fill((x, y) => Image.r
         throwsA(() => photo(5, 5).transform([1, 0, 0, 1, 0, 0], {origin: {x: NaN}}), RangeError, 'transform with a NaN origin');
         throwsA(() => photo(5, 5).transform([1, 0, 0, 1, 0, 0], null), TypeError, 'transform with null options');
 
-        // a frame stays where it is: it grows up and left as far as its offset allows
-        const frame = Frame.from(photo(20, 20), {duration: 40, xOffset: 3, yOffset: 50}).transform([Math.cos(Math.PI / 4), Math.sin(Math.PI / 4), -Math.sin(Math.PI / 4), Math.cos(Math.PI / 4), 0, 0]);
-        check(frame instanceof Frame && frame.duration === 40 && frame.xOffset === 0 && frame.yOffset >= 45 && frame.yOffset < 50, `Frame.transform: offsets ${frame.xOffset},${frame.yOffset}`);
-        const middle = Frame.from(photo(20, 20), {xOffset: 100, yOffset: 100}).transform([1, 0, 0.5, 1, 0, 0]);
-        check(middle.width === 30 && middle.xOffset === 95 && middle.yOffset === 100, `Frame.transform with room grows left, its pixels stay where they were: ${middle.width}, offsets ${middle.xOffset},${middle.yOffset}`);
-
         // gain maps move with the image
         const hdr = photo(20, 10);
-        hdr.gainMap = new GainMap(new Image(10, 5).fill((x) => x < 5 ? 0x000000ff : 0xffffffff), {gainMapMin: 0, gainMapMax: 2});
+        hdr.gainMap = new GainMap(new Image(10, 5).fill((x) => x < 5 ? 0x000000ff : 0xffffffff), {min: 0, max: 2});
         const flipped = hdr.clone().transform([-1, 0, 0, 1, 0, 0]);
         check(flipped.gainMap && flipped.gainMap.width === 10 && flipped.gainMap.height === 5, 'transform keeps the gain map');
         check(px(flipped.gainMap.image, 0, 2)[0] > 200 && px(flipped.gainMap.image, 9, 2)[0] < 60, 'transform: the gain map is flipped with the image');

@@ -135,11 +135,19 @@ export class ImageType {
     }
 
     /**
-     * Whether the data is a Windows icon or cursor (ICO or CUR)
+     * Whether the data is a Windows icon (ICO)
      * @param data The file's data
      */
     static isICO(data: BinaryData): boolean {
-        return iconType(u8(dataView(data))) !== null;
+        return iconType(u8(dataView(data))) === 'ico';
+    }
+
+    /**
+     * Whether the data is a Windows cursor (CUR)
+     * @param data The file's data
+     */
+    static isCUR(data: BinaryData): boolean {
+        return iconType(u8(dataView(data))) === 'cur';
     }
 
     /**

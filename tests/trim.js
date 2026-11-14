@@ -12,7 +12,7 @@ const size = image => `${image.width}x${image.height}`;
     {
         const image = new Image(10, 8);
         image.setPixelAt(1, 1, 0xffffff00); // transparent white
-        image.drawBox(3, 4, 4, 2, 0xff0000ff);
+        image.composite(new Image(4, 2).fill(0xff0000ff), {x: 3, y: 4});
         image.setPixelAt(9, 2, 0x00ff00ff);
         image.trim();
         if (size(image) !== '7x4') panic(`trim: ${size(image)} instead of 7x4`);
@@ -21,20 +21,20 @@ const size = image => `${image.width}x${image.height}`;
 
     // the top left pixel's color by default, or a given one
     {
-        const make = () => new Image(6, 6).fill(0xffffffff).drawBox(3, 2, 2, 3, 0x000000ff);
+        const make = () => new Image(6, 6).fill(0xffffffff).composite(new Image(2, 3).fill(0x000000ff), {x: 3, y: 2});
         if (size(make().trim()) !== '2x3') panic('trim: solid background not trimmed');
-        if (size(make().trim(0x000000ff)) !== '6x6') panic('trim: explicit color should only trim that color');
+        if (size(make().trim({color: 0x000000ff})) !== '6x6') panic('trim: explicit color should only trim that color');
         const marked = make().setPixelAt(1, 1, 0xff0000ff);
-        if (size(marked.trim(0xffffffff)) !== '4x4') panic(`trim: explicit color: ${size(marked)}`);
+        if (size(marked.trim({color: 0xffffffff})) !== '4x4') panic(`trim: explicit color: ${size(marked)}`);
     }
 
     // tolerance, e.g. for JPEG artifacts
     {
         const make = () => new Image(5, 5).fill(0xffffffff).setPixelAt(1, 0, 0xf8f8f8ff).setPixelAt(3, 3, 0x000000ff);
         if (size(make().trim()) !== '3x4') panic('trim: without tolerance, near colors stay');
-        if (size(make().trim(undefined, {tolerance: 0.05})) !== '1x1') panic('trim: tolerance has no effect');
+        if (size(make().trim({tolerance: 0.05})) !== '1x1') panic('trim: tolerance has no effect');
         for (const tolerance of [-0.1, 1.5, NaN])
-            if (!(() => { try { make().trim(undefined, {tolerance}); } catch { return true; } })()) panic(`trim: tolerance ${tolerance} accepted`);
+            if (!(() => { try { make().trim({tolerance}); } catch { return true; } })()) panic(`trim: tolerance ${tolerance} accepted`);
     }
 
     // an image of only the color stays unchanged
@@ -42,8 +42,8 @@ const size = image => `${image.width}x${image.height}`;
 
     // frames keep their position
     {
-        const frame = new Frame(10, 10, 100, 5, 7);
-        frame.drawBox(2, 3, 4, 4, 0xffffffff);
+        const frame = new Frame(new Image(10, 10), {duration: 100, xOffset: 5, yOffset: 7});
+        frame.image.composite(new Image(4, 4).fill(0xffffffff), {x: 2, y: 3});
         frame.trim();
         if (size(frame) !== '4x4' || frame.xOffset !== 7 || frame.yOffset !== 10) panic(`trim: frame ${size(frame)} at ${frame.xOffset},${frame.yOffset}`);
     }

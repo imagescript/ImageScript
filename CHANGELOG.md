@@ -1,5 +1,156 @@
 # Changelog
 
+## 4.0.0
+
+### Breaking changes
+
+Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://github.com/imagescript/ImageScript/blob/v4/guides/Migrating%20to%204.0.md) covers the 3.x-to-4.0 API changes and the sixteen behavior changes that don't show up as deprecations or compile errors.
+
+- **Methods that take options refuse anything else than an object**: a stray number, string, boolean or `null` as the options of `cropCircle()`, `Image.renderText()`, the encoders (`encodeWebP()`, `encodeAVIF()`, `encodeJXL()`, ...), `quantize()`, `transform()`, `dropShadow()`, `outline()`, the gradients, `Image.decode()`, the animation encoders, and `new GainMap()` throws a `TypeError` that names the working form (e.g. `cropCircle({ fit: 'cover' })`), so the 3.x calls that are gone like `cropCircle(true)` or `Image.renderText(font, 32, 'Hi')` fail instead of being ignored. Only the type of the argument is checked: a key that isn't an option is still ignored, so a typo like `{ maxWith: 300 }` isn't caught.
+
+- **The mode constants are removed, modes are plain strings**: `Image.RESIZE_*`, `Image.SVG_MODE_*`, `Frame.DISPOSAL_*` and the `ResizeModes`, `SVGScaleModes` and `FrameDisposalModes` classes are gone. Resize modes are `'nearest-neighbor'`, `'bilinear'`, `'bicubic'` and `'area'` (the `ResizeMode` type), disposal modes `'any'`, `'keep'`, `'previous'` and `'background'` (`FrameDisposalMode`), and the SVG modes became options of `renderSVG()` (below). `Image.RESIZE_AUTO`/`ResizeModes.AUTO` is `image.resize({ width: 256 })`. The old values are no longer accepted either: `'RESIZE_BILINEAR'`, the numbers 1-3 for SVG scale modes and the numeric disposal ids 0-3.
+
+- **`absolute` is removed from `opacity()`, `red()`, `green()`, `blue()`, `lightness()` and `saturation()`**: they only scale now, `image.red(0.5)` (and `AdjustOptions`, the type of their options, is removed). For a fixed color, use `image.recolor()`. In JavaScript a leftover `image.red(0.5, true)` scales the channel instead of setting it.
+
+- **`Image.encode()` is removed**: use `image.encodePNG()`, which takes the same arguments.
+
+- **`contain()` and `cover()` are removed** from `Image`, `Frame` and `Animation`: use `resize({ width, height, fit: 'contain' })` or `resize({ width, height, fit: 'cover' })`. `fit: 'contain'` also takes `background`; `ResizeFit` names the fit modes and `ContainOptions` is removed. 3.x's `contain()` maps to `'inside'`, and 3.x's padded `fit()` maps to `'contain'`.
+
+- **The color helpers of `Image` are removed**: `Image.rgbaToColor()`, `Image.rgbToColor()`, `Image.hslaToColor()`, `Image.hslToColor()`, `Image.rgbaToHSLA()`, `Image.colorToRGBA()`, `Image.colorToRGB()` and `Image.gradient()` are now `Colors.fromRGBA()`, `Colors.fromRGB()`, `Colors.fromHSLA()`, `Colors.fromHSL()`, `Colors.toHSLA()`, `Colors.toRGBA()`, `Colors.toRGB()` and `Colors.gradient()`.
+
+- **Iterating over an image, `iterateWithColors()` and `coordinates()` are removed**: `for (const [x, y] of image)`, `image.coordinates()` and `image.iterateWithColors()` are `image.pixels()`, which yields `[x, y, color]` for every pixel (`for (const [x, y] of image.pixels())`).
+
+- **`PNGMetadata` is removed**: use `Metadata`, which the encoders that write metadata take. The type is the same.
+
+- **The `max` argument of `cropCircle()` is removed**: `cropCircle(true, feathering)` and `cropCircle({ max: true })` are now `cropCircle({ fit: 'cover', feathering })`, and `cropCircle(false)` is `cropCircle()`, the default `fit: 'contain'`.
+
+- **The positional forms of `Image.renderText()` are removed**: `Image.renderText(font, size, text, color?, layout?, style?)` and `Image.renderText(font, size, text, options?)` are now `Image.renderText(text, { font, size, color, ...layout, ...style })`.
+
+- **The deprecated animation encoder option types and `AnimationEncoder.frames` are removed**: `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and `APNGAnimationEncoderOptions` are `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`, `GIFAnimationEncodeOptions` and `APNGEncodeOptions`, each with `AnimationOptions` for the `loopCount`, and `encoder.frames` is `encoder.frameCount`.
+
+- **The positional mode of `scale()` and `resize()` is removed**, on `Image`, `Frame` and `Animation`: `image.resize(width, height, 'area')` and `image.resize(width, height, ResizeModes.AREA)` are now `image.resize(width, height, { mode: 'area' })`, and `image.scale(0.5, { mode })` takes the mode in the same way. Other values in the position throw a `TypeError`, and `fast` goes in the same object.
+
+- **The positional arguments of `composite()`, `rotate()`, `sharpen()`, `dominantColor()`, `roundCorners()`, `fisheye()`, `trim()` and `colorToAlpha()` are removed**: the values go in the options object, which is the only second argument now. `image.composite(logo, 10, 20, { opacity: 0.5 })` is `image.composite(logo, { x: 10, y: 20, opacity: 0.5 })`, `image.sharpen(2, 3)` is `image.sharpen({ amount: 2, radius: 3 })`, `image.rotate(45, false)` is `image.rotate(-45, { expand: false })` (see the clockwise rotation below), `image.dominantColor(true, true, 15)` is `image.dominantColor({ ignoreBlack: true, ignoreWhite: true, threshold: 15 })`, `image.roundCorners(8)` is `image.roundCorners({ radius: 8 })` and `image.fisheye(3)` is `image.fisheye({ strength: 3 })`. `trim(color, options)` and `colorToAlpha(color, options)` take the color as `color` in the options (`trim({ color, tolerance })`, `colorToAlpha({ color, transparencyThreshold })`), and `Frame.trim()` works the same way. A value in the old position throws a `TypeError`.
+
+- **The positional arguments of the encoders are removed**: `encodePNG(compression, metadata)` and `encodePNG(metadata)` are `encodePNG({ compression, metadata })`, `encodeJPEG(quality)` is `encodeJPEG({ quality })`, `Animation.encodeGIF(quality)` is `encodeGIF({ colors })` (see the GIF options below) and `Animation.encodeAPNG(compression)` is `encodeAPNG({ compression })`, and `GainMap.encode(quality)` is `encodeJPEG({ quality })`. For example, `image.encodePNG(1, { author })` is `image.encodePNG({ compression: 1, metadata: { author } })`; the metadata alone, `image.encodePNG({ author })`, is ignored now.
+
+- **The positional arguments of `Image.renderSVG()` are removed**: `Image.renderSVG(svg, 512, 'width')` is `Image.renderSVG(svg, { width: 512 })` (see below), next to the `fonts` and `images` options.
+
+- **The positional arguments of `new Frame()`, `Frame.from()` and `new Animation()` are removed, and `Animation.decode()` takes no flag**: `new Frame(width, height, duration, xOffset, yOffset, disposalMode)` is `new Frame(new Image(width, height), { duration, xOffset, yOffset, disposalMode })`, `Frame.from(image, duration, xOffset, yOffset, disposalMode)` is `new Frame(image.clone(), { duration, xOffset, yOffset, disposalMode })` (see the frames below), `new Animation(frames, loopCount)` is `new Animation(frames, { loopCount })`, and `Animation.decode(data, true)` is `Animation.decode(data)`, or `Image.decode(data)` for the first frame only.
+
+- **`Image.decode()` returns the first frame of an animation**: a GIF or an animated WebP, which threw in 3.x, is an `Image` of its first frame, composed onto the canvas as `Animation.decode()` composes it, and decoding stops after that frame, so it is fast on long animations. Animated JPEG XLs and AVIF sequences were already their first frame. An APNG is still its default image, what viewers without APNG support show. Use `Animation.decode()` for all the frames.
+
+- **`decode()` follows animation markers as well as frame count**: files with multiple frames or an explicit animation marker return an `Animation`, including one-frame APNGs and animated WebPs; a static image or an unmarked one-frame GIF returns an `Image`. A one-frame animation keeps its timing and loop metadata. `Image.decode()` still returns only an `Image` of the first frame.
+
+- **The `GIF` class is removed**: `new GIF(frames, loopCount)` is `new Animation(frames, { loopCount })`, `GIF.decode(data)` is `Animation.decode(data)` and `gif.encode(quality)` is `animation.encodeGIF({ colors })`. `Animation` decodes and encodes GIFs the same way it does APNGs and WebPs.
+
+- **`Animation` holds its frames instead of extending `Array`**: `animation.frames` is a frozen snapshot; the `Frame` objects remain mutable. To change the list, assign a new array (the setter copies it). `animation[0]`, `animation.push(frame)` and `animation.map(...)` become `animation.frames[0]`, `animation.frames = [...animation.frames, frame]` and `animation.frames.map(...)`. `animation.slice(start, end)` is `new Animation(animation.frames.slice(start, end), { loopCount: animation.loopCount })`. `for (const frame of animation)`, `animation.length` and the methods of `Animation` work as before, and `Array.isArray(animation)` is `false`.
+
+- **Loop counts are `Infinity` (forever, the default) or an integer from 0**: `loopCount: -1` is `loopCount: Infinity`, and the encoders and the decoded animations use `Infinity` where they used `-1`. `-1` now throws a `RangeError` like the other negative numbers, `NaN` and fractions do, and numeric strings, `null` and booleans throw a `TypeError`. The check applies to `new Animation(frames, { loopCount })`, `animation.loopCount = ...` (which leaves the count as it was when it throws) and the encoders (`Animation.gifEncoder()`, `webpEncoder()` and `apngEncoder()`). Finite counts are the same as before: `loopCount: 2` still plays three times.
+
+- **Text alignments only take the values of their own axis**: `horizontalAlign` takes `'left'`, `'center'` or `'right'` and `verticalAlign` takes `'top'`, `'middle'` or `'bottom'`. 3.x accepted the other axis' values in either field, which now throws a `TypeError`: `verticalAlign: 'right'` is `horizontalAlign: 'right'`.
+
+- **`decode()` takes options only**: `decode(data, true)` is `Image.decode(data)` for the first frame, and a boolean throws a `TypeError` that names the options form.
+
+- **`resize()` needs a height in the positional form**: `image.resize(100)` throws a `TypeError`; `resize({ width: 100 })` keeps the aspect ratio. The positional form takes both sides as finite numbers, `Image`, `Frame` and `Animation` alike.
+
+- **Loop counts a format can't store throw a `RangeError`**: a GIF stores up to 65535 loops, a WebP up to 65534 and an APNG up to 2147483646 (2^31 - 2). A larger count used to wrap around silently (65536 as a GIF was forever). The encoders and the streaming encoders refuse it before encoding; `Infinity` is always fine.
+
+- **Removed and narrowed exported types**: `TextOptions` is `RenderTextOptions`, `FrameDisposalModeId` is removed (`FrameDisposalMode` has the names), `AdjustOptions` is removed with `absolute`, `PNGMetadata` is `Metadata`, and `AnimationEncoderOptions`, `WebPAnimationEncoderOptions`, `GIFAnimationEncoderOptions` and `APNGAnimationEncoderOptions` are `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`, `GIFAnimationEncodeOptions` and `APNGEncodeOptions`. `ResizeMode` is narrowed to the lower-case names (`'area'`, ...), `ContainOptions` is removed, and `SVGScaleMode` is removed.
+
+- **Fixed-length tuple types**: `Image`, `Frame` and `Animation.transform()` take `AffineTransform` (exactly six values); gain-map channel options and setters take a scalar or a three-value tuple (`GainMapChannelValues`), not an arbitrary `number[]`.
+
+- **Hues are in degrees**: `Colors.fromHSL()`, `Colors.fromHSLA()` and `Colors.toHSLA()` take and return the hue in degrees (0-360, like CSS' `hsl()` and `hueShift()`) instead of 0-1.
+
+- **`drawBox()` and `drawCircle()` are removed**: `image.composite(new Image(w, h).fill(color), { x, y })` draws a box, with `.cropCircle()` a circle. Compositing blends a translucent color over the image, where `drawBox()` replaced the pixels.
+
+- **`renderSVG()` takes `width`, `height` or `scale`**: `{ size: 512, mode: 'width' }` is `{ width: 512 }`, `{ size: 2 }` is `{ scale: 2 }`; `SVGScaleModes` and `SVGScaleMode` are removed. More than one of them throws a `TypeError`.
+
+- **`rotate()` turns clockwise**, like CSS' `rotate()` (3.x turned counterclockwise): negate the angle for the old result. Its `fast` option is removed (the bilinear sampling is always the 8-bit one that `fast: true` was, with the same pixels) and `mode` (`'nearest-neighbor'`, `'bilinear'` or `'bicubic'`) picks the sampling like `transform()`'s.
+
+- **`dominantColor()` counts colors in a histogram, and its `threshold` is in channel values**: the colors are counted in 16 levels per channel (like sharp's `dominant`) and the average of the fullest bin is returned, instead of the average of the largest of 8 median cut clusters, so the result is a color the image has and not a mix of two hues; it can differ from 3.x's. The `threshold` is 0-256 instead of steps of 4 (0-64): the default `60` is 3.x's `15`; multiply a threshold you give by 4.
+
+- **`renderText()` takes the image's `width` and `height`**: `maxWidth` and `maxHeight` are `width` and `height`, which also set the image's size: lines wrap to the width (inside the outline), lines that don't fit the height are left out, and `horizontalAlign` and `verticalAlign` place the text in that box. Without them, the image is as large as the text, as before. `wrapHardBreaks` is removed: remove the line breaks from the text instead. An old `maxWidth` is ignored, so the text doesn't wrap: search for it. `0` no longer means no limit (it throws).
+
+- **The `fast` option of `resize()` and `scale()` is removed**, on `Image`, `Frame` and `Animation`: resizing always works like its default (`fast: true`); `{ fast: false }` is ignored. The precise path took 15-25% longer for opaque images, for results at most a step or two closer.
+
+- **`encodeJPEG()` composites transparent pixels onto a background**, black by default (`background` sets the color), instead of dropping the alpha and showing the stored color. Opaque images encode as before.
+
+- **`Frame` holds an image instead of extending `Image`**: `frame.image` is the image, `new Frame(image, options)` takes it (without a copy), and `Frame.from()` is removed. `resize()` (including its `'contain'` and `'cover'` fit modes), `scale()`, `crop()`, `trim()`, `rotate()`, `transform()`, `dropShadow()` and `outline()` stay on the frame and move its offsets so it stays in place; everything else is `frame.image.blur(2)` and the like. `frame.crop()` and `frame.rotate()` now move the offsets too (3.x kept them), and the offsets can become negative where 3.x stopped the growth at 0.
+
+- **GIF palettes take a color count**: the `quality` of `Animation.encodeGIF()` and `Animation.gifEncoder()` is `colors` (2-256, default 256, which `quality` 90 and above gave), with the new `dither` and `ditherStrength`. Their options type is `GIFAnimationEncodeOptions`; `GIFEncodeOptions` is now the options of `Image.encodeGIF()`.
+
+- **`quantize()` dithers by default**: Floyd-Steinberg at a strength of `0.85`, like the GIF encoders (3.x: no dithering, and a strength of `1` when dithering). `dither: 'none'` gives the old default.
+
+- **Removed**: `getRGBAAt()` (use `Colors.toRGBA(image.getPixelAt(x, y))`).
+
+- **Renamed types**: `FrameDisposalModeName` is `FrameDisposalMode`, `SVGOptions` is `RenderSVGOptions` (like `RenderTextOptions`) and `TextStyle` is `TextStyleOptions` (like `TextLayoutOptions`). They are types only, nothing changes at runtime.
+
+- **Renamed**: `greyscale()` is `grayscale()` (American spelling throughout), the `fonts` option of `renderSVG()` is `font` (like `renderText()`'s), `GainMap.encode()` is `GainMap.encodeJPEG()` (named for the format it writes), `region()` is `extract()`, the `resize` option of `rotate()` is `expand` (like `transform()`, `outline()` and `dropShadow()`), `GainMap`'s `gainMapMin` and `gainMapMax` (properties and options) are `min` and `max`, and the parameters of `setPixelAt()`, `lightness()`, `saturation()` and `opacity()` are `color` and `factor`.
+
+- **Fewer types and classes**: `TextLayout` isn't exported, `renderText()` takes the layout options with its other options (`{ font, size, width: 300 }`). `AnimationDecodeOptions` is `DecodeOptions`, which all decode functions take. `encodeTGA()` takes `TGAEncodeOptions`; `EncodeOptions` is the `metadata` that every encoder's options extend, and the `gainMap` option of the JPEG, AVIF and JPEG XL encoders is `boolean | GainMapEmbedOptions`.
+
+- **Values are checked when they are set**: `frame.duration`, `frame.xOffset`, `frame.yOffset` and the parameters of a `GainMap` throw for invalid values (instead of failing in a later encode) and keep their value.
+
+- **An animation has its own canvas size**: decoded animations keep the file's, `new Animation(frames, { width, height })` sets one (`AnimationCanvasOptions`), and `resize()` sets the new one. Without one it is the frames' extent, as before. Frames (or their parts) outside the canvas aren't encoded.
+
+- **Values that were wrapped, clamped or ignored throw**: colors have to be integers from -2^31 to 2^32 - 1, also the ones a `fill()` function returns (they wrapped to 32 bits; negative ones, which bitwise operators return, keep working); pixel coordinates are truncated without wrapping at 2^32; `compression` is an integer 0-9 like `effort` (it was clamped); frame durations that GIF, APNG or WebP can't store throw a `RangeError` like loop counts (they were cut; unchanged frames merged by the encoders are split at the limit); `frame.xOffset` and `frame.yOffset` are truncated to integers when set; `image.bitmap = view` throws a `TypeError` for a view that doesn't start at a multiple of 4 bytes (it was copied, so changes to the view were lost); `Colors.gradient()` throws for a `NaN` position with any number of stops; `encodeGIF()` of an animation without frames throws like the other encoders; the `quality` of `encodeJPEG()` is checked like the other formats' (0-100, it was clamped); `composite()` throws a `TypeError` for a source that isn't an `Image`.
+
+- **Numbers have to be numbers**: a numeric string (`opacity('0.5')`, `quality: '50'`, `frame.duration = '40'`, `maxPixels: '100'`), `null` or a boolean where a number goes throws a `TypeError` naming the value. 3.x converted them in some methods and rejected them in others. `NaN` and the infinities are still a `RangeError`.
+- **Values that did nothing useful throw**: `roundCorners({ radius })` below 0 (it was clamped to 0) and `fisheye({ strength })` of 0 or less (which left an empty image).
+- **Gradients blend transparency premultiplied**, like CSS: `Colors.gradient()`, `Image.linearGradient()` and `radialGradient()` between a transparent and an opaque color no longer pass through a dark midpoint (transparent to red is `ff00007f` in the middle, was `7f00007f`). Gradients between opaque colors are unchanged.
+- **Images use a copy of the gain map they are given**: `image.gainMap = map` copies it, so images that were given one map no longer change each other's by resizing or cropping.
+
+- **Invalid choices throw a `TypeError` naming the valid ones**: the resize `mode` (an `Error`, thrown once resizing started, so `resize({ fit: 'cover' })` could move a frame's offsets before failing), `composite()`'s `mode`, `flip()`, `disposalMode` and `wrapStyle` (`RangeError`s; an empty or `null` `wrapStyle` was the default).
+
+- **No creation time and no version in encoded files by default**: the encoders only write a creation time when `metadata.creationTime` is given, so the same image encodes to the same bytes, and the default software is `'ImageScript'` without the version. `creationTime: null` and `software: null` leave the field out.
+
+- **Drawing an SVG image that can't be drawn throws**: an `href` that isn't a data URI or one of the `images`, an image that can't be decoded (with the decoding error as its `cause`), an unsupported data URI type or an embedded SVG that can't be read throw once they are drawn (images in `<defs>` or hidden ones don't); they drew nothing before.
+
+- **The encoders return `Promise<Uint8Array<ArrayBuffer>>`** instead of `Promise<Uint8Array>`, so `new Blob()`, `new Response()` and `crypto.subtle` take the output without a cast, also with the stricter DOM types of TypeScript 5.9 and newer. The type needs TypeScript 5.7 or newer.
+
+### New
+
+- `GainMap.decode(data, { maxPixels })` takes the limit of `Image.decode()`, and the `LimitError` that these limits throw is exported (with `name` `'LimitError'`).
+- `rotate(angle, { expand: false })` keeps the image's size for quarter turns, too: the turned image is centered and what doesn't fit is cut off (they swapped width and height).
+- `renderSVG()` throws for masks, clip paths, patterns, markers and filter images nested in each other so deeply that they would multiply (three per level took minutes at ten levels), and stops at 24 `feTurbulence` octaves, which are all that its output can hold. Shapes far outside the image no longer make rendering hang.
+- `renderSVG({ maxLayerPixels })` limits the layers SVG rendering uses at once (groups with opacity, masks, filters, ...; 16 bytes per pixel each), so nested ones can't multiply the memory of a small SVG: default `4 * maxPixels`. `renderSVG({ maxImagePixels })` limits the raster images an SVG references together (default `maxPixels`; each was limited on its own before).
+- `renderText({ maxPixels })`, default 16383², counting the outline, checked before anything is allocated.
+- `Animation.clone()`, `Animation.crop()` and `Animation.flip()` (each frame mirrored, and its place on the canvas), and the `FlipDirection` type.
+- `resize({ width, height, fit })` on images, frames and animations: `'inside'` fits without padding, `'contain'` pads, and `'cover'` crops while keeping the aspect ratio; `background` sets the bars for `'contain'`.
+- `encodeJPEG()` accepts `subsampling: '4:4:4'` or `'4:2:0'`; the default stays 4:2:0 up to quality 90 and 4:4:4 above.
+- `Colors.gradient()` takes an array of evenly spaced colors, like the `stops` of the gradient functions.
+- `Animation.scale()`, `Animation.trim()`, `Animation.rotate()`, `Animation.transform()`, `Animation.dropShadow()` and `Animation.outline()`. `scale()` and `trim()` keep the frames; the others work on the composited animation (full canvas frames) and resize the canvas.
+- `Frame.rotate()`, `Frame.transform()`, `Frame.dropShadow()` and `Frame.outline()`, which move the offsets like `Frame.resize()` and `Frame.crop()`.
+- `Image.encodeGIF()` for single images, with `colors`, `dither` and `ditherStrength` (also on the animation encoders), and the `DitherMethod` and `DitherOptions` types that `quantize()` and the GIF encoders share. The option types of the animation encoders extend those of the format's still images (`APNGEncodeOptions` extends `PNGEncodeOptions`, `WebPAnimationEncodeOptions` extends `WebPEncodeOptions` without `threads`). `QuantizeOptions` is a union: TypeScript reports a call with both `colors` and `palette` (it throws at runtime).
+- `RenderSVGOptions` is a union of the sizes (`width`, `height` or `scale`, TypeScript reports a call with more than one, which throws at runtime) and `SVGResourceOptions`, the limits, fonts and images.
+- `renderSVG({ font })` takes a single font without an array, like `renderText()`.
+
+### Fixes
+
+- `Animation.resize()` changes a frame once when the animation lists the same `Frame` (or two frames share one `Image`) more than once, as a hold or a ping-pong does; each listing resized or moved it again before (`new Animation([f, f, f]).resize(50, 50)` made 13x13 frames).
+- The animation encoders (`Animation.webpEncoder()`, `gifEncoder()` and `apngEncoder()`) cut frames to the canvas like `Animation.encode*()` does when `optimize` is `false`: a frame reaching over the edge lost the part it covered (GIF, WebP) or threw (APNG).
+- `AnimationEncoder.add()` rejects its promise for invalid frames instead of throwing synchronously, so `encoder.add(frame).catch()` sees them.
+- `Image.linearGradient()` and `radialGradient()` work with fractional sizes (`width / 2`, ...) at the truncated size of the image; they threw a `RangeError` because they wrote past the pixels.
+- `scale()` keeps each side at least one pixel like `resize()`, where `new Image(7, 1).scale(0.5)` threw.
+- A damaged JPEG XL whose blend refers to a channel that doesn't exist throws the decoding error instead of a `TypeError` from inside the decoder.
+- The gain map's checks across its values (`min` and `max`, `hdrCapacityMin` and `hdrCapacityMax`) name the values that conflict, since they apply when the map is cloned or encoded, not when a value is set.
+- `Animation.resize()` resizes frames that share one `Image` at different offsets to the size their edges give (they got the first one's width, so a frame could reach past the canvas), and throws for a width or height below one pixel instead of returning 1x1.
+- The GIF encoders throw a `RangeError` for a canvas wider or higher than 65535 pixels (it was stored modulo 65536: 70000 became 4464), and all encoders for an animation without a canvas (every frame outside it), which WebP wrote as 16777216x16777216.
+- `Animation.decode()` of a JPEG XL animation counts the pixels of all frames against `maxPixels`, like the other formats; a frame was counted alone.
+- `resize({ fit: 'cover' })` and `fill()` leave an image (and its gain map) as it was when they throw: a `cover` that couldn't allocate its result had already changed the gain map, and a `fill()` function that threw halfway had written half the pixels.
+- Animations that are cut off keep the frames that arrived whole and nothing else, and throw without a whole one: a GIF (it decoded a blank image when cut before its first frame, and returned the half-decoded last frame otherwise), an APNG (it showed the first frame only), a lossy WebP animation and a lossy JPEG XL animation (both returned a damaged last frame, the JPEG XL one also for frames of a single section).
+- Numeric arguments that accepted values silently refuse them like the rest: `scale('2')`, a `null` option value (`composite({ opacity: null })`, `roundCorners({ radius: null })`, `fisheye({ strength: null })`, a frame's `duration` and offsets in the encoders' `add()`), `blur('2')` and the gain map's setters with a non-number are a `TypeError`. `cropCircle({ feathering })` outside 0-1 throws instead of being clamped, and `renderText({ size: 0 })` throws like a negative size (it returned a 1x1 image).
+- Damaged files with a frame header cut short (JPEG), a BitsPerSample tag outside of the file (TIFF) or sizes that don't match their pixels (GIF, TGA, TIFF) are decoding errors, where they read missing bytes (`JPEG: undefined-bit precision`) or threw a `RangeError` from making the image.
+- `Colors.gradient()` with one color throws for a `NaN` position like the others.
+- TIFF files that ask for far more memory than they are are refused before anything is allocated: YCbCr subsampling factors other than 1, 2 and 4 (65534x65535 took 4 GB and 5 s for a 32 KB file) and more than 32 samples per pixel (1 GB for 33 KB), and the memory of the YCbCr units counts against `maxPixels`.
+- `Animation.decode()` of an APNG or WebP composites each frame as it is decoded, so its peak memory is 1.3 times the result instead of 2.2 (all decoded frames were held next to the composited ones); GIFs let go of each frame's color indices once it is composited (1.45 times, now 1.2).
+- `renderSVG()` bounds the work of strokes with round joins: a join was a whole circle of up to 256 points at every vertex of a flattened curve, so a 17 KB path took 9 s and 1 GB and a 50 KB one 2.7 GB (now a wedge on the outer side, 1.6 s and 220 MB, and 0.3 s and 350 MB). Round joins differ from the circles by at most 5 of 255 on the edge pixels. Shapes whose edges cross the rows of the image more than 2^27 times (thousands of huge overlapping strokes took 38 s from 51 KB of SVG) throw a `LimitError`.
+- Bundlers drop the parts of the library a page doesn't use: the build's `dist/package.json` declared only `"type": "module"`, which hid the `"sideEffects": false` of the package from them, so `import { Colors }` bundled the whole library (201 kB minified, now 3.4 kB).
+- `renderSVG()` rasterizes shapes with many edges in near linear time: the edges that start in a row were inserted one by one into the sorted active ones, so text of 20000 glyphs took 15 s (now 0.4 s) and 8000 random curves 18 s (now 2.3 s).
+- `renderSVG()` keeps the memory of dashed strokes bounded: dashes beside the image are left out and the others are stroked a batch at a time, so a line of a million dashes (157 bytes of SVG) no longer takes 650 MB. The rasterizer also keeps one sub-scanline's crossings at a time instead of 16.
+- `renderSVG()` parses `transform` lists in linear time: a long list of unclosed functions took 4.8 s at 280 KB.
+
 ## 3.20.3
 
 ### Deprecated
@@ -57,7 +208,7 @@
 - `resize({ width })` and `resize({ height })` on images, frames and animations: the missing side keeps the aspect
   ratio, `resize({ width: 256, mode: 'bicubic' })`.
 - `image.coordinates()` yields `[x, y]` and `image.pixels()` yields `[x, y, color]` for every pixel, row by row.
-- `cropCircle({ size: 'contain' | 'cover' })`: `'contain'` (the default, as before) keeps the circle inside the image.
+- `cropCircle({ fit: 'contain' | 'cover' })`: `'contain'` (the default, as before) keeps the circle inside the image.
 - `Image.renderText(text, { font, size, color, layout, ...style })`: the text first, everything else in the options.
   `layout` is `TextLayoutOptions` or a `TextLayout`: `Image.renderText('Hi', { font, size: 32, layout: { maxWidth: 400 } })`.
 - `Infinity` as the loop count of animations that loop forever (`new Animation(frames, { loopCount: Infinity })`,
@@ -81,7 +232,7 @@
   `APNGAnimationEncoderOptions`: they are the same as `AnimationEncodeOptions`, `WebPAnimationEncodeOptions`,
   `GIFEncodeOptions` and `APNGEncodeOptions` with `loopCount`, which are all the types there are in 4.0.
 - `encode()`: use `encodePNG()`, which takes the same arguments. Removed in 4.0.
-- `cropCircle(max, feathering)` and the `max` option: use `cropCircle({ size: 'contain' | 'cover' })`. Removed in 4.0.
+- `cropCircle(max, feathering)` and the `max` option: use `cropCircle({ fit: 'contain' | 'cover' })`. Removed in 4.0.
 
 ### Documentation
 

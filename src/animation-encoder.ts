@@ -1,4 +1,5 @@
 import * as gifCodec from './codecs/gif.ts';
+import { paletteOptions } from './codecs/quantize.ts';
 import * as png from './codecs/png.ts';
 import * as webp from './codecs/webp.ts';
 import { Image } from './image.ts';
@@ -6,56 +7,40 @@ import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { finite, compressionLevel, fitLoops } from './util/options.ts';
-import type { AnimationOptions, AnimationEncodeOptions, WebPAnimationEncodeOptions, GIFEncodeOptions, APNGEncodeOptions } from './animation.ts';
-
-// (ImageScript, like GIF, counts repetitions: -1 forever, 0 play once; APNG and WebP count plays, 0 forever)
-const toPlays = (loopCount: number): number => loopCount < 0 || loopCount === Infinity ? 0 : loopCount + 1;
-
-/**
- * The options all animation encoders of {@link Animation.webpEncoder} and the others have
- * @deprecated {@link Animation.webpEncoder} and the others take the options of {@link Animation.encodeWebP} and the
- *     others ({@link AnimationEncodeOptions}) with the {@link AnimationOptions.loopCount}, this will be removed in 4.0
- * @group Deprecated
- */
-export type AnimationEncoderOptions = AnimationEncodeOptions & AnimationOptions;
-
-/**
- * Options of {@link Animation.webpEncoder}
- * @deprecated Use {@link WebPAnimationEncodeOptions}, with {@link AnimationOptions.loopCount}: this will be removed
- *     in 4.0
- * @group Deprecated
- */
-export type WebPAnimationEncoderOptions = WebPAnimationEncodeOptions & AnimationOptions;
-
-/**
- * Options of {@link Animation.gifEncoder}
- * @deprecated Use {@link GIFEncodeOptions}, with {@link AnimationOptions.loopCount}: this will be removed in 4.0
- * @group Deprecated
- */
-export type GIFAnimationEncoderOptions = GIFEncodeOptions & AnimationOptions;
-
-/**
- * Options of {@link Animation.apngEncoder}
- * @deprecated Use {@link APNGEncodeOptions}, with {@link AnimationOptions.loopCount}: this will be removed in 4.0
- * @group Deprecated
- */
-export type APNGAnimationEncoderOptions = APNGEncodeOptions & AnimationOptions;
+import { checkOptions, finite, compressionLevel, loopCount, toPlays, fitLoops, fitDuration, maxDuration } from './util/options.ts';
+import type { AnimationOptions, WebPAnimationEncodeOptions, GIFAnimationEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
 interface Format {
+    readonly name: 'GIF' | 'APNG' | 'WebP';
     readonly optimize: OptimizeOptions;
     frame(f: OptimizedFrame | InputFrame, optimized: boolean): Promise<void>;
-    file(optimizer: Optimizer | null): Promise<Uint8Array> | Uint8Array;
+    file(optimizer: Optimizer | null): Promise<Uint8Array<ArrayBuffer>> | Uint8Array<ArrayBuffer>;
+}
+
+/**
+ * A frame cut to the canvas: as it is when it lies inside, else the part inside (a copy), or a transparent pixel when
+ * it lies entirely outside (it shows nothing, its duration counts), like {@link Animation}'s encoders do
+ */
+function clipToCanvas(frame: InputFrame & { disposal: number }, width: number, height: number): InputFrame & { disposal: number } {
+    const { x, y, width: w, height: h } = frame;
+    if (x >= 0 && y >= 0 && x + w <= width && y + h <= height) return frame;
+    const left = Math.max(0, x), top = Math.max(0, y), right = Math.min(width, x + w), bottom = Math.min(height, y + h);
+    if (right <= left || bottom <= top) return { ...frame, x: 0, y: 0, width: 1, height: 1, disposal: 1, dispose: 0, pixels: new Uint8Array(4) };
+    const pixels = new Uint8Array((right - left) * (bottom - top) * 4);
+    for (let row = top; row < bottom; row++)
+        pixels.set(frame.pixels.subarray(((row - y) * w + left - x) * 4, ((row - y) * w + right - x) * 4), (row - top) * (right - left) * 4);
+    return { ...frame, x: left, y: top, width: right - left, height: bottom - top, pixels };
 }
 
 /**
  * Encodes an animation a frame at a time, without keeping all frames in memory: see {@link Animation.webpEncoder},
- * {@link Animation.gifEncoder} and {@link Animation.apngEncoder}. The file is the one an {@link Animation} of the
- * frames encodes to, but for unoptimized WebPs with frames WebP can't store as they are (disposed to the previous
- * frame, or disposed with odd offsets): from the first of them on, the frames are the canvas they show (the same
- * animation, blending rounds differently by 1 at most). APNGs keep their frames compressed until the end: their pixel
- * format depends on all of them
+ * {@link Animation.gifEncoder} and {@link Animation.apngEncoder}
+ * @remarks
+ * The file is the one an {@link Animation} of the frames encodes to, but for unoptimized WebPs with frames WebP can't
+ * store as they are (disposed to the previous frame, or disposed with odd offsets): from the first of them on, the
+ * frames are the canvas they show (the same animation, blending rounds differently by 1 at most). APNGs keep their
+ * frames compressed until the end: their pixel format depends on all of them
  */
 export class AnimationEncoder {
     private optimizer: Optimizer | null;
@@ -68,8 +53,9 @@ export class AnimationEncoder {
     /** The canvas height */
     readonly height: number;
 
-    /** @internal */
-    constructor(width: number, height: number, private readonly format: Format, optimize: boolean) {
+    // (private: created by the factories of Animation, through the static methods below; a constructor marked for
+    // stripping would be left out of the declarations, which then show a public `new AnimationEncoder()` that fails)
+    private constructor(width: number, height: number, private readonly format: Format, optimize: boolean) {
         this.width = width;
         this.height = height;
         this.optimizer = optimize ? new Optimizer(width, height, format.optimize) : null;
@@ -81,46 +67,48 @@ export class AnimationEncoder {
     }
 
     /**
-     * How many frames were added
-     * @deprecated Use {@link AnimationEncoder.frameCount}, `frames` will be removed in 4.0
-     * @group Deprecated
-     */
-    get frames(): number {
-        return this.count;
-    }
-
-    /**
      * Adds the next frame: a {@link Frame} (with its duration, offsets and disposal) or an image (a frame of 100 ms by
      * default). The options override the frame's. The pixels are copied right away, the image can change afterwards
      * @param frame The frame or image
      * @param options See {@link FrameOptions}
+     * @throws `TypeError` if the frame isn't a {@link Frame} or an {@link Image}
+     * @throws `RangeError` if the duration is negative or more than the format stores
+     * @throws `Error` if the encoder is finished
      */
-    add(frame: Frame | Image, options: FrameOptions = {}): Promise<void> {
+    async add(frame: Frame | Image, options: FrameOptions = {}): Promise<void> {
+        checkOptions(options, 'encoder.add(frame, { duration: 40 })');
         if (this.finished) throw new Error('The animation encoder is finished');
-        if (!(frame instanceof Image)) throw new TypeError('Invalid frame passed');
         const own = frame instanceof Frame ? frame : null;
-        const duration = options.duration ?? own?.duration ?? 100;
-        const x = options.xOffset ?? own?.xOffset ?? 0, y = options.yOffset ?? own?.yOffset ?? 0;
-        if (finite(duration, 'frame duration') < 0) throw new RangeError('Invalid frame duration');
-        finite(x, 'x offset');
-        finite(y, 'y offset');
+        const image = own ? own.image : frame;
+        if (!(image instanceof Image)) throw new TypeError('encoder.add() takes a Frame or an Image');
+        const duration = finite(options.duration === undefined ? own?.duration ?? 100 : options.duration, 'frame duration');
+        if (duration < 0) throw new RangeError('Invalid frame duration');
+        fitDuration(duration, this.format.name);
+        // (offsets are truncated to integers, like a frame's)
+        const x = Math.trunc(finite(options.xOffset === undefined ? own?.xOffset ?? 0 : options.xOffset, 'x offset')) || 0;
+        const y = Math.trunc(finite(options.yOffset === undefined ? own?.yOffset ?? 0 : options.yOffset, 'y offset')) || 0;
         const disposal = options.disposalMode !== undefined ? Frame.__convert_disposal_mode__(options.disposalMode) : own ? own.__disposal_id__ : 1;
         const input: InputFrame & { disposal: number } = {
-            x, y, width: frame.width, height: frame.height, duration, disposal,
+            x, y, width: image.width, height: image.height, duration, disposal,
             // (0 none, 1 background, 2 previous, like APNG)
             dispose: [0, 0, 2, 1][disposal],
-            pixels: new Uint8Array(frame.bitmap.buffer, frame.bitmap.byteOffset, frame.bitmap.byteLength).slice()
+            pixels: new Uint8Array(image.bitmap.buffer, image.bitmap.byteOffset, image.bitmap.byteLength).slice()
         };
         this.count++;
+        // (without the optimizer, which cuts frames to the canvas, a frame is cut here, like Animation does)
+        const given = this.optimizer ? input : clipToCanvas(input, this.width, this.height);
         return this.queue = this.queue.then(async () => {
-            if (!this.optimizer) return this.format.frame(input, false);
+            if (!this.optimizer) return this.format.frame(given, false);
             this.optimizer.push(input);
             for (const f of this.optimizer.take()) await this.format.frame(f, true);
         });
     }
 
-    /** Encodes the rest and returns the file. The encoder can't be used afterwards */
-    async finish(): Promise<Uint8Array> {
+    /**
+     * Encodes the rest and returns the file. The encoder can't be used afterwards
+     * @throws `Error` if no frame was added, or the encoder is finished already
+     */
+    async finish(): Promise<Uint8Array<ArrayBuffer>> {
         if (this.finished) throw new Error('The animation encoder is finished');
         this.finished = true;
         await this.queue;
@@ -132,9 +120,9 @@ export class AnimationEncoder {
     }
 
     /** @internal */
-    static __webp__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
-        canvas(width, height, loopCount);
-        fitLoops(loopCount, 'WebP');
+    static __webp__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
+        const loops = fitLoops(loopCount(count), 'WebP');
+        canvas(width, height, 'WebP');
         if (width > 1 << 24 || height > 1 << 24) throw new RangeError('WebP: canvas too large');
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
         const resolved = resolveMetadata(metadata), chunks: Uint8Array[] = [];
@@ -148,7 +136,8 @@ export class AnimationEncoder {
             chunks.push(await webp.frameChunk(f, lossy, effort));
         };
         return new AnimationEncoder(width, height, {
-            optimize: { replace: true, even: true, alpha: 'frame', tolerance: lossy ? webp.lossyTolerance(lossy.quality) : undefined },
+            name: 'WebP',
+            optimize: { replace: true, even: true, alpha: 'frame', tolerance: lossy ? webp.lossyTolerance(lossy.quality) : undefined, maxDuration: maxDuration('WebP') },
             async frame(f, optimized) {
                 if (optimized) return add(f as OptimizedFrame);
                 const input = f as InputFrame & { disposal: number };
@@ -157,21 +146,23 @@ export class AnimationEncoder {
                 if (full) return add({ x: 0, y: 0, width, height, duration: input.duration, dispose: true, blend: false, pixels: shown });
                 await add(webpFrame(input));
             },
-            file: () => webp.animationFile(chunks, width, height, toPlays(loopCount), alpha, exifData(resolved))
+            file: () => webp.animationFile(chunks, width, height, toPlays(loops), alpha, exifData(resolved))
         }, optimize);
     }
 
     /** @internal */
-    static __gif__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, quality: qualityOption = 95 }: GIFEncodeOptions & AnimationOptions): AnimationEncoder {
-        const quality = finite(qualityOption, 'quality');
-        canvas(width, height, loopCount);
-        fitLoops(loopCount, 'GIF');
+    static __gif__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, colors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85 }: GIFAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
+        const checked = paletteOptions(colors, dither, ditherStrength);
+        const palette = { colors: checked.colors as number, dither: checked.dither, strength: checked.strength };
+        const loops = fitLoops(loopCount(count), 'GIF');
+        canvas(width, height, 'GIF');
         const comments = gifComments(resolveMetadata(metadata));
         // (the first frame is encoded last: it needs a transparent index if any frame restores the background)
         let first: gifCodec.GIFFrame | null = null, restores = false;
         const rest: Uint8Array[] = [];
         return new AnimationEncoder(width, height, {
-            optimize: { replace: false, even: false, alpha: 'frame', palette: 256, cover: true },
+            name: 'GIF',
+            optimize: { replace: false, even: false, alpha: 'frame', palette: 256, cover: true, maxDuration: maxDuration('GIF') },
             async frame(f, optimized) {
                 if (!first && optimized) coverCanvas(f as OptimizedFrame, width, height);
                 const gif: gifCodec.GIFFrame = { x: f.x, y: f.y, width: f.width, height: f.height, pixels: f.pixels,
@@ -180,20 +171,20 @@ export class AnimationEncoder {
                     delay: Math.round(f.duration / 10) };
                 restores ||= gif.dispose === 3;
                 if (!first) first = gif;
-                else rest.push(gifCodec.encodeFrame(gif, quality, gif.dispose === 3));
+                else rest.push(gifCodec.encodeFrame(gif, palette, gif.dispose === 3));
             },
             file() {
                 const f = first as gifCodec.GIFFrame;
-                return concat([gifCodec.header(width, height, loopCount, comments), gifCodec.encodeFrame(f, quality, f.dispose === 3 || restores), ...rest, new Uint8Array([0x3b])]);
+                return concat([gifCodec.header(width, height, loops, comments), gifCodec.encodeFrame(f, palette, f.dispose === 3 || restores), ...rest, new Uint8Array([0x3b])]);
             }
         }, optimize);
     }
 
     /** @internal */
-    static __apng__(width: number, height: number, { loopCount = -1, metadata = {}, optimize = true, compression: compressionOption = 4 }: APNGEncodeOptions & AnimationOptions): AnimationEncoder {
+    static __apng__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, compression: compressionOption = 4 }: APNGEncodeOptions & AnimationOptions): AnimationEncoder {
         const compression = compressionLevel(compressionOption);
-        canvas(width, height, loopCount);
-        fitLoops(loopCount, 'APNG');
+        const loops = fitLoops(loopCount(count), 'APNG');
+        canvas(width, height, 'APNG');
         const text = pngText(resolveMetadata(metadata));
         // the frames are kept compressed (quickly): the pixel format, and whether opaque animations are stored without
         // transparency, depend on all of them; then they are converted and compressed one at a time, like encodeAPNG
@@ -201,7 +192,8 @@ export class AnimationEncoder {
         const cost = new png.AlphaCost();
         let blended = false;
         return new AnimationEncoder(width, height, {
-            optimize: { replace: true, even: false, alpha: () => cost.cost() },
+            name: 'APNG',
+            optimize: { replace: true, even: false, alpha: () => cost.cost(), maxDuration: maxDuration('APNG') },
             async frame(f, optimized) {
                 let frame: png.APNGEncodeFrame;
                 if (optimized) {
@@ -232,15 +224,16 @@ export class AnimationEncoder {
                 for await (const f of frames()) scanner.add(f.pixels);
                 const format = scanner.format(), encoded: png.EncodedAPNGFrame[] = [];
                 for await (const { pixels, ...f } of frames()) encoded.push({ ...f, data: await png.frameData(pixels, f.width, f.height, format, compression) });
-                return png.animationFile(encoded, width, height, toPlays(loopCount), format, text);
+                return png.animationFile(encoded, width, height, toPlays(loops), format, text);
             }
         }, optimize);
     }
 }
 
-function canvas(width: number, height: number, loopCount: number): void {
+function canvas(width: number, height: number, format: 'GIF' | 'APNG' | 'WebP'): void {
     if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`Invalid canvas size: ${width}x${height}`);
-    if (loopCount !== Infinity && (!Number.isInteger(loopCount) || loopCount < -1)) throw new RangeError('Invalid loop count');
+    // (the GIF header stores the size in 16 bits, WebP in 24; larger ones would wrap)
+    if (format === 'GIF' && (width > 0xffff || height > 0xffff)) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${width}x${height}`);
 }
 
 // a frame in the WebP codec's terms (odd offsets: one transparent pixel more on the left/top, blending makes it
@@ -257,7 +250,7 @@ function webpFrame(f: InputFrame): webp.WebPEncodeFrame {
     return { x, y, width: w, height: h, duration: f.duration, dispose: f.dispose === 1, pixels };
 }
 
-function concat(parts: Uint8Array[]): Uint8Array {
+function concat(parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
     const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
     let offset = 0;
     for (const p of parts) {

@@ -1,9 +1,8 @@
 # ImageScript benchmark
 
-How [ImageScript](https://github.com/imagescript/ImageScript) compares to other image libraries for Node.js: speed, file
-sizes and what installing each takes. ImageScript is plain JavaScript with no dependencies, so it runs wherever
-JavaScript does, like Jimp, image-js and PureJsImage; sharp and @napi-rs/canvas wrap native libraries (libvips, Skia),
-Photon is WebAssembly, and so is jsquash (Squoosh's libavif and libjxl, for AVIF and JPEG XL).
+This benchmark compares processing speed, output-file size and install size. Lower times and smaller files are better,
+but compare lossy files alongside their quality scores. Results depend on the machine, so compare libraries within a
+single run. The Method section explains the test inputs and measurements.
 
 <img src="charts/overview-portable.svg" alt="Time per operation of the libraries that run everywhere, colored by the distance to the fastest">
 
@@ -53,7 +52,8 @@ Time per operation (less is faster), measured 2026-11-12 with Node.js v26.13.1 o
 | render SVG | **106 ms** | – | – | – | – | 25 ms | – | 6.8 ms |
 | thumbnail, keeping HDR | **115 ms** | – | – | – | – | 94 ms | – | – |
 
-Encoded sizes:
+Encoded sizes. For lossy files, the dB score estimates how closely the decoded image matches the source; higher is
+closer.
 
 | | **ImageScript** | **Jimp** | **image-js** | **PureJsImage** | **Photon** | **sharp** | **jsquash** | **@napi-rs/canvas** |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
@@ -87,10 +87,11 @@ Encoded sizes:
   when the benchmark starts, PNG, lossy WebP, AVIF by sharp (libaom) and JPEG XL by jsquash (libjxl), at the
   qualities below), a 1434×1434 graphic with transparency (PNG), a 445×445 diagram with transparency placed on
   the photo (PNG), a 300×300 GIF with 101 frames (and made from it, an animated WebP by sharp at quality 80).
-- Lossy WebP, AVIF and JPEG XL are encoded at the same nominal quality (80, 60 and 90); as the libraries'
-  scales differ, the file sizes come with their PSNR (of the color over black, decoded by libwebp, libavif and
-  libjxl). jsquash's libjxl runs at the effort ImageScript's default matches (cjxl's 5 lossy, 3 lossless; its own
-  default is 7). PureJsImage's AVIF
+- Lossy WebP, AVIF and JPEG XL are encoded at the same nominal quality (80, 60 and 90). Because each library uses a
+  different quality scale, file sizes are shown with PSNR (peak signal-to-noise ratio), a measure of how closely the
+  decoded colors match the original; higher is closer. Colors are compared over black after decoding with libwebp,
+  libavif and libjxl. jsquash's JPEG XL encoder uses effort settings chosen to match ImageScript's defaults.
+  PureJsImage's AVIF
   encoder has no quality option, and its JPEG XL decoder doesn't support everything libjxl's files use, which shows as
   failing. jsquash only encodes and decodes AVIF and JPEG XL (it gets the other inputs as pixels); @napi-rs/canvas
   decodes both with Skia's codecs, but doesn't encode them.
@@ -101,9 +102,10 @@ Encoded sizes:
   clone first, sharp runs a pipeline from raw pixels back to raw pixels, PureJsImage (which has no decoded images) one
   from a BMP back to a BMP, @napi-rs/canvas draws into a new canvas. PureJsImage has no blur, composite, rendering or
   animated GIFs.
-- Where the library lets you choose, resizing is bilinear (or bicubic, in its own row), the thumbnail covers 400×400
-  (cropping the sides), blurring is gaussian with a radius or sigma of 5, sharpening an unsharp mask of radius or
-  sigma 1 (Photon: its 3×3 sharpening kernel), rotating by 30° grows the image to fit, brightness and contrast go up
+- Where the library lets you choose, resizing is bilinear (smooth) or bicubic (a sharper smoothing filter, in its own
+  row), the thumbnail covers 400×400 (cropping the sides), blurring is gaussian (softening) with a radius or sigma of
+  5, sharpening uses an unsharp mask (edge enhancement) of radius or sigma 1 (Photon: its 3×3 sharpening kernel),
+  rotating by 30° grows the image to fit, brightness and contrast go up
   20% (Jimp's and Photon's scales converted). image-js's and sharp's greyscale make one grey channel (and alpha). Each library uses its own defaults
   otherwise, e.g. its PNG compression level.
 - Threads: ImageScript uses worker threads where they pay off (the processors available, at most 8), and sharp gets
@@ -111,7 +113,7 @@ Encoded sizes:
   libraries run on one thread (jsquash turns its threaded builds off in Node).
 - [tinybench](https://github.com/tinylibs/tinybench), at least 1.5 seconds and 3 runs per measurement, every library
   in its own process.
-- The release workflow runs the benchmark for every release and commits the results, on a GitHub Actions runner;
+- The release workflow runs the benchmark for every regular release and commits the results, on a GitHub Actions runner;
   runners vary, so compare libraries within one run rather than between runs.
 - Install sizes: `npm install <library>` in an empty project, the apparent size of `node_modules`.
 

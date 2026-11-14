@@ -14,7 +14,7 @@
  */
 
 const fs = require('fs').promises;
-const {Image, TextLayout} = require('..');
+const {Image, Colors, LimitError} = require('..');
 const samePixels = require('./util/pixels');
 
 const panic = message => {
@@ -23,23 +23,21 @@ const panic = message => {
 };
 
 (async () => {
-    // WOFF fonts render like the fonts they compress; WOFF2 ones are refused with a clear message
+    // WOFF fonts render like the fonts they compress; WOFF2 ones are refused
     {
         const text = 'مرحبا بالعالم';
-        const ttf = await Image.renderText(await fs.readFile('./tests/fonts/noto naskh arabic subset.ttf'), 48, text);
-        const woff = await Image.renderText(await fs.readFile('./tests/fonts/noto naskh arabic subset.woff'), 48, text);
+        const ttf = await Image.renderText(text, { font: await fs.readFile('./tests/fonts/noto naskh arabic subset.ttf'), size: 48 });
+        const woff = await Image.renderText(text, { font: await fs.readFile('./tests/fonts/noto naskh arabic subset.woff'), size: 48 });
         if (!Buffer.from(ttf.bitmap).equals(Buffer.from(woff.bitmap))) panic('WOFF font doesn\'t render like its TTF');
 
         const woff2 = new Uint8Array(64);
         woff2.set([0x77, 0x4f, 0x46, 0x32]);
-        await Image.renderText(woff2, 48, text).then(() => panic('WOFF2 font was accepted'), err => {
-            if (!/WOFF2/.test(err.message)) panic(`unexpected WOFF2 error: ${err.message}`);
-        });
+        if (!await Image.renderText(text, { font: woff2, size: 48 }).then(() => false, error => error instanceof Error)) panic('WOFF2 font was accepted');
     }
 
     {
-        const font = await Image.renderText(await fs.readFile('./tests/fonts/carbon phyber.ttf'), 128, 'ThE qUiCk');
-        const encoded = await font.encode(1, {creationTime: 0, software: ''});
+        const font = await Image.renderText('ThE qUiCk', { font: await fs.readFile('./tests/fonts/carbon phyber.ttf'), size: 128 });
+        const encoded = await font.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/font-1.png', encoded);
@@ -49,8 +47,8 @@ const panic = message => {
     }
 
     {
-        const font = await Image.renderText(await fs.readFile('./tests/fonts/ethnocentric rg.ttf'), 128, 'BrOwN fOx');
-        const encoded = await font.encode(1, {creationTime: 0, software: ''});
+        const font = await Image.renderText('BrOwN fOx', { font: await fs.readFile('./tests/fonts/ethnocentric rg.ttf'), size: 128 });
+        const encoded = await font.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/font-2.png', encoded);
@@ -60,8 +58,8 @@ const panic = message => {
     }
 
     {
-        const font = await Image.renderText(await fs.readFile('./tests/fonts/opensans bold.ttf'), 128, 'Extra\n-Test\nnewline');
-        const encoded = await font.encode(1, {creationTime: 0, software: ''});
+        const font = await Image.renderText('Extra\n-Test\nnewline', { font: await fs.readFile('./tests/fonts/opensans bold.ttf'), size: 128 });
+        const encoded = await font.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/font-3.png', encoded);
@@ -72,8 +70,8 @@ const panic = message => {
 
     {
         // OpenType font with CFF outlines
-        const font = await Image.renderText(await fs.readFile('./tests/fonts/sourcesans3 regular.otf'), 64, 'Quartz glyph job, vex!');
-        const encoded = await font.encode(1, {creationTime: 0, software: ''});
+        const font = await Image.renderText('Quartz glyph job, vex!', { font: await fs.readFile('./tests/fonts/sourcesans3 regular.otf'), size: 64 });
+        const encoded = await font.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/font-4.png', encoded);
@@ -85,7 +83,7 @@ const panic = message => {
     {
         const font = await fs.readFile('./tests/fonts/opensans bold.ttf');
         // (unhinted: the layout places glyphs with subpixel precision)
-        const render = (text, options) => Image.renderText(font, 40, text, 0xffffffff, new TextLayout(options), {hinting: false});
+        const render = (text, options) => Image.renderText(text, { font, size: 40, color: 0xffffffff, ...options, hinting: false });
         // first column with ink in the given row
         const inkStart = (image, y) => {
             for (let x = 0; x < image.width; x++)
@@ -93,33 +91,60 @@ const panic = message => {
             return -1;
         };
 
-        // line metrics match the previous (fontdue based) renderer, glyphs are placed with subpixel precision
+        // line metrics, glyphs placed with subpixel precision
         const single = await render('Hi');
         if (single.width !== 40 || single.height !== 55) panic(`layout: unexpected size ${single.width}x${single.height}`);
 
         // alignment is relative to the widest line
         const left = await render('Hi\nHello there');
         const center = await render('Hi\nHello there', {horizontalAlign: 'center'});
-        const right = await render('Hi\nHello there', {verticalAlign: 'right'}); // pre 3.0 option name
+        const right = await render('Hi\nHello there', {horizontalAlign: 'right'});
         const row = 30;
         if (!(inkStart(left, row) < inkStart(center, row) && inkStart(center, row) < inkStart(right, row)))
             panic('layout: horizontal alignment has no effect');
 
         // kerning pulls 'To' together (without it, the pair is wider than both glyphs' ink)
-        const big = text => Image.renderText(font, 200, text, 0xffffffff, undefined, {hinting: false});
+        const big = text => Image.renderText(text, { font, size: 200, color: 0xffffffff, hinting: false });
         if ((await big('To')).width > (await big('T')).width + (await big('o')).width - 5) panic('layout: kerning has no effect');
 
         // wrapping
-        const word = await render('Hello world foo bar', {maxWidth: 160});
-        const char = await render('Hello world foo bar', {maxWidth: 160, wrapStyle: 'char'});
-        if (word.height !== 3 * 55 || word.width > 160) panic('layout: word wrapping failed');
-        if (char.width > 160 || char.width <= word.width) panic('layout: char wrapping failed');
+        const word = await render('Hello world foo bar', {width: 160});
+        const char = await render('Hello world foo bar', {width: 160, wrapStyle: 'char'});
+        if (word.height !== 3 * 55 || word.width !== 160) panic('layout: word wrapping failed');
+        if (char.width !== 160 || char.height > word.height || Buffer.from(char.bitmap).equals(Buffer.from(word.bitmap))) panic('layout: char wrapping failed');
 
-        // maxHeight keeps whole lines, chosen by the vertical alignment
-        const top = await render('one\ntwo\nthree\nfour\nfive', {maxHeight: 120});
-        const bottom = await render('one\ntwo\nthree\nfour\nfive', {maxHeight: 120, verticalAlign: 'bottom'});
-        if (top.height !== 110 || bottom.height !== 110) panic('layout: maxHeight failed');
+        // a height keeps whole lines, chosen by the vertical alignment, and is the image's height
+        const top = await render('one\ntwo\nthree\nfour\nfive', {height: 120});
+        const bottom = await render('one\ntwo\nthree\nfour\nfive', {height: 120, verticalAlign: 'bottom'});
+        if (top.height !== 120 || bottom.height !== 120) panic('layout: height failed');
         if (Buffer.from(top.bitmap).equals(Buffer.from(bottom.bitmap))) panic('layout: vertical alignment has no effect');
+
+        // the size is the image's: the text is aligned in it (also with an outline, which stays inside it)
+        const inkRows = image => {
+            const rows = [];
+            for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) if (image.bitmap[(y * image.width + x) * 4 + 3]) { rows.push(y); break; }
+            return [rows[0], rows[rows.length - 1]];
+        };
+        const inkColumns = image => {
+            let first = Infinity, last = -1;
+            for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) if (image.bitmap[(y * image.width + x) * 4 + 3]) { first = Math.min(first, x); last = Math.max(last, x); }
+            return [first, last];
+        };
+        for (const strokeWidth of [0, 3]) {
+            const boxed = options => render('Hi', {width: 300, height: 200, strokeWidth, ...options});
+            const [topLeft, middleCenter, bottomRight] = await Promise.all([boxed({}), boxed({horizontalAlign: 'center', verticalAlign: 'middle'}), boxed({horizontalAlign: 'right', verticalAlign: 'bottom'})]);
+            for (const image of [topLeft, middleCenter, bottomRight]) if (image.width !== 300 || image.height !== 200) panic(`layout: a box of 300x200 with a ${strokeWidth} pixel outline gave ${image}`);
+            const [left, right] = [inkColumns(topLeft), inkColumns(bottomRight)], center = inkColumns(middleCenter);
+            const [top, bottom] = [inkRows(topLeft), inkRows(bottomRight)], middle = inkRows(middleCenter);
+            if (!(left[0] < 20 && right[1] > 280 && Math.abs(center[0] + center[1] - 300) <= 4)) panic(`layout: horizontal alignment in the box (outline ${strokeWidth}): ${left} ${center} ${right}`);
+            if (!(top[0] < 40 && bottom[1] > 170 && middle[0] > top[0] + 40 && middle[1] < bottom[1] - 40)) panic(`layout: vertical alignment in the box (outline ${strokeWidth}): ${top} ${middle} ${bottom}`);
+            if (strokeWidth && !(left[0] >= 0 && right[1] <= 299 && top[0] >= 0 && bottom[1] <= 199)) panic('layout: the outline should stay inside the box');
+        }
+        // a width or height only sets that side
+        const wide = await render('Hi', {width: 300});
+        if (wide.width !== 300 || wide.height !== 55) panic(`layout: width only: ${wide}`);
+        const high = await render('Hi', {height: 200});
+        if (high.height !== 200 || high.width >= 300) panic(`layout: height only: ${high}`);
     }
     // TrueType hinting (#31): hinted outlines match FreeType's (v35 interpreter) point for point
     {
@@ -221,22 +246,22 @@ const panic = message => {
             return count;
         };
         // the alpha of each column, as a string per column
-        const columns = image => Array.from({length: image.width}, (_, x) => Array.from({length: image.height}, (_, y) => image.getRGBAAt(x, y)[3]).join());
+        const columns = image => Array.from({length: image.width}, (_, x) => Array.from({length: image.height}, (_, y) => Colors.toRGBA(image.getPixelAt(x, y))[3]).join());
         const repeats = image => {
             const cols = columns(image).filter(c => c.split(',').some(v => +v));
             return new Set(cols).size;
         };
-        const plain = await Image.renderText(data, 11, 'lllll', 0x000000ff, undefined, {hinting: false});
-        const hinted = await Image.renderText(data, 11, 'lllll', 0x000000ff);
+        const plain = await Image.renderText('lllll', { font: data, size: 11, color: 0x000000ff, hinting: false });
+        const hinted = await Image.renderText('lllll', { font: data, size: 11, color: 0x000000ff });
         if (repeats(hinted) >= repeats(plain)) panic(`hinting: repeated glyphs should render identically (${repeats(hinted)} vs ${repeats(plain)} distinct columns)`);
-        const word = await Image.renderText(data, 11, 'Hamburg', 0x000000ff);
-        if (blurry(word) >= blurry(await Image.renderText(data, 11, 'Hamburg', 0x000000ff, undefined, {hinting: false}))) panic('hinting: text should be crisper');
+        const word = await Image.renderText('Hamburg', { font: data, size: 11, color: 0x000000ff });
+        if (blurry(word) >= blurry(await Image.renderText('Hamburg', { font: data, size: 11, color: 0x000000ff, hinting: false }))) panic('hinting: text should be crisper');
 
         // fonts without TrueType instructions (CFF, or TrueType without them) render as without hinting
         for (const file of ['sourcesans3 regular.otf', 'carbon phyber.ttf']) {
             const font = await fs.readFile(`./tests/fonts/${file}`);
-            const on = await Image.renderText(font, 11, 'Hamburg', 0x000000ff);
-            const off = await Image.renderText(font, 11, 'Hamburg', 0x000000ff, undefined, {hinting: false});
+            const on = await Image.renderText('Hamburg', { font, size: 11, color: 0x000000ff });
+            const off = await Image.renderText('Hamburg', { font, size: 11, color: 0x000000ff, hinting: false });
             if (!Buffer.from(on.bitmap).equals(Buffer.from(off.bitmap))) panic(`hinting: ${file} has no instructions and should render unchanged`);
         }
     }
@@ -247,8 +272,8 @@ const panic = message => {
         const sans = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
         for (const [file, target] of [['noto color emoji subset.ttf', 'emoji-cbdt'], ['twemoji mozilla subset.ttf', 'emoji-colr'], ['noto colrv1 subset.ttf', 'emoji-colrv1']]) {
             const emoji = await fs.readFile(`./tests/fonts/${file}`);
-            const image = await Image.renderText([sans, emoji], 48, 'Hi 😀🔥 👍🏽 🇩🇪 1️⃣ ❤️ 👨‍👩‍👧', {color: 0x000000ff});
-            const encoded = await image.encode(1, {creationTime: 0, software: ''});
+            const image = await Image.renderText('Hi 😀🔥 👍🏽 🇩🇪 1️⃣ ❤️ 👨‍👩‍👧', { font: [sans, emoji], size: 48, color: 0x000000ff });
+            const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
             if (process.env.OVERWRITE_TEST)
                 await fs.writeFile(`./tests/targets/${target}.png`, encoded);
             if (!await samePixels(await fs.readFile(`./tests/targets/${target}.png`), encoded)) panic(`${target} doesn't match`);
@@ -259,28 +284,28 @@ const panic = message => {
             if (colored < 500) panic(`${file}: emoji should keep their colors`);
 
             // joiners and variation selectors take no room, even where the font has glyphs for them
-            const plain = await Image.renderText([sans, emoji], 48, '😀😀'), joined = await Image.renderText([sans, emoji], 48, '😀\u200d\ufe0f😀');
+            const plain = await Image.renderText('😀😀', { font: [sans, emoji], size: 48 }), joined = await Image.renderText('😀\u200d\ufe0f😀', { font: [sans, emoji], size: 48 });
             if (plain.width !== joined.width) panic(`${file}: invisible characters should take no room (${plain.width} vs ${joined.width})`);
 
             // sequences are one glyph (GSUB ligatures): skin tones, flags, keycaps, joined ones
-            const one = (await Image.renderText(emoji, 48, '👍')).width;
+            const one = (await Image.renderText('👍', { font: emoji, size: 48 })).width;
             for (const sequence of ['👍🏽', '🇩🇪', '1️⃣', '👨‍👩‍👧'])
-                if ((await Image.renderText([sans, emoji], 48, sequence)).width > one * 1.2) panic(`${file}: ${sequence} should be a single glyph`);
+                if ((await Image.renderText(sequence, { font: [sans, emoji], size: 48 })).width > one * 1.2) panic(`${file}: ${sequence} should be a single glyph`);
 
             // the emoji variation selector picks the color glyph over the text font's heart
-            const heart = await Image.renderText([sans, emoji], 48, '❤️', {color: 0x000000ff});
+            const heart = await Image.renderText('❤️', { font: [sans, emoji], size: 48, color: 0x000000ff });
             let red = 0;
             for (let i = 0; i < heart.bitmap.length; i += 4) if (heart.bitmap[i + 3] > 128 && heart.bitmap[i] > 150 && heart.bitmap[i + 1] < 100) red++;
             if (red < 100) panic(`${file}: ❤️ should be the red emoji`);
 
             // characters the emoji font doesn't have come from the next font (the first one still sets the line height)
-            const fallback = await Image.renderText([emoji, sans], 48, 'Hi'), direct = await Image.renderText(sans, 48, 'Hi');
+            const fallback = await Image.renderText('Hi', { font: [emoji, sans], size: 48 }), direct = await Image.renderText('Hi', { font: sans, size: 48 });
             const ink = image => image.bitmap.reduce((sum, v, i) => (i & 3) === 3 ? sum + v : sum, 0);
             if (fallback.width !== direct.width || ink(fallback) !== ink(direct)) panic(`${file}: missing characters should come from the next font`);
         }
 
         // fonts with only bitmap glyphs render on their own
-        const bitmapOnly = await Image.renderText(await fs.readFile('./tests/fonts/noto color emoji subset.ttf'), 32, '🔥');
+        const bitmapOnly = await Image.renderText('🔥', { font: await fs.readFile('./tests/fonts/noto color emoji subset.ttf'), size: 32 });
         if (bitmapOnly.width < 20) panic('bitmap font should render on its own');
     }
 
@@ -288,18 +313,18 @@ const panic = message => {
         // every COLR version 1 paint feature: gradients, transforms, composite modes, the text color
         const font = await fs.readFile('./tests/fonts/colrv1 paints.ttf');
         const glyphs = Array.from({length: 17}, (_, k) => String.fromCodePoint(0xe000 + k)).join('');
-        const image = await Image.renderText(font, 48, glyphs, {color: 0x00aaaaff});
-        const encoded = await image.encode(1, {creationTime: 0, software: ''});
+        const image = await Image.renderText(glyphs, { font, size: 48, color: 0x00aaaaff });
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/colrv1-paints.png', encoded);
         if (!await samePixels(await fs.readFile('./tests/targets/colrv1-paints.png'), encoded)) panic('colrv1-paints doesn\'t match');
 
         // the linear gradient runs from red (left) to blue (right), the last glyph's square is in the text color
-        const linear = await Image.renderText(font, 100, '\ue000');
-        const [lr, , lb] = linear.getRGBAAt(Math.round(linear.width * 0.15), linear.height >> 1), [rr, , rb] = linear.getRGBAAt(Math.round(linear.width * 0.85), linear.height >> 1);
+        const linear = await Image.renderText('\ue000', { font, size: 100 });
+        const [lr, , lb] = Colors.toRGBA(linear.getPixelAt(Math.round(linear.width * 0.15), linear.height >> 1)), [rr, , rb] = Colors.toRGBA(linear.getPixelAt(Math.round(linear.width * 0.85), linear.height >> 1));
         if (!(lr > 150 && lb < 100 && rb > 150 && rr < 100)) panic(`colrv1: linear gradient should go from red to blue (${lr},${lb} -> ${rr},${rb})`);
-        const foreground = await Image.renderText(font, 100, '\ue010', {color: 0x00aaaaff});
-        const [fr, fg, fb, fa] = foreground.getRGBAAt(Math.round(foreground.width * 0.12), foreground.height >> 1);
+        const foreground = await Image.renderText('\ue010', { font, size: 100, color: 0x00aaaaff });
+        const [fr, fg, fb, fa] = Colors.toRGBA(foreground.getPixelAt(Math.round(foreground.width * 0.12), foreground.height >> 1));
         if (fr > 2 || Math.abs(fg - 0xaa) > 2 || Math.abs(fb - 0xaa) > 2 || fa < 253) panic(`colrv1: layers in the text color should take it (${fr},${fg},${fb},${fa})`);
 
         // the other blend modes: a disc (source) over a square (backdrop), both opaque, where they overlap (the center,
@@ -328,42 +353,42 @@ const panic = message => {
         };
         let glyph = 0xe011;
         for (const [name, blend] of Object.entries(blends)) {
-            const image = await Image.renderText(font, 100, String.fromCodePoint(glyph++));
-            const actual = image.getRGBAAt(image.width >> 1, 50), expected = blend(backdrop, source).map(v => Math.round(v * 255));
+            const image = await Image.renderText(String.fromCodePoint(glyph++), { font, size: 100 });
+            const actual = Colors.toRGBA(image.getPixelAt(image.width >> 1, 50)), expected = blend(backdrop, source).map(v => Math.round(v * 255));
             if (expected.some((v, i) => Math.abs(v - actual[i]) > 1) || actual[3] !== 255) panic(`colrv1 ${name}: ${actual} instead of ${expected}`);
         }
 
         // a radial gradient whose circles touch (red at the left edge of the inner one, blue around the outer one), a
         // solid paint (green) inside a disc, and a glyph without a clip box sized by its outlines
-        const touching = await Image.renderText(font, 100, '\ue01a');
-        const [tr, , tb] = touching.getRGBAAt(31, 50), [, , ob] = touching.getRGBAAt(88, 50);
+        const touching = await Image.renderText('\ue01a', { font, size: 100 });
+        const [tr, , tb] = Colors.toRGBA(touching.getPixelAt(31, 50)), [, , ob] = Colors.toRGBA(touching.getPixelAt(88, 50));
         if (!(tr > 200 && tb < 50 && ob > 200)) panic(`colrv1: touching radial gradient (${tr},${tb} / ${ob})`);
-        const solidFill = await Image.renderText(font, 100, '\ue01b');
-        if (solidFill.getRGBAAt(solidFill.width >> 1, 50).join() !== '0,153,0,255' || solidFill.getRGBAAt(12, 85)[3] !== 0)
-            panic(`colrv1: a solid paint should fill the disc only (${solidFill.getRGBAAt(solidFill.width >> 1, 50)})`);
-        const unclipped = await Image.renderText(font, 100, '\ue01c');
+        const solidFill = await Image.renderText('\ue01b', { font, size: 100 });
+        if (Colors.toRGBA(solidFill.getPixelAt(solidFill.width >> 1, 50)).join() !== '0,153,0,255' || Colors.toRGBA(solidFill.getPixelAt(12, 85))[3] !== 0)
+            panic(`colrv1: a solid paint should fill the disc only (${Colors.toRGBA(solidFill.getPixelAt(solidFill.width >> 1, 50))})`);
+        const unclipped = await Image.renderText('\ue01c', { font, size: 100 });
         if (unclipped.width < 80 || unclipped.width > 110) panic(`colrv1: a glyph without a clip box should be sized by its outlines (${unclipped.width})`);
     }
 
     {
         // sbix bitmaps: the PNG placed by its origin offset (8, -4 at 64 ppem), and a 'dupe' of it
         const font = await fs.readFile('./tests/fonts/sbix.ttf');
-        const square = await Image.renderText(font, 64, '\ue000'), dupe = await Image.renderText(font, 64, '\ue001');
+        const square = await Image.renderText('\ue000', { font, size: 64 }), dupe = await Image.renderText('\ue001', { font, size: 64 });
         if (!Buffer.from(square.bitmap).equals(Buffer.from(dupe.bitmap))) panic('sbix: a dupe should render as the glyph it refers to');
         // the baseline is at the ascender (0.9 em), the bitmap's bottom 4 pixels below it, its left edge at 8
-        const [r, g, b] = square.getRGBAAt(8 + 24, Math.ceil(0.9 * 64) + 4 - 24), [cr, , cb] = square.getRGBAAt(8 + 4, Math.ceil(0.9 * 64) + 4 - 44);
+        const [r, g, b] = Colors.toRGBA(square.getPixelAt(8 + 24, Math.ceil(0.9 * 64) + 4 - 24)), [cr, , cb] = Colors.toRGBA(square.getPixelAt(8 + 4, Math.ceil(0.9 * 64) + 4 - 44));
         if (!(r > 200 && g < 50 && b < 50 && cb > 200 && cr < 50)) panic(`sbix: the bitmap should be placed by its origin offset (${r},${g},${b} / ${cr},${cb})`);
-        if (square.getRGBAAt(8 - 2, 30)[3] !== 0) panic('sbix: nothing left of the bitmap');
+        if (Colors.toRGBA(square.getPixelAt(8 - 2, 30))[3] !== 0) panic('sbix: nothing left of the bitmap');
     }
 
     {
         // text without anything to show renders a transparent pixel wide, it doesn't throw
         const font = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
         for (const text of ['', ' ', '\u200b\ufe0f'])
-            if ((await Image.renderText(font, 32, text)).width !== 1) panic(`empty text: ${JSON.stringify(text)} should render a pixel wide`);
+            if ((await Image.renderText(text, { font, size: 32 })).width !== 1) panic(`empty text: ${JSON.stringify(text)} should render a pixel wide`);
 
         // combining sequences are composed where the font has the composed character
-        const composed = await Image.renderText(font, 32, 'Café Müller'), decomposed = await Image.renderText(font, 32, 'Cafe\u0301 Mu\u0308ller');
+        const composed = await Image.renderText('Café Müller', { font, size: 32 }), decomposed = await Image.renderText('Cafe\u0301 Mu\u0308ller', { font, size: 32 });
         if (!Buffer.from(composed.bitmap).equals(Buffer.from(decomposed.bitmap))) panic('combining sequences should render like the composed characters');
     }
 
@@ -373,8 +398,8 @@ const panic = message => {
         const fonts = await Promise.all(['opensans bold.ttf', 'noto sans hebrew subset.ttf', 'noto naskh arabic subset.ttf', 'noto sans devanagari subset.ttf']
             .map(name => fs.readFile(`./tests/fonts/${name}`)));
         const text = 'Hi שָׁלוֹם עוֹלָם (2024) and مرحبا بالعالم!\nمرحبا بالعالم، هذا نص (2024)!\nनमस्ते क्षत्रिय र्क्ष';
-        const font = await Image.renderText(fonts, 40, text, 0xffffffff, new TextLayout({maxWidth: 420, horizontalAlign: 'right'}));
-        const encoded = await font.encode(1, {creationTime: 0, software: ''});
+        const font = await Image.renderText(text, { font: fonts, size: 40, color: 0xffffffff, width: 420, horizontalAlign: 'right' });
+        const encoded = await font.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/font-bidi.png', encoded);
@@ -383,10 +408,10 @@ const panic = message => {
         if (!await samePixels(desired, encoded)) panic('bidirectional text doesn\'t match');
 
         // a right to left paragraph's line starts on the right: its first word is the rightmost
-        const line = await Image.renderText(fonts, 40, 'مرحبا Hi', 0xffffffff);
-        const arabic = await Image.renderText(fonts, 40, 'مرحبا', 0xffffffff);
+        const line = await Image.renderText('مرحبا Hi', { font: fonts, size: 40, color: 0xffffffff });
+        const arabic = await Image.renderText('مرحبا', { font: fonts, size: 40, color: 0xffffffff });
         const right = line.clone().crop(line.width - arabic.width, 0, arabic.width, line.height);
-        if (!await samePixels(await arabic.encode(1, {creationTime: 0, software: ''}), await right.encode(1, {creationTime: 0, software: ''})))
+        if (!await samePixels(await arabic.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}}), await right.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}})))
             panic('the right to left paragraph should start on the right');
     }
 
@@ -394,15 +419,15 @@ const panic = message => {
         // OpenType features: on (small caps, fractions), off (default ligatures); unknown ones and defaults change nothing
         const font = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
         const text = '1111 office 2/3';
-        const base = await Image.renderText(font, 32, text);
+        const base = await Image.renderText(text, { font, size: 32 });
         const same = (a, b) => a.width === b.width && a.height === b.height && a.bitmap.every((v, i) => v === b.bitmap[i]);
         for (const features of [{smcp: true}, {liga: false}, {frac: true}])
-            if (same(base, await Image.renderText(font, 32, text, {features}))) panic(`features ${JSON.stringify(features)} should change the text`);
+            if (same(base, await Image.renderText(text, { font, size: 32, features }))) panic(`features ${JSON.stringify(features)} should change the text`);
         for (const features of [{zzzz: true}, {liga: true}, {kern: 1}])
-            if (!same(base, await Image.renderText(font, 32, text, {features}))) panic(`features ${JSON.stringify(features)} shouldn't change the text`);
+            if (!same(base, await Image.renderText(text, { font, size: 32, features }))) panic(`features ${JSON.stringify(features)} shouldn't change the text`);
         for (const features of [{toolong: true}, {salt: 1.5}, {salt: -1}, {'ab': true}]) {
             let error = null;
-            try { await Image.renderText(font, 32, text, {features}); } catch (err) { error = err; }
+            try { await Image.renderText(text, { font, size: 32, features }); } catch (err) { error = err; }
             if (!(error instanceof RangeError)) panic(`features ${JSON.stringify(features)} should be rejected`);
         }
     }
@@ -413,7 +438,7 @@ const panic = message => {
         const flex = await fs.readFile('./tests/fonts/resvg/RobotoFlex.subset.ttf'), text = 'Bold Thin';
         const same = (a, b) => a.width === b.width && a.height === b.height && a.bitmap.every((v, i) => v === b.bitmap[i]);
         const ink = image => image.bitmap.reduce((sum, v, i) => (i & 3) === 3 ? sum + v : sum, 0);
-        const render = variations => Image.renderText(flex, 32, text, {variations});
+        const render = variations => Image.renderText(text, { font: flex, size: 32, variations });
         const regular = await render({}), bold = await render({weight: 900}), thin = await render({weight: 100});
         if (!(ink(thin) < ink(regular) && ink(regular) < ink(bold))) panic('variable font: weight should change the strokes');
         if (!same(bold, await render({wght: 900}))) panic('variable font: weight and wght should be the same');
@@ -425,7 +450,7 @@ const panic = message => {
         if (same(regular, await render({GRAD: 150}))) panic('variable font: custom axes by tag');
         if (!same(regular, await render({ZZZZ: 1}))) panic('variable font: axes it doesn\'t have should be ignored');
         const plain = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
-        if (!same(await Image.renderText(plain, 32, text), await Image.renderText(plain, 32, text, {variations: {weight: 900}}))) panic('fonts without axes shouldn\'t change');
+        if (!same(await Image.renderText(text, { font: plain, size: 32 }), await Image.renderText(text, { font: plain, size: 32, variations: {weight: 900} }))) panic('fonts without axes shouldn\'t change');
         for (const variations of [{wieght: 700}, {weight: NaN}, {weight: '700'}]) {
             let error = null;
             try { await render(variations); } catch (err) { error = err; }
@@ -433,23 +458,41 @@ const panic = message => {
         }
     }
 
-    // renderText(text, options) renders like the deprecated renderText(font, size, text, ...) (removed in 4.0)
+    // renderText rejects options without a font or size
     {
         const font = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
         const text = 'Hello wrapped world';
-        const layout = new TextLayout({maxWidth: 90, horizontalAlign: 'center'});
-        const cases = [
-            [await Image.renderText(font, 32, text), await Image.renderText(text, {font, size: 32})],
-            [await Image.renderText(font, 24, text, 0xff8800ff, layout), await Image.renderText(text, {font, size: 24, color: 0xff8800ff, layout})],
-            [await Image.renderText(font, 24, text, 0xff8800ff, layout), await Image.renderText(text, {font, size: 24, color: 0xff8800ff, layout: {maxWidth: 90, horizontalAlign: 'center'}})],
-            [await Image.renderText(font, 24, text, {strokeWidth: 2, strokeColor: 0xff0000ff, features: {smcp: true}}), await Image.renderText(text, {font, size: 24, strokeWidth: 2, strokeColor: 0xff0000ff, features: {smcp: true}})],
-            [await Image.renderText([font, font], 20, text), await Image.renderText(text, {font: [font, font], size: 20})]
-        ];
-        cases.forEach(([old, now], i) => { if (old.width !== now.width || old.height !== now.height || !Buffer.from(old.bitmap).equals(Buffer.from(now.bitmap))) panic(`renderText(text, options) case ${i} differs from the old signature`); });
         for (const options of [undefined, {size: 20}, {font}, {font, size: NaN}]) {
             let error = null;
             try { await Image.renderText(text, options); } catch (err) { error = err; }
             if (!error) panic(`renderText(text, ${JSON.stringify(options && Object.keys(options))}) should be rejected`);
+        }
+    }
+
+    // maxPixels limits the rendered image, its outline included, before its pixels are allocated
+    {
+        const font = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
+        const plain = await Image.renderText('hi', {font, size: 16});
+        const fits = await Image.renderText('hi', {font, size: 16, maxPixels: plain.width * plain.height});
+        if (fits.width !== plain.width || fits.height !== plain.height) panic('text exactly at maxPixels should render');
+        const tooLarge = async (label, options) => {
+            let error = null;
+            try { await Image.renderText('hi', {font, size: 16, ...options}); } catch (err) { error = err; }
+            if (!(error instanceof LimitError)) panic(`${label} should throw a LimitError, got ${error}`);
+        };
+        await tooLarge('text over maxPixels', {maxPixels: plain.width * plain.height - 1});
+        await tooLarge('an outline over maxPixels', {strokeWidth: 2000, maxPixels: 1e6});
+        await tooLarge('an outline over the default maxPixels', {strokeWidth: 10000});
+        const unlimited = await Image.renderText('hi', {font, size: 16, strokeWidth: 3, maxPixels: Infinity});
+        if (unlimited.width !== plain.width + 6) panic('maxPixels: Infinity should lift the limit');
+        // a size of 0 draws nothing (it was a 1x1 image), like a negative one it throws
+        for (const size of [0, -1, NaN]) {
+            if (!await Image.renderText('hi', {font, size}).then(() => false, error => error instanceof RangeError)) panic(`renderText size ${size} should throw a RangeError`);
+        }
+        for (const [maxPixels, type] of [[0, RangeError], [-1, RangeError], [NaN, RangeError], ['many', TypeError], ['100', TypeError]]) {
+            let error = null;
+            try { await Image.renderText('hi', {font, size: 16, maxPixels}); } catch (err) { error = err; }
+            if (!(error instanceof type)) panic(`renderText maxPixels ${maxPixels} should throw a ${type.name}`);
         }
     }
 })();

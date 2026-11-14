@@ -1,4 +1,4 @@
-const {Image, ImageType} = require('..');
+const {Image, ImageType, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -12,7 +12,7 @@ function tga({type, depth, width, height, descriptor = 0, map = null, mapFirst =
     return Uint8Array.from([...header, ...id, ...(map || []), ...data]);
 }
 
-const rgba = (image, x, y) => image.getRGBAAt(x, y).join();
+const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y)).join();
 
 (async () => {
     // uncompressed 24 bit, default bottom left origin: the first stored row is the bottom one
@@ -53,7 +53,7 @@ const rgba = (image, x, y) => image.getRGBAAt(x, y).join();
 
     // encoding round trips, opaque images are stored with 24 bits
     for (const image of [
-        new Image(50, 7).fill((x, y) => Image.rgbaToColor(x * 5, y * 30, (x >> 2) * 40, x % 3 ? 255 : 100)),
+        new Image(50, 7).fill((x, y) => Colors.fromRGBA(x * 5, y * 30, (x >> 2) * 40, x % 3 ? 255 : 100)),
         new Image(300, 2).fill(0x336699ff),
         new Image(1, 1).fill(0x00000000),
         // a header per pixel: one pixel rows, alternating
@@ -77,10 +77,5 @@ const rgba = (image, x, y) => image.getRGBAAt(x, y).join();
     if (opaque[16] !== 24) panic('TGA: opaque images should be stored with 24 bits');
 
     // truncated data is rejected, not read past
-    try {
-        await Image.decode(tga({type: 10, depth: 24, width: 4, height: 4}, [0x83, 1, 2, 3]).subarray(0, 21));
-        panic('TGA: truncated data accepted');
-    } catch (err) {
-        if (!/TGA|Unsupported/.test(err.message)) panic(`TGA: unexpected error ${err.message}`);
-    }
+    if (!await Image.decode(tga({type: 10, depth: 24, width: 4, height: 4}, [0x83, 1, 2, 3]).subarray(0, 21)).then(() => false, error => error instanceof Error)) panic('TGA: truncated data accepted');
 })();

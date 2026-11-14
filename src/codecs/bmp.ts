@@ -264,7 +264,7 @@ export function decode(d: Uint8Array, maxPixels = MAX_PIXELS): Decoded {
  * Encodes RGBA pixels into a BMP: a palette of 2, 16 or 256 colors if an opaque image has at most that many, else
  * 24 bit pixels, or 32 bit ones with an alpha mask (a version 4 header) if the image has transparency
  */
-export function encode(rgba: Uint8Array, width: number, height: number): Uint8Array {
+export function encode(rgba: Uint8Array, width: number, height: number): Uint8Array<ArrayBuffer> {
     if (width < 1 || height < 1) throw new RangeError('BMP: dimensions must be at least 1');
     const count = width * height;
     if (rgba.byteOffset % 4) rgba = rgba.slice(0, count * 4);

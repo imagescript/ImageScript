@@ -511,7 +511,7 @@ function dcGlobalCommon(w: BitWriter, codes: PrefixCode[]): void {
  * Encodes RGBA pixels as a lossless JPEG XL codestream: grey if every pixel is, with alpha if one isn't opaque; byte for
  * byte what cjxl -e 1 writes on CPUs with AVX2 or NEON (libjxl's chunks of 16 pixels)
  */
-export function encodeRGBA(rgba: Uint8Array, width: number, height: number): Uint8Array {
+export function encodeRGBA(rgba: Uint8Array, width: number, height: number): Uint8Array<ArrayBuffer> {
     if (width < 1 || height < 1) throw new RangeError('JPEG XL: dimensions must be at least 1');
     const n = width * height;
     let grey = true, opaque = true;
@@ -534,7 +534,7 @@ export function encodeRGBA(rgba: Uint8Array, width: number, height: number): Uin
 }
 
 /** Encodes 8-bit samples of 1-4 channels (grey, grey and alpha, RGB, RGBA) as a JPEG XL codestream */
-export function encode(px: Uint8Array, width: number, height: number, numChans: number, chunkSize = 16): Uint8Array {
+export function encode(px: Uint8Array, width: number, height: number, numChans: number, chunkSize = 16): Uint8Array<ArrayBuffer> {
     const stride = width * numChans;
     // ---- a palette, if the colors (with black) are at most 512 and their hashes don't collide
     const palette = new Uint32Array(HASH_SIZE), lookup = new Int16Array(HASH_SIZE);

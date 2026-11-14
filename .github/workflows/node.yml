@@ -13,6 +13,10 @@ concurrency:
   group: node-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name != 'release' }}
 
+# the jobs only install, build and test
+permissions:
+  contents: read
+
 jobs:
   build:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
@@ -94,7 +98,8 @@ jobs:
         node-version: 24.x
     - run: npm install
     - run: npm run build
-    - run: npm install --no-save esbuild@0.28.2 miniflare@4.20260730.0 edge-runtime@4.0.1
+    # (esbuild's and workerd's postinstall scripts only check their binaries, which come with their platform packages)
+    - run: npm install --no-save --ignore-scripts esbuild@0.28.2 miniflare@4.20260730.0 edge-runtime@4.0.1
     - run: node tests/edge/run.mjs
 
   browser:
@@ -107,6 +112,8 @@ jobs:
         node-version: 24.x
     - run: npm install
     - run: npm run build
-    - run: npm install --no-save vite@6.4.5 playwright@1.64.1 esbuild@0.28.2
-    - run: npx playwright install --with-deps chromium
+    - run: npm install --no-save --ignore-scripts vite@8.3.8 playwright@1.65.0
+    # (the runner image has the libraries Chromium needs: --with-deps only added fonts through apt, which the tests
+    # don't use, and failed the job whenever the Ubuntu mirrors were unreachable)
+    - run: npx playwright install chromium
     - run: node tests/browser/run.mjs

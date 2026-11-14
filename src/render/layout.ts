@@ -1123,7 +1123,7 @@ export class LayoutTable {
                     if (!isMarkGlyph(info[it.idx])) return false;
                     const j = it.idx;
                     const id1 = ligId(buffer.cur()), id2 = ligId(info[j]), comp1 = ligComp(buffer.cur()), comp2 = ligComp(info[j]);
-                    let good = false;
+                    let good: boolean;
                     if (id1 === id2) good = id1 === 0 || comp1 === comp2;
                     else good = id1 > 0 && !comp1 || id2 > 0 && !comp2;
                     if (!good) return false;

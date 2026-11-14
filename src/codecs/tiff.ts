@@ -37,7 +37,7 @@ const COMPRESSION_NAMES: Record<number, string> = { 2: 'CCITT RLE', 3: 'CCITT fa
  * Decodes the first image of a TIFF into 8-bit RGBA pixel data
  * Supports classic and BigTIFF in both byte orders, strips and tiles, chunky and planar data,
  * no/LZW/deflate/PackBits/JPEG compression, horizontal and floating point predictors,
- * 1-32 bit integer and 32/64 bit float samples (auto-ranged), greyscale, palette, RGB, CMYK and YCbCr images with alpha
+ * 1-32 bit integer and 32/64 bit float samples (auto-ranged), grayscale, palette, RGB, CMYK and YCbCr images with alpha
  * @param {Uint8Array} data
  * @return {{width: number, height: number, pixels: Uint8Array}}
  */
@@ -142,6 +142,7 @@ export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS): Promise<
     const samplesPerPixel = value(TAGS.SamplesPerPixel, 1);
     const bitsPerSample = values(TAGS.BitsPerSample, [1]);
     const bps = bitsPerSample[0];
+    if (typeof bps !== 'number') throw new Error('TIFF: invalid BitsPerSample');
     if (bitsPerSample.some(b => b !== bps)) throw new Error('TIFF: mixed bit depths are not supported');
 
     const compression = value(TAGS.Compression, 1);
@@ -187,6 +188,8 @@ export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS): Promise<
     // memory than the pixels
     checkPixels(segmentWidth, segmentHeight, Math.max(4 * width * height, 1 << 20));
     checkBytes(Math.ceil(width * samplesPerPixel * bps / 8) * height, maxPixels);
+    // (only the first four samples show: more are multispectral bands, whose count would only multiply the memory)
+    if (samplesPerPixel > 32) throw new Error('TIFF: unsupported number of samples per pixel');
     const pixels = new Uint8Array(width * height * 4);
 
     // JPEG compressed segments decode straight to RGBA
@@ -205,7 +208,7 @@ export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS): Promise<
                 stream = joined;
             }
 
-            const decoded = jpeg.decode(stream, { transform });
+            const decoded = jpeg.decode(stream, { transform, maxPixels });
             blitRGBA(decoded.pixels, decoded.width, decoded.height, pixels, width, height, (s % segmentsAcross) * segmentWidth, (s / segmentsAcross | 0) * segmentHeight);
         }
 
@@ -221,8 +224,11 @@ export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS): Promise<
     if (subsampled) {
         if (tiled || planar || bps !== 8) throw new Error('TIFF: subsampled YCbCr is only supported for 8-bit strips');
         const [h, v] = subsampling;
+        // (the factors the specification allows: a bigger one would make the units larger than the image)
+        if (![1, 2, 4].includes(h) || ![1, 2, 4].includes(v)) throw new Error('TIFF: unsupported YCbCr subsampling');
         const unitsPerRow = Math.ceil(width / h);
         const unitRowBytes = unitsPerRow * (h * v + 2);
+        checkBytes(Math.ceil(height / v) * unitRowBytes, maxPixels);
         const units = new Uint8Array(Math.ceil(height / v) * unitRowBytes);
 
         let written = 0;

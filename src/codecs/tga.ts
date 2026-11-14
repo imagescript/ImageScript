@@ -1,7 +1,7 @@
 import { encode as utf8 } from '../util/utf8.ts';
 import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
 
-// Truevision TGA: color mapped, truecolor and greyscale images, uncompressed or run length encoded
+// Truevision TGA: color mapped, truecolor and grayscale images, uncompressed or run length encoded
 
 const SIGNATURE = 'TRUEVISION-XFILE.\0';
 
@@ -68,7 +68,7 @@ export function isTGA(d: Uint8Array): boolean {
     return h.imageType & 8 ? d.length > dataStart : d.length >= dataStart + pixelBytes;
 }
 
-// reads a 15/16/24/32 bit color (BGR(A), 5 bits per channel for 15/16), or 8 bit grey (color maps)
+// reads a 15/16/24/32 bit color (BGR(A), 5 bits per channel for 15/16), or 8 bit gray (color maps)
 function readColor(d: Uint8Array, o: number, bits: number, alphaBits: number, out: Uint8Array, p: number): void {
     if (bits === 8) {
         out[p] = out[p + 1] = out[p + 2] = d[o];
@@ -208,7 +208,7 @@ function extensionArea({ author, comment, time, software }: Extension, alpha: bo
     return area;
 }
 
-export function encode(rgba: Uint8Array, width: number, height: number, extension?: Extension): Uint8Array {
+export function encode(rgba: Uint8Array, width: number, height: number, extension?: Extension): Uint8Array<ArrayBuffer> {
     if (width < 1 || height < 1 || width > 65535 || height > 65535) throw new RangeError('TGA: dimensions must be 1-65535');
 
     let opaque = true;

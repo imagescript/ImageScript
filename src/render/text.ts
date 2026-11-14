@@ -15,14 +15,16 @@ import { graphemeBoundaries, scripts } from './segment.ts';
 import { PaintGlyphs, parsePaintGlyphs, paintExtent, renderPaintGlyph } from './colr.ts';
 import { decode as decodePNG } from '../codecs/png.ts';
 import { resample, TRIANGLE } from '../util/resample.ts';
+import { MAX_PIXELS, LimitError } from '../util/limits.ts';
 
+/** the layout options checked and with their defaults (see textLayout() in text-layout.ts) */
 export interface Layout {
-    maxWidth: number;
-    maxHeight: number;
+    /** the box the text is wrapped to, cut off at and aligned in (the image's size inside the outline); undefined: the text's size */
+    width: number | undefined;
+    height: number | undefined;
     wrapStyle: 'word' | 'char';
     horizontalAlign: 'left' | 'center' | 'right';
     verticalAlign: 'top' | 'middle' | 'bottom';
-    wrapHardBreaks: boolean;
 }
 
 export interface GlyphBitmap {
@@ -199,23 +201,21 @@ function glyphOf(f: SizedFont, index: number, size: number): Glyph {
  * @param hinting Whether to run TrueType fonts' hinting instructions, the glyphs of hinted fonts are then placed on
  *     whole pixels (fonts without instructions render as without hinting)
  * @param foreground RGBA color (0xrrggbbaa) of color glyph layers drawn in the text color
+ * @param maxPixels the most pixels of the image the text becomes, with `pad` pixels more on every side (its outline):
+ *     larger text throws a LimitError before anything that size is allocated
  * @return the coverage of the outline glyphs, and the premultiplied RGBA pixels of color glyphs (null without any)
  */
-export async function render(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting = false, foreground = 0xffffffff, features: Features = [], variations: Record<string, number> = {}): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
+export async function render(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting = false, foreground = 0xffffffff, features: Features = [], variations: Record<string, number> = {}, maxPixels = MAX_PIXELS, pad = 0): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
     // reading past the end of damaged or truncated font data throws a RangeError
     try {
-        return await layOut(fonts, size, text, layout, hinting, foreground, features, variations);
+        return await layOut(fonts, size, text, layout, hinting, foreground, features, variations, maxPixels, pad);
     } catch (err) {
-        if (err instanceof RangeError && !(err instanceof TooLarge)) throw new Error('Font: damaged or truncated font data', { cause: err });
+        if (err instanceof RangeError && !(err instanceof LimitError)) throw new Error('Font: damaged or truncated font data', { cause: err });
         throw err;
     }
 }
 
-// rendered text larger than 2^28 pixels (16384 square)
-const MAX_PIXELS = 1 << 28;
-class TooLarge extends RangeError {}
-
-async function layOut(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting: boolean, foreground: number, features: Features, variations: Record<string, number>): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
+async function layOut(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting: boolean, foreground: number, features: Features, variations: Record<string, number>, maxPixels: number, pad: number): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
     const sized: SizedFont[] = [];
     const font = (i: number): SizedFont => sized[i] ??= sizedFont(fonts[i], size, hinting, variations);
     const primary = font(0);
@@ -223,15 +223,15 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
     // (at least a pixel, damaged fonts can have any metrics)
     const lineHeight = Math.max(1, Math.ceil((primary.font.ascender - primary.font.descender + primary.font.lineGap) * primary.scale));
 
-    // paragraphs end at hard line breaks (CR LF, CR, LF, NEL, LS, PS) unless they are ignored
-    const paragraphs = layout.wrapHardBreaks ? text.split(/\r\n|[\r\n\u0085\u2028\u2029]/) : [text.replace(/\r\n|[\r\n\u0085\u2028\u2029]/g, '')];
+    // paragraphs end at hard line breaks (CR LF, CR, LF, NEL, LS, PS)
+    const paragraphs = text.split(/\r\n|[\r\n\u0085\u2028\u2029]/);
     const lines: Line[] = [];
     for (const paragraph of paragraphs) lines.push(...layOutParagraph(analyze(paragraph, fonts.length, font), layout, font, size, features));
 
-    // lines that fit into maxHeight, chosen by the vertical alignment
+    // lines that fit into the height, chosen by the vertical alignment
     let visible = lines;
-    if (isFinite(layout.maxHeight)) {
-        const count = Math.max(1, Math.floor(layout.maxHeight / lineHeight));
+    if (layout.height !== undefined) {
+        const count = Math.max(1, Math.floor(layout.height / lineHeight));
         if (count < lines.length) {
             const start = layout.verticalAlign === 'bottom' ? lines.length - count
                 : layout.verticalAlign === 'middle' ? lines.length - count >> 1 : 0;
@@ -239,10 +239,14 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
         }
     }
 
-    // text without ink (empty, spaces) still makes an image, a transparent pixel wide
-    const width = Math.max(1, Math.ceil(Math.max(0, ...visible.map(line => line.extent))));
-    const height = visible.length * lineHeight;
-    if (!(width * height <= MAX_PIXELS)) throw new TooLarge(`Text too large to render (${width}x${height} pixels)`);
+    // the box's size, else the text's: text without ink (empty, spaces) still makes an image, a transparent pixel wide
+    const width = layout.width ?? Math.max(1, Math.ceil(Math.max(0, ...visible.map(line => line.extent))));
+    const height = layout.height ?? visible.length * lineHeight;
+    // the lines placed vertically in the box (a line taller than the box is cut off as the alignment says)
+    const free = height - visible.length * lineHeight;
+    const top = layout.verticalAlign === 'bottom' ? free : layout.verticalAlign === 'middle' ? Math.floor(free / 2) : 0;
+    if (!((width + 2 * pad) * (height + 2 * pad) <= maxPixels))
+        throw new LimitError(`Text too large to render: ${width + 2 * pad}x${height + 2 * pad} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
     const coverage = new Uint8Array(width * height);
     let color: Uint8ClampedArray | null = null;
 
@@ -250,7 +254,7 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
         let offset = layout.horizontalAlign === 'right' ? width - line.extent
             : layout.horizontalAlign === 'center' ? (width - line.extent) / 2 : 0;
         if (primary.hinter) offset = Math.round(offset);
-        const baseline = ascent + n * lineHeight;
+        const baseline = top + ascent + n * lineHeight;
 
         for (const { x, dx, dy, glyph: g } of line.glyphs) {
             if (!g.ink) continue;
@@ -446,11 +450,11 @@ function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => Size
             const end = i + 1;
             if (!starts[end]) continue;
             // mandatory breaks (line separators) end the line
-            if (p.breaks[end] === Break.Mandatory && end < n && layout.wrapHardBreaks) {
+            if (p.breaks[end] === Break.Mandatory && end < n) {
                 fit = end;
                 break;
             }
-            const fits = used - trailing <= layout.maxWidth;
+            const fits = used - trailing <= (layout.width ?? Infinity);
             if (!fits) break;
             if (canBreak(end)) fit = end;
             if (p.graphemes[end]) emergency = end;

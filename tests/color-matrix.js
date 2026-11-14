@@ -1,4 +1,4 @@
-const {Image, Frame, GainMap} = require('..');
+const {Image, Frame, GainMap, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -15,7 +15,7 @@ const throwsA = (fn, type, label) => {
 const px = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
 const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
 // an opaque image where every pixel is different
-const photo = (width, height) => new Image(width, height).fill((x, y) => Image.rgbaToColor((x * 37 + y * 11) % 256, (x * 5 + y * 91) % 256, (x * y + x) % 256, 255));
+const photo = (width, height) => new Image(width, height).fill((x, y) => Colors.fromRGBA((x * 37 + y * 11) % 256, (x * 5 + y * 91) % 256, (x * y + x) % 256, 255));
 const IDENTITY = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
 
 (async () => {
@@ -52,11 +52,11 @@ const IDENTITY = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
             check(Buffer.from(image.bitmap).equals(Buffer.from(before)), `colorMatrix with ${label}: the image should be unchanged`);
         }
 
-        const frame = Frame.from(photo(4, 4), {duration: 40, xOffset: 2, yOffset: 3}).colorMatrix(sepia);
-        check(frame instanceof Frame && frame.duration === 40 && frame.xOffset === 2 && frame.yOffset === 3 && same(frame, photo(4, 4).sepia()), 'colorMatrix on a frame');
+        const frame = new Frame(photo(4, 4).colorMatrix(sepia), {duration: 40, xOffset: 2, yOffset: 3});
+        check(frame instanceof Frame && frame.duration === 40 && frame.xOffset === 2 && frame.yOffset === 3 && same(frame.image, photo(4, 4).sepia()), 'colorMatrix on a frame');
 
         const hdr = photo(8, 8);
-        hdr.gainMap = new GainMap(new Image(4, 4).fill(0xc0c0c0ff), {gainMapMin: 0, gainMapMax: 2});
+        hdr.gainMap = new GainMap(new Image(4, 4).fill(0xc0c0c0ff), {min: 0, max: 2});
         hdr.colorMatrix(sepia);
         check(hdr.gainMap && hdr.gainMap.width === 4 && hdr.gainMap.height === 4, 'colorMatrix with a gain map keeps it');
         check((await Image.decode(await hdr.encodeJPEG())).gainMap, 'colorMatrix: the gain map is still encoded');

@@ -4,7 +4,8 @@
  * <style> sheets (type, class and id selectors), solid colors, linear and radial gradients, patterns, strokes
  * (joins, caps, dashes), markers, opacity, clip paths, luminance masks, images in data URIs (rasters decoded by
  * the caller, SVGs and SVGZs) and filters (all primitives, see filter.ts).
- * Not supported: text, external images, animation and scripting.
+ * Text is supported with supplied or embedded fonts. Not supported: animation, scripting, foreignObject or automatic
+ * loading of external files and URLs; images can be embedded as data URIs or supplied by the caller.
  * How patterns are rendered (a tile in device resolution, its filtering) and their reference cycles broken, and how
  * images are fitted and sampled follows resvg/usvg, the markers (their placement and orientation,
  * crates/usvg/src/parser/marker.rs) are ported from usvg (https://github.com/linebender/resvg; Copyright 2017 the
@@ -22,6 +23,7 @@ import { FontFace, FontStyle, fontFace, layOutText, parseFontFamilies, parseVari
 import { rasterizeGlyph } from './text.ts';
 import { renderPaintGlyph } from './colr.ts';
 import { decodeSync as decodePNG } from '../codecs/png.ts';
+import { MAX_PIXELS, LimitError } from '../util/limits.ts';
 
 const UNSUPPORTED = new Set(['filter', 'pattern', 'marker', 'foreignObject', 'script', 'style', 'title', 'desc', 'metadata',
     'defs', 'clipPath', 'mask', 'linearGradient', 'radialGradient', 'stop', 'symbol', 'font', 'font-face', 'animate', 'animateTransform', 'animateMotion', 'set']);
@@ -159,7 +161,7 @@ const OFFSETS = Float64Array.from({ length: SAMPLES }, (_, s) => (s + 0.5) / SAM
  * @param {number} size
  * @return {{width: number, height: number, pixels: Uint8Array}}
  */
-export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'height', size: number, images: Map<string, RasterImage> = new Map(), fonts: Uint8Array[] = []): { width: number, height: number, pixels: Uint8Array } {
+export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'height', size: number, images: Map<string, RasterImage | ImageError> = new Map(), fonts: Uint8Array[] = [], maxPixels = MAX_PIXELS, maxLayerPixels = 4 * maxPixels): { width: number, height: number, pixels: Uint8Array } {
     if (typeof source !== 'string') source = decodeUTF8(source);
 
     const root = parseXML(source).children.find(node => node.name === 'svg' && node.svg);
@@ -186,11 +188,33 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
     outWidth = Math.max(1, outWidth);
     outHeight = Math.max(1, outHeight);
 
-    const canvas = new Layer(outWidth, outHeight);
-    // (a transform on the root element (SVG 2) applies before the viewBox mapping)
-    doc.renderRoot([outWidth / width, 0, 0, outHeight / height, 0, 0], canvas, 0);
-    return { width: outWidth, height: outHeight, pixels: canvas.toRGBA() };
+    if (!Number.isSafeInteger(outWidth) || !Number.isSafeInteger(outHeight))
+        throw new RangeError(`SVG output dimensions are too large: ${outWidth}x${outHeight}`);
+    if (!(outWidth * outHeight <= maxPixels))
+        throw new LimitError(`SVG too large to render: ${outWidth}x${outHeight} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
+
+    // (rendering is synchronous: the layers allocated until it returns are this render's)
+    const previous = layerBudget, previousCrossings = crossingsLeft;
+    layerBudget = { left: maxLayerPixels, limit: maxLayerPixels };
+    crossingsLeft = MAX_CROSSINGS;
+    try {
+        const canvas = new Layer(outWidth, outHeight);
+        // (a transform on the root element (SVG 2) applies before the viewBox mapping)
+        doc.renderRoot([outWidth / width, 0, 0, outHeight / height, 0, 0], canvas, 0);
+        return { width: outWidth, height: outHeight, pixels: canvas.toRGBA() };
+    } finally {
+        layerBudget = previous;
+        crossingsLeft = previousCrossings;
+    }
 }
+
+/** an image the SVG references that can't be drawn: the error rendering it throws */
+export interface ImageError {
+    error: Error;
+}
+
+// the pixels the layers of the render running now may still allocate (the canvas included), see maxLayerPixels
+let layerBudget: { left: number, limit: number } | null = null;
 
 /** a decoded image, RGBA */
 export interface RasterImage {
@@ -271,17 +295,20 @@ function isRaster(data: Uint8Array): boolean {
         || (data[0] === 0x52 && data[1] === 0x49 && data[8] === 0x57 && data[9] === 0x45);
 }
 
-// the SVG of a data URI, parsed
-function nestedSvg(href: string): NestedSvg | null {
+// the SVG of a data URI, parsed (null if it has no size, so there's nothing to draw); an href that isn't an embedded
+// SVG or a decoded raster image (render()'s images) can't be drawn: the error drawing it throws
+function nestedSvg(href: string): NestedSvg | ImageError | null {
     const uri = dataURI(href);
-    if (!uri || (uri.type !== 'image/svg+xml' && (uri.type !== 'text/plain' || isRaster(uri.data)))) return null;
+    const shown = href.length > 100 ? `${href.slice(0, 100)}...` : href;
+    if (!uri) return { error: new Error(/^\s*data:/i.test(href) ? 'SVG: an image\'s data URI is invalid' : `SVG: the image ${JSON.stringify(shown)} isn't a data URI or one of the images given to render it`) };
+    if (uri.type !== 'image/svg+xml' && (uri.type !== 'text/plain' || isRaster(uri.data))) return { error: new Error(`SVG: images of type ${uri.type} aren't supported`) };
     try {
         const root = parseXML(svgText(uri.data)).children.find(node => node.name === 'svg' && node.svg);
-        if (!root) return null;
+        if (!root) return { error: new Error('SVG: an embedded SVG image has no <svg> element') };
         const { width, height } = documentSize(root);
         return width > 0 && height > 0 ? { width, height, document: new Document(root) } : null;
-    } catch {
-        return null;
+    } catch (cause) {
+        return { error: new Error('SVG: an embedded SVG image can\'t be read', { cause }) };
     }
 }
 
@@ -676,21 +703,44 @@ function validProperty(name: string, value: string): boolean {
 
 // the most elements to render through <use> references (like librsvg's limit), and dashes of a path
 const MAX_INSTANCES = 100000;
+const MAX_OCTAVES = 24;
+// the dashes stroked and rasterized at once
+const DASH_BATCH = 20000;
+
+// the next n items of an iterator (fewer at its end)
+function take<T>(iterator: Iterator<T>, n: number): T[] {
+    const items: T[] = [];
+    while (items.length < n) {
+        const next = iterator.next();
+        if (next.done) break;
+        items.push(next.value);
+    }
+    return items;
+}
+// the most pixels (at least MIN_NESTED each) that masks, clip paths, pattern tiles, markers and filter images may take
+// when rendered inside each other, which can multiply: three of them per level take minutes at ten levels
+// (32 nested ones the size of a 1080p image, or 1024 small ones)
+const MAX_NESTED = 2 ** 26, MIN_NESTED = 2 ** 16;
 const MAX_DASHES = 1000000;
+// the most edge crossings one render rasterizes (the crossings of all shapes' edges with all sub-scanlines, which
+// take about 40 ns each, so 5 s): thousands of huge overlapping strokes cross every sub-scanline thousands of times
+const MAX_CROSSINGS = 2 ** 27;
+// what is left of it in the render that runs (rendering is synchronous), unlimited outside of one
+let crossingsLeft = Infinity;
 // the most pixels of a pattern's tile
 const MAX_TILE = 4096 * 1024;
 
 class Document {
     /** elements rendered through <use> references and embedded SVGs so far (shared with the embedded SVGs' documents) */
-    budget = { instances: 0 };
+    budget = { instances: 0, nested: 0, nesting: 0 };
     ids: Map<string, XNode>;
     active: Set<XNode>;
     root: XNode;
     rules: Rule[];
-    /** decoded raster images by their href */
-    images: Map<string, RasterImage> = new Map();
-    /** the SVGs of data URIs, parsed */
-    nested: Map<string, NestedSvg | null> = new Map();
+    /** decoded raster images by their href (or why they couldn't be decoded) */
+    images: Map<string, RasterImage | ImageError> = new Map();
+    /** the SVGs of data URIs, parsed (or why they can't be drawn) */
+    nested: Map<string, NestedSvg | ImageError | null> = new Map();
     /** fonts for text: the ones the style sheets embed (@font-face), and the ones given to render() */
     embedded: FontFace[];
     given: FontFace[] = [];
@@ -920,6 +970,7 @@ class Document {
         }
 
         context.layer.composite(layer, opacity, alpha, blend);
+        layer.release();
     }
 
     // renders into a layer clipped to a rectangle in user space (viewports of nested svg and symbol elements)
@@ -936,6 +987,7 @@ class Document {
                     alpha[(coverage.y0 + row) * w + coverage.x0 + column] = coverage.data[row * coverage.w + column];
 
         ctx.layer.composite(layer, 1, alpha);
+        layer.release();
     }
 
     renderNestedSvg(node: XNode, ctx: Context): void {
@@ -996,6 +1048,7 @@ class Document {
             const layer = new Layer(ctx.layer.width, ctx.layer.height);
             draw(layer);
             ctx.layer.composite(layer, opacity, null);
+            layer.release();
             return;
         }
 
@@ -1379,8 +1432,9 @@ class Document {
     // like resvg's (crates/usvg/src/parser/image.rs); other references (files, URLs) aren't loaded
     renderImage(node: XNode, ctx: Context): void {
         const style = ctx.style as Style;
+        if (style.visibility !== 'visible') return;
         const image = this.imageOf(node, ctx.viewport);
-        if (!image || style.visibility !== 'visible') return;
+        if (!image) return;
         const { raster, nested, intrinsic, x, y, width, height } = image;
 
         const aspect = node.attrs.preserveAspectRatio || 'xMidYMid meet';
@@ -1402,16 +1456,24 @@ class Document {
         else draw(ctx.layer);
     }
 
-    // an image element's content (a decoded raster or a nested SVG) and its rectangle
-    imageOf(node: XNode, viewport: Viewport): { raster?: RasterImage, nested: NestedSvg | null, intrinsic: { width: number, height: number }, x: number, y: number, width: number, height: number } | null {
+    // an image element's content (a decoded raster or a nested SVG) and its rectangle; an image that can't be drawn
+    // (broken, too large, or a reference that isn't given) throws, unless it's only measured (`draws` false: then it
+    // has no rectangle)
+    imageOf(node: XNode, viewport: Viewport, draws = true): { raster?: RasterImage, nested: NestedSvg | null, intrinsic: { width: number, height: number }, x: number, y: number, width: number, height: number } | null {
         const href = this.href(node)?.trim();
         if (!href) return null;
-        const raster = this.images.get(href);
-        let nested = null;
-        if (!raster) {
+        const decoded = this.images.get(href);
+        let embedded: NestedSvg | ImageError | null | undefined = null;
+        if (!decoded) {
             if (!this.nested.has(href)) this.nested.set(href, nestedSvg(href));
-            nested = this.nested.get(href) as NestedSvg | null;
+            embedded = this.nested.get(href);
         }
+        const broken = decoded && 'error' in decoded ? decoded : embedded && 'error' in embedded ? embedded : null;
+        if (broken) {
+            if (draws) throw broken.error;
+            return null;
+        }
+        const raster = decoded as RasterImage | undefined, nested = embedded as NestedSvg | null;
         if (!raster && !nested) return null;
         const intrinsic = raster || (nested as NestedSvg);
 
@@ -1484,15 +1546,56 @@ class Document {
         const strokeWidth = parseLength(style['stroke-width'], ctx.viewport, 16, 'diagonal');
         if (!stroke || !(strokeWidth > 0)) return;
 
-        let lines = subpaths;
+        const lines = subpaths;
         const fontSize = parseNumber(style['font-size'], 16);
         const dashes = parseDashArray(style['stroke-dasharray'], ctx.viewport, fontSize);
-        if (dashes) lines = dash(subpaths, dashes, parseLength(style['stroke-dashoffset'], ctx.viewport, fontSize, 'diagonal'));
+        const miterLimit = Math.max(1, parseNumber(style['stroke-miterlimit'], 4));
+        if (dashes) {
+            // dashes whose stroke can't reach the layer are left out (their polygons would be anyway, see rasterize):
+            // the stroke reaches past a dash's points by half its width, at most the miter limit times that at a
+            // join, scaled by the matrix (its Frobenius norm is at least how much it stretches)
+            const reach = strokeWidth / 2 * Math.max(miterLimit, Math.SQRT2) * Math.hypot(matrix[0], matrix[1], matrix[2], matrix[3]) + 1;
+            const visible = (points: number[]): boolean => {
+                let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+                for (let i = 0; i < points.length; i += 2) {
+                    const x = matrix[0] * points[i] + matrix[2] * points[i + 1] + matrix[4], y = matrix[1] * points[i] + matrix[3] * points[i + 1] + matrix[5];
+                    x0 = Math.min(x0, x);
+                    x1 = Math.max(x1, x);
+                    y0 = Math.min(y0, y);
+                    y1 = Math.max(y1, y);
+                }
+                return !(x1 + reach <= 0 || x0 - reach >= layer.width || y1 + reach <= 0 || y0 - reach >= layer.height);
+            };
+            // stroked and rasterized a batch of dashes at a time, their coverage added up: dashes don't overlap (but at
+            // sharp turns of wide strokes), so it's the same, and a million dashes don't take a gigabyte at once
+            const generated = dash(subpaths, dashes, parseLength(style['stroke-dashoffset'], ctx.viewport, fontSize, 'diagonal'), visible);
+            let total: Coverage | null = null;
+            for (let batch = take(generated, DASH_BATCH); batch.length; batch = take(generated, DASH_BATCH)) {
+                const coverage = this.strokeCoverage(batch, strokeWidth, miterLimit, tolerance, ctx);
+                if (!coverage) continue;
+                if (batch.length < DASH_BATCH && !total) {
+                    total = coverage;
+                    break;
+                }
+                total ??= { x0: 0, y0: 0, w: layer.width, h: layer.height, data: new Float32Array(layer.width * layer.height) };
+                for (let y = 0; y < coverage.h; y++)
+                    for (let x = 0, o = y * coverage.w, t = (coverage.y0 + y) * total.w + coverage.x0; x < coverage.w; x++)
+                        total.data[t + x] = Math.min(1, total.data[t + x] + coverage.data[o + x]);
+            }
+            if (total) layer.fill(crisp(total, style), stroke);
+            return;
+        }
 
-        const polygons = strokePolygons(lines, strokeWidth / 2, style['stroke-linecap'], style['stroke-linejoin'],
-            Math.max(1, parseNumber(style['stroke-miterlimit'], 4)), tolerance).map(points => transformPoints(points, matrix));
-        const coverage = rasterize(polygons, false, layer.width, layer.height);
+        const coverage = this.strokeCoverage(lines, strokeWidth, miterLimit, tolerance, ctx);
         if (coverage) layer.fill(crisp(coverage, style), stroke);
+    }
+
+    // the coverage of the stroke of lines
+    strokeCoverage(lines: Subpath[], strokeWidth: number, miterLimit: number, tolerance: number, ctx: Context): Coverage | null {
+        const style = ctx.style as Style;
+        const polygons = strokePolygons(lines, strokeWidth / 2, style['stroke-linecap'], style['stroke-linejoin'],
+            miterLimit, tolerance).map(points => transformPoints(points, ctx.matrix));
+        return rasterize(polygons, false, ctx.layer.width, ctx.layer.height);
     }
 
     // draws the markers of a shape (like usvg's markers, crates/usvg/src/parser/marker.rs)
@@ -1542,9 +1645,11 @@ class Document {
 
                 const inner = { ...ctx, matrix, style: markerStyle, depth: ctx.depth + 1, viewport: viewBox ? { width: viewBox[2], height: viewBox[3] } : ctx.viewport, contextElement };
                 this.active.add(marker);
-                if (!clip) this.renderChildren(marker, inner);
-                else this.clipped(inner, Math.min(clip[0], clip[2]), Math.min(clip[1], clip[3]), Math.abs(clip[2] - clip[0]), Math.abs(clip[3] - clip[1]),
-                    layer => this.renderChildren(marker, { ...inner, layer }));
+                this.indirect(0, () => {
+                    if (!clip) this.renderChildren(marker, inner);
+                    else this.clipped(inner, Math.min(clip[0], clip[2]), Math.min(clip[1], clip[3]), Math.abs(clip[2] - clip[0]), Math.abs(clip[3] - clip[1]),
+                        layer => this.renderChildren(marker, { ...inner, layer }));
+                });
                 this.active.delete(marker);
             };
 
@@ -1788,9 +1893,11 @@ class Document {
 
         const tile = new Layer(width, height);
         this.active.add(node);
-        this.renderChildren(content, { ...ctx, matrix: contentMatrix, style: this.styleOf(content), layer: tile, depth: ctx.depth + 1,
-            viewport: viewBox ? { width: viewBox[2], height: viewBox[3] } : ctx.viewport });
+        this.indirect(width * height, () => this.renderChildren(content, { ...ctx, matrix: contentMatrix, style: this.styleOf(content), layer: tile, depth: ctx.depth + 1,
+            viewport: viewBox ? { width: viewBox[2], height: viewBox[3] } : ctx.viewport }));
         this.active.delete(node);
+        // (the paint samples the tile while the shape it fills is drawn, right after: at most MAX_TILE pixels)
+        tile.release();
         if (tile.x1 <= tile.x0) return null;
 
         // the repeated tile sampled like resvg's: the nearest pixel where the tile is only translated, else bicubic (a
@@ -1836,19 +1943,21 @@ class Document {
         const layer = new Layer(lw, lh);
         draw(layer, shifted);
         const pixmap = layer.toPixmap();
+        layer.release();
         for (const filter of filters) applyFilter(filter, shifted, pixmap);
         const result = Layer.fromPixmap(pixmap);
-        if (result.x1 <= result.x0) return;
+        if (result.x1 <= result.x0) return result.release();
 
         if (rest[0] === 1 && rest[1] === 0 && rest[2] === 0 && rest[3] === 1) {
             target.blit(result, lx, ly);
-            return;
+            return result.release();
         }
         // (rotated or skewed: drawn through the rest of the matrix, interpolated bilinearly)
         const place = multiply(rest, [1, 0, 0, 1, lx, ly]);
         const inverse = invert(place);
         const coverage = inverse && rasterize([transformPoints([0, 0, lw, 0, lw, lh, 0, lh], place)], false, target.width, target.height);
         if (coverage) target.fill(coverage, sampler(result.data, lw, lh, inverse, false, 1, 1));
+        result.release();
     }
 
     // an element's filters (url references and filter functions), like usvg's: 'invalid' if it's not to be rendered
@@ -2040,7 +2149,9 @@ class Document {
                 const list = node.attrs.baseFrequency === undefined ? null : parseStrictNumberList(node.attrs.baseFrequency);
                 let [fx, fy] = list && list.length === 2 ? list : list && list.length === 1 ? [list[0], list[0]] : [0, 0];
                 if (!(fx >= 0 && fy >= 0)) fx = fy = 0;
-                const octaves = Math.max(0, number('numOctaves', 1));
+                // (an octave adds half the noise of the one before it: after 24 they're below what the output can hold, and
+                // the cost grows with each)
+                const octaves = Math.min(MAX_OCTAVES, Math.max(0, number('numOctaves', 1)));
                 return { type: 'turbulence', fx, fy, octaves: Math.round(octaves), seed: Math.trunc(number('seed', 0)), stitch: node.attrs.stitchTiles?.trim() === 'stitch',
                     fractal: node.attrs.type?.trim() === 'fractalNoise' };
             }
@@ -2100,10 +2211,14 @@ class Document {
                 this.active.add(node);
                 const parentStyle = (target || node).parent && ((target || node).parent as XNode).name !== '#root' ? this.styleOf((target || node).parent as XNode) : null;
                 const ctx: Context = { matrix, style: parentStyle, viewport, layer, depth: 16 };
-                if (target) this.renderNode(target, ctx);
-                else this.renderImage(image as XNode, { ...ctx, style: this.computeStyle(image as XNode, this.styleOf(node)) });
+                this.indirect(width * height, () => {
+                    if (target) this.renderNode(target, ctx);
+                    else this.renderImage(image as XNode, { ...ctx, style: this.computeStyle(image as XNode, this.styleOf(node)) });
+                });
                 this.active.delete(node);
-                return layer.toPixmap();
+                const pixmap = layer.toPixmap();
+                layer.release();
+                return pixmap;
             }
         };
     }
@@ -2201,8 +2316,25 @@ class Document {
         return { rect, primitives: [{ rect, linear: false, result: 'result', kind }] };
     }
 
+    /** runs the render of a mask, clip path, pattern tile, marker or filter image; the ones inside another one count against the budget of nested ones */
+    indirect<T>(pixels: number, render: () => T): T {
+        const budget = this.budget;
+        if (budget.nesting > 0 && (budget.nested += Math.max(pixels, MIN_NESTED)) > MAX_NESTED)
+            throw new Error('SVG: too many masks, clip paths, patterns, markers or filter images inside each other');
+        budget.nesting++;
+        try {
+            return render();
+        } finally {
+            budget.nesting--;
+        }
+    }
+
     // renders a clipPath into a coverage mask
     clipMask(clip: XNode, node: XNode, matrix: Matrix, context: Context): Float32Array {
+        return this.indirect(context.layer.width * context.layer.height, () => this.clipMaskOf(clip, node, matrix, context));
+    }
+
+    clipMaskOf(clip: XNode, node: XNode, matrix: Matrix, context: Context): Float32Array {
         const { width, height } = context.layer;
         const alpha = new Float32Array(width * height);
         const style = this.styleOf(clip);
@@ -2282,7 +2414,7 @@ class Document {
         let box: BBox | null = null;
         const visit = (n: XNode, matrix: Matrix): void => {
             // (an image's bounding box is its rectangle)
-            const image = n.name === 'image' ? this.imageOf(n, viewport) : null;
+            const image = n.name === 'image' ? this.imageOf(n, viewport, false) : null;
             const path = image ? [['M', image.x, image.y], ['L', image.x + image.width, image.y], ['L', image.x + image.width, image.y + image.height],
                 ['L', image.x, image.y + image.height], ['Z']] as PathCommand[] : n.name === 'text' ? this.textBox(n, viewport) : shapePath(n, viewport, 16);
             if (path) {
@@ -2300,6 +2432,10 @@ class Document {
 
     // renders a mask's content and returns its luminance times alpha
     maskValues(mask: XNode, node: XNode, matrix: Matrix, context: Context): Float32Array {
+        return this.indirect(context.layer.width * context.layer.height, () => this.maskValuesOf(mask, node, matrix, context));
+    }
+
+    maskValuesOf(mask: XNode, node: XNode, matrix: Matrix, context: Context): Float32Array {
         const { width, height } = context.layer;
         const values = new Float32Array(width * height);
 
@@ -2345,6 +2481,7 @@ class Document {
         const regionCoverage = rasterize([transformPoints([rx, ry, rx + rw, ry, rx + rw, ry + rh, rx, ry + rh], matrix)], false, width, height);
         if (!regionCoverage) {
             this.active.delete(mask);
+            layer.release();
             return values;
         }
 
@@ -2356,6 +2493,8 @@ class Document {
                 // luminance of premultiplied color equals luminance * alpha
                 values[i] = data[y * w + x] * (alphaMask ? d[i * 4 + 3] : 0.2125 * d[i * 4] + 0.7154 * d[i * 4 + 1] + 0.0721 * d[i * 4 + 2]);
             }
+
+        layer.release();
 
         // the mask element itself may be masked
         const nested = this.reference(maskStyle.mask);
@@ -2688,10 +2827,27 @@ class Layer {
     x1 = -Infinity;
     y1 = -Infinity;
 
+    // the pixels taken from the render's layer budget (given back by release())
+    private budgeted = 0;
+
     constructor(width: number, height: number) {
         this.width = width;
         this.height = height;
+        const budget = layerBudget;
+        if (budget) {
+            // (checked before the layer is allocated)
+            if (!(width * height <= budget.left))
+                throw new LimitError(`SVG too complex: its layers (for opacity, masks, filters, ...) exceed ${budget.limit} pixels at once (the render options' maxLayerPixels)`);
+            budget.left -= width * height;
+            this.budgeted = width * height;
+        }
         this.data = new Float32Array(width * height * 4);
+    }
+
+    // gives the layer's pixels back to the render's budget, once it's composited (its memory is garbage then)
+    release(): void {
+        if (layerBudget) layerBudget.left += this.budgeted;
+        this.budgeted = 0;
     }
 
     extend(x0: number, y0: number, x1: number, y1: number): void {
@@ -2877,6 +3033,17 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
     for (const points of polygons) {
         const n = points.length >> 1;
         if (n < 2) continue;
+        // a polygon entirely beside the image has a winding number of 0 everywhere on it: it's left out (a dashed line
+        // reaching far past the image has a million dashes there)
+        let px0 = Infinity, py0 = Infinity, px1 = -Infinity, py1 = -Infinity;
+        for (let i = 0; i < n; i++) {
+            const x = points[i * 2], y = points[i * 2 + 1];
+            if (x < px0) px0 = x;
+            if (x > px1) px1 = x;
+            if (y < py0) py0 = y;
+            if (y > py1) py1 = y;
+        }
+        if (px1 <= 0 || px0 >= width || py1 <= 0 || py0 >= height) continue;
 
         for (let i = 0; i < n; i++) {
             const ax = points[i * 2], ay = points[i * 2 + 1];
@@ -2916,7 +3083,8 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
     // nearly sorted (the order of crossings of the same x doesn't matter: the span between them is empty, the winding
     // after them their sum)
     const rowStarts = scratch.i32(1, h + 1).fill(0, 0, h + 1), order = scratch.i32(2, numEdges);
-    const startRow = (e: number): number => Math.max(0, Math.floor(tops[e]) - y0);
+    // (edges that end above the image never cross a sample: they're left out)
+    const startRow = (e: number): number => bottoms[e] <= y0 ? h : Math.max(0, Math.floor(tops[e]) - y0);
     for (let e = 0; e < numEdges; e++) if (startRow(e) < h) rowStarts[startRow(e) + 1]++;
     for (let r = 0; r < h; r++) rowStarts[r + 1] += rowStarts[r];
     const placed = scratch.i32(3, h);
@@ -2924,7 +3092,6 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
     for (let e = 0; e < numEdges; e++) if (startRow(e) < h) order[placed[startRow(e)]++] = e;
     let numActive = 0;
     const active = scratch.i32(4, numEdges), keys = scratch.f64(4, numEdges), firsts = scratch.i32(5, numEdges), lasts = scratch.i32(6, numEdges);
-    const counts = new Int32Array(SAMPLES), starts = new Int32Array(SAMPLES), ends = new Int32Array(SAMPLES);
 
     const span = (a: number, b: number): void => {
         a = Math.max(a, x0) - x0;
@@ -2948,11 +3115,11 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
         let kept = 0;
         for (let k = 0; k < numActive; k++) if (bottoms[active[k]] > py) active[kept++] = active[k];
         numActive = kept;
-        for (let k = rowStarts[py - y0]; k < rowStarts[py - y0 + 1]; k++) active[numActive++] = order[k];
-        // (insertion sort by x in the row's middle: nearly sorted from the row before)
         const mid = py + 0.5;
-        for (let k = 0; k < numActive; k++) {
-            const e = active[k], key = xs[e] + (Math.min(Math.max(mid, tops[e]), bottoms[e]) - tops[e]) * slopes[e];
+        const keyOf = (e: number): number => xs[e] + (Math.min(Math.max(mid, tops[e]), bottoms[e]) - tops[e]) * slopes[e];
+        // (insertion sort by x in the row's middle: the edges kept are nearly sorted from the row before)
+        for (let k = 0; k < kept; k++) {
+            const e = active[k], key = keyOf(e);
             let j = k - 1;
             for (; j >= 0 && keys[j] > key; j--) {
                 keys[j + 1] = keys[j];
@@ -2961,11 +3128,32 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
             keys[j + 1] = key;
             active[j + 1] = e;
         }
+        // the edges that start in the row are sorted among themselves and merged from the back (inserting each one
+        // shifted half of the active ones: text of thousands of glyphs took quadratic time)
+        const added = rowStarts[py - y0 + 1] - rowStarts[py - y0];
+        if (added) {
+            const first = rowStarts[py - y0];
+            const newKeys = scratch.f64(6, added), ranks = scratch.i32(7, added).subarray(0, added);
+            for (let n = 0; n < added; n++) {
+                newKeys[n] = keyOf(order[first + n]);
+                ranks[n] = n;
+            }
+            ranks.sort((a, b) => newKeys[a] - newKeys[b]);
+            let i = kept - 1, n = added - 1, out = kept + added - 1;
+            while (n >= 0) {
+                if (i >= 0 && keys[i] > newKeys[ranks[n]]) {
+                    keys[out] = keys[i];
+                    active[out--] = active[i--];
+                } else {
+                    keys[out] = newKeys[ranks[n]];
+                    active[out--] = order[first + ranks[n--]];
+                }
+            }
+            numActive += added;
+        }
 
-        // each active edge's crossings go to the sub-scanlines it spans (the bounds by the test of each sub-scanline,
-        // sy >= top and sy < bottom), each sub-scanline's in the edges' order
-        counts.fill(0);
-        let total = 0;
+        // the sub-scanlines each active edge spans (the bounds by the test of each sub-scanline, sy >= top and
+        // sy < bottom)
         for (let k = 0; k < numActive; k++) {
             const e = active[k], top = tops[e], bottom = bottoms[e];
             let s0 = Math.max(0, Math.ceil((top - py) * SAMPLES - 0.5)), s1 = Math.min(SAMPLES - 1, Math.ceil((bottom - py) * SAMPLES - 0.5) - 1);
@@ -2973,35 +3161,32 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
             while (s0 < SAMPLES && !(py + OFFSETS[s0] >= top)) s0++;
             while (s1 < SAMPLES - 1 && py + OFFSETS[s1 + 1] < bottom) s1++;
             while (s1 >= 0 && !(py + OFFSETS[s1] < bottom)) s1--;
+            // (an edge ending far above the row has s1 below the Int32Array's range: it would wrap to a huge count)
             firsts[k] = s0;
-            lasts[k] = s1;
-            for (let s = s0; s <= s1; s++) counts[s]++;
-            if (s1 >= s0) total += s1 - s0 + 1;
-        }
-        const crossings = scratch.f64(5, 2 * total);
-        for (let s = 0, at = 0; s < SAMPLES; s++) {
-            starts[s] = at;
-            at += 2 * counts[s];
-        }
-        for (let s = 0; s < SAMPLES; s++) ends[s] = starts[s];
-        for (let k = 0; k < numActive; k++) {
-            const e = active[k];
-            for (let s = firsts[k]; s <= lasts[k]; s++) {
-                const sy = py + OFFSETS[s];
-                crossings[ends[s]++] = xs[e] + (sy - tops[e]) * slopes[e];
-                crossings[ends[s]++] = dirs[e];
-            }
+            lasts[k] = Math.max(-1, s1);
         }
 
+        // each sub-scanline's crossings, in the edges' order (nearly sorted by x), one sub-scanline at a time: all of
+        // them at once took 16 times the memory of the active edges
+        const crossings = scratch.f64(5, 2 * numActive);
         for (let s = 0; s < SAMPLES; s++) {
-            const base = starts[s], end = ends[s];
-            if (end - base < 4) continue;
+            const sy = py + OFFSETS[s];
+            let end = 0;
+            for (let k = 0; k < numActive; k++) {
+                if (s < firsts[k] || s > lasts[k]) continue;
+                const e = active[k];
+                crossings[end++] = xs[e] + (sy - tops[e]) * slopes[e];
+                crossings[end++] = dirs[e];
+            }
+            if (end < 4) continue;
+            if ((crossingsLeft -= end >> 1) < 0)
+                throw new LimitError(`SVG too complex: its shapes' edges cross the rows of the image more than ${MAX_CROSSINGS} times (many large overlapping strokes or shapes)`);
 
             // insertion sort pairs by x
-            for (let i = base + 2; i < end; i += 2) {
+            for (let i = 2; i < end; i += 2) {
                 const x = crossings[i], dir = crossings[i + 1];
                 let j = i - 2;
-                for (; j >= base && crossings[j] > x; j -= 2) {
+                for (; j >= 0 && crossings[j] > x; j -= 2) {
                     crossings[j + 2] = crossings[j];
                     crossings[j + 3] = crossings[j + 1];
                 }
@@ -3010,7 +3195,7 @@ function rasterize(polygons: number[][], evenOdd: boolean, width: number, height
             }
 
             let winding = 0;
-            for (let i = base; i < end - 2; i += 2) {
+            for (let i = 0; i < end - 2; i += 2) {
                 winding += crossings[i + 1];
                 if (evenOdd ? winding & 1 : winding !== 0) span(crossings[i], crossings[i + 2]);
             }
@@ -3375,10 +3560,9 @@ function transformPoints(points: number[], m: Matrix): number[] {
     return out;
 }
 
-// splits polylines into dashes
-function dash(subpaths: Subpath[], pattern: number[], offset: number): Subpath[] {
+// splits polylines into dashes, the ones visible says can be seen, as they are made (a path can have a million)
+function* dash(subpaths: Subpath[], pattern: number[], offset: number, visible: (points: number[]) => boolean = () => true): Generator<Subpath> {
     const total = pattern.reduce((a, b) => a + b, 0);
-    const result: Subpath[] = [];
 
     // too many dashes stroke the path solid, as Skia does (they'd take any amount of memory)
     let length = 0;
@@ -3386,7 +3570,10 @@ function dash(subpaths: Subpath[], pattern: number[], offset: number): Subpath[]
         const pts = closed ? [...points, points[0], points[1]] : points;
         for (let i = 0; i + 3 < pts.length; i += 2) length += Math.hypot(pts[i + 2] - pts[i], pts[i + 3] - pts[i + 1]);
     }
-    if (!(length / total * pattern.length <= MAX_DASHES)) return subpaths;
+    if (!(length / total * pattern.length <= MAX_DASHES)) {
+        yield* subpaths;
+        return;
+    }
 
     for (const { points, closed } of subpaths) {
         const pts = closed ? [...points, points[0], points[1]] : points;
@@ -3419,7 +3606,7 @@ function dash(subpaths: Subpath[], pattern: number[], offset: number): Subpath[]
                     if (on) {
                         if (current) {
                             current.push(mx, my);
-                            result.push({ points: current, closed: false, direction: [(bx - ax) / length, (by - ay) / length] });
+                            if (visible(current)) yield { points: current, closed: false, direction: [(bx - ax) / length, (by - ay) / length] };
                         }
                         current = null;
                     } else current = [mx, my];
@@ -3433,10 +3620,8 @@ function dash(subpaths: Subpath[], pattern: number[], offset: number): Subpath[]
             }
         }
 
-        if (on && current && current.length >= 4) result.push({ points: current, closed: false });
+        if (on && current && current.length >= 4 && visible(current)) yield { points: current, closed: false };
     }
-
-    return result;
 }
 
 // builds fill polygons (counter-clockwise, to be filled nonzero) for stroked polylines
@@ -3506,13 +3691,24 @@ function strokePolygons(subpaths: Subpath[], halfWidth: number, cap: string | un
             const dot = prev[0] * next[0] + prev[1] * next[1];
             if (Math.abs(cross) < 1e-9 && dot > 0) continue;
 
+            // the outer side of the turn
+            const side = cross > 0 ? -1 : 1;
+
             if (join === 'round') {
-                circle(vx, vy);
+                // the wedge of the circle on the outer side, between the two segments' normals (the rest of the circle
+                // lies in the segments: a whole circle per vertex made 256 points of every one of a curve's thousands)
+                const turn = Math.acos(Math.max(-1, Math.min(1, dot)));
+                const steps = Math.max(1, Math.ceil(turn / (2 * Math.PI / circleSegments)));
+                const start = Math.atan2(side * prev[0], side * -prev[1]), sweep = side === -1 ? turn : -turn;
+                const wedge = [vx, vy];
+                for (let k = 0; k <= steps; k++) {
+                    const a = start + sweep * k / steps;
+                    wedge.push(vx + Math.cos(a) * halfWidth, vy + Math.sin(a) * halfWidth);
+                }
+                add(wedge);
                 continue;
             }
 
-            // the outer side of the turn
-            const side = cross > 0 ? -1 : 1;
             const ax = vx + side * -prev[1] * halfWidth, ay = vy + side * prev[0] * halfWidth;
             const bx = vx + side * -next[1] * halfWidth, by = vy + side * next[0] * halfWidth;
 
@@ -3548,7 +3744,7 @@ function strokePolygons(subpaths: Subpath[], halfWidth: number, cap: string | un
 
 function parseTransform(value: string): Matrix {
     let matrix = [1, 0, 0, 1, 0, 0];
-    const functions = /(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^)]*)\)/g;
+    const functions = /(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^()]*)\)/g;
 
     for (const [, name, args] of value.matchAll(functions)) {
         const a = parseNumberList(args);

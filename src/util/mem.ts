@@ -17,7 +17,7 @@ export function view(buffer: BinaryData): Uint8Array {
 /**
  * Concatenates byte arrays
  */
-export function concat(parts: ArrayLike<number>[]): Uint8Array {
+export function concat(parts: ArrayLike<number>[]): Uint8Array<ArrayBuffer> {
     let length = 0;
     for (const part of parts) length += part.length;
 

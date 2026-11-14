@@ -1,6 +1,6 @@
 # Third party notices
 
-ImageScript is licensed under AGPL-3.0-or-later OR MIT (see [LICENSE](LICENSE)). Parts of it are derived from the
+ImageScript is licensed under MIT (see [LICENSE](LICENSE)). Parts of it are derived from the
 following projects, under their own licenses. Each derived file says so in its header.
 
 | Project | Used in | License |

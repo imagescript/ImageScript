@@ -19,7 +19,7 @@ const ZIGZAG = Int32Array.of(
     58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63
 );
 
-type Transform = 'grey' | 'rgb' | 'ycc' | 'ycck' | 'cmyk';
+type Transform = 'gray' | 'rgb' | 'ycc' | 'ycck' | 'cmyk';
 
 interface HuffmanTable {
     /** (length << 8 | symbol) for codes up to 9 bits, 0 = slow path */
@@ -47,7 +47,7 @@ interface Component {
      * which the decoder turns into `plane` (the samples) as soon as the row is complete
      */
     coefficients: Int16Array;
-    /** sequential: the sample plane, and which of its block rows are done (the others stay mid grey) */
+    /** sequential: the sample plane, and which of its block rows are done (the others stay mid gray) */
     plane?: Uint8Array;
     done?: Uint8Array;
     pred: number;
@@ -85,7 +85,7 @@ function clamp8(v: number): number {
 /**
  * Decodes a JPEG into 8-bit RGBA pixel data
  * Supports baseline, extended and progressive huffman coded JPEGs with any
- * sampling factors, restart intervals and greyscale, YCbCr, RGB, CMYK and YCCK color
+ * sampling factors, restart intervals and grayscale, YCbCr, RGB, CMYK and YCCK color
  * The output matches libjpeg's defaults (islow IDCT, fancy upsampling)
  * @param {Uint8Array} data
  * @param {{transform?: 'ycc'|'rgb'|'cmyk'}} [options] overrides the color transform detected from JFIF/Adobe markers (used by TIFF)
@@ -173,6 +173,7 @@ export function decode(data: Uint8Array, { transform, maxPixels = MAX_PIXELS }: 
 
             case 0xc0: case 0xc1: case 0xc2: { // SOF baseline, extended, progressive
                 if (frame) throw new Error('JPEG: multiple frames are not supported');
+                if (end - start < 6) throw new Error('JPEG: truncated frame header');
                 if (data[start] !== 8) throw new Error(`JPEG: ${data[start]}-bit precision is not supported`);
                 checkPixels(u16(start + 3), u16(start + 1), maxPixels);
                 frame = createFrame(marker === 0xc2, u16(start + 1), u16(start + 3), data.subarray(start + 5, end));
@@ -257,7 +258,7 @@ function createFrame(progressive: boolean, height: number, width: number, compon
     }
 
     if (!width || !sampling.length) throw new Error('JPEG: invalid dimensions');
-    // (grey, YCbCr/RGB and CMYK have up to 4)
+    // (gray, YCbCr/RGB and CMYK have up to 4)
     if (sampling.length > 4) throw new Error(`JPEG: ${sampling.length} components are not supported`);
 
     const hmax = Math.max(...sampling.map(c => c.h));
@@ -709,7 +710,7 @@ function idct(coefficients: Int16Array, offset: number, quantization: Int32Array
 // runs the IDCT over every block, producing the component's sample plane
 function buildPlane(component: Component): { plane: Uint8Array, stride: number } {
     const stride = component.blocksPerLineForMcu * 8;
-    // sequential: already rendered, the rows no scan reached are mid grey (what blocks without coefficients render to)
+    // sequential: already rendered, the rows no scan reached are mid gray (what blocks without coefficients render to)
     if (component.plane && component.done) {
         const { plane, done } = component;
         for (let row = 0; row < component.blocksPerColumn; row++)
@@ -718,7 +719,7 @@ function buildPlane(component: Component): { plane: Uint8Array, stride: number }
     }
     const plane = new Uint8Array(stride * component.blocksPerColumnForMcu * 8);
     const workspace = new Int32Array(64);
-    // components without any scan data decode to mid grey
+    // components without any scan data decode to mid gray
     const quantization = component.quantization || new Int32Array(64);
 
     for (let row = 0; row < component.blocksPerColumn; row++)
@@ -834,7 +835,7 @@ function output(frame: Frame, adobe: { transform: number } | null, jfif: boolean
     const count = components.length;
 
     let transform: Transform;
-    if (count === 1) transform = 'grey';
+    if (count === 1) transform = 'gray';
     else if (override && (count === 4) === (override === 'cmyk')) transform = override;
     else if (count === 3) {
         if (adobe) transform = adobe.transform === 0 ? 'rgb' : 'ycc';
@@ -846,15 +847,15 @@ function output(frame: Frame, adobe: { transform: number } | null, jfif: boolean
     const [p0, p1, p2, p3] = planes;
 
     // one loop per transform: deciding per pixel costs more than the conversion
-    if (transform === 'grey' || transform === 'rgb' || transform === 'ycc') {
+    if (transform === 'gray' || transform === 'rgb' || transform === 'ycc') {
         const s0 = p0.samples, s1 = (p1 ?? p0).samples, s2 = (p2 ?? p0).samples;
-        const grey = transform === 'grey', ycc = transform === 'ycc';
+        const gray = transform === 'gray', ycc = transform === 'ycc';
         // (YCbCr a pixel at a time as a 32-bit word, little endian)
         const words = littleEndian ? new Uint32Array(pixels.buffer) : null;
         for (let y = 0, o = 0; y < height; y++, o = y * width * 4) {
             for (const p of planes) p.fill?.(y);
             const r0 = y * p0.stride, r1 = p1 ? y * p1.stride : r0, r2 = p2 ? y * p2.stride : r0;
-            if (grey) for (let x = 0; x < width; x++, o += 4) {
+            if (gray) for (let x = 0; x < width; x++, o += 4) {
                 pixels[o] = pixels[o + 1] = pixels[o + 2] = s0[r0 + x];
                 pixels[o + 3] = 0xff;
             } else if (ycc && words) for (let x = 0, w = o >> 2; x < width; x++, w++) {
@@ -989,13 +990,15 @@ export interface EncodeMetadata {
     comment?: Uint8Array;
     /** whole marker segments written after these (e.g. a gain map's XMP, ISO 21496-1 and MPF segments) */
     segments?: Uint8Array[];
-    /** a greyscale JPEG (one component, the luma of the pixels) */
-    grey?: boolean;
+    /** a grayscale JPEG (one component, the luma of the pixels) */
+    gray?: boolean;
     /** whether to keep the chroma at full resolution at any quality (else only above 90) */
     fullChroma?: boolean;
+    /** the chroma subsampling, overriding the default by quality (4:2:0 up to 90, 4:4:4 above) */
+    subsampling?: '4:4:4' | '4:2:0';
 }
 
-export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment, segments, grey = false, fullChroma = false }: EncodeMetadata = {}): Uint8Array {
+export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment, segments, gray = false, fullChroma = false, subsampling }: EncodeMetadata = {}): Uint8Array<ArrayBuffer> {
     if (!width || !height || width > 0xffff || height > 0xffff) throw new RangeError('JPEG: invalid dimensions');
 
     quality = Math.min(100, Math.max(1, Math.round(quality)));
@@ -1006,8 +1009,8 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
 
     // like libjpeg-turbo (cjpeg -optimize, -sample 1x1 above 90), byte for byte: its color conversion, downsampling,
     // integer DCT, quantization and padding
-    // (greyscale: like cjpeg -grayscale, one component, no subsampling)
-    const subsample = quality <= 90 && !grey && !fullChroma;
+    // (grayscale: like cjpeg -grayscale, one component, no subsampling)
+    const subsample = !gray && !fullChroma && (subsampling ? subsampling === '4:2:0' : quality <= 90);
     const hmax = subsample ? 2 : 1;
     const mcuSize = 8 * hmax;
     const mcusPerLine = Math.ceil(width / mcuSize);
@@ -1069,13 +1072,13 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
         { plane: Cb, stride: CW, h: 1, v: 1, blocksX: chromaBlocksX, blocksY: chromaBlocksY, table: 1 },
         { plane: Cr, stride: CW, h: 1, v: 1, blocksX: chromaBlocksX, blocksY: chromaBlocksY, table: 1 }
     ];
-    const componentCount = grey ? 1 : 3;
+    const componentCount = gray ? 1 : 3;
 
     // quantized blocks in MCU order (Y blocks, then Cb, then Cr), their coefficients in zigzag order, with the index
     // of each block's last nonzero coefficient. MCUs reaching past a component's blocks get dummy blocks (jccoefct.c):
     // without AC coefficients, with the DC coefficient of the block before (below the image: of the MCU's block
     // before the row)
-    const blocksPerMcu = grey ? 1 : hmax * hmax + 2;
+    const blocksPerMcu = gray ? 1 : hmax * hmax + 2;
     const count = mcusPerLine * mcusPerColumn * blocksPerMcu;
     const coefficients = new Int16Array(count * 64);
     const owners = new Uint8Array(count), ends = new Uint8Array(count);
@@ -1123,7 +1126,7 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
     const frequencies = [new Int32Array(257), new Int32Array(257), new Int32Array(257), new Int32Array(257)];
     countSymbols(blocks, frequencies);
 
-    const huffman = frequencies.slice(0, grey ? 2 : 4).map(buildOptimalTable);
+    const huffman = frequencies.slice(0, gray ? 2 : 4).map(buildOptimalTable);
     const writer = new BitWriter(width * height);
 
     writer.bytes(0xff, 0xd8);
@@ -1140,20 +1143,20 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
     if (segments) for (const bytes of segments) for (let i = 0; i < bytes.length; i++) writer.bytes(bytes[i]);
 
     // DQT, a segment per table like libjpeg
-    for (let t = 0; t < (grey ? 1 : 2); t++) {
+    for (let t = 0; t < (gray ? 1 : 2); t++) {
         writer.bytes(0xff, 0xdb, 0x00, 0x43, t);
         for (let k = 0; k < 64; k++) writer.bytes(tables[t][ZIGZAG[k]]);
     }
 
     // SOF0
-    if (grey) writer.bytes(0xff, 0xc0, 0x00, 0x0b, 0x08, height >> 8, height & 0xff, width >> 8, width & 0xff, 0x01, 1, 0x11, 0);
+    if (gray) writer.bytes(0xff, 0xc0, 0x00, 0x0b, 0x08, height >> 8, height & 0xff, width >> 8, width & 0xff, 0x01, 1, 0x11, 0);
     else {
         writer.bytes(0xff, 0xc0, 0x00, 0x11, 0x08, height >> 8, height & 0xff, width >> 8, width & 0xff, 0x03);
         writer.bytes(1, hmax << 4 | hmax, 0, 2, 0x11, 1, 3, 0x11, 1);
     }
 
     // DHT: luma DC, luma AC, chroma DC, chroma AC
-    for (const [index, id] of ([[0, 0x00], [1, 0x10], [2, 0x01], [3, 0x11]] as Array<[number, number]>).slice(0, grey ? 2 : 4)) {
+    for (const [index, id] of ([[0, 0x00], [1, 0x10], [2, 0x01], [3, 0x11]] as Array<[number, number]>).slice(0, gray ? 2 : 4)) {
         const { bits, values } = huffman[index];
         const length = 19 + values.length;
         writer.bytes(0xff, 0xc4, length >> 8, length & 0xff, id);
@@ -1162,7 +1165,7 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
     }
 
     // SOS
-    if (grey) writer.bytes(0xff, 0xda, 0x00, 0x08, 0x01, 1, 0x00, 0x00, 0x3f, 0x00);
+    if (gray) writer.bytes(0xff, 0xda, 0x00, 0x08, 0x01, 1, 0x00, 0x00, 0x3f, 0x00);
     else writer.bytes(0xff, 0xda, 0x00, 0x0c, 0x03, 1, 0x00, 2, 0x11, 3, 0x11, 0x00, 0x3f, 0x00);
 
     writeBlocks(blocks, huffman, writer);

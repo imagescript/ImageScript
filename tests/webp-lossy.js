@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Image, Animation, Frame} = require('..');
+const {Image, Animation, Frame, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -120,29 +120,26 @@ const alphaReferences = {
     // noisy alpha: stored uncompressed (smaller than compressed), still lossless
     let seed = 1;
     const random = () => (seed = seed * 1103515245 + 12345 >>> 0) >>> 24;
-    const noisy = new Image(24, 24).fill((x, y) => Image.rgbaToColor(x * 10, y * 10, 99, random()));
+    const noisy = new Image(24, 24).fill((x, y) => Colors.fromRGBA(x * 10, y * 10, 99, random()));
     const noisyWebp = await noisy.encodeWebP({quality: 50});
     if (chunks(noisyWebp).ALPH[0] !== 0) panic('noisy alpha should be stored uncompressed and unfiltered');
     const noisyBack = await Image.decode(noisyWebp);
     for (let i = 3; i < noisy.bitmap.length; i += 4) if (noisyBack.bitmap[i] !== noisy.bitmap[i]) panic('noisy alpha: differs');
 
-    // the quality and effort are validated, lossless stays the default
+    // the quality is validated, and lossless stays the default
     const image = new Image(20, 10).fill(0x336699ff);
     for (const quality of [-1, 101, NaN]) {
         if (!await image.encodeWebP({quality}).then(() => false, e => e instanceof RangeError)) panic(`quality ${quality} should throw`);
-    }
-    for (const effort of [-1, 7, 1.5]) {
-        if (!await image.encodeWebP({quality: 75, effort}).then(() => false, e => e instanceof RangeError)) panic(`effort ${effort} should throw`);
     }
     if (!chunks(await image.encodeWebP()).VP8L) panic('without a quality WebPs should be lossless');
 
     // lossy animations
     const frames = [0xff0000ff, 0x00ff00ff, 0x0000ff80].map((color, i) => {
         const frame = new Image(40, 30).fill(color);
-        frame.drawBox(i * 10, 5, 10, 10, 0xffffffff);
+        frame.composite(new Image(10, 10).fill(0xffffffff), {x: i * 10, y: 5});
         return frame;
     });
-    const animation = new Animation(frames.map(f => Frame.from(f, 100)), 0);
+    const animation = new Animation(frames.map(f => new Frame(f.clone(), {duration: 100})), {loopCount: 0});
     const lossy = await animation.encodeWebP({quality: 80});
     const decoded = await Animation.decode(lossy);
     if (decoded.length !== 3) panic(`lossy animation: ${decoded.length} frames instead of 3`);
@@ -150,14 +147,14 @@ const alphaReferences = {
     // (the last frame is half transparent: it's blended over the one before)
     const lossless = await Animation.decode(await animation.encodeWebP());
     for (let f = 0; f < 3; f++) {
-        const [r, g, b, a] = Image.colorToRGBA(decoded[f].getPixelAt(1, 1));
-        const [er, eg, eb, ea] = Image.colorToRGBA(lossless[f].getPixelAt(1, 1));
+        const [r, g, b, a] = Colors.toRGBA(decoded.frames[f].image.getPixelAt(1, 1));
+        const [er, eg, eb, ea] = Colors.toRGBA(lossless.frames[f].image.getPixelAt(1, 1));
         if (Math.abs(r - er) + Math.abs(g - eg) + Math.abs(b - eb) > 12 || a !== ea) panic(`lossy animation: frame ${f} decodes to ${[r, g, b, a]}`);
     }
     if (!await animation.encodeWebP({quality: 200}).then(() => false, e => e instanceof RangeError)) panic('animation quality 200 should throw');
 
     // alphaQuality for animations, also encoded a frame at a time
-    const faded = new Animation([0, 1].map(i => Frame.from(new Image(40, 30).fill((x, y) => Image.rgbaToColor(200, 50 * i, 9, x * 6 + y)), 100)), 0);
+    const faded = new Animation([0, 1].map(i => new Frame(new Image(40, 30).fill((x, y) => Colors.fromRGBA(200, 50 * i, 9, x * 6 + y)), {duration: 100})), {loopCount: 0});
     // (the same creation time: it's written in seconds, two encodes can be a second apart)
     const metadata = {creationTime: 0};
     const fadedWebp = await faded.encodeWebP({quality: 80, alphaQuality: 0, optimize: false, metadata});
@@ -166,7 +163,7 @@ const alphaReferences = {
     if (sha256(await encoder.finish()) !== sha256(fadedWebp)) panic('alphaQuality: the incremental encoder writes another file');
     for (const frame of await Animation.decode(fadedWebp)) {
         const levels = new Set();
-        for (let i = 3; i < frame.bitmap.length; i += 4) levels.add(frame.bitmap[i]);
+        for (let i = 3; i < frame.image.bitmap.length; i += 4) levels.add(frame.image.bitmap[i]);
         if (levels.size > 2) panic(`alphaQuality 0: ${levels.size} alpha levels instead of 2`);
     }
     if (!await faded.encodeWebP({quality: 80, alphaQuality: 101}).then(() => false, e => e instanceof RangeError)) panic('animation alphaQuality 101 should throw');

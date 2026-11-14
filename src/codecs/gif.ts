@@ -1,4 +1,5 @@
 import { ByteWriter } from '../util/bytes.ts';
+import type { DitherMethod } from '../image.ts';
 import { quantize } from './quantize.ts';
 import { MAX_PIXELS, PixelBudget, checkPixels } from '../util/limits.ts';
 
@@ -8,6 +9,7 @@ const DISPOSAL_FROM_GIF = [0, 1, 3, 2, 0, 0, 0, 0];
 
 const MAX_CODE = 4095;
 const UNEXPECTED_END = new Error('GIF: unexpected end of data');
+const EMPTY = new Uint8Array(0);
 
 export interface GIFFrame {
     x: number;
@@ -25,7 +27,7 @@ export interface GIFFrame {
 export interface GIFData {
     width: number;
     height: number;
-    /** -1 loops forever, 0 plays once, n repeats n times */
+    /** Infinity loops forever, 0 plays once, n repeats n times */
     loopCount: number;
     frames: GIFFrame[];
 }
@@ -51,6 +53,7 @@ export interface DecodedGIF {
     width: number;
     height: number;
     loopCount: number;
+    hasLoopExtension: boolean;
     frames: DecodedGIFFrame[];
 }
 
@@ -60,22 +63,24 @@ interface GraphicControl {
     transparentIndex: number;
 }
 
+/** The palette of every frame: its size (at most 256 colors, the transparent one included) and the dithering */
+export interface GIFPalette {
+    colors: number;
+    dither: DitherMethod;
+    strength: number;
+}
+
 /**
- * Encodes frames into a GIF
- * @param {{width: number, height: number, loopCount?: number, frames: GIFFrame[]}} gif loopCount -1 loops forever, 0 plays once, n repeats n times
- * @param {number} [quality=95] 1-100, scales the palette size (1 = 8 colors, 50 = 55, 90 and above = 256)
- * @return {Uint8Array}
+ * Encodes frames into a GIF. `loopCount`: Infinity loops forever, 0 plays once (no loop extension), n repeats n times;
+ * `comments` are written as comment extensions
  */
-/**
- * @param comments written as comment extensions
- */
-export function encode({ width, height, loopCount = -1, frames }: Omit<GIFData, 'loopCount'> & { loopCount?: number }, quality = 95, comments: Uint8Array[] = []): Uint8Array {
+export function encode({ width, height, loopCount = Infinity, frames }: Omit<GIFData, 'loopCount'> & { loopCount?: number }, palette: GIFPalette, comments: Uint8Array[] = []): Uint8Array<ArrayBuffer> {
     // frames that restore the background have a transparent index: decoders like Pillow and ffmpeg restore to it
     // (browsers to transparent), otherwise to the background color. So does the first frame then: Pillow decides by it
     // whether the animation has transparency at all
     const restores = frames.some(frame => frame.dispose === 3);
     const parts = [header(width, height, loopCount, comments)];
-    for (const [i, frame] of frames.entries()) parts.push(encodeFrame(frame, quality, frame.dispose === 3 || (i === 0 && restores)));
+    for (const [i, frame] of frames.entries()) parts.push(encodeFrame(frame, palette, frame.dispose === 3 || (i === 0 && restores)));
     parts.push(new Uint8Array([0x3b]));
     const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
     let offset = 0;
@@ -99,7 +104,7 @@ export function header(width: number, height: number, loopCount: number, comment
         out.bytes(0x21, 0xff, 0x0b);
         out.string('NETSCAPE2.0');
         out.bytes(0x03, 0x01);
-        out.u16(loopCount === -1 || loopCount === Infinity ? 0 : loopCount);
+        out.u16(loopCount === Infinity ? 0 : loopCount);
         out.bytes(0x00);
     }
 
@@ -111,9 +116,9 @@ export function header(width: number, height: number, loopCount: number, comment
 }
 
 /** A frame (its graphic control extension, image descriptor, color table and pixels), with a transparent index if asked */
-export function encodeFrame(frame: GIFFrame, quality: number, transparent: boolean): Uint8Array {
+export function encodeFrame(frame: GIFFrame, colors: GIFPalette, transparent: boolean): Uint8Array {
     const out = new GIFWriter();
-    const { palette, indices, transparentIndex } = quantize(frame.pixels, frame.width, { quality, transparent });
+    const { palette, indices, transparentIndex } = quantize(frame.pixels, frame.width, { maxColors: colors.colors, dither: colors.dither, ditherStrength: colors.strength, transparent });
     const entries = palette.length / 3;
     const bits = Math.max(1, Math.ceil(Math.log2(entries)));
 
@@ -219,10 +224,10 @@ function writeSubBlocks(out: GIFWriter, data: Uint8Array): void {
 /**
  * Decodes a GIF into its individual (uncomposited) frames, zero-sized images are skipped
  * @param {Uint8Array} data
- * @param {boolean} [onlyFirstFrame=false]
+ * @param {boolean} [firstFrameOnly=false]
  * @return {{width: number, height: number, loopCount: number, frames: GIFFrame[]}}
  */
-export function decode(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX_PIXELS): DecodedGIF {
+export function decode(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX_PIXELS): DecodedGIF {
     const reader = new ByteReader(data);
 
     const signature = reader.string(6);
@@ -237,6 +242,7 @@ export function decode(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX
 
     const frames: DecodedGIFFrame[] = [];
     let loopCount = 0;
+    let hasLoopExtension = false;
     let control: GraphicControl | null = null;
     // the frames' color indices, and later a canvas per frame
     const budget = new PixelBudget(maxPixels);
@@ -244,18 +250,18 @@ export function decode(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX
     try {
         parse();
     } catch (err) {
-        // truncated files keep every frame decoded so far, like browsers do
-        if (err !== UNEXPECTED_END) throw err;
+        // truncated files keep every frame decoded so far, like browsers do; one without a whole frame has no image
+        if (err !== UNEXPECTED_END || !frames.length) throw err;
     }
 
     checkPixels(width, height, maxPixels, Math.max(1, frames.length));
-    return { width, height, loopCount, frames };
+    return { width, height, loopCount, hasLoopExtension, frames };
 
     function parse(): void {
         while (reader.offset < data.length) {
             const block = reader.u8();
 
-            if (block === 0x3b) break; // trailer
+            if (block === 0x3b) return; // trailer
 
             if (block === 0x21) {
                 const label = reader.u8();
@@ -275,12 +281,13 @@ export function decode(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX
                     const id = reader.string(size);
 
                     if (id === 'NETSCAPE2.0' || id === 'ANIMEXTS1.0') {
+                        hasLoopExtension = true;
                         // sub-block 1 holds the loop count
                         for (let length; (length = reader.u8());) {
                             const sub = reader.slice(length);
                             if (sub[0] === 1 && length >= 3) {
                                 const count = sub[1] | sub[2] << 8;
-                                loopCount = count === 0 ? -1 : count;
+                                loopCount = count === 0 ? Infinity : count;
                             }
                         }
                     } else skipSubBlocks(reader);
@@ -291,7 +298,7 @@ export function decode(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX
 
             if (block !== 0x2c) {
                 // unknown block, stop gracefully with whatever frames were decoded
-                if (frames.length) break;
+                if (frames.length) return;
                 throw new Error(`GIF: unknown block type 0x${block.toString(16)}`);
             }
 
@@ -329,8 +336,10 @@ export function decode(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX
             }
 
             frames.push({ x, y, width: fw, height: fh, delay, dispose, indices: ordered, colors, transparentIndex });
-            if (onlyFirstFrame) break;
+            if (firstFrameOnly) return;
         }
+        // (no trailer: the data was cut off)
+        throw UNEXPECTED_END;
     }
 }
 
@@ -362,6 +371,8 @@ export function composite({ width, height, frames }: DecodedGIF): Array<{ pixels
         }
 
         output.push({ pixels: new Uint8Array(canvas.slice().buffer), delay: frame.delay });
+        // (its indices aren't needed anymore: let them go, so they don't add up with the composited frames)
+        frame.indices = EMPTY;
 
         if (frame.dispose === 3) {
             for (let y = y0; y < y1; y++) canvas.fill(0, y * width + x0, y * width + x1);
@@ -454,11 +465,19 @@ function readSubBlocks(reader: ByteReader): Uint8Array {
     const blocks = [];
     let total = 0;
 
-    for (let length; reader.offset < reader.data.length && (length = reader.u8());) {
+    // (the terminating zero length block: without it the data was cut off, and the image data is incomplete)
+    let terminated = false;
+    while (reader.offset < reader.data.length) {
+        const length = reader.u8();
+        if (!length) {
+            terminated = true;
+            break;
+        }
         const block = reader.slice(length);
         blocks.push(block);
         total += block.length;
     }
+    if (!terminated) throw UNEXPECTED_END;
 
     const out = new Uint8Array(total);
     let offset = 0;

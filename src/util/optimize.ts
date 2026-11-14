@@ -64,6 +64,11 @@ export interface OptimizeOptions {
      * scattered unchanged pixels costs more than leaving them as they are). Needs `replace`
      */
     tolerance?: number;
+    /**
+     * The longest duration a frame can have (ms): frames that don't change anything are merged into the one before
+     * up to it, longer runs become more frames
+     */
+    maxDuration?: number;
 }
 
 // what transparent pixels make an opaque frame cost: an alpha channel, 4 channels instead of 3 (or a palette entry
@@ -140,7 +145,8 @@ export class Optimizer {
         const { replace, even, alpha, palette, tolerance } = this.options;
         let changed = bounds(state, { x: 0, y: 0, width, height });
         if (!changed) {
-            if (this.last) this.last.duration += duration;
+            if (this.last && this.last.duration + duration <= (this.options.maxDuration ?? Infinity)) this.last.duration += duration;
+            else if (this.last) this.output(empty(duration));
             else {
                 this.output(empty(duration));
                 this.opaque = false;

@@ -10,7 +10,7 @@ import {
     SM_WEIGHTS, DR_INTRA_DERIVATIVE, FILTER_INTRA_TAPS
 } from './tables.ts';
 
-/** Flags or'd into the angle: filter the edges, the edges are smooth (a neighbour uses smooth prediction) */
+/** Flags or'd into the angle: filter the edges, the edges are smooth (a neighbor uses smooth prediction) */
 export const ANGLE_USE_EDGE_FILTER = 1024, ANGLE_SMOOTH_EDGE = 512;
 
 /** The edge buffer: the top left pixel at EDGE, the top (and top right) after it, the left (and bottom left) before */

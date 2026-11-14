@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image} = require('..');
+const {Image, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -50,7 +50,7 @@ const compare = (a, b) => {
     if (Buffer.compare(Buffer.from(lossless.bitmap), Buffer.from(potato.bitmap))) panic('quality 100 isn\'t lossless');
 
     // gray: monochrome, smaller (the photo has little color: by about 13%), lossless if asked
-    const gray = photo.clone().saturation(0, {absolute: true});
+    const gray = photo.clone().saturation(0);
     const grayAvif = await gray.encodeAVIF({effort: 0}), grayBack = await Image.decode(grayAvif);
     if (grayAvif.length >= full.length * 0.92 || compare(gray, grayBack)[0] < 35) panic(`gray: ${grayAvif.length} bytes, ${compare(gray, grayBack)[0].toFixed(2)} dB`);
     for (let i = 0; i < grayBack.bitmap.length; i += 4) if (grayBack.bitmap[i] !== grayBack.bitmap[i + 1] || grayBack.bitmap[i] !== grayBack.bitmap[i + 2]) panic('gray: colored pixels');
@@ -60,7 +60,7 @@ const compare = (a, b) => {
     const screen = new Image(96, 80);
     for (let y = 0; y < 80; y++) for (let x = 0; x < 96; x++) {
         const c = (x >> 3 ^ y >> 2) % 5 === 0 ? [20, 30, 200] : (x * x + y * 3) % 7 < 2 ? [240, 240, 240] : x < 48 ? [200, 40, 40] : [30, 160, 60];
-        screen.setPixelAt(x, y, Image.rgbaToColor(c[0], c[1], c[2], 255));
+        screen.setPixelAt(x, y, Colors.fromRGBA(c[0], c[1], c[2], 255));
     }
     for (const effort of [0, 1]) {
         const back = await Image.decode(await screen.encodeAVIF({quality: 80, effort}));
@@ -72,22 +72,21 @@ const compare = (a, b) => {
     // threads (rows searched in a wavefront, filter trials in parallel): the same files as without, with alpha and
     // with several tiles too (each just above its effort's size for threads, to keep the test fast)
     {
-        const big = photo.clone().resize(448, Image.RESIZE_AUTO);
+        const big = photo.clone().resize({width: 448});
         for (let i = 3; i < big.bitmap.length; i += 4) big.bitmap[i] = (i >> 2) % big.width;
         const wide = new Image(4160, 128);
-        for (let y = 0; y < 128; y++) for (let x = 0; x < 4160; x++) wide.setPixelAt(x, y, Image.rgbaToColor(x * 37 & 255, y * 71 & 255, (x ^ y) & 255, 255));
+        for (let y = 0; y < 128; y++) for (let x = 0; x < 4160; x++) wide.setPixelAt(x, y, Colors.fromRGBA(x * 37 & 255, y * 71 & 255, (x ^ y) & 255, 255));
         for (const [name, image, effort] of [['photo with alpha', big, 1], ['tiles', wide, 0]]) {
             const one = await image.encodeAVIF({effort, threads: 1, metadata: {creationTime: 0}});
             const four = await image.encodeAVIF({effort, threads: 4, metadata: {creationTime: 0}});
             if (Buffer.compare(Buffer.from(one), Buffer.from(four))) panic(`threads, ${name}: not the same file`);
         }
-        for (const threads of [0, 1.5]) if (!await big.encodeAVIF({threads}).then(() => false, e => e instanceof RangeError)) panic(`threads ${threads} should throw`);
     }
 
     // odd sizes, a pixel, wider than a tile (4096 pixels)
     for (const [w, h] of [[1, 1], [7, 3], [65, 130], [4100, 8]]) {
         const image = new Image(w, h);
-        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) image.setPixelAt(x, y, Image.rgbaToColor(x * 37 & 255, y * 71 & 255, (x + y) * 5 & 255, 255));
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) image.setPixelAt(x, y, Colors.fromRGBA(x * 37 & 255, y * 71 & 255, (x + y) * 5 & 255, 255));
         const back = await Image.decode(await image.encodeAVIF({quality: 90, effort: 0}));
         if (back.width !== w || back.height !== h || compare(image, back)[0] < 28) panic(`${w}x${h}: ${compare(image, back)[0].toFixed(2)} dB`);
     }

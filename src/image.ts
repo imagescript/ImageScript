@@ -15,9 +15,6 @@ import { availableThreads } from './util/threads.ts';
 
 // (worker threads: the processors available, at most 8)
 const defaultThreads = (): number => Math.max(1, Math.min(availableThreads(), 8));
-const checkThreads = (threads: number): void => {
-    if (!Number.isInteger(threads) || threads < 1) throw new RangeError(`threads must be a positive integer, not ${threads}`);
-};
 import * as jxl from './codecs/jxl.ts';
 import type { ToneMapping } from './codecs/hdr.ts';
 import * as quantize from './codecs/quantize.ts';
@@ -26,19 +23,19 @@ import * as svgRenderer from './render/svg.ts';
 import { BinaryData, view } from './util/mem.ts';
 import { cicpTransform, colorSpaceTransform, profileTransform } from './util/icc.ts';
 import { ImageType } from './image-type.ts';
-import { TextLayout, TextLayoutOptions } from './text-layout.ts';
-import { Metadata, resolveMetadata, pngText, exifData } from './metadata.ts';
+import { textLayout, TextLayoutOptions } from './text-layout.ts';
+import { Metadata, resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
-import { rotateBilinear } from './util/rotate.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
-import { Colors, wrapHue, hue2rgb, rgbaToHSLA } from './colors.ts';
-import { isOptions, finite, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
-import { MAX_PIXELS, decoding } from './util/limits.ts';
+import { Colors, wrapHue, hue2rgb } from './colors.ts';
+import { isOptions, checkOptions, finite, nonNegative, positive, unitInterval, oneOf, pixelLimit, checkThreads, gainMapScale, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
 import { multiply, invert } from './util/matrix.ts';
 import { sampleAffine } from './util/affine.ts';
+import { rotateBilinear } from './util/rotate.ts';
 import * as gainMapCodec from './codecs/gainmap.ts';
 
 /** A color as a 32-bit RGBA integer (`0xRRGGBBAA`) */
@@ -48,68 +45,16 @@ export type Color = number;
 export type ColorFunction = (x: number, y: number) => Color;
 
 /**
- * Resampling filters for {@link Image.resize} and the other scaling functions, see {@link ResizeModes}.
- * The upper case names (`'RESIZE_BILINEAR'`, the values of the deprecated `Image.RESIZE_*`) still work, they are
- * removed in 4.0
+ * The resampling filters of {@link Image.resize} and the other scaling functions (`image.resize({ width: 256, mode:
+ * 'bicubic' })`):
+ * - `'nearest-neighbor'`: each output pixel takes the nearest source pixel (hard pixels, for pixel art)
+ * - `'bilinear'` (the default): when shrinking, the filter widens with the scale factor, so every source pixel
+ *   contributes
+ * - `'bicubic'`: Catmull-Rom, sharper than bilinear, especially when enlarging
+ * - `'area'`: area averaging (box filter), every output pixel is the average of the source pixels it covers. Meant for
+ *   shrinking
  */
-export type ResizeMode = 'nearest-neighbor' | 'bilinear' | 'bicubic' | 'area'
-    | 'RESIZE_NEAREST_NEIGHBOR' | 'RESIZE_BILINEAR' | 'RESIZE_BICUBIC' | 'RESIZE_AREA';
-
-/**
- * How {@link Image.renderSVG} scales, see {@link SVGScaleModes}. The numbers 1-3 (the values of the deprecated
- * `Image.SVG_MODE_*`) still work, they are removed in 4.0
- */
-export type SVGScaleMode = 'scale' | 'width' | 'height' | 1 | 2 | 3;
-
-/**
- * The resampling filters of {@link Image.resize} and the other scaling functions:
- * `image.resize({ width: 256, mode: ResizeModes.BICUBIC })`
- */
-export class ResizeModes {
-    /**
-     * Use {@link https://en.wikipedia.org/wiki/Image_scaling#Nearest-neighbor_interpolation Nearest-neighbor} resizing
-     */
-    static readonly NEAREST_NEIGHBOR = 'nearest-neighbor';
-
-    /**
-     * Bilinear resizing (the default). When shrinking, the filter widens with the scale factor, so every source pixel
-     * contributes
-     */
-    static readonly BILINEAR = 'bilinear';
-
-    /** Bicubic (Catmull-Rom) resizing, sharper than bilinear, especially when enlarging */
-    static readonly BICUBIC = 'bicubic';
-
-    /**
-     * Area averaging (box filter): every output pixel is the average of the source pixels it covers. Meant for
-     * shrinking
-     */
-    static readonly AREA = 'area';
-
-    /**
-     * Not a filter: passed as the width or the height, that side follows from the other one, keeping the image's
-     * aspect ratio
-     * @deprecated Pass only the width or the height instead, `image.resize({ width: 256 })`. `AUTO` is removed in 4.0
-     * @group Deprecated
-     */
-    static readonly AUTO = -1;
-
-    private constructor() {}
-}
-
-/** How {@link Image.renderSVG} scales the SVG to the given size */
-export class SVGScaleModes {
-    /** The size is a factor of the SVG's own size */
-    static readonly SCALE = 'scale';
-
-    /** The size is the width in pixels, the height follows the SVG's aspect ratio */
-    static readonly WIDTH = 'width';
-
-    /** The size is the height in pixels, the width follows the SVG's aspect ratio */
-    static readonly HEIGHT = 'height';
-
-    private constructor() {}
-}
+export type ResizeMode = 'nearest-neighbor' | 'bilinear' | 'bicubic' | 'area';
 
 /** Blend modes of {@link Image.composite}, named like CSS' mix-blend-mode values */
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn'
@@ -117,154 +62,248 @@ export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' 
 
 /** Options of {@link Image.composite} */
 export interface CompositeOptions {
-    /** The x position to place the source at, if the options are the second argument. Default: `0` */
+    /**
+     * The x position to place the source at
+     * @defaultValue `0`
+     */
     x?: number;
-    /** The y position to place the source at, if the options are the second argument. Default: `0` */
+    /**
+     * The y position to place the source at
+     * @defaultValue `0`
+     */
     y?: number;
-    /** Opacity of the source (0..1). Default: `1` */
+    /**
+     * Opacity of the source (0..1)
+     * @defaultValue `1`
+     */
     opacity?: number;
-    /** How the colors are mixed. Default: `'normal'` */
+    /**
+     * How the colors are mixed
+     * @defaultValue `'normal'`
+     */
     mode?: BlendMode;
 }
+
+/** How {@link Image.resize}, {@link Frame.resize} and {@link Animation.resize} fit an image into a box */
+export type ResizeFit = 'fill' | 'inside' | 'contain' | 'cover';
 
 /**
  * The size for {@link Image.resize}, {@link Frame.resize} and {@link Animation.resize}, and how to resize: a side
  * that is missing follows from the other one, keeping the aspect ratio
  */
-export interface ResizeToOptions extends ResizeOptions {
-    /** The new width. Without it, it follows from the height */
-    width?: number;
-    /** The new height. Without it, it follows from the width */
-    height?: number;
-}
+export type ResizeToOptions = ResizeOptions & (
+    | {
+        /** The new width. Without it, it follows from the height */
+        width?: number;
+        /** The new height. Without it, it follows from the width */
+        height?: number;
+        /**
+         * `'fill'` stretches to the exact size; `'inside'` keeps the aspect ratio and makes the image as large as fits
+         * inside it, so one side can be smaller
+         * @defaultValue `'fill'`
+         */
+        fit?: 'fill' | 'inside';
+        /** Only with `fit: 'contain'` */
+        background?: never;
+    }
+    | {
+        /** The exact width of the box */
+        width: number;
+        /** The exact height of the box */
+        height: number;
+        /** Keeps the aspect ratio and pads to the exact box */
+        fit: 'contain';
+        /**
+         * For `'contain'`, the color of the bars
+         * @defaultValue `0x00000000` (transparent)
+         */
+        background?: Color;
+    }
+    | {
+        /** The exact width of the box */
+        width: number;
+        /** The exact height of the box */
+        height: number;
+        /** Keeps the aspect ratio and crops to the exact box */
+        fit: 'cover';
+        /** Only with `fit: 'contain'` */
+        background?: never;
+    }
+);
 
-/** Options of {@link Image.scale}, {@link Image.resize}, {@link Image.contain}, {@link Image.fit} and {@link Image.cover} */
+type ResizeRuntimeOptions = ResizeOptions & { background?: Color };
+
+/** Options of {@link Image.scale} and {@link Image.resize} */
 export interface ResizeOptions {
-    /** The resizing mode. Default: {@link ResizeModes.BILINEAR} */
+    /**
+     * The resizing mode
+     * @defaultValue `'bilinear'`
+     */
     mode?: ResizeMode;
-    /**
-     * Whether to round to 8 bits between the two passes, so two channels share the multiplications of both: about
-     * 15-25% faster for opaque images, with 10-25% of the channel values a step off the precise result (instead of
-     * about 1%, never more than 1). Transparent images are premultiplied to 8 bits like browsers do, which makes them
-     * about twice as fast: what shows once they're composited differs by up to about 2 steps, pixels that are almost
-     * transparent keep less of their color. Only affects {@link ResizeModes.BILINEAR} and {@link ResizeModes.AREA},
-     * down to about a third of the size. Default: `true`
-     */
-    fast?: boolean;
-}
-
-/**
- * Options of {@link Image.opacity}, {@link Image.red}, {@link Image.green}, {@link Image.blue}, {@link Image.lightness}
- * and {@link Image.saturation}
- */
-export interface AdjustOptions {
-    /**
-     * Whether to set the value (true) or scale the current one (false). Default: `false`
-     * @deprecated Removed in 4.0: scale with a factor, or use {@link Image.recolor} for a fixed color
-     */
-    absolute?: boolean;
 }
 
 /** Options of {@link Image.sharpen} */
 export interface SharpenOptions {
-    /** How strongly to sharpen (0 does nothing). Default: `1` */
+    /**
+     * How strongly to sharpen (0 does nothing)
+     * @defaultValue `1`
+     */
     amount?: number;
-    /** The radius of the blur the image is compared with (larger values sharpen coarser details). Default: `1` */
+    /**
+     * The radius of the blur the image is compared with (larger values sharpen coarser details)
+     * @defaultValue `1`
+     */
     radius?: number;
 }
 
-// the dithering methods of Image.quantize()
-const DITHER_METHODS = ['none', 'floyd-steinberg', 'atkinson', 'ordered'] as const;
+/**
+ * How to reduce visible banding when an image is limited to a smaller set of colors ({@link Image.quantize},
+ * {@link Image.encodeGIF}): `'none'` uses the nearest color; `'floyd-steinberg'` and `'atkinson'` spread small color
+ * errors to nearby pixels; `'ordered'` uses a repeating pattern. Atkinson tends to give a higher-contrast result.
+ */
+export type DitherMethod = 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered';
 
-/** Options of {@link Image.quantize}: either `colors` or `palette`, and the dithering */
-export interface QuantizeOptions {
+/** How colors are dithered when they are reduced to a palette: options of {@link Image.quantize} and the GIF encoders */
+export interface DitherOptions {
     /**
-     * The number of colors to reduce the image to, an integer from 2 to 256. The palette is the image's own colors when
-     * it has no more distinct ones than this, else colors chosen by median cut (the common colors get their own). Those
-     * are averages of groups of similar colors, so e.g. pure black and white are only in it if the image has them in
-     * quantity: give `palette` for exact colors. Default: `256`. Give `colors` or `palette`, not both
+     * How to spread small color changes across nearby pixels to make gradients look smoother with few colors, see
+     * {@link DitherMethod}
+     * @defaultValue `'floyd-steinberg'`
      */
-    colors?: number;
+    dither?: DitherMethod;
     /**
-     * A fixed palette (1 to 256 colors, e.g. a Game Boy's four greens) that every pixel is mapped to, the nearest color
-     * by its RGB. The alpha of the palette's colors is ignored. Give `palette` or `colors`, not both
-     */
-    palette?: Color[];
-    /**
-     * How the rounding error of each pixel is handled, which makes gradients look smooth with few colors:
-     * `'none'` (each pixel takes its nearest color), `'floyd-steinberg'` (the error goes to the next pixels, 7/16, 3/16,
-     * 5/16 and 1/16), `'atkinson'` (the error goes to six neighbours, 1/8 each: lighter, more contrast), `'ordered'` (a
-     * regular 4x4 pattern of thresholds, no error spreading). Rows alternate direction for the error diffusions.
-     * Default: `'none'`
-     */
-    dither?: 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered';
-    /**
-     * How strongly to dither, from `0` (no spreading or threshold, the same as `'none'`) to `1` (the full error or
-     * threshold). Default: `1`
+     * How strongly to apply dithering: `0` disables it (like `'none'`); `1` applies it fully
+     * @defaultValue `0.85`
      */
     ditherStrength?: number;
 }
 
-/** How {@link Image.transform} samples the pixels between the source's */
+/**
+ * Options of {@link Image.quantize}: either `colors` or `palette` (TypeScript reports a call with both), and the
+ * dithering
+ */
+export type QuantizeOptions = DitherOptions & ({
+    /**
+     * The maximum number of colors to keep (2-256). Images with fewer distinct colors keep them exactly; otherwise
+     * ImageScript chooses a smaller set of representative colors. Give `palette` instead to choose exact colors.
+     * @defaultValue `256`
+     */
+    colors?: number;
+    /** Not with `colors`: give one of them */
+    palette?: never;
+} | {
+    /**
+     * A fixed palette (1-256 colors, e.g. a Game Boy's four greens). Every pixel is changed to the nearest palette
+     * color by its red, green and blue values; transparency in palette colors is ignored
+     */
+    palette: Color[];
+    /** Not with `palette`: give one of them */
+    colors?: never;
+});
+
+/** The directions of {@link Image.flip} and {@link Animation.flip}: `'horizontal'` mirrors left and right, `'vertical'` top and bottom */
+export type FlipDirection = 'horizontal' | 'vertical';
+
+/** How {@link Image.transform} and {@link Image.rotate} sample the pixels between the source's */
 export type TransformMode = 'nearest-neighbor' | 'bilinear' | 'bicubic';
 
+/** The six values `[a, b, c, d, e, f]` of an affine transform */
+export type AffineTransform = readonly [a: number, b: number, c: number, d: number, e: number, f: number];
+
 // the sampling modes of Image.transform()
-const TRANSFORM_MODES: readonly string[] = ['nearest-neighbor', 'bilinear', 'bicubic'];
+const TRANSFORM_MODES: readonly TransformMode[] = ['nearest-neighbor', 'bilinear', 'bicubic'];
+const RESIZE_FITS: readonly ResizeFit[] = ['fill', 'inside', 'contain', 'cover'];
+const CIRCLE_FITS: readonly NonNullable<CropCircleOptions['fit']>[] = ['contain', 'cover'];
+const SUBSAMPLINGS: readonly string[] = ['4:4:4', '4:2:0'];
+/** @internal */
+export const TONE_MAPPINGS: readonly ToneMapping[] = ['reinhard', 'clamp'];
+/** @internal */
+export const FLIP_DIRECTIONS: readonly FlipDirection[] = ['horizontal', 'vertical'];
 
 /** Options of {@link Image.transform} */
 export interface TransformOptions {
     /**
      * The point the transform is applied around, in pixels: a rotation turns around it, a scale grows from it.
-     * Default: the middle of the image. It only decides where the result lies on a canvas that stays as large as the
-     * image (`expand: false`)
+     * It only decides where the result lies on a canvas that stays as large as the image (`expand: false`)
+     * @defaultValue The middle of the image
      */
     origin?: {
-        /** The x position of the point in pixels. Default: half the width */
+        /**
+         * The x position of the point in pixels
+         * @defaultValue Half the width
+         */
         x?: number;
-        /** The y position of the point in pixels. Default: half the height */
+        /**
+         * The y position of the point in pixels
+         * @defaultValue Half the height
+         */
         y?: number;
     };
     /**
      * Whether to make the image as large as the transformed one, which then fills it (a rotated image grows to fit its
-     * corners, a skewed one gets wider). Without it, the image keeps its size and the parts outside are lost. Frames
-     * only grow up and left as far as their offset allows. Default: `true`
+     * corners, a skewed one gets wider). Without it, the image keeps its size and the parts outside are lost.
+     * @defaultValue `true`
      */
     expand?: boolean;
     /**
      * How the pixels between the source's are sampled: `'nearest-neighbor'` (hard pixels, no smoothing, for pixel art),
-     * `'bilinear'` (smooth), `'bicubic'` (sharper, slower, can overshoot a little at hard edges). Default: `'bilinear'`
+     * `'bilinear'` (smooth), `'bicubic'` (sharper, slower, can overshoot a little at hard edges)
+     * @defaultValue `'bilinear'`
      */
     mode?: TransformMode;
 }
 
 /** Options of {@link Image.dropShadow} */
 export interface ShadowOptions {
-    /** How far to move the shadow to the right (negative values: to the left), in pixels. Default: `0` */
+    /**
+     * How far to move the shadow to the right (negative values: to the left), in pixels
+     * @defaultValue `0`
+     */
     x?: number;
-    /** How far to move the shadow down (negative values: up), in pixels. Default: `0` */
+    /**
+     * How far to move the shadow down (negative values: up), in pixels
+     * @defaultValue `0`
+     */
     y?: number;
-    /** How soft the shadow's edge is: the standard deviation of a gaussian blur in pixels, like {@link Image.blur}. Default: `0` */
+    /**
+     * How soft the shadow's edge is: the standard deviation of a gaussian blur in pixels, like {@link Image.blur}
+     * @defaultValue `0`
+     */
     blur?: number;
-    /** How far to grow the shadow's shape before blurring it, in pixels. Default: `0` */
+    /**
+     * How far to grow the shadow's shape before blurring it, in pixels
+     * @defaultValue `0`
+     */
     spread?: number;
-    /** The shadow's color, its alpha is the shadow's opacity. Default: `0x00000080` (50% black) */
+    /**
+     * The shadow's color, its alpha is the shadow's opacity
+     * @defaultValue `0x00000080` (50% black)
+     */
     color?: Color;
     /**
      * Whether to make the image larger so the shadow isn't cut off. Without it, the image keeps its size and the part
-     * of the shadow outside is lost. Default: `true`
+     * of the shadow outside is lost
+     * @defaultValue `true`
      */
     expand?: boolean;
 }
 
 /** Options of {@link Image.outline} */
 export interface OutlineOptions {
-    /** The outline's width in pixels. Default: `1` */
+    /**
+     * The outline's width in pixels
+     * @defaultValue `1`
+     */
     width?: number;
-    /** The outline's color. Default: `0x000000ff` */
+    /**
+     * The outline's color
+     * @defaultValue `0x000000ff`
+     */
     color?: Color;
     /**
      * Whether to make the image larger so the outline isn't cut off. Without it, the image keeps its size and the
-     * outline is cut where the image ends. Default: `true`
+     * outline is cut where the image ends
+     * @defaultValue `true`
      */
     expand?: boolean;
 }
@@ -272,9 +311,8 @@ export interface OutlineOptions {
 /** The colors of a gradient, see {@link Image.linearGradient} */
 export interface GradientOptions {
     /**
-     * The colors along the gradient: their positions (0..1) and colors, like {@link Colors.gradient} takes them
-     * (`{ 0: 0xff0000ff, 0.5: 0xffff00ff, 1: 0x00ff00ff }`), or just the colors, evenly spaced
-     * (`[0xff0000ff, 0x00ff00ff]`)
+     * The colors along the gradient: their positions (0..1) and colors (`{ 0: 0xff0000ff, 0.5: 0xffff00ff, 1: 0x00ff00ff }`),
+     * or just the colors, evenly spaced (`[0xff0000ff, 0x00ff00ff]`), like {@link Colors.gradient} takes them
      */
     stops: Record<number, Color> | Color[];
 }
@@ -284,282 +322,419 @@ export interface LinearGradientOptions extends GradientOptions {
     /**
      * The direction of the gradient in degrees, like CSS' `linear-gradient()`: `0` goes up, `90` to the right, `180`
      * down, `270` to the left. The first stop is at the start of the line through the center that touches the
-     * corners. Default: `180`
+     * corners
+     * @defaultValue `180`
      */
     angle?: number;
 }
 
 /** Options of {@link Image.radialGradient} */
 export interface RadialGradientOptions extends GradientOptions {
-    /** The x position of the center in pixels. Default: the middle of the image */
+    /**
+     * The x position of the center in pixels
+     * @defaultValue The middle of the image
+     */
     x?: number;
-    /** The y position of the center in pixels. Default: the middle of the image */
+    /**
+     * The y position of the center in pixels
+     * @defaultValue The middle of the image
+     */
     y?: number;
-    /** The radius of the last stop in pixels. Default: the distance to the farthest corner */
+    /**
+     * The radius of the last stop in pixels
+     * @defaultValue The distance to the farthest corner
+     */
     radius?: number;
 }
 
-/** Options of {@link Image.encode} */
-export interface PNGEncodeOptions {
-    /** The compression level (0-9), higher is smaller but slower. Default: `4` */
-    compression?: number;
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
-}
-
-/** Options of {@link Image.encodeJPEG} */
-export interface JPEGEncodeOptions {
-    /** The JPEG quality (1-100), chroma subsampling is disabled above 90. Default: `90` */
-    quality?: number;
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
-    /**
-     * Whether to write the image's {@link Image.gainMap} (an Ultra HDR JPEG, brighter on HDR displays), or how.
-     * Default: `true` (written if there is one)
-     */
-    gainMap?: boolean | {
-        /** The map's JPEG quality (1-100). Default: `90` */
-        quality?: number,
-        /** The map's size as a factor of the image's (0-1). Default: the map's own size */
-        scale?: number
-    };
-}
-
-/** Options of {@link Image.encodeWebP} */
-export interface WebPEncodeOptions {
-    /**
-     * Lossy compression (0-100, like libwebp's quality: 75 is its default): the image is encoded like cwebp encodes it
-     * (with `-m` set to the effort), much smaller than lossless. Without it the image is encoded losslessly
-     */
-    quality?: number;
-    /**
-     * How much effort compression takes (0-6): higher is smaller but slower. Lossy (libwebp's method): 0-2 pick the
-     * predictions by how close they are, 3 and up also by how many bits they take, 5 and 6 also optimize the
-     * quantized values; the default `2` takes about a quarter of the time of 4 (cwebp's default) for files about 5%
-     * larger. Lossless: 0 is a fast mode (photos in about a fifth of the time, graphics in about a third, files about
-     * 6-8% larger), 1 takes about two thirds of the time for files up to 2% larger, 2 and up compress the most.
-     * Default: `2`
-     */
-    effort?: number;
-    /**
-     * For lossy compression: convert to YUV like libwebp's sharp conversion (cwebp's `-sharp_yuv`, the same file),
-     * which picks the color planes so that colored edges (red text on blue, thin colored lines) stay sharp instead of
-     * bleeding. It takes about twice the time at the default effort; photos get about as large, images with many
-     * hard color edges a lot larger (1200x800 red and blue squares: 2.7 times). Default: `false`
-     */
-    sharpYuv?: boolean;
-    /**
-     * For lossy compression, the alpha plane's quality (0-100, like cwebp's `-alpha_q`): below 100 its levels are
-     * reduced (to 2-16 up to 70, 16-256 above), which makes it compress better; the alpha plane is lossless otherwise.
-     * Default: `100`
-     */
-    alphaQuality?: number;
-    /**
-     * For lossless compression, at most this many worker threads search the predictors and prefix codes in parallel
-     * (the same file, faster), `1` for none. Images under about 1.5 megapixels, and runtimes whose workers can't share
-     * memory (browsers without cross-origin isolation), encode without them. Default: the processors available, at
-     * most 8
-     */
-    threads?: number;
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
-}
-
-/** Options of {@link Image.encodeTGA} */
+/** The options every encoder that writes metadata has */
 export interface EncodeOptions {
     /** Metadata to include, see {@link Metadata} */
     metadata?: Metadata;
 }
 
+/**
+ * How the encoders that can carry a gain map (JPEG, AVIF, JPEG XL) write {@link Image.gainMap}, see their `gainMap`
+ * option
+ */
+export interface GainMapEmbedOptions {
+    /**
+     * The map's quality (1-100, like the format's `quality`; for JPEG XL 100 is lossless)
+     * @defaultValue `90`
+     */
+    quality?: number;
+    /**
+     * The map's size as a factor of the image's (0-1)
+     * @defaultValue The map's own size
+     */
+    scale?: number;
+}
+
+/** Options of {@link Image.encodePNG} */
+export interface PNGEncodeOptions extends EncodeOptions {
+    /**
+     * The compression level (0-9), higher is smaller but slower
+     * @defaultValue `4`
+     */
+    compression?: number;
+}
+
+/** Options of {@link Image.encodeTGA}: the metadata, which TGA keeps in its extension area */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface TGAEncodeOptions extends EncodeOptions {}
+
+/** Options of {@link Image.encodeGIF}, and of {@link Animation.encodeGIF} with {@link GIFAnimationEncodeOptions} */
+export interface GIFEncodeOptions extends EncodeOptions, DitherOptions {
+    /**
+     * The maximum colors in each frame's palette (2-256, including transparency). Frames with fewer colors keep them
+     * exactly; otherwise ImageScript chooses representative colors
+     * @defaultValue `256`
+     */
+    colors?: number;
+}
+
+/** Options of {@link Image.encodeJPEG} */
+export interface JPEGEncodeOptions extends EncodeOptions {
+    /**
+     * The JPEG quality (0-100, 0 is the same as 1)
+     * @defaultValue `90`
+     */
+    quality?: number;
+    /**
+     * How much color detail to keep: `'4:4:4'` keeps it all; `'4:2:0'` stores less color detail to make a smaller
+     * file (often hard to notice in photos, but more visible around colored edges)
+     * @defaultValue `'4:2:0'` up to quality 90, `'4:4:4'` above
+     */
+    subsampling?: '4:4:4' | '4:2:0';
+    /**
+     * The background color to combine with transparent pixels, since JPEG doesn't support transparency. Opaque images
+     * are encoded as they are
+     * @defaultValue `0x000000ff` (black)
+     */
+    background?: Color;
+    /**
+     * Whether to write the image's {@link Image.gainMap} (an Ultra HDR JPEG, brighter on HDR displays), or how.
+     * @defaultValue `true` (written if there is one)
+     */
+    gainMap?: boolean | GainMapEmbedOptions;
+}
+
+/** Options of {@link Image.encodeWebP} */
+export interface WebPEncodeOptions extends EncodeOptions {
+    /**
+     * Lossy compression (0-100): higher values usually preserve more detail but make larger files. Without it the image
+     * is encoded losslessly, keeping every pixel exact
+     */
+    quality?: number;
+    /**
+     * Compression effort (0-6): higher values usually take longer but may make smaller files. For lossless images,
+     * `0` prioritizes speed; `2` and above spend more time reducing file size
+     * @defaultValue `2`
+     */
+    effort?: number;
+    /**
+     * For lossy compression: improve color detail around sharp edges (for example, red text on a blue background).
+     * This can take longer and make graphics larger
+     * @defaultValue `false`
+     */
+    sharpYuv?: boolean;
+    /**
+     * For lossy compression, the transparency (alpha) channel's quality (0-100). Lower values may make the image
+     * smaller but can make transparency look less smooth
+     * @defaultValue `100` (full quality)
+     */
+    alphaQuality?: number;
+    /**
+     * For lossless compression, the maximum worker threads to use. Small images or runtimes that cannot share memory
+     * between workers use one thread
+     * @remarks
+     * Where workers can't start, the work runs on the calling thread with the same output. That includes browser pages
+     * that aren't cross-origin isolated and ones that load the package from another origin (a CDN such as jsDelivr),
+     * which browsers don't allow to start workers
+     * @defaultValue The available processors, up to 8
+     */
+    threads?: number;
+}
+
 /** Options of {@link Image.roundCorners} */
 export interface RoundCornersOptions {
-    /** The radius of the corners. Default: a quarter of the smaller side */
+    /**
+     * The radius of the corners, 0 or more; one above half the smaller side is cut to that
+     * @defaultValue A quarter of the smaller side
+     */
     radius?: number;
 }
 
 /** Options of {@link Image.fisheye} */
 export interface FisheyeOptions {
-    /** The distortion strength (exponent of the radial mapping), higher values bulge the center more. Default: `2` */
+    /**
+     * The distortion strength (exponent of the radial mapping), above 0: higher values bulge the center more. At 1 and
+     * below, the picture shrinks into the middle of the image, and 0 or less would leave nothing of it (it throws)
+     * @defaultValue `2`
+     */
     strength?: number;
 }
 
-/** Options of {@link Image.renderSVG} */
-export interface SVGOptions {
-    /** The scale, or the width or height in pixels, see `mode`. Default: `1` */
-    size?: number;
+/** The limits, fonts and images of {@link Image.renderSVG}, part of {@link RenderSVGOptions} */
+export interface SVGResourceOptions {
     /**
-     * What `size` is: one of {@link SVGScaleModes.SCALE}, {@link SVGScaleModes.WIDTH}, {@link SVGScaleModes.HEIGHT}.
-     * Default: {@link SVGScaleModes.SCALE}
+     * Maximum total pixels in the rendered output. Output over the limit throws a RangeError before anything is
+     * rendered. It's also the default of {@link SVGResourceOptions.maxLayerPixels} and
+     * {@link SVGResourceOptions.maxImagePixels}
+     * @defaultValue `268402689` (16383²); `Infinity` disables the limit
      */
-    mode?: SVGScaleMode;
+    maxPixels?: number;
     /**
-     * Fonts for `<text>` (TrueType, OpenType): each text gets the face its `font-family`, `font-weight`, `font-style`
+     * Maximum pixels of the layers rendering uses at once, the output's included. Groups with opacity, masks, clip
+     * paths of nested viewports, filters and blend modes are each rendered into a layer of their own (up to the
+     * output's size, 16 bytes per pixel) while their content is drawn, so deeply nested ones multiply the memory a
+     * small SVG takes. Exceeding it throws a RangeError. With the defaults, rendering can take about 90 bytes per pixel
+     * of `maxPixels` (64 for the layers, up to 20 for the images, 4 for the output): lower `maxPixels` to bound it for
+     * untrusted SVGs
+     * @defaultValue `4 * maxPixels`; `Infinity` disables the limit
+     */
+    maxLayerPixels?: number;
+    /**
+     * Maximum total pixels of the raster images the SVG references (data URIs and {@link SVGResourceOptions.images}),
+     * decoded together; already-decoded {@link Image} values are used as supplied and don't count. Drawing an image
+     * beyond the limit throws a RangeError
+     * @defaultValue `maxPixels`; `Infinity` disables the limit
+     */
+    maxImagePixels?: number;
+    /**
+     * Fonts for `<text>` (TrueType, OpenType or WOFF; not WOFF2 or some newer OpenType outline formats such as CFF2):
+     * each text gets the face its `font-family`, `font-weight`, `font-style`
      * and `font-stretch` match best among them, by the names, weights and styles in the fonts (like browsers match
      * installed fonts). Generic families (`serif`, `sans-serif`, `monospace`, ...) are the first font that fits them,
      * other families and text without one get the first font's family; characters a face doesn't have come from the
      * other fonts (TrueType, OpenType or WOFF). Fonts the SVG embeds with `@font-face` (in data: URIs) are used too,
-     * before these for their family names. Without any fonts text isn't rendered. Default: `[]`
+     * before these for their family names. Without any fonts text isn't rendered. One font can be given without an
+     * array
+     * @defaultValue `[]`
      */
-    fonts?: BinaryData[];
+    font?: BinaryData | BinaryData[];
     /**
      * Images for the `<image>` elements (and `feImage`) by their `href`, the same string the SVG uses: with
      * `images: { 'logo.png': bytes }`, `<image href="logo.png" .../>` draws the image. Values are encoded images (PNG,
      * JPEG, WebP, GIF's first frame, ...) or {@link Image}s, decoded like data URI images are, and only for the hrefs
-     * the SVG references. Nothing else is read: no files and no URLs, so an href that isn't given (and isn't a data URI)
-     * draws nothing. SVG documents can't be given this way, use a data URI for them. Default: `{}`
+     * the SVG references. Nothing else is read: no files and no URLs, so drawing an image whose href isn't given (and
+     * isn't a data URI) throws, as does drawing one that can't be decoded. SVG documents can't be given this way, use a
+     * data URI for them
+     * @defaultValue `{}`
      */
     images?: Record<string, BinaryData | Image>;
 }
 
-/** Options of {@link Image.renderText}: the text color and layout, and its style (see {@link TextStyle}) */
-export interface TextOptions extends TextStyle {
-    /** The text color. Default: `0xffffffff` */
-    color?: Color;
-    /** The text layout. Default: `new TextLayout()` */
-    layout?: TextLayout;
-}
-
-/** Options of {@link Image.renderText}: the font and size, the text color and layout, and its style (see {@link TextStyle}) */
-export interface RenderTextOptions extends TextStyle {
+/**
+ * Options of {@link Image.renderSVG}: the size (one of `width`, `height` and `scale`, TypeScript reports a call with
+ * more; by default the SVG's own size), and the limits, fonts and images (see {@link SVGResourceOptions})
+ */
+export type RenderSVGOptions = SVGResourceOptions & ({
     /**
-     * TrueType (ttf/ttc), OpenType (otf) or WOFF font buffer to use, or several by priority: every character comes
+     * The width in pixels, the height follows the SVG's aspect ratio
+     * @defaultValue The SVG's own width
+     */
+    width?: number;
+    /** Not with `width`: give one of `width`, `height` and `scale` */
+    height?: never;
+    /** Not with `width`: give one of `width`, `height` and `scale` */
+    scale?: never;
+} | {
+    /** Not with `height`: give one of `width`, `height` and `scale` */
+    width?: never;
+    /** The height in pixels, the width follows the SVG's aspect ratio */
+    height: number;
+    /** Not with `height`: give one of `width`, `height` and `scale` */
+    scale?: never;
+} | {
+    /** Not with `scale`: give one of `width`, `height` and `scale` */
+    width?: never;
+    /** Not with `scale`: give one of `width`, `height` and `scale` */
+    height?: never;
+    /**
+     * A factor of the SVG's own size (`2` renders it twice as large)
+     * @defaultValue `1`
+     */
+    scale: number;
+});
+
+/**
+ * Options of {@link Image.renderText}: the font and size, the text color, the layout (wrapping, cutting off and alignment,
+ * see {@link TextLayoutOptions}) and the style (see {@link TextStyleOptions})
+ */
+export interface RenderTextOptions extends TextStyleOptions, TextLayoutOptions {
+    /**
+     * TrueType (ttf/ttc), OpenType (otf) or WOFF font buffer to use (not WOFF2 or some newer OpenType outline formats
+     * such as CFF2), or several by priority: every character comes
      * from the first font that has it (e.g. `[text, emoji]`), the first one sets the line height. Color glyphs (COLR
-     * layers and paints, CBDT and sbix bitmaps, as in emoji fonts) keep their colors. Text in any script is shaped
-     * like browsers do (right to left and bidirectional text, Arabic joining, Indic conjuncts, marks)
+     * layers and paints, CBDT and sbix bitmaps, as in emoji fonts) keep their colors. Shaping includes bidirectional
+     * layout, Arabic joining, and script-specific OpenType shapers for Indic scripts, Hebrew, Thai/Lao, Hangul, Khmer,
+     * Myanmar and other Universal Shaping Engine scripts; other scripts use default OpenType shaping.
      */
     font: BinaryData | BinaryData[];
     /** Font size in pixels (per em) */
     size: number;
-    /** The text color. Default: `0xffffffff` */
+    /**
+     * The text color
+     * @defaultValue `0xffffffff`
+     */
     color?: Color;
-    /** The text layout, as {@link TextLayoutOptions} or a {@link TextLayout}. Default: the defaults of `TextLayout` */
-    layout?: TextLayoutOptions | TextLayout;
+    /**
+     * Maximum total pixels of the rendered image (the outline included): larger text throws a RangeError before its
+     * pixels are allocated
+     * @defaultValue `268402689` (16383²); `Infinity` disables the limit
+     */
+    maxPixels?: number;
 }
 
-/** Options of {@link Image.decode} */
+/** Options of {@link Image.decode}, {@link Animation.decode} and {@link decode} */
 export interface DecodeOptions {
-    /** Whether to rotate/mirror JPEGs, TIFFs, PNGs and WebPs as their orientation tag (Exif or XMP) says. Default: `true` */
+    /**
+     * Whether to rotate or mirror the image according to its saved orientation information, so photos taken with a
+     * rotated camera display upright. This applies to every animation frame too
+     * @defaultValue `true`
+     */
     applyOrientation?: boolean;
     /**
-     * Whether to convert the colors of images with an embedded ICC profile (PNG, JPEG, WebP, AVIF, JPEG XL, TIFF), and
-     * of AVIFs with other color primaries than sRGB's (Display P3, BT.2020), to sRGB, like browsers show them: wide
-     * gamut photos (Display P3 from phones, Adobe RGB, ProPhoto) look as intended instead of washed out. Matrix/TRC
-     * profiles (RGB and gray) are applied, relative colorimetric (colors outside sRGB are clipped); profiles with only
-     * lookup tables, CMYK ones and ones that are sRGB anyway leave the pixels as they are. Default: `true`
+     * Whether to use the image's embedded color profile (color information describing its pixels) to convert its
+     * colors to sRGB, the standard used by most screens and browsers. Common RGB and gray profiles described by a
+     * color matrix and tone curves are converted, as are AVIFs using other color ranges (such as Display P3 or BT.2020).
+     * Colors outside sRGB are clipped. Profiles that rely on lookup tables, CMYK profiles and profiles already in
+     * sRGB are left unchanged
+     * @defaultValue `true`
      */
     applyColorProfile?: boolean;
     /**
-     * The most pixels to decode: larger images throw a RangeError before anything that size is allocated, so small
-     * files declaring huge images (decompression bombs) can't exhaust the memory. Default: `268402689` (16383², like
-     * sharp), `Infinity` for no limit
+     * The maximum total pixels to decode. An image declaring more pixels throws a RangeError before its pixel buffer
+     * is allocated, helping prevent a small or untrusted file from requesting an enormous amount of memory.
+     * {@link Animation.decode} counts all frames together because each frame uses a full canvas. The decoded image
+     * takes 4 bytes per pixel (about 1 GiB at the default), and decoding needs more while it runs: for 8-bit images,
+     * about 4-7 bytes per pixel for PNG, JPEG, WebP, GIF and the simpler formats, about 14 for AVIF and about 30 for
+     * JPEG XL (more with high bit depths). Lower it to bound the memory of servers decoding untrusted files
+     * @defaultValue `268402689` (16383²); `Infinity` disables the limit
      */
     maxPixels?: number;
     /**
-     * How Radiance HDRs, PFMs and HDR (PQ or HLG) AVIFs and JPEG XLs, whose light can be brighter than (SDR) white,
-     * become 8 bit sRGB: `'reinhard'` compresses the brightest parts like Reinhard's tone mapping operator does (the
-     * brightest pixel becomes white, images no brighter than white stay as they are), `'clamp'` clamps everything
-     * brighter than white. Default: `'reinhard'`
+     * How high-dynamic-range images (which can be brighter than a standard screen's white) become 8-bit sRGB.
+     * `'reinhard'` gently compresses bright highlights so the brightest pixel becomes white; images that are not HDR
+     * stay unchanged. `'clamp'` clips anything brighter than white
+     * @defaultValue `'reinhard'`
      */
     toneMapping?: ToneMapping;
     /**
-     * Whether to read the gain maps of JPEGs (Ultra HDR, JPEG-R, ISO 21496-1, Apple's), AVIFs (tone mapped items) and
-     * JPEG XLs (jhgm boxes) into {@link Image.gainMap}. Default: `true`
+     * Whether to read extra HDR brightness data (a gain map) from supported JPEG, AVIF and JPEG XL images into
+     * {@link Image.gainMap}. For animations, this also reads maps from supported JPEG XL frames
+     * @defaultValue `true`
      */
     gainMap?: boolean;
     /**
-     * At most this many worker threads decode in parallel (lossy JPEG XLs from 4 megapixels on, one per 2 megapixels
-     * at most, lossless ones from 1.5 megapixels and 512 KiB on; AVIFs from 4 megapixels on: the conversion to RGB,
-     * one per megapixel, and the tiles of grids), `1` for none. Default: the processors available, at most 8 (1 where
-     * workers can't share memory)
+     * Maximum worker threads for formats and image sizes that can be decoded in parallel. Small images may use one
+     * thread because starting workers can take longer than decoding them
+     * @remarks
+     * Where workers can't start, the work runs on the calling thread with the same output. That includes browser pages
+     * that aren't cross-origin isolated and ones that load the package from another origin (a CDN such as jsDelivr),
+     * which browsers don't allow to start workers
+     * @defaultValue The available processors, up to 8 (one in runtimes that cannot share memory between workers)
      */
     threads?: number;
 }
 
 /** Options of {@link Image.encodeJXL} */
-export interface JXLEncodeOptions {
+export interface JXLEncodeOptions extends EncodeOptions {
     /**
-     * Lossy compression (0-100, like cjxl's `-q`: 90 is visually lossless, 100 lossless): higher is better and larger.
-     * Without it the image is encoded losslessly
+     * Lossy compression (0-100): higher values usually preserve more detail but make larger files; `100` is
+     * lossless. Without this option, the image is encoded losslessly
      */
     quality?: number;
     /**
-     * How hard compression works: 0-2, faster to smaller. Lossy: 0 uses 8x8 DCTs only (like `cjxl -e 3`), 1 and 2
-     * search their sizes like `cjxl -e 5` (2 tries more of the small ones), and 2 also stores text-like features that
-     * repeat (the glyphs of screenshots) once, as patches like `cjxl -e 7`. Lossless: 0 is `cjxl -e 1`'s fast mode
-     * (byte for byte), 1 and 2 like `cjxl -e 3` (about 15% smaller for photos, 13% for graphics; a few times slower).
-     * Default: `1`
+     * Compression effort (0-2): higher values usually take longer but may make smaller files. `0` prioritizes speed;
+     * `2` spends the most time compressing
+     * @defaultValue `1`
      */
     effort?: number;
     /**
-     * At most this many worker threads compress in parallel (the same file, faster: lossy 2.3 times with 8 on a
-     * 1920x1080 photo at effort 1, 3.8 times on 3840x2160; lossless 2.8 and 4.3 times), `1` for none. Small images
-     * (lossy under about 1.5 megapixels at effort 0, 512x512 pixels at 1, 384x384 at 2; lossless under 724x724 and
-     * always at effort 0), and runtimes whose workers can't share memory (browsers without cross-origin isolation)
-     * encode without them.
-     * Default: the processors available, at most 8
+     * Maximum worker threads for compression. Small images or runtimes that cannot share memory between workers use
+     * one thread
+     * @remarks
+     * Where workers can't start, the work runs on the calling thread with the same output. That includes browser pages
+     * that aren't cross-origin isolated and ones that load the package from another origin (a CDN such as jsDelivr),
+     * which browsers don't allow to start workers
+     * @defaultValue The available processors, up to 8
      */
     threads?: number;
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
     /**
-     * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a jhgm box, like libjxl's), or how.
-     * Default: `true` (written if there is one)
+     * Whether to write the image's {@link Image.gainMap}, the extra data used to show brighter highlights on HDR
+     * displays
+     * @defaultValue `true` (written if there is one)
      */
-    gainMap?: boolean | {
-        /** The map's quality (1-100 like `quality`, 100 lossless). Default: `90` */
-        quality?: number,
-        /** The map's size as a factor of the image's (0-1). Default: the map's own size */
-        scale?: number
-    };
+    gainMap?: boolean | GainMapEmbedOptions;
 }
 
 /** Options of {@link Image.encodeAVIF} */
-export interface AVIFEncodeOptions {
-    /** 0-100, like avifenc's: higher is better and larger, 100 is lossless. Default: `60` */
+export interface AVIFEncodeOptions extends EncodeOptions {
+    /**
+     * 0-100, like avifenc's: higher is better and larger, 100 is lossless
+     * @defaultValue `60`
+     */
     quality?: number;
-    /** The quality of the alpha channel (if the image has transparency), like avifenc's. Default: `100` (lossless) */
+    /**
+     * The quality of the transparency channel, if the image has transparency
+     * @defaultValue `100` (lossless)
+     */
     alphaQuality?: number;
-    /** Chroma subsampling: `'4:4:4'` keeps the full color resolution, `'4:2:0'` halves it (smaller). Default: `'4:4:4'` */
+    /**
+     * How much color detail to keep: `'4:4:4'` keeps it all; `'4:2:0'` stores less color detail to make a smaller
+     * file
+     * @defaultValue `'4:4:4'`
+     */
     subsampling?: '4:4:4' | '4:2:0';
-    /** How hard the encoder searches for the best modes: 0-2, faster to smaller. Default: `1` */
+    /**
+     * How hard the encoder searches for the best modes: 0-2, faster to smaller
+     * @defaultValue `1`
+     */
     effort?: number;
     /**
-     * At most this many worker threads encode in parallel (the same file, faster: 2.9 times with 8 on a 1920x1080
-     * photo at effort 1), `1` for none. Small images (under about 640x640 pixels at effort 0, 448x448 at 1, 320x320
-     * at 2), and runtimes whose workers can't share memory (browsers without cross-origin isolation), encode without
-     * them. Default: the processors available, at most 8
+     * Maximum worker threads for compression. Small images or runtimes that cannot share memory between workers use
+     * one thread
+     * @remarks
+     * Where workers can't start, the work runs on the calling thread with the same output. That includes browser pages
+     * that aren't cross-origin isolated and ones that load the package from another origin (a CDN such as jsDelivr),
+     * which browsers don't allow to start workers
+     * @defaultValue The available processors, up to 8
      */
     threads?: number;
-    /** Metadata to include, see {@link Metadata} */
-    metadata?: Metadata;
     /**
-     * Whether to write the image's {@link Image.gainMap} (brighter on HDR displays: a tone mapped item, like libavif
-     * writes), or how. Default: `true` (written if there is one)
+     * Whether to write the image's {@link Image.gainMap}, the extra data used to show brighter highlights on HDR
+     * displays
+     * @defaultValue `true` (written if there is one)
      */
-    gainMap?: boolean | {
-        /** The map's quality (1-100). Default: `90` */
-        quality?: number,
-        /** The map's size as a factor of the image's (0-1). Default: the map's own size */
-        scale?: number
-    };
+    gainMap?: boolean | GainMapEmbedOptions;
 }
 
 /** Text style options of {@link Image.renderText} */
-export interface TextStyle {
-    /** Width of an outline around the glyphs in pixels. Default: `0` */
+export interface TextStyleOptions {
+    /**
+     * Width of an outline around the glyphs in pixels
+     * @defaultValue `0`
+     */
     strokeWidth?: number;
-    /** Color of the outline. Default: `0x000000ff` */
+    /**
+     * Color of the outline
+     * @defaultValue `0x000000ff`
+     */
     strokeColor?: Color;
     /**
      * Whether to run the hinting instructions of TrueType fonts, which align stems and edges with the pixel grid for
      * crisper text at small sizes (like Windows renders text); the glyphs of hinted fonts are then placed on whole
-     * pixels. Fonts without instructions (and CFF/OpenType outlines) aren't affected. Default: `true`
+     * pixels. Fonts without instructions (and CFF/OpenType outlines) aren't affected
+     * @defaultValue `true`
      */
     hinting?: boolean;
     /**
      * OpenType features by their tags, for the whole text: `true` turns one on (like `tnum` for tabular numbers,
      * `smcp` for small caps, `ss01` for a stylistic set), `false` off (also the ones on by default, like `liga` or
-     * `kern`), a number picks an alternate (`salt: 2`). Fonts without a feature ignore it. Default: `{}`
+     * `kern`), a number picks an alternate (`salt: 2`). Fonts without a feature ignore it
+     * @defaultValue `{}`
      */
     features?: Record<string, boolean | number>;
     /**
@@ -568,7 +743,8 @@ export interface TextStyle {
      * right), `italic` (`true`/`false`), `opticalSize` (the size the glyphs are designed for, in pixels; default: the
      * font size, like browsers' `font-optical-sizing: auto`), and other axes by their 4-character tag (like Roboto
      * Flex's `GRAD: 50`). Values outside an axis's range are clamped, axes a font doesn't have are ignored, fonts
-     * without axes aren't affected. Default: `{}` (the fonts' default instances)
+     * without axes aren't affected
+     * @defaultValue `{}` (the fonts' default instances)
      */
     variations?: Record<string, number | boolean>;
 }
@@ -576,41 +752,53 @@ export interface TextStyle {
 /** Options of {@link Image.cropCircle} */
 export interface CropCircleOptions {
     /**
-     * The circle's size: `'contain'` fits it inside the image (the smaller dimension is its diameter, no hard edges),
+     * How the circle fits the image: `'contain'` fits it inside the image (the smaller dimension is its diameter, no hard edges),
      * `'cover'` covers the image (the larger dimension is its diameter, the corners of a rectangular image stay
-     * transparent on the shorter side). Default: `'contain'`
+     * transparent on the shorter side)
+     * @defaultValue `'contain'`
      */
-    size?: 'contain' | 'cover';
+    fit?: 'contain' | 'cover';
     /**
-     * Whether to use the larger dimension for the size. Default: `false`
-     * @deprecated Use `size: 'cover'` (`true`) or `size: 'contain'` (`false`), `max` will be removed in 4.0
+     * Share of the radius (0 to 1, a value outside of it throws) over which the edge fades out
+     * @defaultValue `0`
      */
-    max?: boolean;
-    /** Share of the radius (0..1) over which the edge fades out. Default: `0` */
     feathering?: number;
 }
 
 /** Options of {@link Image.dominantColor} */
 export interface DominantColorOptions {
-    /** Whether to ignore dark colors (all channels below the threshold). Default: `true` */
+    /**
+     * Whether to ignore dark colors (all channels below `threshold`)
+     * @defaultValue `true`
+     */
     ignoreBlack?: boolean;
-    /** Whether to ignore light colors (all channels above 255 minus the threshold). Default: `true` */
+    /**
+     * Whether to ignore light colors (all channels above 255 minus `threshold`)
+     * @defaultValue `true`
+     */
     ignoreWhite?: boolean;
-    /** The black/white threshold (0-64, in steps of 4 channel values). Default: `15` */
+    /**
+     * How close (in channel values, 0-256) to black or white a color has to be to be ignored
+     * @defaultValue `60`
+     */
     threshold?: number;
 }
 
 /** Options of {@link Image.rotate} */
 export interface RotateOptions {
-    /** Whether to resize the image so it fits all pixels or just ignore outlying pixels. Default: `true` */
-    resize?: boolean;
     /**
-     * Whether to sample with 8-bit weights on 8-bit premultiplied pixels (like {@link ResizeOptions.fast}), about twice
-     * as fast: opaque pixels stay within a step of the precise result, what shows of translucent ones (also the
-     * faded edges) within about 2.5 steps (pixels that are almost transparent keep less of their color). Only affects
-     * angles that aren't multiples of 90°. Default: `true`
+     * Whether to make the image larger so the rotated corners aren't cut off. Without it, the image keeps its size and
+     * the parts outside are lost
+     * @defaultValue `true`
      */
-    fast?: boolean;
+    expand?: boolean;
+    /**
+     * How the pixels between the source's are sampled for angles that aren't multiples of 90° (those move whole
+     * pixels): `'nearest-neighbor'` (hard pixels, for pixel art), `'bilinear'` (smooth) or `'bicubic'` (sharper, can
+     * overshoot a little at hard edges), like {@link TransformOptions.mode}
+     * @defaultValue `'bilinear'`
+     */
+    mode?: TransformMode;
 }
 
 /** Options of {@link Image.trim} */
@@ -622,7 +810,8 @@ export interface TrimOptions {
     color?: Color;
     /**
      * How far (0-1) a pixel's channels may be from the color for it to be trimmed, e.g. for JPEG artifacts or
-     * antialiasing. Default: `0`
+     * antialiasing
+     * @defaultValue `0`
      */
     tolerance?: number;
 }
@@ -631,21 +820,21 @@ export interface TrimOptions {
 export interface ColorToAlphaOptions {
     /** The color to remove, by default the color of the top left pixel (e.g. a background) */
     color?: Color;
-    /** Pixels at most this far from the color (0-1) become fully transparent. Default: 0 */
+    /**
+     * Pixels at most this far from the color (0-1) become fully transparent
+     * @defaultValue 0
+     */
     transparencyThreshold?: number;
-    /** Pixels at least this far from the color (0-1) stay fully opaque. Default: 1 */
+    /**
+     * Pixels at least this far from the color (0-1) stay fully opaque
+     * @defaultValue 1
+     */
     opacityThreshold?: number;
 }
 
-/**
- * Text metadata written into PNGs
- * @deprecated Use {@link Metadata}, which all encoders take
- * @group Deprecated
- */
-export type PNGMetadata = Metadata;
-
 // OpenType features as tags and values (tags are 4 printable ASCII characters)
 function featureList(features: Record<string, boolean | number>): Array<[string, number]> {
+    // eslint-disable-next-line no-restricted-syntax -- the OpenType features are only used by the text functions
     if (typeof features !== 'object' || features === null) throw new TypeError('Features must be an object');
     return Object.entries(features).map(([tag, value]) => {
         if (!/^[\x20-\x7e]{4}$/.test(tag)) throw new RangeError(`Invalid OpenType feature tag: ${JSON.stringify(tag)}`);
@@ -695,15 +884,18 @@ export class Image {
      * Creates a new image with the given dimensions, all pixels transparent black
      * @param width The width in pixels
      * @param height The height in pixels
+     * @throws `RangeError` if the width or height is not a number of at least 1, or the image is too large to allocate
      */
     constructor(width: number, height: number) {
-        width = ~~width;
-        height = ~~height;
+        width = Math.trunc(finite(width, 'width'));
+        height = Math.trunc(finite(height, 'height'));
 
         if (width < 1)
             throw new RangeError('Image has to be at least 1 pixel wide');
         if (height < 1)
             throw new RangeError('Image has to be at least 1 pixel high');
+        if (width > 0x7fffffff) throw new RangeError('Image width is too large');
+        if (height > 0x7fffffff) throw new RangeError('Image height is too large');
 
         this.__width__ = width;
         this.__height__ = height;
@@ -711,8 +903,9 @@ export class Image {
     }
 
     /**
-     * The image's gain map, if it has one (JPEGs from phones, Ultra HDR): how much brighter each part gets on HDR
-     * displays. {@link Image.encodeJPEG} writes it. `null` removes it
+     * Extra image data that lets high-dynamic-range (HDR) screens show brighter highlights. Standard screens show the
+     * image without the extra brightness. {@link Image.encodeJPEG}, {@link Image.encodeAVIF} and
+     * {@link Image.encodeJXL} can write it. `null` means there is no gain map
      */
     get gainMap(): GainMap | null {
         return this.__gain_map__;
@@ -720,16 +913,21 @@ export class Image {
 
     /**
      * Replaces the gain map
+     * @remarks
+     * The image uses a copy of the map: changing the image (resizing it, say) changes its own map only, also when the
+     * same map was given to other images, and later changes to the map you gave don't reach the image
      * @param gainMap The new gain map, or `null` to remove it
+     * @throws `TypeError` if it isn't a {@link GainMap} or `null`
      */
     set gainMap(gainMap: GainMap | null) {
         if (gainMap !== null && !(gainMap instanceof GainMap)) throw new TypeError('The gain map has to be a GainMap or null');
-        this.__gain_map__ = gainMap;
+        this.__gain_map__ = gainMap?.clone() ?? null;
     }
 
     /**
-     * The image's RGBA pixel data. It can be replaced by any 8-bit array with width * height * 4 bytes
-     * (it is used as is, without copying)
+     * The image's RGBA pixel data (red, green, blue and transparency, four bytes per pixel). It can be replaced by any
+     * 8-bit array with width * height * 4 bytes starting at a byte offset divisible by 4 (it is used as is, without
+     * copying). Direct changes to this array or {@link Image.setPixelAt} don't update the image's gain map.
      */
     get bitmap(): Uint8ClampedArray {
         return this.__bitmap__;
@@ -737,13 +935,17 @@ export class Image {
 
     /**
      * Replaces the pixel data
-     * @param bitmap The new RGBA data, width * height * 4 bytes (used as is, without copying)
+     * @param bitmap The new RGBA data, width * height * 4 bytes (used as is, without copying, so its byte offset has to be
+     *     divisible by 4: the image reads it as 32-bit pixels too)
      */
     set bitmap(bitmap: Uint8ClampedArray | Uint8Array) {
         if (!(bitmap instanceof Uint8ClampedArray || bitmap instanceof Uint8Array))
             throw new TypeError('The bitmap has to be a Uint8ClampedArray or Uint8Array');
         if (bitmap.length !== this.width * this.height * 4)
             throw new RangeError(`The bitmap has to have ${this.width * this.height * 4} bytes (width * height * 4), got ${bitmap.length}`);
+        // (a copy would no longer be the array the caller has)
+        if (bitmap.byteOffset % 4)
+            throw new TypeError(`The bitmap has to start at a byte offset divisible by 4 to be used without copying, not ${bitmap.byteOffset} (pass bitmap.slice() for a copy)`);
 
         this.__set_bitmap__(bitmap instanceof Uint8ClampedArray ? bitmap : new Uint8ClampedArray(bitmap.buffer, bitmap.byteOffset, bitmap.length));
     }
@@ -754,7 +956,7 @@ export class Image {
      * @ignore
      */
     protected __set_bitmap__(bitmap: Uint8ClampedArray): void {
-        // 32-bit views need an aligned offset
+        // 32-bit views need an aligned offset (the bitmap setter only takes aligned ones, internal pixels get copied)
         if (bitmap.byteOffset % 4) bitmap = bitmap.slice();
         this.__bitmap__ = bitmap;
         this.__view__ = new DataView(bitmap.buffer, bitmap.byteOffset, bitmap.byteLength);
@@ -767,29 +969,17 @@ export class Image {
     }
 
     /**
-     * The images width
+     * The image's width
      */
     get width(): number {
         return this.__width__;
     }
 
     /**
-     * The images height
+     * The image's height
      */
     get height(): number {
         return this.__height__;
-    }
-
-    /**
-     * Yields an [x, y] array for every pixel in the image (0-based), row by row
-     * @yields The coordinates of the pixel ([x, y])
-     * @deprecated Use {@link Image.pixels}, which yields `[x, y, color]`: `coordinates()` will be removed in 4.0
-     * @group Deprecated
-     */
-    *coordinates(): Generator<[x: number, y: number], void, undefined> {
-        for (let y = 0; y < this.height; y++)
-            for (let x = 0; x < this.width; x++)
-                yield [x, y];
     }
 
     /**
@@ -805,109 +995,6 @@ export class Image {
     }
 
     /**
-     * Yields an [x, y] array for every pixel in the image (0-based)
-     * @yields The coordinates of the pixel ([x, y])
-     * @deprecated Use {@link Image.pixels}, which yields `[x, y, color]`: iterating over the image will be removed in 4.0
-     * @group Deprecated
-     */
-    *[Symbol.iterator](): Generator<[x: number, y: number], void, undefined> {
-        yield* this.coordinates();
-    }
-
-    /**
-     * Yields an [x, y, color] array for every pixel in the image (0-based)
-     * @yields The coordinates and color of the pixel ([x, y, color])
-     * @deprecated Use {@link Image.pixels}, `iterateWithColors()` will be removed in 4.0
-     * @group Deprecated
-     */
-    *iterateWithColors(): Generator<[x: number, y: number, color: Color], void, undefined> {
-        yield* this.pixels();
-    }
-
-    /**
-     * Converts RGBA components to an RGBA value, values are rounded and clamped to 0..255
-     * @param r red (0..255)
-     * @param g green (0..255)
-     * @param b blue (0..255)
-     * @param a alpha (0..255)
-     * @deprecated Use {@link Colors.fromRGBA}, `Image.rgbaToColor` will be removed in 4.0
-     * @group Deprecated
-     */
-    static rgbaToColor(r: number, g: number, b: number, a: number): Color {
-        return Colors.fromRGBA(r, g, b, a);
-    }
-
-    /**
-     * Converts RGB components to an RGBA value (assuming alpha = 255)
-     * @param r red (0..255)
-     * @param g green (0..255)
-     * @param b blue (0..255)
-     * @deprecated Use {@link Colors.fromRGB}, `Image.rgbToColor` will be removed in 4.0
-     * @group Deprecated
-     */
-    static rgbToColor(r: number, g: number, b: number): Color {
-        return Colors.fromRGB(r, g, b);
-    }
-
-    /**
-     * Converts HSLA colors to RGBA colors
-     * @param h hue (0..1)
-     * @param s saturation (0..1)
-     * @param l lightness (0..1)
-     * @param a opacity (0..1)
-     * @deprecated Use {@link Colors.fromHSLA}, `Image.hslaToColor` will be removed in 4.0
-     * @group Deprecated
-     */
-    static hslaToColor(h: number, s: number, l: number, a: number): Color {
-        return Colors.fromHSLA(h, s, l, a);
-    }
-
-    /**
-     * Converts HSL colors to RGBA colors (assuming an opacity of 255)
-     * @param h hue (0..1)
-     * @param s saturation (0..1)
-     * @param l lightness (0..1)
-     * @deprecated Use {@link Colors.fromHSL}, `Image.hslToColor` will be removed in 4.0
-     * @group Deprecated
-     */
-    static hslToColor(h: number, s: number, l: number): Color {
-        return Colors.fromHSL(h, s, l);
-    }
-
-    /**
-     * Converts an RGBA value to an array of HSLA values
-     * @param r red (0..255)
-     * @param g green (0..255)
-     * @param b blue (0..255)
-     * @param a alpha (0..255)
-     * @deprecated Use {@link Colors.toHSLA}, `Image.rgbaToHSLA` will be removed in 4.0
-     * @group Deprecated
-     */
-    static rgbaToHSLA(r: number, g: number, b: number, a: number): [h: number, s: number, l: number, a: number] {
-        return rgbaToHSLA(r, g, b, a);
-    }
-
-    /**
-     * Converts a color value to an array of RGBA values
-     * @param color The color value to convert
-     * @deprecated Use {@link Colors.toRGBA}, `Image.colorToRGBA` will be removed in 4.0
-     * @group Deprecated
-     */
-    static colorToRGBA(color: Color): [r: number, g: number, b: number, a: number] {
-        return Colors.toRGBA(color);
-    }
-
-    /**
-     * Converts a color value to an array of RGB values (ignoring the colors alpha)
-     * @param color The color value to convert
-     * @deprecated Use {@link Colors.toRGB}, `Image.colorToRGB` will be removed in 4.0
-     * @group Deprecated
-     */
-    static colorToRGB(color: Color): [r: number, g: number, b: number] {
-        return Colors.toRGB(color);
-    }
-
-    /**
      * Creates an image with a linear gradient, like CSS' `linear-gradient()`
      * @param width The image's width
      * @param height The image's height
@@ -915,10 +1002,13 @@ export class Image {
      * @returns The new image
      */
     static linearGradient(width: number, height: number, options: LinearGradientOptions): Image {
+        checkOptions(options, 'Image.linearGradient(100, 50, { stops, angle: 90 })');
         const { stops, angle = 180 } = options;
         const color = gradientFunction(stops);
         finite(angle, 'angle');
         const image = new Image(width, height);
+        // (sizes with a fraction are truncated by the image: the pixels are written to that size)
+        ({ width, height } = image);
         const radians = angle * Math.PI / 180;
         // the direction (y points down, 0 degrees up), and the length of the line through the center to the corners
         const dx = Math.sin(radians), dy = -Math.cos(radians);
@@ -938,12 +1028,15 @@ export class Image {
      * @returns The new image
      */
     static radialGradient(width: number, height: number, options: RadialGradientOptions): Image {
+        checkOptions(options, 'Image.radialGradient(100, 50, { stops })');
+        const image = new Image(width, height);
+        // (sizes with a fraction are truncated by the image: the pixels are written to that size)
+        ({ width, height } = image);
         const { stops, x: cx = width / 2, y: cy = height / 2, radius = Math.hypot(Math.max(cx, width - cx), Math.max(cy, height - cy)) } = options;
         const color = gradientFunction(stops);
         finite(cx, 'x');
         finite(cy, 'y');
         if (!(finite(radius, 'radius') > 0)) throw new RangeError('Invalid radius');
-        const image = new Image(width, height);
         const bitmap = new DataView(image.bitmap.buffer, image.bitmap.byteOffset, image.bitmap.byteLength);
         for (let y = 0, i = 0; y < height; y++)
             for (let x = 0; x < width; x++, i += 4)
@@ -952,53 +1045,32 @@ export class Image {
     }
 
     /**
-     * Creates a multi-point gradient generator
-     * @param colors The gradient points to use (e.g. `{0: 0xff0000ff, 1: 0x00ff00ff}`)
-     * @deprecated Use {@link Colors.gradient}, `Image.gradient` will be removed in 4.0
-     * @group Deprecated
-     */
-    static gradient(colors: Record<number, Color>): (position: number) => Color {
-        return Colors.gradient(colors);
-    }
-
-    /**
-     * Gets the pixel color at the specified position (0-based)
+     * Gets the pixel color at the specified position (0-based). {@link Colors.toRGBA} splits it into its channels
      * @param x The x coordinate
      * @param y The y coordinate
      * @returns The color value (`0xRRGGBBAA`)
+     * @throws `RangeError` if the position isn't inside the image
+     * @see {@link Image.pixels} to go over every pixel
      */
     getPixelAt(x: number, y: number): Color {
-        x = ~~finite(x, 'x');
-        y = ~~finite(y, 'y');
+        x = Math.trunc(finite(x, 'x'));
+        y = Math.trunc(finite(y, 'y'));
         this.__check_boundaries__(x, y);
         return this.__view__.getUint32((y * this.width + x) * 4, false);
-    }
-
-    /**
-     * Gets a view of the RGBA components of the pixel at the specified position (0-based)
-     * @param x The x coordinate
-     * @param y The y coordinate
-     * @returns The pixel's 4 bytes in {@link Image.bitmap}: writing to them changes the pixel
-     */
-    getRGBAAt(x: number, y: number): Uint8ClampedArray {
-        x = ~~finite(x, 'x');
-        y = ~~finite(y, 'y');
-        this.__check_boundaries__(x, y);
-        const idx = (y * this.width + x) * 4;
-        return this.bitmap.subarray(idx, idx + 4);
     }
 
     /**
      * Sets the pixel color for the specified position (0-based)
      * @param x The x coordinate
      * @param y The y coordinate
-     * @param pixelColor The new color (`0xRRGGBBAA`)
+     * @param color The new color (`0xRRGGBBAA`)
+     * @throws `RangeError` if the position isn't inside the image
      */
-    setPixelAt(x: number, y: number, pixelColor: Color): this {
-        x = ~~finite(x, 'x');
-        y = ~~finite(y, 'y');
+    setPixelAt(x: number, y: number, color: Color): this {
+        x = Math.trunc(finite(x, 'x'));
+        y = Math.trunc(finite(y, 'y'));
         this.__check_boundaries__(x, y);
-        this.__set_pixel__(x, y, checkColor(pixelColor));
+        this.__set_pixel__(x, y, checkColor(color));
         return this;
     }
 
@@ -1040,25 +1112,28 @@ export class Image {
 
     /**
      * Fills the image data with the supplied color
-     * @param color The color, or a function returning the color of each pixel
+     * @param color The color, or a function returning the color of each pixel (checked like any color: a result that
+     *     isn't one throws a RangeError)
      */
     fill(color: Color | ColorFunction): this {
         const view = new DataView(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
         if (typeof color !== 'function') color = checkColor(color);
-        // (the new pixels have no HDR light beyond their own: no boost anywhere)
-        if (this.__gain_map__) this.__gain_map__ = gain.neutralMap(this.__gain_map__, this.width, this.width, this.height);
 
         if (typeof color === 'function') {
+            // (written to a copy first: a function that throws leaves the image as it was)
+            const pixels = new Uint8ClampedArray(this.bitmap.length), out = new DataView(pixels.buffer);
             let offset = 0;
             for (let y = 0; y < this.height; y++)
                 for (let x = 0; x < this.width; x++, offset += 4)
-                    view.setUint32(offset, color(x, y), false);
+                    out.setUint32(offset, checkColor(color(x, y)), false);
+            this.bitmap.set(pixels);
         } else {
-            if (!this.bitmap.length) return this;
             view.setUint32(0, color, false);
             const u32 = new Uint32Array(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength / 4);
             u32.fill(u32[0]);
         }
+        // (the new pixels have no HDR light beyond their own: no boost anywhere)
+        if (this.__gain_map__) this.__gain_map__ = gain.neutralMap(this.__gain_map__, this.width, this.width, this.height);
 
         return this;
     }
@@ -1077,35 +1152,13 @@ export class Image {
     }
 
     /**
-     * @deprecated Use {@link ResizeModes.NEAREST_NEIGHBOR}, `Image.RESIZE_*` will be removed in 4.0
-     * @group Deprecated
+     * Set by {@link Frame} while one of its methods runs: the methods that change the image's size call it with where
+     * the pixels went, so the frame can move its offsets. The new image's top left corner is where the point (x, y)
+     * of the old image was, after the old image was scaled by (scaleX, scaleY)
+     * @internal
+     * @ignore
      */
-    static readonly RESIZE_NEAREST_NEIGHBOR = 'RESIZE_NEAREST_NEIGHBOR';
-
-    /**
-     * @deprecated Use {@link ResizeModes.BILINEAR}, `Image.RESIZE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly RESIZE_BILINEAR = 'RESIZE_BILINEAR';
-
-    /**
-     * @deprecated Use {@link ResizeModes.BICUBIC}, `Image.RESIZE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly RESIZE_BICUBIC = 'RESIZE_BICUBIC';
-
-    /**
-     * @deprecated Use {@link ResizeModes.AREA}, `Image.RESIZE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly RESIZE_AREA = 'RESIZE_AREA';
-
-    /**
-     * @deprecated Pass only the width or the height instead, `image.resize({ width: 256 })`. `Image.RESIZE_*` will
-     *     be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly RESIZE_AUTO: typeof ResizeModes.AUTO = ResizeModes.AUTO;
+    declare __moved__?: (scaleX: number, scaleY: number, x: number, y: number) => void;
 
     /**
      * Resizes the image by the given factor
@@ -1113,17 +1166,13 @@ export class Image {
      * @param options See {@link ResizeOptions}
      */
     scale(factor: number, options?: ResizeOptions): this;
-    /**
-     * Resizes the image by the given factor
-     * @param factor The factor to resize the image with
-     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    scale(factor: number, mode?: ResizeMode): this;
-    scale(factor: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
-        const { mode, fast } = resizeOptions(modeOrOptions);
-        const image = this.__scale__(factor, mode, fast);
+    scale(factor: number, options?: ResizeOptions): this {
+        checkOptions(options, 'scale(factor, { mode: \'area\' })');
+        const { mode } = resizeOptions(options);
+        finite(factor, 'scale factor');
+        const image = this.__scale__(factor, mode);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
+        this.__moved__?.(image.width / this.width, image.height / this.height, 0, 0);
         return this.__apply__(image);
     }
 
@@ -1132,9 +1181,11 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __scale__(factor: number, mode: ResizeMode = ResizeModes.BILINEAR, fast = true): Image {
+    protected __scale__(factor: number, mode: ResizeMode = 'bilinear'): Image {
         if (factor === 1) return this;
-        return this.__resize__(this.width * factor, this.height * factor, mode, fast);
+        // (a side doesn't shrink below one pixel, like resize({ width }) keeping the aspect ratio)
+        const size = (side: number): number => factor > 0 ? Math.max(1, side * factor) : side * factor;
+        return this.__resize__(size(this.width), size(this.height), mode);
     }
 
     /**
@@ -1147,107 +1198,60 @@ export class Image {
      */
     resize(width: number, height: number, options?: ResizeOptions): this;
     /**
-     * Resizes the image to the given dimensions.
-     * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
-     * @param width The new width
-     * @param height The new height
-     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
-     * @returns The resized image
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    resize(width: number, height: number, mode?: ResizeMode): this;
-    /**
      * Resizes the image: to the given width or height (the other side keeps the aspect ratio), or to both
+     * @example
+     * ```ts
+     * image.resize({ width: 300, height: 200, fit: 'cover' }); // fills 300x200, cropping what doesn't fit
+     * image.resize({ width: 150 });                            // 150 wide, the height keeps the aspect ratio
+     * ```
      * @param options The size and how to resize, see {@link ResizeToOptions}
      * @returns The resized image
      */
     resize(options: ResizeToOptions): this;
-    resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, modeArgument?: ResizeMode | ResizeOptions): this {
-        const [width, height, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
-        const { mode, fast } = resizeOptions(modeOrOptions);
-        const image = this.__resize__(width, height, mode, fast);
+    resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
+        const [width, height, options, fit] = resizeArguments(widthOrOptions, heightArgument, optionsArgument);
+        if (fit === 'contain' || fit === 'cover') {
+            if (width === undefined || height === undefined) throw new TypeError(`resize({ fit: '${fit}' }) needs both width and height`);
+            return fit === 'contain'
+                ? this.__contain__(width, height, options)
+                : this.__cover__(width, height, options);
+        }
+        const { mode } = resizeOptions(options);
+        const image = this.__resize__(...this.__resized_size__(width, height, fit), mode);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
+        this.__moved__?.(image.width / this.width, image.height / this.height, 0, 0);
         return this.__apply__(image);
     }
 
     /**
-     * Resizes the image so it is contained in the given bounding box.
-     * Can return an image with one axis smaller than the given bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param options See {@link ResizeOptions}
-     * @returns The resized image
+     * Resizes and centers the image in a box of exactly that size, with transparent or colored bars
+     * @internal
      */
-    contain(width: number, height: number, options?: ResizeOptions): this;
-    /**
-     * Resizes the image so it is contained in the given bounding box.
-     * Can return an image with one axis smaller than the given bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
-     * @returns The resized image
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    contain(width: number, height: number, mode?: ResizeMode): this;
-    contain(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
-        const options = resizeOptions(modeOrOptions);
+    private __contain__(width: number, height: number, options?: ResizeRuntimeOptions): this {
+        const { background = 0x00000000, ...resizeOpts } = options ?? {};
+        const backgroundColor = checkColor(background, 'background');
+        resizeOptions(resizeOpts);
         width = Math.floor(finite(width, 'width'));
         height = Math.floor(finite(height, 'height'));
-        // round instead of flooring the scaled size, so the limiting axis matches the box exactly
-        const scale = Math.min(width / this.width, height / this.height);
-        return this.resize(Math.max(1, Math.min(width, Math.round(this.width * scale))), Math.max(1, Math.min(height, Math.round(this.height * scale))), options);
-    }
-
-    /**
-     * Resizes the image so it is contained in the given bounding box, placing it in the center of the given bounding box.
-     * Always returns the exact dimensions of the bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param options See {@link ResizeOptions}
-     * @returns The resized image
-     */
-    fit(width: number, height: number, options?: ResizeOptions): this;
-    /**
-     * Resizes the image so it is contained in the given bounding box, placing it in the center of the given bounding box.
-     * Always returns the exact dimensions of the bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
-     * @returns The resized image
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    fit(width: number, height: number, mode?: ResizeMode): this;
-    fit(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
-        const options = resizeOptions(modeOrOptions);
+        // (checked before anything changes)
+        if (width < 1) throw new RangeError('Image has to be at least 1 pixel wide');
+        if (height < 1) throw new RangeError('Image has to be at least 1 pixel high');
         const result = new Image(width, height);
-        this.contain(width, height, options);
+        if (backgroundColor !== 0) result.fill(backgroundColor);
+        this.resize(...insideSize(this.width, this.height, width, height), resizeOpts);
         const x = (width - this.width) / 2 | 0, y = (height - this.height) / 2 | 0;
-        result.composite(this, x, y);
+        result.composite(this, { x, y });
         this.__gain_map__?.__transform__(this.width, this.height, result.width, result.height, (X, Y) => [X - x, Y - y]);
+        this.__moved__?.(1, 1, -x, -y);
         return this.__apply__(result);
     }
 
     /**
-     * Resizes the image so it covers the given bounding box, cropping the overflowing edges.
-     * Always returns the exact dimensions of the bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param options See {@link ResizeOptions}
-     * @returns The resized image
+     * Resizes the image to cover the box, cropping the overflowing edges
+     * @internal
      */
-    cover(width: number, height: number, options?: ResizeOptions): this;
-    /**
-     * Resizes the image so it covers the given bounding box, cropping the overflowing edges.
-     * Always returns the exact dimensions of the bounding box.
-     * @param width The width of the bounding box
-     * @param height The height of the bounding box
-     * @param [mode=ResizeModes.BILINEAR] The resizing mode to use
-     * @returns The resized image
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    cover(width: number, height: number, mode?: ResizeMode): this;
-    cover(width: number, height: number, modeOrOptions?: ResizeMode | ResizeOptions): this {
-        const options = resizeOptions(modeOrOptions);
+    private __cover__(width: number, height: number, options?: ResizeOptions): this {
+        const resizeOpts = resizeOptions(options);
         width = Math.floor(width);
         height = Math.floor(height);
         // (checked before anything changes: a box below a pixel used to resize the image, then fail to crop it)
@@ -1258,14 +1262,16 @@ export class Image {
         const scale = Math.max(width / this.width, height / this.height);
         const resizedWidth = Math.max(width, Math.round(this.width * scale)), resizedHeight = Math.max(height, Math.round(this.height * scale));
         // only the part the crop keeps is resampled (the same pixels as resizing the whole image, then cropping)
-        if (options.mode !== ResizeModes.NEAREST_NEIGHBOR && width >= 1 && height >= 1) {
+        if (resizeOpts.mode !== 'nearest-neighbor' && width >= 1 && height >= 1) {
             const region = { x: ~~((resizedWidth - width) / 2), y: ~~((resizedHeight - height) / 2), width, height };
-            this.__rescaled__?.(resizedWidth, resizedHeight);
             const fx = resizedWidth / this.width, fy = resizedHeight / this.height;
+            // (resampled first: this can fail to allocate, and the gain map has to stay as it was then)
+            const resized = this.__resize__(resizedWidth, resizedHeight, resizeOpts.mode, region);
             this.__gain_map__?.__transform__(this.width, this.height, width, height, (X, Y) => [(X + region.x) / fx, (Y + region.y) / fy], Math.min(fx, fy));
-            return this.__apply__(this.__resize__(resizedWidth, resizedHeight, options.mode, options.fast, region));
+            this.__moved__?.(fx, fy, region.x, region.y);
+            return this.__apply__(resized);
         }
-        this.resize(resizedWidth, resizedHeight, options);
+        this.resize(resizedWidth, resizedHeight, resizeOpts);
         return this.crop((this.width - width) / 2, (this.height - height) / 2, width, height);
     }
 
@@ -1274,11 +1280,20 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __resize__(width: number, height: number, mode: ResizeMode = ResizeModes.BILINEAR, fast = true, region?: Region): Image {
-        if (width === ResizeModes.AUTO && height === ResizeModes.AUTO) throw new Error('RESIZE_AUTO can only be used for either width or height, not for both');
-        else if (width === ResizeModes.AUTO) width = Math.max(1, Math.round(this.width / this.height * Math.floor(height)));
-        else if (height === ResizeModes.AUTO) height = Math.max(1, Math.round(this.height / this.width * Math.floor(width)));
+    protected __resized_size__(width: number | undefined, height: number | undefined, fit: 'fill' | 'inside' = 'fill'): [width: number, height: number] {
+        if (fit === 'inside' && width !== undefined && height !== undefined) return insideSize(this.width, this.height, width, height);
+        // a side left out follows the other one, keeping the aspect ratio
+        if (width === undefined) return [Math.max(1, Math.round(this.width / this.height * Math.floor(height as number))), height as number];
+        if (height === undefined) return [width, Math.max(1, Math.round(this.height / this.width * Math.floor(width)))];
+        return [width, height];
+    }
 
+    /** @private */
+    /**
+     * @internal
+     * @ignore
+     */
+    protected __resize__(width: number, height: number, mode: ResizeMode = 'bilinear', region?: Region): Image {
         width = Math.floor(width);
         height = Math.floor(height);
         if (width < 1)
@@ -1286,13 +1301,15 @@ export class Image {
         if (height < 1)
             throw new RangeError('Image has to be at least 1 pixel high');
 
-        if (mode === ResizeModes.NEAREST_NEIGHBOR) return this.__resize_nearest_neighbor__(width, height);
+        oneOf(mode, RESIZE_MODES, 'resize mode');
+        if (mode === 'nearest-neighbor') return this.__resize_nearest_neighbor__(width, height);
 
-        const filter = mode === ResizeModes.BILINEAR ? TRIANGLE : mode === ResizeModes.BICUBIC ? CUBIC : mode === ResizeModes.AREA ? BOX : null;
-        if (!filter) throw new Error('Invalid resize mode');
+        const filter = mode === 'bilinear' ? TRIANGLE : mode === 'bicubic' ? CUBIC : BOX;
 
         const image = new Image(region?.width ?? width, region?.height ?? height);
-        resample(this.bitmap, this.width, this.height, width, height, filter, image.bitmap, fast, region);
+        // (8-bit rounding between the passes and for transparent images, like browsers: what shows differs from the precise
+        // result by a step or two at most, see tests/resize.js)
+        resample(this.bitmap, this.width, this.height, width, height, filter, image.bitmap, true, region);
         return image;
     }
 
@@ -1325,12 +1342,13 @@ export class Image {
      * The region is clipped to the image, so the result can be smaller than the requested size
      * @param x The x offset (0-based)
      * @param y The y offset (0-based)
-     * @param width The new images width
-     * @param height The new images height
+     * @param width The new width
+     * @param height The new height
      */
     crop(x: number, y: number, width: number, height: number): this {
         const bounds = this.__crop_bounds__(x, y, width, height);
         this.__crop_gain_map__(this, ...bounds);
+        this.__moved__?.(1, 1, bounds[0], bounds[1]);
         return this.__apply__(this.__crop__(...bounds));
     }
 
@@ -1348,7 +1366,7 @@ export class Image {
     }
 
     /**
-     * Copies a region of the image into a new image, this one stays unchanged (like {@link Image.crop} on a clone,
+     * Copies a region of the image into a new image and leaves the image unchanged (like {@link Image.crop} on a clone,
      * without copying the whole image). The region is clipped to the image, so the result can be smaller than the
      * requested size
      * @param x The x offset (0-based)
@@ -1356,7 +1374,7 @@ export class Image {
      * @param width The region's width
      * @param height The region's height
      */
-    region(x: number, y: number, width: number, height: number): Image {
+    extract(x: number, y: number, width: number, height: number): Image {
         const bounds = this.__crop_bounds__(x, y, width, height);
         const image = this.__crop__(...bounds);
         this.__crop_gain_map__(image, ...bounds);
@@ -1369,10 +1387,10 @@ export class Image {
      * @ignore
      */
     protected __crop_bounds__(x: number, y: number, width: number, height: number): [number, number, number, number] {
-        x = ~~finite(x, 'x');
-        y = ~~finite(y, 'y');
-        width = ~~finite(width, 'width');
-        height = ~~finite(height, 'height');
+        x = Math.trunc(finite(x, 'x'));
+        y = Math.trunc(finite(y, 'y'));
+        width = Math.trunc(finite(width, 'width'));
+        height = Math.trunc(finite(height, 'height'));
 
         const left = Math.max(0, x), top = Math.max(0, y);
         const right = Math.min(this.width, x + width), bottom = Math.min(this.height, y + height);
@@ -1384,26 +1402,17 @@ export class Image {
 
     /**
      * Removes borders of one color, e.g. the empty space around rendered text or around a logo on a solid background.
-     * Frames keep their position: their offsets move by the trimmed amount. An image that only has the color stays
-     * unchanged
+     * An image that only has the color stays unchanged ({@link Frame.trim} also moves the frame's offsets)
      * @param options See {@link TrimOptions}
      */
     trim(options?: TrimOptions): this;
-    /**
-     * Removes borders of one color, e.g. the empty space around rendered text or around a logo on a solid background.
-     * Frames keep their position: their offsets move by the trimmed amount. An image that only has the color stays
-     * unchanged
-     * @param color The border color, by default the color of the top left pixel. Fully transparent pixels count as the
-     *     same color whatever their RGB values
-     * @param options See {@link TrimOptions}
-     * @deprecated Pass {@link TrimOptions} instead, the positional arguments will be removed in 4.0
-     */
-    trim(color?: Color, options?: TrimOptions): this;
-    trim(colorOrOptions?: Color | TrimOptions, optionsArgument: TrimOptions = {}): this {
-        const { color, ...options } = isOptions(colorOrOptions) ? colorOrOptions : { ...optionsArgument, color: colorOrOptions ?? optionsArgument.color };
-        const bounds = this.__trim_bounds__(color, options);
+    trim(options: TrimOptions = {}): this {
+        checkOptions(options, 'trim({ tolerance: 0.1 })');
+        const { color, ...rest } = options;
+        const bounds = this.__trim_bounds__(color, rest);
         if (!bounds) return this;
         this.__crop_gain_map__(this, ...bounds);
+        this.__moved__?.(1, 1, bounds[0], bounds[1]);
         return this.__apply__(this.__crop__(...bounds));
     }
 
@@ -1412,7 +1421,8 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __trim_bounds__(color: Color | undefined, { tolerance = 0 }: TrimOptions): [number, number, number, number] | null {
+    __trim_bounds__(color: Color | undefined, { tolerance = 0 }: TrimOptions): [number, number, number, number] | null {
+        finite(tolerance, 'tolerance');
         if (!(tolerance >= 0 && tolerance <= 1)) throw new RangeError('Invalid tolerance, it has to be between 0 and 1');
 
         const bitmap = this.bitmap;
@@ -1465,131 +1475,16 @@ export class Image {
     }
 
     /**
-     * Draws a box at the specified coordinates (0-based), clipped to the image
-     * @param x The x offset
-     * @param y The y offset
-     * @param width The box width
-     * @param height The box height
-     * @param color The color to fill the box in with, a function gets coordinates relative to the box
-     */
-    drawBox(x: number, y: number, width: number, height: number, color: Color | ColorFunction): this {
-        x = ~~finite(x, 'x');
-        y = ~~finite(y, 'y');
-        width = ~~finite(width, 'width');
-        height = ~~finite(height, 'height');
-
-        if (typeof color !== 'function') this.__fast_box__(x, y, width, height, checkColor(color));
-        else for (let tY = Math.max(0, -y); tY < height && tY + y < this.height; tY++)
-            for (let tX = Math.max(0, -x); tX < width && tX + x < this.width; tX++)
-                this.__set_pixel__(tX + x, tY + y, color(tX, tY));
-
-        // (the box's pixels have no HDR light beyond their own)
-        if (this.__gain_map__) gain.redraw(this, this.__gain_map__, Math.max(0, x), Math.max(0, y), Math.min(this.width, x + width), Math.min(this.height, y + height), (_x, _y, S, _boost, out) => {
-            out[0] = S[0];
-            out[1] = S[1];
-            out[2] = S[2];
-        });
-        return this;
-    }
-
-    /**
-     * @internal
-     * @ignore
-     */
-    protected __fast_box__(x: number, y: number, width: number, height: number, color: Color): this {
-        const left = Math.max(0, x), top = Math.max(0, y);
-        const right = Math.min(this.width, x + width), bottom = Math.min(this.height, y + height);
-        if (right <= left || bottom <= top) return this;
-
-        // fill the first row, then copy it to the others
-        for (let xPos = left; xPos < right; xPos++)
-            this.__view__.setUint32(4 * (xPos + top * this.width), color);
-
-        const start = 4 * (left + top * this.width);
-        const end = 4 * (right + top * this.width);
-        for (let row = top + 1; row < bottom; row++)
-            this.bitmap.copyWithin(4 * (left + row * this.width), start, end);
-
-        return this;
-    }
-
-    /**
-     * Draws an antialiased circle around the center of the specified pixel (0-based)
-     * @param x The center x position
-     * @param y The center y position
-     * @param radius The circles radius in pixels
-     * @param color The color, a function gets coordinates relative to the circle's bounding box
-     */
-    drawCircle(x: number, y: number, radius: number, color: Color | ColorFunction): this {
-        x = ~~finite(x, 'x');
-        y = ~~finite(y, 'y');
-        radius = finite(radius, 'radius');
-        if (typeof color !== 'function') color = checkColor(color);
-        // the circle is centered on the pixel's center, its edge is antialiased
-        const cx = x + 0.5, cy = y + 0.5;
-
-        for (let py = Math.max(0, Math.floor(cy - radius)); py < Math.min(this.height, Math.ceil(cy + radius)); py++) {
-            for (let px = Math.max(0, Math.floor(cx - radius)); px < Math.min(this.width, Math.ceil(cx + radius)); px++) {
-                const coverage = circleCoverage(px, py, cx, cy, radius);
-                if (coverage <= 0) continue;
-
-                const value = typeof color === 'function' ? color(px - x + radius, py - y + radius) : color;
-                if (coverage >= 1) this.__set_pixel__(px, py, value);
-                else this.__blend_pixel__(px, py, value, coverage);
-            }
-        }
-
-        // (the circle's pixels have no HDR light beyond their own; at the antialiased edge in part, by the coverage)
-        const map = this.__gain_map__;
-        if (map) {
-            const oS = map.offsetSDR, oH = map.offsetHDR;
-            gain.redraw(this, map, Math.max(0, Math.floor(cx - radius)), Math.max(0, Math.floor(cy - radius)), Math.min(this.width, Math.ceil(cx + radius)), Math.min(this.height, Math.ceil(cy + radius)), (px, py, S, boost, out) => {
-                const coverage = Math.min(1, Math.max(0, circleCoverage(px, py, cx, cy, radius)));
-                for (let c = 0; c < 3; c++) out[c] = coverage * S[c] + (1 - coverage) * ((S[c] + oS[c]) * boost[c] - oH[c]);
-            });
-        }
-        return this;
-    }
-
-    /**
-     * Moves a pixel towards a color by the given amount (with premultiplied alpha)
-     * @internal
-     * @ignore
-     */
-    protected __blend_pixel__(x: number, y: number, color: Color, amount: number): void {
-        const i = (y * this.width + x) * 4, b = this.bitmap;
-        const sa = (color & 0xff) / 255 * amount, da = b[i + 3] / 255 * (1 - amount);
-        const a = sa + da;
-        if (a <= 0) {
-            b[i] = b[i + 1] = b[i + 2] = b[i + 3] = 0;
-            return;
-        }
-
-        b[i] = ((color >>> 24) * sa + b[i] * da) / a;
-        b[i + 1] = ((color >> 16 & 0xff) * sa + b[i + 1] * da) / a;
-        b[i + 2] = ((color >> 8 & 0xff) * sa + b[i + 2] * da) / a;
-        b[i + 3] = a * 255;
-    }
-
-    /**
      * Crops the image into a circle with an antialiased edge
      * @param options See {@link CropCircleOptions}
+     * @see {@link Image.roundCorners} for rounded corners
      */
-    cropCircle(options?: CropCircleOptions): this;
-    /**
-     * Crops the image into a circle with an antialiased edge
-     * @param max Whether to use the larger dimension for the size. Default: `false`
-     * @param feathering Share of the radius (0..1) over which the edge fades out. Default: `0`
-     * @deprecated Pass {@link CropCircleOptions} instead, `cropCircle({ size: 'cover' })`. The arguments will be
-     *     removed in 4.0
-     */
-    cropCircle(max?: boolean, feathering?: number): this;
-    cropCircle(maxOrOptions: boolean | CropCircleOptions = false, featheringArgument = 0): this {
-        const { max = false, size = max ? 'cover' : 'contain', feathering = 0 } = typeof maxOrOptions === 'object' && maxOrOptions !== null
-            ? maxOrOptions : { max: maxOrOptions, feathering: featheringArgument };
-        finite(feathering, 'feathering');
-        if (size !== 'contain' && size !== 'cover') throw new TypeError(`Invalid circle size: ${String(size)}`);
-        const radius = (size === 'cover' ? Math.max : Math.min)(this.width, this.height) / 2;
+    cropCircle(options: CropCircleOptions = {}): this {
+        checkOptions(options, 'cropCircle({ fit: \'cover\' })');
+        const { fit = 'contain', feathering = 0 } = options;
+        unitInterval(feathering, 'feathering');
+        oneOf(fit, CIRCLE_FITS, 'fit');
+        const radius = (fit === 'cover' ? Math.max : Math.min)(this.width, this.height) / 2;
         const cx = this.width / 2, cy = this.height / 2;
         // width of the soft edge, at least the one pixel of antialiasing
         const band = Math.min(1, Math.max(0, feathering)) * radius;
@@ -1653,24 +1548,14 @@ export class Image {
 
     /**
      * Scales the opacity of the image
-     * @param opacity The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
-     * @param options See {@link AdjustOptions}
+     * @param factor The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
      */
-    opacity(opacity: number, options?: AdjustOptions): this;
-    /**
-     * Scales the opacity of the image
-     * @param opacity The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
-     * @param absolute Whether to set the opacity (true) instead of scaling it (false)
-     * @deprecated Use {@link Image.opacity} to scale; for a fixed alpha, `absolute` is removed in 4.0
-     */
-    opacity(opacity: number, absolute?: boolean): this;
-    opacity(opacity: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
-        opacity = finite(opacity, 'opacity value');
-        if (opacity < 0)
+    opacity(factor: number): this {
+        factor = finite(factor, 'opacity value');
+        if (factor < 0)
             throw new RangeError('Invalid opacity value');
 
-        this.__set_channel_value__(opacity, absolute, 3);
+        this.__set_channel_value__(factor, 3);
 
         return this;
     }
@@ -1678,24 +1563,14 @@ export class Image {
     /**
      * Scales the red channel
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param options See {@link AdjustOptions}
      */
-    red(factor: number, options?: AdjustOptions): this;
-    /**
-     * Scales the red channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param absolute Whether to set every pixel's red channel to `factor` * 255 (true) instead of scaling it (false)
-     * @deprecated Use {@link Image.recolor} to set a fixed color; `absolute` is removed in 4.0
-     */
-    red(factor: number, absolute?: boolean): this;
-    red(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.red(factor, absoluteOrOptions as boolean));
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
+    red(factor: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.red(factor));
         factor = finite(factor, 'red factor');
         if (factor < 0)
             throw new RangeError('Invalid red factor');
 
-        this.__set_channel_value__(factor, absolute, 0);
+        this.__set_channel_value__(factor, 0);
 
         return this;
     }
@@ -1703,24 +1578,14 @@ export class Image {
     /**
      * Scales the green channel
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param options See {@link AdjustOptions}
      */
-    green(factor: number, options?: AdjustOptions): this;
-    /**
-     * Scales the green channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param absolute Whether to set every pixel's green channel to `factor` * 255 (true) instead of scaling it (false)
-     * @deprecated Use {@link Image.recolor} to set a fixed color; `absolute` is removed in 4.0
-     */
-    green(factor: number, absolute?: boolean): this;
-    green(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.green(factor, absoluteOrOptions as boolean));
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
+    green(factor: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.green(factor));
         factor = finite(factor, 'green factor');
         if (factor < 0)
             throw new RangeError('Invalid green factor');
 
-        this.__set_channel_value__(factor, absolute, 1);
+        this.__set_channel_value__(factor, 1);
 
         return this;
     }
@@ -1728,24 +1593,14 @@ export class Image {
     /**
      * Scales the blue channel
      * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param options See {@link AdjustOptions}
      */
-    blue(factor: number, options?: AdjustOptions): this;
-    /**
-     * Scales the blue channel
-     * @param factor The factor to multiply the channel with (>= 0, results are clamped)
-     * @param absolute Whether to set every pixel's blue channel to `factor` * 255 (true) instead of scaling it (false)
-     * @deprecated Use {@link Image.recolor} to set a fixed color; `absolute` is removed in 4.0
-     */
-    blue(factor: number, absolute?: boolean): this;
-    blue(factor: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.blue(factor, absoluteOrOptions as boolean));
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
+    blue(factor: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.blue(factor));
         factor = finite(factor, 'blue factor');
         if (factor < 0)
             throw new RangeError('Invalid blue factor');
 
-        this.__set_channel_value__(factor, absolute, 2);
+        this.__set_channel_value__(factor, 2);
 
         return this;
     }
@@ -1754,84 +1609,55 @@ export class Image {
      * @internal
      * @ignore
      */
-    protected __set_channel_value__(value: number, absolute: boolean, offset: number): void {
+    protected __set_channel_value__(value: number, offset: number): void {
         for (let i = offset; i < this.bitmap.length; i += 4)
-            this.bitmap[i] = value * (absolute ? 255 : this.bitmap[i]);
+            this.bitmap[i] = value * this.bitmap[i];
     }
 
     /**
      * Scales the lightness of the image (HSL), keeping its hue and saturation
-     * @param value The factor to multiply the lightness with (>= 0, results are clamped)
-     * @param options See {@link AdjustOptions}
+     * @param factor The factor to multiply the lightness with (>= 0, results are clamped)
      */
-    lightness(value: number, options?: AdjustOptions): this;
-    /**
-     * Scales the lightness of the image (HSL), keeping its hue and saturation
-     * @param value The factor to multiply the lightness with (>= 0, results are clamped)
-     * @param absolute Whether to set the lightness (true) instead of scaling it (false)
-     * @deprecated `absolute` is removed in 4.0: scale with a factor, or use {@link Image.recolor} for a fixed color
-     */
-    lightness(value: number, absolute?: boolean): this;
-    lightness(value: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.lightness(value, absoluteOrOptions as boolean));
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
-        value = finite(value, 'lightness value');
-        if (value < 0)
-            throw new RangeError('Invalid lightness value');
+    lightness(factor: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.lightness(factor));
+        factor = finite(factor, 'lightness factor');
+        if (factor < 0)
+            throw new RangeError('Invalid lightness factor');
 
-        return this.__map_hsla__(c => { c.l = value * (absolute ? 1 : c.l); });
+        return this.__map_hsla__(c => { c.l = factor * c.l; });
     }
 
     /**
-     * Scales the saturation of the image (HSL), keeping its hue and lightness. 0 makes it greyscale
-     * @param value The factor to multiply the saturation with (>= 0, results are clamped)
-     * @param options See {@link AdjustOptions}
+     * Scales the saturation of the image (HSL), keeping its hue and lightness. 0 makes it grayscale
+     * @param factor The factor to multiply the saturation with (>= 0, results are clamped)
      */
-    saturation(value: number, options?: AdjustOptions): this;
-    /**
-     * Scales the saturation of the image (HSL), keeping its hue and lightness. 0 makes it greyscale
-     * @param value The factor to multiply the saturation with (>= 0, results are clamped)
-     * @param absolute Whether to set the saturation (true) instead of scaling it (false)
-     * @deprecated `absolute` is removed in 4.0: scale with a factor, or use {@link Image.recolor} for a fixed color
-     */
-    saturation(value: number, absolute?: boolean): this;
-    saturation(value: number, absoluteOrOptions: boolean | AdjustOptions = false): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.saturation(value, absoluteOrOptions as boolean), true);
-        const absolute = isOptions(absoluteOrOptions) ? absoluteOrOptions.absolute ?? false : absoluteOrOptions;
-        value = finite(value, 'saturation value');
-        if (value < 0)
-            throw new RangeError('Invalid saturation value');
+    saturation(factor: number): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.saturation(factor), true);
+        factor = finite(factor, 'saturation factor');
+        if (factor < 0)
+            throw new RangeError('Invalid saturation factor');
 
-        return this.__map_hsla__(c => { c.s = value * (absolute ? 1 : c.s); });
+        return this.__map_hsla__(c => { c.s = factor * c.s; });
     }
 
     /**
      * Composites (overlays) the source onto this image
+     * @example
+     * ```ts
+     * image.composite(overlay, { x: 10, y: 10, opacity: 0.5, mode: 'multiply' });
+     * ```
      * @param source The image to place
      * @param options Position, opacity and blend mode, see {@link CompositeOptions}
+     * @throws `TypeError` if the source isn't an {@link Image}
      */
     composite(source: Image, options?: CompositeOptions): this;
-    /**
-     * Composites (overlays) the source onto this image at the specified coordinates
-     * @param source The image to place
-     * @param [x=0] The x position to place the image at
-     * @param [y=0] The y position to place the image at
-     * @param options Opacity and blend mode, see {@link CompositeOptions}
-     * @deprecated Pass {@link CompositeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    composite(source: Image, x?: number, y?: number, options?: CompositeOptions): this;
-    composite(source: Image, xOrOptions: number | CompositeOptions = 0, yArgument = 0, optionsArgument: CompositeOptions = {}): this {
-        const options = isOptions(xOrOptions) ? xOrOptions : optionsArgument;
-        const { opacity = 1, mode = 'normal' } = options;
-        let x = isOptions(xOrOptions) ? xOrOptions.x ?? 0 : xOrOptions, y = isOptions(xOrOptions) ? xOrOptions.y ?? 0 : yArgument;
-        x = finite(x, 'x') | 0;
-        y = finite(y, 'y') | 0;
-
-        if (isNaN(opacity) || opacity < 0 || opacity > 1)
-            throw new RangeError('Invalid composite opacity');
-        const blend = BLEND_MODES[mode];
-        if (!blend || !Object.prototype.hasOwnProperty.call(BLEND_MODES, mode))
-            throw new RangeError(`Invalid blend mode: ${mode}`);
+    composite(source: Image, options: CompositeOptions = {}): this {
+        checkOptions(options, 'composite(source, { x: 10, y: 20 })');
+        if (!(source instanceof Image)) throw new TypeError('composite() takes an Image as its source, like image.composite(logo, { x: 10, y: 20 })');
+        const { opacity = 1, mode = 'normal', x: givenX = 0, y: givenY = 0 } = options;
+        const x = Math.trunc(finite(givenX, 'x')), y = Math.trunc(finite(givenY, 'y'));
+        unitInterval(opacity, 'opacity');
+        const blend = BLEND_MODES[oneOf(mode, Object.keys(BLEND_MODES) as BlendMode[], 'blend mode')];
         if (opacity === 0) return this;
         if (this.__gain_map__ || source.__gain_map__) return this.__composite_gain__(source, x, y, opacity, mode);
         if (mode !== 'normal') return this.__blend__(source, x, y, opacity, blend);
@@ -1884,7 +1710,7 @@ export class Image {
         const ownMap = this.__gain_map__, sourceMap = source.__gain_map__;
         this.__gain_map__ = source.__gain_map__ = null;
         try {
-            this.composite(source, x, y, { opacity, mode });
+            this.composite(source, { x, y, opacity, mode });
         } finally {
             this.__gain_map__ = ownMap;
             source.__gain_map__ = sourceMap;
@@ -1938,7 +1764,7 @@ export class Image {
                 }
                 out[c] = share * Hs + (1 - share) * Hd;
             }
-        }, map.channels === 1 && (!sourceMap || sourceMap.channels === 1), Math.max(0, ...(sourceMap?.gainMapMax ?? [0])));
+        }, map.channels === 1 && (!sourceMap || sourceMap.channels === 1), Math.max(0, ...(sourceMap?.__max__ ?? [0])));
         return this;
     }
 
@@ -1977,7 +1803,7 @@ export class Image {
     }
 
     /**
-     * Inverts the images colors
+     * Inverts the image's colors
      */
     invert(): this {
         if (this.__gain_map__) return this.__unboost__(image => image.invert());
@@ -1992,7 +1818,7 @@ export class Image {
     }
 
     /**
-     * Inverts the images lightness (HSL), keeping hue and saturation: dark colors become light and vice versa
+     * Inverts the image's lightness (HSL), keeping hue and saturation: dark colors become light and vice versa
      */
     invertLightness(): this {
         if (this.__gain_map__) return this.__unboost__(image => image.invertLightness());
@@ -2000,7 +1826,7 @@ export class Image {
     }
 
     /**
-     * Inverts the images value (HSV), keeping hue and saturation: the brightest channel `v` becomes `255 - v`
+     * Inverts the image's value (HSV), keeping hue and saturation: the brightest channel `v` becomes `255 - v`
      * and the others scale along, black becomes white
      */
     invertValue(): this {
@@ -2024,7 +1850,7 @@ export class Image {
     }
 
     /**
-     * Shifts the images hue
+     * Shifts the image's hue
      * @param degrees How many degrees to shift the hue by
      */
     hueShift(degrees: number): this {
@@ -2076,7 +1902,7 @@ export class Image {
             hsla.a = bitmap[i + 3] / 255;
             map(hsla);
 
-            // see hslaToColor
+            // see Colors.fromHSLA
             const nh = wrapHue(hsla.h);
             const ns = Math.min(1, Math.max(0, hsla.s));
             const nl = Math.min(1, Math.max(0, hsla.l));
@@ -2104,8 +1930,7 @@ export class Image {
      * @param radius The blur radius: the gaussian's standard deviation in pixels, like CSS' blur()
      */
     blur(radius: number): this {
-        if (!Number.isFinite(radius) || radius < 0)
-            throw new RangeError('Invalid blur radius');
+        nonNegative(radius, 'blur radius');
         // (the gain map blurred alike, at its resolution)
         const map = this.__gain_map__;
         if (map && radius * map.width / this.width >= 0.5) map.image = map.image.clone().blur(radius * map.width / this.width);
@@ -2118,17 +1943,22 @@ export class Image {
     }
 
     /**
-     * Reduces the image to a palette of at most 256 colors (or a fixed one), in place, optionally dithered, e.g.
-     * `image.quantize({ colors: 16, dither: 'floyd-steinberg' })` or `image.quantize({ palette: [0x0f380fff, 0x306230ff,
-     * 0x8bac0fff, 0x9bbc0fff] })` for a Game Boy look. Transparent pixels (alpha 0) keep their color and don't count
-     * towards the palette; the other pixels keep their alpha and only their RGB is reduced. The result is deterministic.
-     * With a gain map (an HDR image), the HDR highlights are dropped, like {@link Image.invert} does: the map is neutral
-     * afterwards. Frames quantize their own pixels
+     * Reduces the image to a palette of at most 256 colors (or a fixed one), in place, optionally dithered
+     * @remarks
+     * Transparent pixels (alpha 0) keep their color and don't count towards the palette; the other pixels keep their alpha
+     * and only their RGB is reduced. The result is deterministic. With a gain map (an HDR image), the HDR highlights are
+     * dropped, like {@link Image.invert} does: the map is neutral afterwards
+     * @example
+     * ```ts
+     * image.quantize({ colors: 16, dither: 'floyd-steinberg' });
+     * image.quantize({ palette: [0x0f380fff, 0x306230ff, 0x8bac0fff, 0x9bbc0fff] }); // a Game Boy look
+     * ```
      * @param options See {@link QuantizeOptions}
      */
     quantize(options: QuantizeOptions = {}): this {
-        if (typeof options !== 'object' || options === null) throw new TypeError('quantize takes an options object');
-        const { colors, palette, dither = 'none', ditherStrength = 1 } = options;
+        checkOptions(options, 'image.quantize({ colors: 16 })');
+        // (JavaScript callers can give both: checked below)
+        const { colors, palette, dither = 'floyd-steinberg', ditherStrength = 0.85 } = options as DitherOptions & { colors?: number, palette?: Color[] };
 
         // everything is checked before the image changes
         if (colors !== undefined && palette !== undefined) throw new TypeError('quantize takes colors or palette, not both');
@@ -2145,13 +1975,10 @@ export class Image {
                 packed[i * 3 + 2] = value >>> 8 & 255;
             });
             fixed = packed;
-        } else if (colors !== undefined) {
-            count = finite(colors, 'colors');
-            if (!Number.isInteger(count) || count < 2 || count > 256) throw new RangeError(`colors must be an integer from 2 to 256, not ${colors}`);
         }
-        if (!(DITHER_METHODS as readonly unknown[]).includes(dither)) throw new TypeError(`dither must be one of ${DITHER_METHODS.map(name => `'${name}'`).join(', ')}, not ${String(dither)}`);
-        const strength = finite(ditherStrength, 'ditherStrength');
-        if (strength < 0 || strength > 1) throw new RangeError(`ditherStrength must be 0-1, not ${ditherStrength}`);
+        const checked = quantize.paletteOptions(palette === undefined ? colors : undefined, dither, ditherStrength);
+        if (checked.colors !== undefined) count = checked.colors;
+        const strength = checked.strength;
 
         const reduce = (image: Image): void => {
             const bytes = image.__bytes__();
@@ -2165,15 +1992,19 @@ export class Image {
 
     /**
      * Mixes the colors of every pixel with a color matrix, like SVG's `feColorMatrix`: the new red, green, blue and alpha
-     * are each a sum of the old red, green, blue and alpha times a factor, plus an offset. Greyscale, sepia, tints,
-     * swapped channels, color blindness simulation or a mix of those in one pass.
-     *
+     * are each a sum of the old red, green, blue and alpha times a factor, plus an offset. Grayscale, sepia, tints,
+     * swapped channels, color blindness simulation or a mix of those in one pass
+     * @remarks
      * The values are 20 numbers, four rows of `[red, green, blue, alpha, offset]` for the new red, green, blue and alpha,
      * with the colors and the offsets as 0 to 1 (like CSS and SVG): `[1, 0, 0, 0, 0,  0, 1, 0, 0, 0,  0, 0, 1, 0, 0,
      * 0, 0, 0, 1, 0]` changes nothing, `[0, 0, 1, 0, 0,  0, 1, 0, 0, 0,  1, 0, 0, 0, 0,  0, 0, 0, 1, 0]` swaps red and
      * blue. Nine numbers are the first three rows without the alpha and the offsets (the alpha stays as it is). The
      * colors are the sRGB values, not premultiplied, and the results are clamped. With a gain map (an HDR image), the
      * HDR highlights follow the change as they do for other color changes
+     * @example
+     * ```ts
+     * image.colorMatrix([0.393, 0.769, 0.189,  0.349, 0.686, 0.168,  0.272, 0.534, 0.131]); // sepia
+     * ```
      * @param matrix The 9 or 20 values
      */
     colorMatrix(matrix: ArrayLike<number>): this {
@@ -2202,8 +2033,13 @@ export class Image {
 
     /**
      * Moves every point of the image with an affine transform, in one resampling: rotation, scaling, skew, flips and
-     * shifts in any mix and around any point. The six numbers are SVG's `matrix(a b c d e f)`: a point (x, y) of the
-     * image ends up at (a x + c y + e, b x + d y + f), with y pointing down.
+     * shifts in any mix and around any point
+     * @remarks
+     * The six numbers are SVG's `matrix(a b c d e f)`: a point (x, y) of the image ends up at (a x + c y + e,
+     * b x + d y + f), with y pointing down. The image grows to hold the result (`expand: false` keeps its size), so a shift
+     * only shows with `expand: false`. The edges fade, like the pixels outside were transparent. A transform that flattens
+     * the image (a factor of 0) is refused. With a gain map (an HDR image), the map moves with the image
+     * @example
      * ```ts
      * image.transform([1, 0, Math.tan(-0.3), 1, 0, 0]);             // slanted like italics, around the middle
      * image.transform([0.5, 0, 0, 0.5, 0, 0], { origin: { x: 0, y: 0 } }); // half the size
@@ -2211,19 +2047,17 @@ export class Image {
      * const a = Math.PI / 6;
      * image.transform([Math.cos(a), Math.sin(a), -Math.sin(a), Math.cos(a), 0, 0]); // turned 30° clockwise
      * ```
-     * The image grows to hold the result (`expand: false` keeps its size), so a shift only shows with `expand: false`.
-     * The edges fade, like the pixels outside were transparent. A transform that flattens the image (a factor of 0) is
-     * refused. With a gain map (an HDR image), the map moves with the image
      * @param matrix The six values [a, b, c, d, e, f]
      * @param options See {@link TransformOptions}
+     * @see {@link Image.rotate} for turning by an angle
      */
-    transform(matrix: ArrayLike<number>, options: TransformOptions = {}): this {
+    transform(matrix: AffineTransform, options: TransformOptions = {}): this {
+        checkOptions(options, 'image.transform([1, 0, 0, 1, 0, 0], { expand: false })');
         if (matrix === null || typeof matrix !== 'object' || matrix.length !== 6) throw new RangeError('A transform has 6 values: [a, b, c, d, e, f]');
         // (numbers only: a string is a mistake in data like this)
         const values = Array.from({ length: 6 }, (_, i) => finite(typeof matrix[i] === 'number' ? matrix[i] : NaN, 'transform value'));
-        if (typeof options !== 'object' || options === null) throw new TypeError('transform takes an options object');
         const { origin = {}, expand = true, mode = 'bilinear' } = options;
-        if (!TRANSFORM_MODES.includes(mode)) throw new TypeError(`transform mode must be one of ${TRANSFORM_MODES.map(name => `'${name}'`).join(', ')}, not ${String(mode)}`);
+        oneOf(mode, TRANSFORM_MODES, 'transform mode');
         const { x: pivotX = this.width / 2, y: pivotY = this.height / 2 } = origin;
         finite(pivotX, 'origin x');
         finite(pivotY, 'origin y');
@@ -2249,16 +2083,6 @@ export class Image {
             outHeight = Math.max(1, Math.round(maxY - minY));
             left = minX - (outWidth - (maxX - minX)) / 2;
             top = minY - (outHeight - (maxY - minY)) / 2;
-            // frames only grow as far up and left as their offset allows
-            const room = this.__room__();
-            if (left < -room.left) {
-                left = -room.left;
-                outWidth = Math.max(1, Math.round(maxX - left));
-            }
-            if (top < -room.top) {
-                top = -room.top;
-                outHeight = Math.max(1, Math.round(maxY - top));
-            }
             if (outWidth * outHeight > MAX_PIXELS) throw new RangeError(`The transformed image would have ${outWidth}x${outHeight} pixels, more than the ${MAX_PIXELS} allowed`);
         }
 
@@ -2269,20 +2093,19 @@ export class Image {
             const x = X + left, y = Y + top;
             return [inverse[0] * x + inverse[2] * y + inverse[4], inverse[1] * x + inverse[3] * y + inverse[5]];
         }, scale);
-        this.__apply__(out);
-        // (a frame's offsets are whole pixels)
-        if (left || top) this.__grown__(-Math.round(left), -Math.round(top));
-        return this;
+        this.__moved__?.(1, 1, left, top);
+        return this.__apply__(out);
     }
 
     /**
      * Adds a shadow behind the image, shaped by its alpha: a drop shadow with an offset, or a glow without one
      * (`image.dropShadow({ blur: 8, color: 0xff2fb9ff })`, with `spread` to make it stronger). The image grows to fit
-     * the shadow, unless `expand` is `false`. Frames stay where they are (their offsets move with the growth), they only
-     * grow up and left as far as their offset allows
+     * the shadow, unless `expand` is `false`
      * @param options See {@link ShadowOptions}
+     * @throws {@link LimitError} if the size or offset of the shadow would make the image larger than an image can be
      */
     dropShadow(options: ShadowOptions = {}): this {
+        checkOptions(options, 'image.dropShadow({ blur: 8 })');
         const { x = 0, y = 0, blur = 0, spread = 0, color = 0x00000080, expand = true } = options;
         finite(x, 'x');
         finite(y, 'y');
@@ -2315,10 +2138,9 @@ export class Image {
             }
         }
 
-        const room = this.__room__();
         return this.__under__(layer, x - margin, y - margin, expand ? {
-            left: Math.min(room.left, Math.max(0, Math.ceil(reach - x))),
-            top: Math.min(room.top, Math.max(0, Math.ceil(reach - y))),
+            left: Math.max(0, Math.ceil(reach - x)),
+            top: Math.max(0, Math.ceil(reach - y)),
             right: Math.max(0, Math.ceil(reach + x)),
             bottom: Math.max(0, Math.ceil(reach + y))
         } : { left: 0, top: 0, right: 0, bottom: 0 });
@@ -2326,11 +2148,12 @@ export class Image {
 
     /**
      * Draws an outline around the image's shape (its alpha): the sticker effect for cut-out images, or an outline for
-     * text. The image grows to fit it, unless `expand` is `false`. Frames stay where they are (their offsets move with
-     * the growth), they only grow up and left as far as their offset allows
+     * text. The image grows to fit it, unless `expand` is `false`
      * @param options See {@link OutlineOptions}
+     * @throws {@link LimitError} if the width would make the image larger than an image can be
      */
     outline(options: OutlineOptions = {}): this {
+        checkOptions(options, 'image.outline({ width: 4 })');
         const { width = 1, color = 0x000000ff, expand = true } = options;
         if (finite(width, 'outline width') < 0) throw new RangeError('Invalid outline width');
         const [r, g, b, a] = Colors.toRGBA(checkColor(color));
@@ -2350,9 +2173,9 @@ export class Image {
             bitmap[i * 4 + 3] = stroke[i] * (1 - coverage[i] / 255) * a;
         }
 
-        const room = this.__room__(), grow = Math.ceil(width);
+        const grow = Math.ceil(width);
         return this.__under__(layer, -margin, -margin, expand
-            ? { left: Math.min(room.left, grow), top: Math.min(room.top, grow), right: grow, bottom: grow }
+            ? { left: grow, top: grow, right: grow, bottom: grow }
             : { left: 0, top: 0, right: 0, bottom: 0 });
     }
 
@@ -2362,6 +2185,7 @@ export class Image {
      * @ignore
      */
     protected __shape_layer__(margin: number): Image {
+        checkGrowth(this.width + 2 * margin, this.height + 2 * margin, 'The shadow or outline');
         const layer = new Image(this.width + 2 * margin, this.height + 2 * margin);
         for (let y = 0; y < this.height; y++)
             for (let x = 0; x < this.width; x++)
@@ -2378,6 +2202,7 @@ export class Image {
     protected __under__(layer: Image, layerX: number, layerY: number, grow: { left: number, top: number, right: number, bottom: number }): this {
         const { left, top, right, bottom } = grow;
         const width = this.width + left + right, height = this.height + top + bottom;
+        checkGrowth(width, height, 'The shadow or outline');
         const result = new Image(width, height);
         result.composite(layer, { x: layerX + left, y: layerY + top });
         const map = this.__gain_map__;
@@ -2388,28 +2213,8 @@ export class Image {
             this.__gain_map__ = map;
         }
         map?.__transform__(this.width, this.height, width, height, (X, Y) => [X - left, Y - top]);
-        this.__apply__(result);
-        if (left || top) this.__grown__(left, top);
-        return this;
-    }
-
-    /**
-     * How far the image may grow up and left
-     * @internal
-     * @ignore
-     */
-    protected __room__(): { left: number, top: number } {
-        return { left: Infinity, top: Infinity };
-    }
-
-    /**
-     * Called when the image has grown up and left
-     * @internal
-     * @ignore
-     */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    protected __grown__(_left: number, _top: number): void {
-        // (frames move their offsets)
+        this.__moved__?.(1, 1, -left, -top);
+        return this.__apply__(result);
     }
 
     /**
@@ -2417,19 +2222,10 @@ export class Image {
      * @param options See {@link SharpenOptions}
      */
     sharpen(options?: SharpenOptions): this;
-    /**
-     * Sharpens the image with an unsharp mask: the difference to a blurred copy is amplified
-     * @param [amount=1] How strongly to sharpen (0 does nothing)
-     * @param [radius=1] The radius of the blur the image is compared with (larger values sharpen coarser details)
-     * @deprecated Pass {@link SharpenOptions} instead, the positional arguments will be removed in 4.0
-     */
-    sharpen(amount?: number, radius?: number): this;
-    sharpen(amountOrOptions: number | SharpenOptions = 1, radiusArgument = 1): this {
-        const { amount = 1, radius = 1 } = isOptions(amountOrOptions) ? amountOrOptions : { amount: amountOrOptions, radius: radiusArgument };
-        if (!Number.isFinite(amount) || amount < 0)
-            throw new RangeError('Invalid sharpen amount');
-        if (!Number.isFinite(radius) || radius <= 0)
-            throw new RangeError('Invalid sharpen radius');
+    sharpen(options: SharpenOptions = {}): this {
+        checkOptions(options, 'sharpen({ amount: 0.5 })');
+        const { amount: givenAmount = 1, radius: givenRadius = 1 } = options;
+        const amount = nonNegative(givenAmount, 'sharpen amount'), radius = positive(givenRadius, 'sharpen radius');
 
         const blurred = premultiply(this.bitmap);
         gaussianBlur(blurred, this.width, this.height, radius);
@@ -2462,8 +2258,8 @@ export class Image {
     }
 
     /**
-     * Scales the color channels' distance from mid grey, e.g. 1.5 increases the contrast, 0.5 reduces it
-     * @param factor The factor (>= 0, 1 keeps the image, 0 makes it grey)
+     * Scales the color channels' distance from mid gray, e.g. 1.5 increases the contrast, 0.5 reduces it
+     * @param factor The factor (>= 0, 1 keeps the image, 0 makes it gray)
      */
     contrast(factor: number): this {
         if (this.__gain_map__) return this.__recolor__(image => image.contrast(factor), false, v => (v - 0.5) * factor + 0.5);
@@ -2486,10 +2282,10 @@ export class Image {
     }
 
     /**
-     * Converts the image to greyscale by its luma (ITU-R 601, like Pillow), keeping the alpha
+     * Converts the image to grayscale by its luma (ITU-R 601, like Pillow), keeping the alpha
      */
-    greyscale(): this {
-        if (this.__gain_map__) return this.__recolor__(image => image.greyscale(), true);
+    grayscale(): this {
+        if (this.__gain_map__) return this.__recolor__(image => image.grayscale(), true);
         const bitmap = this.bitmap;
         for (let i = 0; i < bitmap.length; i += 4)
             bitmap[i] = bitmap[i + 1] = bitmap[i + 2] = bitmap[i] * 19595 + bitmap[i + 1] * 38470 + bitmap[i + 2] * 7471 + 0x8000 >> 16;
@@ -2520,20 +2316,12 @@ export class Image {
      * @param options See {@link ColorToAlphaOptions}
      */
     colorToAlpha(options?: ColorToAlphaOptions): this;
-    /**
-     * Makes a color transparent, like GIMP's "Color to Alpha": the color is removed from every pixel and replaced by
-     * transparency, so pixels that are partly the color (e.g. antialiased edges against a background) become
-     * semi-transparent instead of keeping a fringe of it.
-     * The color is removed everywhere in the image, not only from a connected background: removing a white
-     * background also makes white areas inside the subject (e.g. eyes in a logo) transparent
-     * @param color The color to remove, by default the color of the top left pixel (e.g. a background)
-     * @param options See {@link ColorToAlphaOptions}
-     * @deprecated Pass {@link ColorToAlphaOptions} instead, the positional arguments will be removed in 4.0
-     */
-    colorToAlpha(color?: Color, options?: ColorToAlphaOptions): this;
-    colorToAlpha(colorOrOptions?: Color | ColorToAlphaOptions, optionsArgument: ColorToAlphaOptions = {}): this {
-        const { color: colorOption, transparencyThreshold = 0, opacityThreshold = 1 } = isOptions(colorOrOptions) ? colorOrOptions : { ...optionsArgument, color: colorOrOptions ?? optionsArgument.color };
+    colorToAlpha(options: ColorToAlphaOptions = {}): this {
+        checkOptions(options, 'colorToAlpha({ color: 0xffffffff })');
+        const { color: colorOption, transparencyThreshold = 0, opacityThreshold = 1 } = options;
         let color = colorOption;
+        finite(transparencyThreshold, 'transparencyThreshold');
+        finite(opacityThreshold, 'opacityThreshold');
         if (!(transparencyThreshold >= 0 && opacityThreshold <= 1 && transparencyThreshold < opacityThreshold))
             throw new RangeError('Invalid thresholds, they have to satisfy 0 <= transparencyThreshold < opacityThreshold <= 1');
 
@@ -2583,6 +2371,7 @@ export class Image {
     /**
      * Gets the average color of the image, weighting each pixel by its opacity
      * @returns The average color (fully opaque), black for fully transparent images
+     * @see {@link Image.dominantColor} for the color that most of the image has
      */
     averageColor(): Color {
         let r = 0, g = 0, b = 0, weight = 0;
@@ -2599,26 +2388,18 @@ export class Image {
     }
 
     /**
-     * Gets the image's dominant color: the colors are grouped into a few clusters (median cut and k-means),
-     * the average color of the largest one is returned
+     * Gets the image's dominant color: the colors are counted in a histogram of 16 levels per channel, and the average
+     * of the pixels in the fullest bin is returned (so it is a color the image has, not a mix of two hues)
      * @param options Which colors to ignore, see {@link DominantColorOptions}
      * @return The image's dominant color (fully opaque); mostly transparent pixels are ignored.
      *     If every pixel is ignored as black or white, the filter is dropped
+     * @see {@link Image.averageColor} for the mix of all colors
      */
     dominantColor(options?: DominantColorOptions): Color;
-    /**
-     * Gets the image's dominant color, see {@link Image.dominantColor | the variant with options}
-     * @param ignoreBlack Whether to ignore dark colors (all channels below the threshold). Default: `true`
-     * @param ignoreWhite Whether to ignore light colors (all channels above 255 minus the threshold). Default: `true`
-     * @param bwThreshold The black/white threshold (0-64, in steps of 4 channel values). Default: `15`
-     * @return The image's dominant color (fully opaque)
-     * @deprecated Pass {@link DominantColorOptions} instead, the positional arguments will be removed in 4.0
-     */
-    dominantColor(ignoreBlack?: boolean, ignoreWhite?: boolean, bwThreshold?: number): Color;
-    dominantColor(ignoreBlackOrOptions: boolean | DominantColorOptions = true, ignoreWhiteArgument = true, thresholdArgument = 0xf): Color {
-        const { ignoreBlack = true, ignoreWhite = true, threshold: bwThreshold = 0xf } = typeof ignoreBlackOrOptions === 'object' && ignoreBlackOrOptions !== null
-            ? ignoreBlackOrOptions : { ignoreBlack: ignoreBlackOrOptions, ignoreWhite: ignoreWhiteArgument, threshold: thresholdArgument };
-        const threshold = Math.min(64, Math.max(0, finite(bwThreshold, 'threshold'))) * 4;
+    dominantColor(options: DominantColorOptions = {}): Color {
+        checkOptions(options, 'dominantColor({ ignoreBlack: false })');
+        const { ignoreBlack = true, ignoreWhite = true, threshold: bwThreshold = 60 } = options;
+        const threshold = Math.min(256, Math.max(0, finite(bwThreshold, 'threshold')));
         const pixels = this.__bytes__();
 
         const color = quantize.dominantColor(pixels, (r, g, b) =>
@@ -2629,21 +2410,26 @@ export class Image {
     }
 
     /**
-     * Rotates the image counterclockwise by the given amount of degrees
-     * @param angle The angle to rotate the image for (in degrees)
+     * Rotates the image clockwise by the given angle in degrees (like CSS' `rotate()`; negative angles turn it
+     * counterclockwise). Multiples of 90° move whole pixels; other angles resample the image (see
+     * {@link RotateOptions.mode}). By default the image grows so the corners fit (a quarter turn swaps width and
+     * height); with `expand: false` it keeps its size, also for quarter turns, and what doesn't fit is cut off
+     * @example
+     * ```ts
+     * image.rotate(90);                          // a quarter turn clockwise: width and height swap
+     * image.rotate(-15, { expand: false });      // 15° counterclockwise, the size stays and the corners are cut off
+     * ```
+     * @param angle The angle in degrees, clockwise
      * @param options See {@link RotateOptions}
+     * @see {@link Image.transform} for skews, flips and shifts
      */
     rotate(angle: number, options?: RotateOptions): this;
-    /**
-     * Rotates the image counterclockwise by the given amount of degrees
-     * @param angle The angle to rotate the image for (in degrees)
-     * @param resize Whether to resize the image so it fits all pixels or just ignore outlying pixels. Default: `true`
-     * @deprecated Pass {@link RotateOptions} instead, the positional arguments will be removed in 4.0
-     */
-    rotate(angle: number, resize?: boolean): this;
-    rotate(angle: number, resizeOrOptions: boolean | RotateOptions = true): this {
-        const { resize = true, fast = true } = typeof resizeOrOptions === 'object' && resizeOrOptions !== null ? resizeOrOptions : { resize: resizeOrOptions };
-        angle = ((finite(angle, 'angle') % 360) + 360) % 360;
+    rotate(angle: number, options: RotateOptions = {}): this {
+        checkOptions(options, 'rotate(angle, { expand: false })');
+        const { expand = true, mode = 'bilinear' } = options;
+        oneOf(mode, TRANSFORM_MODES, 'rotate mode');
+        // (counterclockwise from here on: the image's y axis points down, so this turns it clockwise on screen)
+        angle = ((-finite(angle, 'angle') % 360) + 360) % 360;
         if (angle === 0) return this;
 
         const {width, height} = this;
@@ -2671,95 +2457,59 @@ export class Image {
                     else dst[x * height + height - 1 - y] = i;
                 }
 
+            if (!expand && out.width !== width) {
+                // (without `expand` the image keeps its size: the turned image is centered in it, what doesn't fit is cut off)
+                const canvas = new Image(width, height), target = canvas.__u32__, turned = out.__u32__;
+                const left = Math.floor((width - out.width) / 2), top = Math.floor((height - out.height) / 2);
+                for (let y = Math.max(0, top); y < Math.min(height, top + out.height); y++)
+                    for (let x = Math.max(0, left); x < Math.min(width, left + out.width); x++)
+                        target[y * width + x] = turned[(y - top) * out.width + x - left];
+                rotateGainMap(width, height);
+                this.__moved__?.(1, 1, 0, 0);
+                return this.__apply__(canvas);
+            }
             rotateGainMap(out.width, out.height);
+            this.__moved__?.(1, 1, (width - out.width) / 2, (height - out.height) / 2);
             return this.__apply__(out);
         }
 
         const rad = angle * Math.PI / 180;
         const sin = Math.sin(rad), cos = Math.cos(rad);
-        const outWidth = resize ? Math.round(Math.abs(width * cos) + Math.abs(height * sin)) : width;
-        const outHeight = resize ? Math.round(Math.abs(width * sin) + Math.abs(height * cos)) : height;
+        const outWidth = expand ? Math.round(Math.abs(width * cos) + Math.abs(height * sin)) : width;
+        const outHeight = expand ? Math.round(Math.abs(width * sin) + Math.abs(height * cos)) : height;
         const out = new Image(outWidth, outHeight);
         rotateGainMap(outWidth, outHeight);
-        if (fast && rotateBilinear(this.bitmap, width, height, out.bitmap, outWidth, outHeight, sin, cos)) return this.__apply__(out);
-        const s8 = this.bitmap, d8 = out.bitmap;
-
-        // bilinear sampling of the counterclockwise rotated source, with premultiplied alpha
-        for (let oy = 0; oy < outHeight; oy++) {
-            for (let ox = 0; ox < outWidth; ox++) {
-                const dx = ox + 0.5 - outWidth / 2, dy = oy + 0.5 - outHeight / 2;
-                const sx = dx * cos - dy * sin + width / 2 - 0.5;
-                const sy = dx * sin + dy * cos + height / 2 - 0.5;
-                const x0 = Math.floor(sx), y0 = Math.floor(sy);
-                if (x0 < -1 || y0 < -1 || x0 >= width || y0 >= height) continue;
-
-                const fx = sx - x0, fy = sy - y0;
-                const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
-                let r = 0, g = 0, b = 0, a = 0;
-
-                // taps outside the source are skipped (zero weight taps add nothing either way)
-                const left = x0 >= 0, right = x0 + 1 < width, top = y0 >= 0, bottom = y0 + 1 < height;
-                let i = 4 * (y0 * width + x0);
-                if (top && left) {
-                    const wa = w00 * s8[i + 3];
-                    r += wa * s8[i];
-                    g += wa * s8[i + 1];
-                    b += wa * s8[i + 2];
-                    a += wa;
-                }
-                if (top && right) {
-                    const wa = w10 * s8[i + 7];
-                    r += wa * s8[i + 4];
-                    g += wa * s8[i + 5];
-                    b += wa * s8[i + 6];
-                    a += wa;
-                }
-                i += 4 * width;
-                if (bottom && left) {
-                    const wa = w01 * s8[i + 3];
-                    r += wa * s8[i];
-                    g += wa * s8[i + 1];
-                    b += wa * s8[i + 2];
-                    a += wa;
-                }
-                if (bottom && right) {
-                    const wa = w11 * s8[i + 7];
-                    r += wa * s8[i + 4];
-                    g += wa * s8[i + 5];
-                    b += wa * s8[i + 6];
-                    a += wa;
-                }
-
-                if (a <= 0) continue;
-                // the clamped bitmap rounds on assignment
-                const o = 4 * (oy * outWidth + ox);
-                d8[o] = r / a;
-                d8[o + 1] = g / a;
-                d8[o + 2] = b / a;
-                d8[o + 3] = a;
-            }
+        // bilinear: 8-bit sampling, about twice as fast, within a step of the precise sampling below (tests/rotate.js)
+        if (mode === 'bilinear' && rotateBilinear(this.bitmap, width, height, out.bitmap, outWidth, outHeight, sin, cos)) {
+            this.__moved__?.(1, 1, (width - outWidth) / 2, (height - outHeight) / 2);
+            return this.__apply__(out);
         }
-
+        // the source position of each output position (pixel centers), around the middles of both images
+        const inverse: [number, number, number, number, number, number] = [cos, sin, -sin, cos,
+            width / 2 - cos * outWidth / 2 + sin * outHeight / 2, height / 2 - sin * outWidth / 2 - cos * outHeight / 2];
+        sampleAffine(this.bitmap, width, height, out.bitmap, outWidth, outHeight, inverse, 0, 0, mode);
+        this.__moved__?.(1, 1, (width - outWidth) / 2, (height - outHeight) / 2);
         return this.__apply__(out);
     }
 
     /**
      * Flips / mirrors the image horizontally or vertically
-     * @param direction The direction to flip
+     * @param direction The direction to flip, see {@link FlipDirection}
      */
-    flip(direction: 'horizontal' | 'vertical'): this {
+    flip(direction: FlipDirection): this {
+        oneOf(direction, FLIP_DIRECTIONS, 'flip direction');
         const u32 = this.__u32__;
         const {width, height} = this;
 
         if (direction === 'horizontal') {
             for (let y = 0; y < height; y++) u32.subarray(y * width, (y + 1) * width).reverse();
-        } else if (direction === 'vertical') {
+        } else {
             for (let y = 0; y < height >> 1; y++) {
                 const top = u32.slice(y * width, (y + 1) * width);
                 u32.copyWithin(y * width, (height - 1 - y) * width, (height - y) * width);
                 u32.set(top, (height - 1 - y) * width);
             }
-        } else throw new RangeError('Invalid flip direction');
+        }
 
         this.__gain_map__?.__transform__(width, height, width, height, direction === 'horizontal' ? (X, Y) => [width - X, Y] : (X, Y) => [X, height - Y]);
         return this;
@@ -2814,12 +2564,6 @@ export class Image {
         }
     }
 
-    /**
-     * For a resize to the given size that only produces a part of it (frames scale their offsets)
-     * @internal
-     * @ignore
-     */
-    protected __rescaled__?(width: number, height: number): void;
 
     /**
      * @internal
@@ -2836,20 +2580,16 @@ export class Image {
     }
 
     /**
-     * Rounds the images corners, with antialiased edges
+     * Rounds the image's corners, with antialiased edges
      * @param options See {@link RoundCornersOptions}
+     * @see {@link Image.cropCircle} for a circle
      */
     roundCorners(options?: RoundCornersOptions): this;
-    /**
-     * Rounds the images corners, with antialiased edges
-     * @param [radius=min(width,height)/4] The radius of the corners
-     * @deprecated Pass {@link RoundCornersOptions} instead, the positional arguments will be removed in 4.0
-     */
-    roundCorners(radius?: number): this;
-    roundCorners(radiusOrOptions?: number | RoundCornersOptions): this {
-        let radius = (isOptions(radiusOrOptions) ? radiusOrOptions.radius : radiusOrOptions) ?? Math.min(this.width, this.height) / 4;
-        radius = finite(radius, 'radius');
-        radius = Math.max(0, Math.min(radius, this.width / 2, this.height / 2));
+    roundCorners(options: RoundCornersOptions = {}): this {
+        checkOptions(options, 'roundCorners({ radius: 10 })');
+        const { radius: givenRadius = Math.min(this.width, this.height) / 4 } = options;
+        let radius = nonNegative(givenRadius, 'radius');
+        radius = Math.min(radius, this.width / 2, this.height / 2);
         const size = Math.ceil(radius);
 
         // coverage of the top left corner, mirrored onto the others
@@ -2870,16 +2610,12 @@ export class Image {
     /**
      * Applies a fisheye (barrel distortion) effect
      * @param options See {@link FisheyeOptions}
+     * @throws `RangeError` if the strength is 0 or less
      */
     fisheye(options?: FisheyeOptions): this;
-    /**
-     * Applies a fisheye (barrel distortion) effect
-     * @param [strength=2] The distortion strength (exponent of the radial mapping), higher values bulge the center more
-     * @deprecated Pass {@link FisheyeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    fisheye(strength?: number): this;
-    fisheye(strengthOrOptions?: number | FisheyeOptions): this {
-        const strength = finite((isOptions(strengthOrOptions) ? strengthOrOptions.strength : strengthOrOptions) ?? 2, 'strength');
+    fisheye(options: FisheyeOptions = {}): this {
+        checkOptions(options, 'fisheye({ strength: 3 })');
+        const strength = positive(options.strength === undefined ? 2 : options.strength, 'strength');
         const r = new Image(this.width, this.height);
 
         const w = this.width;
@@ -2919,97 +2655,67 @@ export class Image {
 
     /**
      * Encodes the image into a PNG, with the smallest lossless color type (a palette for up to 256 colors,
-     * greyscale or RGB, alpha only if needed). Uses the runtime's native zlib when available
+     * grayscale or RGB, alpha only if needed). Uses the runtime's native zlib when available
      * @param options See {@link PNGEncodeOptions}
      * @return The encoded data
      */
-    encodePNG(options?: PNGEncodeOptions): Promise<Uint8Array>;
-    /**
-     * Encodes the image into a PNG
-     * @param compression The compression level (0-9). Default: `4`
-     * @param metadata Metadata to include, see {@link Metadata}
-     * @return The encoded data
-     * @deprecated Pass {@link PNGEncodeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    encodePNG(compression?: number, metadata?: Metadata): Promise<Uint8Array>;
-    /**
-     * Encodes the image into a PNG with compression level 4
-     * @param metadata Metadata to include, see {@link Metadata}
-     * @return The encoded data
-     * @deprecated Pass {@link PNGEncodeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    encodePNG(metadata?: Metadata): Promise<Uint8Array>;
-    async encodePNG(compressionOrOptions: number | PNGEncodeOptions | Metadata = 4, metadataArgument: Metadata = {}): Promise<Uint8Array> {
-        let compression = 4, metadata = metadataArgument;
-        if (!isOptions(compressionOrOptions)) compression = compressionOrOptions;
-        // the options and the metadata have no key in common: an object with neither is empty, the same either way
-        else if ('compression' in compressionOrOptions || 'metadata' in compressionOrOptions)
-            ({ compression = 4, metadata = {} } = compressionOrOptions);
-        else metadata = compressionOrOptions as Metadata;
+    encodePNG(options?: PNGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
+    async encodePNG(options: PNGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
+        checkOptions(options, 'encodePNG({ compression: 9, metadata: { author: \'me\' } })');
+        const { compression = 4, metadata = {} } = options;
 
         return png.encodeRGBA(this.__bytes__(), this.width, this.height, compressionLevel(compression), pngText(resolveMetadata(metadata)));
     }
 
     /**
-     * Encodes the image into a PNG
-     * @param options See {@link PNGEncodeOptions}
-     * @return The encoded data
-     * @deprecated Use {@link Image.encodePNG}, `encode()` will be removed in 4.0
-     * @group Deprecated
-     */
-    encode(options?: PNGEncodeOptions): Promise<Uint8Array>;
-    /**
-     * Encodes the image into a PNG
-     * @param compression The compression level (0-9). Default: `4`
-     * @param metadata Metadata to include, see {@link Metadata}
-     * @return The encoded data
-     * @deprecated Use {@link Image.encodePNG}, `encode()` will be removed in 4.0
-     * @group Deprecated
-     */
-    encode(compression?: number, metadata?: Metadata): Promise<Uint8Array>;
-    /**
-     * Encodes the image into a PNG with compression level 4
-     * @param metadata Metadata to include, see {@link Metadata}
-     * @return The encoded data
-     * @deprecated Use {@link Image.encodePNG}, `encode()` will be removed in 4.0
-     * @group Deprecated
-     */
-    encode(metadata?: Metadata): Promise<Uint8Array>;
-    encode(compressionOrOptions?: number | PNGEncodeOptions | Metadata, metadata?: Metadata): Promise<Uint8Array> {
-        return this.encodePNG(compressionOrOptions as number, metadata);
-    }
-
-    /**
-     * Encodes the image into a JPEG
+     * Encodes the image into a JPEG. JPEG has no transparency: an image with transparent or translucent pixels is
+     * composited onto the `background` color (black by default) first, the image itself stays unchanged
      * @param options See {@link JPEGEncodeOptions}
      */
-    encodeJPEG(options?: JPEGEncodeOptions): Promise<Uint8Array>;
-    /**
-     * Encodes the image into a JPEG
-     * @param [quality=90] The JPEG quality to use (1-100), chroma subsampling is disabled above 90
-     * @deprecated Pass {@link JPEGEncodeOptions} instead, the positional arguments will be removed in 4.0
-     */
-    encodeJPEG(quality?: number): Promise<Uint8Array>;
-    async encodeJPEG(qualityOrOptions: number | JPEGEncodeOptions = 90): Promise<Uint8Array> {
-        const { quality = 90, metadata = {}, gainMap: gainMapOption = true } = isOptions(qualityOrOptions) ? qualityOrOptions : { quality: qualityOrOptions };
+    encodeJPEG(options?: JPEGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
+    async encodeJPEG(options: JPEGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
+        checkOptions(options, 'encodeJPEG({ quality: 80 })');
+        const { quality: qualityOption = 90, subsampling, background = 0x000000ff, metadata = {}, gainMap: gainMapOption = true } = options;
+        const quality = checkQuality(qualityOption);
+        if (subsampling !== undefined) oneOf(subsampling, SUBSAMPLINGS, 'subsampling');
+        const backgroundColor = checkColor(background, 'background');
         const m = resolveMetadata(metadata);
-        const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined };
-        const gainMap = this.__gain_map__;
-        if (!gainMap || gainMapOption === false) return jpeg.encode(this.__bytes__(), this.width, this.height, finite(quality, 'quality'), base);
+        const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined, subsampling };
+
+        // transparent pixels: composited onto the opaque background (with the gain map, so the HDR light dims alike)
+        const source = this.__flattened__(backgroundColor, gainMapOption !== false) ?? this;
+        const gainMap = source.__gain_map__;
+        if (!gainMap || gainMapOption === false) return jpeg.encode(source.__bytes__(), source.width, source.height, quality, base);
 
         // the gain map's JPEG first: the primary's XMP holds its length
-        const { quality: mapQuality, scale } = typeof gainMapOption === 'object' && gainMapOption !== null ? gainMapOption : {} as { quality?: number, scale?: number };
+        const { quality: mapQuality, scale } = typeof gainMapOption === 'object' && gainMapOption !== null ? gainMapOption : {} as GainMapEmbedOptions;
         let width: number | undefined, height: number | undefined;
         if (scale !== undefined) {
-            const s = finite(scale, 'gain map scale');
-            if (!(s > 0 && s <= 1)) throw new RangeError(`The gain map scale must be above 0 and at most 1, not ${s}`);
+            const s = gainMapScale(scale);
             width = Math.max(1, Math.round(this.width * s));
             height = Math.max(1, Math.round(this.height * s));
         }
         const params = gainMap.__params__();
         const map = gainMapCodec.mapWithMetadata(gainMap.__body__(mapQuality === undefined ? undefined : Math.max(1, checkQuality(mapQuality, 'gain map quality')), width, height), params);
-        const primary = jpeg.encode(this.__bytes__(), this.width, this.height, finite(quality, 'quality'), { ...base, segments: gainMapCodec.primarySegments(map.length) });
+        const primary = jpeg.encode(source.__bytes__(), source.width, source.height, quality, { ...base, segments: gainMapCodec.primarySegments(map.length) });
         return gainMapCodec.finish(primary, map);
+    }
+
+    /**
+     * The image composited onto an opaque color, or null if it is opaque already (formats without alpha)
+     * @internal
+     * @ignore
+     */
+    protected __flattened__(background: Color, withGainMap: boolean): Image | null {
+        const pixels = this.bitmap;
+        let opaque = true;
+        for (let i = 3; i < pixels.length && opaque; i += 4) opaque = pixels[i] === 255;
+        if (opaque) return null;
+        const flat = new Image(this.width, this.height).fill((background | 0xff) >>> 0);
+        if (withGainMap || !this.__gain_map__) return flat.composite(this);
+        const withoutMap = this.clone();
+        withoutMap.gainMap = null;
+        return flat.composite(withoutMap);
     }
 
     /**
@@ -3017,7 +2723,9 @@ export class Image {
      * quality
      * @param options See {@link WebPEncodeOptions}
      */
-    async encodeWebP({ quality, effort = 2, sharpYuv = false, alphaQuality = 100, threads = defaultThreads(), metadata = {} }: WebPEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeWebP(options: WebPEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
+        checkOptions(options, 'image.encodeWebP({ quality: 80 })');
+        const { quality, effort = 2, sharpYuv = false, alphaQuality = 100, threads = defaultThreads(), metadata = {} } = options;
         checkThreads(threads);
         const exif = exifData(resolveMetadata(metadata));
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
@@ -3027,25 +2735,41 @@ export class Image {
 
     /**
      * Encodes the image as run length encoded TGA (32 bit, or 24 bit if the image is opaque)
-     * @param options See {@link EncodeOptions}
+     * @param options See {@link TGAEncodeOptions}
      */
-    async encodeTGA({ metadata = {} }: EncodeOptions = {}): Promise<Uint8Array> {
+    async encodeTGA(options: TGAEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
+        checkOptions(options, 'image.encodeTGA({ metadata })');
+        const { metadata = {} } = options;
         const { author, comment, creationTime: time, software } = resolveMetadata(metadata);
         return tga.encode(this.__bytes__(), this.width, this.height, { author, comment, time, software });
+    }
+
+    /**
+     * Encodes the image as a GIF (one frame): at most 256 colors, transparency only on or off (pixels with an alpha below
+     * 128 become transparent). For animations, see {@link Animation.encodeGIF}
+     * @param options The palette size, the dithering and the metadata, see {@link GIFEncodeOptions}
+     */
+    async encodeGIF(options: GIFEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
+        checkOptions(options, 'image.encodeGIF({ colors: 64 })');
+        const { colors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85, metadata = {} } = options;
+        const palette = quantize.paletteOptions(colors, dither, ditherStrength);
+        if (this.width > 0xffff || this.height > 0xffff) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${this.width}x${this.height}`);
+        const frame = { x: 0, y: 0, width: this.width, height: this.height, delay: 0, dispose: 1, pixels: this.__bytes__() };
+        return gif.encode({ width: this.width, height: this.height, loopCount: 0, frames: [frame] }, { colors: palette.colors as number, dither: palette.dither, strength: palette.strength }, gifComments(resolveMetadata(metadata)));
     }
 
     /**
      * Encodes the image as BMP: with a palette if it is opaque and has at most 256 colors, else with 24 bit pixels, or
      * 32 bit ones if it has transparency
      */
-    async encodeBMP(): Promise<Uint8Array> {
+    async encodeBMP(): Promise<Uint8Array<ArrayBuffer>> {
         return bmp.encode(this.__bytes__(), this.width, this.height);
     }
 
     /**
      * Encodes the image as QOI (3 channels if the image is opaque)
      */
-    async encodeQOI(): Promise<Uint8Array> {
+    async encodeQOI(): Promise<Uint8Array<ArrayBuffer>> {
         return qoi.encode(this.__bytes__(), this.width, this.height);
     }
 
@@ -3053,10 +2777,12 @@ export class Image {
      * Encodes the image as AVIF (AV1, with an alpha image if the image has transparency)
      * @param options See {@link AVIFEncodeOptions}
      */
-    async encodeAVIF({ quality = 60, alphaQuality = 100, subsampling = '4:4:4', effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true }: AVIFEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeAVIF(options: AVIFEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
+        checkOptions(options, 'image.encodeAVIF({ quality: 60 })');
+        const { quality = 60, alphaQuality = 100, subsampling = '4:4:4', effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true } = options;
         checkEffort(effort, 2);
         checkThreads(threads);
-        if (subsampling !== '4:4:4' && subsampling !== '4:2:0') throw new TypeError(`subsampling must be '4:4:4' or '4:2:0', not ${String(subsampling)}`);
+        oneOf(subsampling, SUBSAMPLINGS, 'subsampling');
         const exif = exifData(resolveMetadata(metadata));
         return avifEnc.encode(this.__bytes__(), this.width, this.height, {
             quality: checkQuality(quality), alphaQuality: checkQuality(alphaQuality, 'alphaQuality'), subsampling, effort, exif, threads, gainMap: this.__gain_map_pixels__(gainMap)
@@ -3076,8 +2802,7 @@ export class Image {
         const mapQuality = Math.max(1, checkQuality(quality, 'gain map quality'));
         let map = gainMap.image;
         if (scale !== undefined) {
-            const s = finite(scale, 'gain map scale');
-            if (!(s > 0 && s <= 1)) throw new RangeError(`The gain map scale must be above 0 and at most 1, not ${s}`);
+            const s = gainMapScale(scale);
             const width = Math.max(1, Math.round(this.width * s)), height = Math.max(1, Math.round(this.height * s));
             if (width !== map.width || height !== map.height) map = map.clone().resize(width, height);
         }
@@ -3085,16 +2810,19 @@ export class Image {
     }
 
     /**
-     * Encodes the image as JPEG XL: losslessly (the default) like libjxl's `cjxl -e 3` (a palette of up to 1024 colors,
-     * else palettes of channels using few of their values; YCoCg; the weighted predictor in contexts of its error;
-     * greyscale if the image is), at effort 0 the codestream byte for byte like `cjxl -e 1` on CPUs with AVX2 or NEON
-     * (its fast lossless mode: the gradient predictor, a palette if the image has at most 511 colors besides black,
-     * else YCoCg), or lossy with a quality (like `cjxl -q`: XYB, varblocks of libjxl's search, chroma from luma, the
-     * edge preserving filter). Alpha (if the image has transparency) is lossless either way. The codestream is in the
-     * container, with the metadata as Exif
+     * Encodes the image as JPEG XL: losslessly (the default), or lossy with a quality. Alpha (if the image has
+     * transparency) is lossless either way. The codestream is in the container, with the metadata as Exif
+     * @remarks
+     * Lossless works like libjxl's `cjxl -e 3` (a palette of up to 1024 colors, else palettes of channels using few of
+     * their values; YCoCg; the weighted predictor in contexts of its error; grayscale if the image is), at effort 0 the
+     * codestream byte for byte like `cjxl -e 1` on CPUs with AVX2 or NEON (its fast lossless mode: the gradient predictor,
+     * a palette if the image has at most 511 colors besides black, else YCoCg). Lossy works like `cjxl -q`: XYB, varblocks
+     * of libjxl's search, chroma from luma, the edge preserving filter
      * @param options See {@link JXLEncodeOptions}
      */
-    async encodeJXL({ quality, effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true }: JXLEncodeOptions = {}): Promise<Uint8Array> {
+    async encodeJXL(options: JXLEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
+        checkOptions(options, 'image.encodeJXL({ quality: 90 })');
+        const { quality, effort = 1, threads = defaultThreads(), metadata = {}, gainMap = true } = options;
         checkEffort(effort, 2);
         checkThreads(threads);
         // (cjxl's distance of a quality)
@@ -3105,28 +2833,40 @@ export class Image {
     }
 
     /**
-     * Encodes the image as the smallest fitting Netpbm format: PBM for black and white images, PGM for greyscale ones,
+     * Encodes the image as the smallest fitting Netpbm format: PBM for black and white images, PGM for grayscale ones,
      * PPM for others, PAM if the image has transparency
      */
-    async encodePNM(): Promise<Uint8Array> {
+    async encodePNM(): Promise<Uint8Array<ArrayBuffer>> {
         return netpbm.encode(this.__bytes__(), this.width, this.height);
     }
 
     /**
      * Decodes an image (PNG, JPEG, TIFF, WebP, BMP, ICO, CUR, QOI, PBM, PGM, PPM, PAM, PFM, Radiance HDR, TGA, AVIF or
-     * JPEG XL). For APNGs this is the default image; animated WebPs and GIFs have no single image, decode those with
-     * {@link Animation.decode}; for icons and cursors it's their largest image, for AVIF image sequences and JPEG XL
-     * animations their first frame
+     * JPEG XL)
+     * @remarks
+     * For animations (GIFs, animated WebPs, AVIF image sequences, JPEG XL animations) this is the first frame, composed
+     * onto the canvas as {@link Animation.decode} has it, and decoding stops after it: use {@link Animation.decode} for all
+     * frames. For APNGs this is the default image, which is what viewers without APNG support show; for icons and cursors
+     * it's their largest image
+     * @example
+     * ```ts
+     * const image = await Image.decode(bytes); // the file's bytes, e.g. from fs.readFile() or fetch()
+     * const webp = await image.resize({ width: 800 }).encodeWebP({ quality: 80 });
+     * ```
      * @param input The binary data to decode
-     * @param options See {@link DecodeOptions}. JPEGs, TIFFs and PNGs are rotated/mirrored as their orientation tag
+     * @param options See {@link DecodeOptions}. JPEGs, TIFFs, PNGs, WebPs and JPEG XLs are rotated/mirrored as their orientation
      *     (Exif, for PNGs also XMP) says by default: photos taken with a rotated camera are stored sideways
      * @return The decoded image
+     * @throws {@link LimitError} if the image has more than `options.maxPixels` pixels (checked before its pixels are
+     *     allocated)
+     * @throws `Error` if the data isn't a supported image, or is damaged or truncated (the underlying error is its `cause`)
      */
     static async decode(input: BinaryData, options: DecodeOptions = {}): Promise<Image> {
+        checkOptions(options, 'Image.decode(data, { maxPixels: 1e8 })');
         const { applyOrientation = true, applyColorProfile = true, maxPixels = MAX_PIXELS, toneMapping = 'reinhard', threads = defaultThreads(), gainMap = true } = options;
         checkThreads(threads);
-        if (!(Number(maxPixels) > 0)) throw new RangeError(`maxPixels must be a positive number, not ${maxPixels}`);
-        if (toneMapping !== 'reinhard' && toneMapping !== 'clamp') throw new TypeError(`toneMapping must be 'reinhard' or 'clamp', not ${String(toneMapping)}`);
+        pixelLimit(maxPixels);
+        oneOf(toneMapping, TONE_MAPPINGS, 'toneMapping');
         const data = view(input);
         const dataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
 
@@ -3135,8 +2875,10 @@ export class Image {
             if (ImageType.isJPEG(dataView)) return jpeg.decode(data, { maxPixels });
             if (ImageType.isTIFF(dataView)) return tiff.decode(data, maxPixels);
             if (ImageType.isWebP(dataView)) {
-                if (webp.isAnimated(data)) throw new Error('Animated WebPs have to be decoded with Animation.decode()');
-                return webp.decode(data, maxPixels);
+                if (!webp.isAnimated(data)) return webp.decode(data, maxPixels);
+                // the first frame only: the rest of the file isn't decoded
+                const animation = webp.decodeAnimation(data, true, maxPixels);
+                return { width: animation.width, height: animation.height, pixels: webp.composite(animation)[0].pixels, orientation: animation.orientation, icc: animation.icc };
             }
             // bitmaps can hold a JPEG or PNG, icons PNGs
             const bitmap = async (decoded: bmp.Decoded): Promise<{ width: number, height: number, pixels: Uint8Array }> => {
@@ -3148,12 +2890,18 @@ export class Image {
             if (ImageType.isAVIF(dataView)) return avif.decode(data, maxPixels, toneMapping, threads, gainMap);
             if (ImageType.isJXL(dataView)) return jxl.decode(data, maxPixels, toneMapping, threads, gainMap);
             if (ImageType.isBMP(dataView)) return bitmap(bmp.decode(data, maxPixels));
-            if (ImageType.isICO(dataView)) return bitmap(ico.decode(data, maxPixels));
+            if (ImageType.isICO(dataView) || ImageType.isCUR(dataView)) return bitmap(ico.decode(data, maxPixels));
             if (ImageType.isQOI(dataView)) return qoi.decode(data, maxPixels);
             if (ImageType.isPNM(dataView)) return netpbm.decode(data, maxPixels, toneMapping);
             if (ImageType.isHDR(dataView)) return hdr.decode(data, maxPixels, toneMapping);
             if (ImageType.isTGA(dataView)) return tga.decode(data, maxPixels);
-            if (ImageType.isGIF(dataView)) throw new Error('GIFs have to be decoded with Animation.decode() (or decode(), which returns an image or an animation)');
+            if (ImageType.isGIF(dataView)) {
+                // the first frame only: the rest of the file isn't decoded
+                const gifData = gif.decode(data, true, maxPixels);
+                const [first] = gif.composite(gifData);
+                if (!first) throw new Error('GIF: no frames');
+                return { width: gifData.width, height: gifData.height, pixels: first.pixels };
+            }
             throw new Error('Unsupported image type');
         });
 
@@ -3162,15 +2910,18 @@ export class Image {
             const { icc, cicp, colorSpace } = decoded;
             (icc ? profileTransform(icc) : cicp ? cicpTransform(...cicp) : colorSpace ? colorSpaceTransform(colorSpace.xy, colorSpace.curve) : null)?.(decoded.pixels);
         }
+        // (a decoder that reads sizes from damaged data can end up with none, or with other pixels than they say)
+        if (!(decoded.width >= 1 && decoded.height >= 1) || decoded.pixels.length !== decoded.width * decoded.height * 4)
+            throw new Error('Image: damaged or truncated image data');
         // the decoded pixels become the bitmap, without a copy
         const image = new Image(decoded.width, decoded.height);
-        image.bitmap = decoded.pixels;
+        image.bitmap = alignedPixels(decoded.pixels);
         // (a gain map that can't be read leaves the image without one, it doesn't fail the decoding)
         if (gainMap && ImageType.isJPEG(dataView)) {
             try {
                 const found = gainMapCodec.find(data);
                 const size = found && gainMapCodec.dimensions(found.map);
-                if (found && size && size.width * size.height <= maxPixels) image.__gain_map__ = GainMap.__from_jpeg__(found.map, found.params, found.apple);
+                if (found && size && size.width * size.height <= maxPixels) image.__gain_map__ = GainMap.__from_jpeg__(found.map, found.params, found.apple, maxPixels);
             } catch {
                 image.__gain_map__ = null;
             }
@@ -3178,7 +2929,7 @@ export class Image {
         if (decoded.gainMap) {
             const { width, height, pixels, params } = decoded.gainMap;
             const map = new Image(width, height);
-            map.bitmap = pixels;
+            map.bitmap = alignedPixels(pixels);
             image.__gain_map__ = GainMap.__from_pixels__(map, params);
         }
         if (applyOrientation && decoded.orientation && decoded.orientation > 1) {
@@ -3230,29 +2981,15 @@ export class Image {
     }
 
     /**
-     * @deprecated Use {@link SVGScaleModes.SCALE}, `Image.SVG_MODE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly SVG_MODE_SCALE = 1;
-
-    /**
-     * @deprecated Use {@link SVGScaleModes.WIDTH}, `Image.SVG_MODE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly SVG_MODE_WIDTH = 2;
-
-    /**
-     * @deprecated Use {@link SVGScaleModes.HEIGHT}, `Image.SVG_MODE_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly SVG_MODE_HEIGHT = 3;
-
-    /**
      * Creates a new image from the given SVG
+     * @remarks
      * Supports shapes, paths, transforms, use/symbol, CSS styles, gradients, patterns, strokes, markers, clip paths,
      * masks, opacity, blend modes, filters (all primitives and the filter functions) and images embedded as data URIs
-     * (PNG, JPEG, GIF, WebP, SVG) or given with {@link SVGOptions.images}, and text with the given or embedded fonts
-     * (see {@link SVGOptions.fonts}). Hrefs are resolved from the options and the data URIs only, never from files or URLs.
+     * (PNG, JPEG, GIF, WebP, SVG) or given with {@link SVGResourceOptions.images}, and text with the given or embedded fonts
+     * (see {@link SVGResourceOptions.font}). Hrefs are resolved from the options and the data URIs only, never from files or URLs:
+     * drawing an image that isn't given, or can't be decoded, throws. SVGs from untrusted sources are fine to render: the
+     * size of the output, the layers and the images are limited by the options, and so is the work nested masks, clip
+     * paths, patterns, markers and filter images can multiply
      * @example
      * ```ts
      * const logo = await Image.renderSVG(
@@ -3261,33 +2998,35 @@ export class Image {
      * );
      * ```
      * @param svg The SVG content
-     * @param options See {@link SVGOptions}
+     * @param options See {@link RenderSVGOptions}
      * @return The rendered SVG graphic
+     * @throws {@link LimitError} if the output, the layers or the images exceed the limits of the options
+     * @throws `RangeError` if the requested size is below 1 pixel (or a scale isn't above 0)
+     * @throws `Error` if the SVG can't be parsed (it has no `<svg>` element), an image in it can't be drawn (it isn't given
+     *     or can't be decoded), or masks, clip paths, patterns, markers and filter images are nested so deeply that they
+     *     would multiply
      */
-    static renderSVG(svg: string | BinaryData, options?: SVGOptions): Promise<Image>;
-    /**
-     * Creates a new image from the given SVG
-     * @param svg The SVG content
-     * @param size The size to use
-     * @param mode The SVG resizing mode to use (one of {@link SVGScaleModes.SCALE}, {@link SVGScaleModes.WIDTH}, {@link SVGScaleModes.HEIGHT})
-     * @return The rendered SVG graphic
-     * @deprecated Pass {@link SVGOptions} instead, the positional arguments will be removed in 4.0
-     */
-    static renderSVG(svg: string | BinaryData, size?: number, mode?: SVGScaleMode): Promise<Image>;
-    static async renderSVG(svg: string | BinaryData, sizeOrOptions: number | SVGOptions = 1, modeArgument: SVGScaleMode = SVGScaleModes.SCALE): Promise<Image> {
-        const { size = 1, mode: givenMode = SVGScaleModes.SCALE, fonts = [], images: givenImages = {} } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
-        const mode = LEGACY_SVG_MODES.get(givenMode) ?? givenMode;
-        if (mode !== 'scale' && mode !== 'width' && mode !== 'height')
-            throw new Error('Invalid SVG scaling mode');
-
-        finite(size, 'SVG size');
-        if (mode === SVGScaleModes.SCALE && size <= 0)
+    static renderSVG(svg: string | BinaryData, options?: RenderSVGOptions): Promise<Image>;
+    static async renderSVG(svg: string | BinaryData, options: RenderSVGOptions = {}): Promise<Image> {
+        checkOptions(options, 'renderSVG(svg, { width: 512 })');
+        const { width: givenWidth, height: givenHeight, scale, maxPixels = MAX_PIXELS, font: fonts = [], images: givenImages = {} } = options;
+        pixelLimit(maxPixels);
+        const { maxLayerPixels = 4 * maxPixels, maxImagePixels = maxPixels } = options;
+        pixelLimit(maxLayerPixels, 'maxLayerPixels');
+        pixelLimit(maxImagePixels, 'maxImagePixels');
+        const sizes = [givenWidth, givenHeight, scale].filter(value => value !== undefined).length;
+        if (sizes > 1) throw new TypeError('renderSVG() takes one of width, height and scale');
+        const mode = givenWidth !== undefined ? 'width' : givenHeight !== undefined ? 'height' : 'scale';
+        const size = finite(givenWidth ?? givenHeight ?? scale ?? 1, `SVG ${mode}`);
+        if (mode === 'scale' && size <= 0)
+            // eslint-disable-next-line no-restricted-syntax -- the SVG size is only checked here
             throw new RangeError('SVG scale must be > 0');
-        if (mode !== SVGScaleModes.SCALE && size < 1)
-            throw new RangeError('SVG size must be >= 1');
+        if (mode !== 'scale' && size < 1)
+            throw new RangeError(`SVG ${mode} must be >= 1`);
 
         // the images given by href, checked before anything is decoded
         if (typeof givenImages !== 'object' || givenImages === null || Array.isArray(givenImages) || givenImages instanceof Map)
+            // eslint-disable-next-line no-restricted-syntax -- the images of an SVG are only checked here
             throw new TypeError('SVG images must be an object of hrefs to image data');
         const given = new Map<string, BinaryData | Image>();
         for (const href of Object.keys(givenImages)) {
@@ -3298,29 +3037,42 @@ export class Image {
         }
 
         // the raster images it references are decoded first (decoding can be asynchronous), the SVG is rendered at once.
-        // A given image wins over a data URI with the same href; each is decoded once, and only if the SVG uses it
+        // A given image wins over a data URI with the same href; each is decoded once, and only if the SVG references
+        // it. One that can't be decoded (or doesn't fit maxImagePixels) throws once it's drawn
         const source = typeof svg === 'string' ? svg : view(svg);
-        const images = new Map<string, svgRenderer.RasterImage>();
+        const images = new Map<string, svgRenderer.RasterImage | svgRenderer.ImageError>();
+        const shown = (href: string): string => JSON.stringify(href.length > 100 ? `${href.slice(0, 100)}...` : href);
+        let imagePixels = maxImagePixels;
         for (const { href, data } of svgRenderer.imageReferences(source)) {
             const value = given.get(href) ?? data;
             if (!value) continue;
+            if (value instanceof Image) {
+                images.set(href, { width: value.width, height: value.height, pixels: value.bitmap });
+                continue;
+            }
+            const tooLarge = (cause?: unknown): LimitError => new LimitError(`SVG: the image ${shown(href)} exceeds what's left of the ${maxImagePixels} pixels the SVG's images may decode to (the render options' maxImagePixels)`, { cause });
+            if (!(imagePixels >= 1)) {
+                images.set(href, { error: tooLarge() });
+                continue;
+            }
             try {
-                if (value instanceof Image) {
-                    images.set(href, { width: value.width, height: value.height, pixels: value.bitmap });
-                } else if (ImageType.getType(value) === 'gif') {
+                let decoded: svgRenderer.RasterImage;
+                if (ImageType.getType(value) === 'gif') {
                     // (a GIF's first frame)
-                    const decoded = gif.decode(view(value), true);
-                    images.set(href, { width: decoded.width, height: decoded.height, pixels: gif.composite(decoded)[0].pixels });
+                    const gifData = await decoding(() => gif.decode(view(value), true, imagePixels));
+                    decoded = { width: gifData.width, height: gifData.height, pixels: gif.composite(gifData)[0].pixels };
                 } else {
-                    const image = await Image.decode(value);
-                    images.set(href, { width: image.width, height: image.height, pixels: image.bitmap });
+                    const image = await Image.decode(value, { maxPixels: imagePixels });
+                    decoded = { width: image.width, height: image.height, pixels: image.bitmap };
                 }
-            } catch {
-                // (images that can't be decoded aren't drawn, like resvg's)
+                imagePixels -= decoded.width * decoded.height;
+                images.set(href, decoded);
+            } catch (err) {
+                images.set(href, { error: err instanceof LimitError ? tooLarge(err) : new Error(`SVG: the image ${shown(href)} can't be decoded`, { cause: err }) });
             }
         }
 
-        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, fonts.map(font => view(font)));
+        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, (Array.isArray(fonts) ? fonts : [fonts]).map(font => view(font)), maxPixels, maxLayerPixels);
         const image = new Image(width, height);
         image.bitmap.set(pixels);
 
@@ -3328,74 +3080,45 @@ export class Image {
     }
 
     /**
-     * Creates a new image containing the rendered text.
+     * Creates a new image containing the rendered text
+     * @example
+     * ```ts
+     * const label = await Image.renderText('Hello, world', { font: fontBytes, size: 48, color: 0xffffffff });
+     * ```
      * @param text Text to render
-     * @param options The font and size, color, layout and style, see {@link RenderTextOptions}; the image grows by the
-     *     outline width on every side
+     * @param options The font and size, color, layout and style, see {@link RenderTextOptions}. Without a `width` or
+     *     `height`, the image grows by the outline width on every side; with one, it has exactly that size
      * @return The rendered text
+     * @throws `TypeError` if the text isn't a string, or the options aren't an object with a `font`
+     * @throws `Error` if the font can't be read
+     * @throws {@link LimitError} if the image would have more than `options.maxPixels` pixels (checked before anything is
+     *     allocated)
      */
-    static renderText(text: string, options: RenderTextOptions): Promise<Image>;
-    /**
-     * Creates a new image containing the rendered text.
-     * @param font TrueType (ttf/ttc), OpenType (otf) or WOFF font buffer to use, or several by priority: every
-     *     character comes from the first font that has it (e.g. `[text, emoji]`), the first one sets the line height.
-     *     Color glyphs (COLR layers and paints, CBDT and sbix bitmaps, as in emoji fonts) keep their colors. Text in any
-     *     script is shaped like browsers do (right to left and bidirectional text, Arabic joining, Indic conjuncts,
-     *     marks)
-     * @param size Font size in pixels (per em)
-     * @param text Text to render
-     * @param options Color, layout and style, see {@link TextOptions}; the image grows by the outline width on every
-     *     side
-     * @return The rendered text
-     * @deprecated Pass the text first and everything else as options, `Image.renderText(text, { font, size })`.
-     *     This signature will be removed in 4.0
-     */
-    static renderText(font: BinaryData | BinaryData[], size: number, text: string, options?: TextOptions): Promise<Image>;
-    /**
-     * Creates a new image containing the rendered text.
-     * @param font TrueType (ttf/ttc), OpenType (otf) or WOFF font buffer to use, or several by priority: every
-     *     character comes from the first font that has it (e.g. `[text, emoji]`), the first one sets the line height.
-     *     Color glyphs (COLR layers and paints, CBDT and sbix bitmaps, as in emoji fonts) keep their colors. Text in any
-     *     script is shaped like browsers do (right to left and bidirectional text, Arabic joining, Indic conjuncts,
-     *     marks)
-     * @param size Font size in pixels (per em)
-     * @param text Text to render
-     * @param [color=0xffffffff] Text color to use
-     * @param [layout] The text layout to use
-     * @param style Outline, see {@link TextStyle}; the image grows by the outline width on every side
-     * @return The rendered text
-     * @deprecated Pass the text first and everything else as options, `Image.renderText(text, { font, size })`.
-     *     This signature will be removed in 4.0
-     */
-    static renderText(font: BinaryData | BinaryData[], size: number, text: string, color?: Color, layout?: TextLayout, style?: TextStyle): Promise<Image>;
-    static async renderText(fontOrText: BinaryData | BinaryData[] | string, sizeOrOptions: number | RenderTextOptions, textArgument?: string, colorOrOptions: Color | TextOptions = 0xffffffff, layoutArgument?: TextLayout, styleArgument: TextStyle = {}): Promise<Image> {
-        let font: BinaryData | BinaryData[], size: number, text: string, options: Omit<RenderTextOptions, 'font' | 'size' | 'layout'> & { layout?: TextLayoutOptions | TextLayout };
-        if (typeof fontOrText === 'string') {
-            if (!isOptions(sizeOrOptions) || sizeOrOptions.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
-            ({ font, size, ...options } = sizeOrOptions);
-            text = fontOrText;
-        } else {
-            font = fontOrText;
-            size = sizeOrOptions as number;
-            text = textArgument as string;
-            options = isOptions(colorOrOptions) ? colorOrOptions : { ...styleArgument, color: colorOrOptions, layout: layoutArgument };
-        }
-        const { color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {} } = options;
-        const layout = options.layout instanceof TextLayout ? options.layout : new TextLayout(options.layout);
+    static async renderText(text: string, options: RenderTextOptions): Promise<Image> {
+        if (typeof text !== 'string' || !isOptions(options)) throw new TypeError('renderText() takes the text and an options object, like renderText(\'Hello\', { font, size: 32 })');
+        if (options.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
+        const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {}, maxPixels = MAX_PIXELS } = options;
+        pixelLimit(maxPixels);
+        const { width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign } = options;
+        const layout = textLayout({ width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign });
         const axes = textRenderer.axisValues(variations);
-        size = finite(size, 'font size');
-        if (size < 0) throw new RangeError(`Invalid font size: ${size}`);
+        const size = positive(options.size, 'font size');
         if (finite(strokeWidth, 'stroke width') < 0)
             throw new RangeError('Invalid stroke width');
         const fonts = Array.isArray(font) ? font : [font];
         if (!fonts.length) throw new RangeError('No font given');
 
         const [r, g, b, a] = Colors.toRGBA(color);
-        // color glyph layers in the text color take it without its alpha, which applies to the whole color glyph
-        const rendered = await textRenderer.render(fonts.map(view), size, text, layout, hinting, (r << 24 | g << 16 | b << 8 | 255) >>> 0, featureList(features), axes);
-
-        // the outline needs room around the glyphs
+        // the outline needs room around the glyphs (checked against maxPixels with them): a given size is the image's,
+        // the text goes inside the outline
         const pad = Math.ceil(strokeWidth);
+        if (layout.width !== undefined && layout.width <= 2 * pad) throw new RangeError(`The width (${layout.width}) leaves no room for the text inside the ${strokeWidth} pixel outline`);
+        if (layout.height !== undefined && layout.height <= 2 * pad) throw new RangeError(`The height (${layout.height}) leaves no room for the text inside the ${strokeWidth} pixel outline`);
+        if (layout.width !== undefined) layout.width -= 2 * pad;
+        if (layout.height !== undefined) layout.height -= 2 * pad;
+        // color glyph layers in the text color take it without its alpha, which applies to the whole color glyph
+        const rendered = await textRenderer.render(fonts.map(view), size, text, layout, hinting, (r << 24 | g << 16 | b << 8 | 255) >>> 0, featureList(features), axes, maxPixels, pad);
+
         const width = rendered.width + 2 * pad, height = rendered.height + 2 * pad;
         const coverage = new Uint8Array(width * height);
         for (let y = 0; y < rendered.height; y++)
@@ -3488,30 +3211,47 @@ interface HSLA {
     a: number;
 }
 
-// the deprecated upper case resize modes (Image.RESIZE_*) and the names they stand for
-const LEGACY_RESIZE_MODES = new Map<unknown, ResizeMode>([
-    ['RESIZE_NEAREST_NEIGHBOR', 'nearest-neighbor'], ['RESIZE_BILINEAR', 'bilinear'], ['RESIZE_BICUBIC', 'bicubic'], ['RESIZE_AREA', 'area']
-]);
-
 /**
- * The width, height and mode of resize()'s signatures, a side missing from the options as {@link ResizeModes.AUTO}
+ * Decoded pixels as an image's bitmap: as they are, or copied if they don't start at an offset the 32-bit pixel views
+ * need (the bitmap setter refuses those, so a decoder returning a view into a larger buffer doesn't fail)
  * @internal
  */
-export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, modeOrOptions?: ResizeMode | ResizeOptions): [width: number, height: number, modeOrOptions: ResizeMode | ResizeOptions | undefined] {
-    if (!isOptions(widthOrOptions)) return [widthOrOptions, height as number, modeOrOptions];
-    const { width, height: optionsHeight, ...options } = widthOrOptions;
+export function alignedPixels<T extends Uint8Array | Uint8ClampedArray>(pixels: T): T {
+    return pixels.byteOffset % 4 ? pixels.slice() as T : pixels;
+}
+
+/**
+ * The width, height and mode of resize()'s signatures: a side left out of the options is `undefined`
+ * @internal
+ */
+export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, options?: ResizeOptions): [width: number | undefined, height: number | undefined, options: ResizeRuntimeOptions | undefined, fit: ResizeFit] {
+    if (!isOptions(widthOrOptions)) {
+        checkOptions(options, 'resize(width, height, { mode: \'area\' })');
+        return [finite(widthOrOptions, 'width'), finite(height as number, 'height'), options, 'fill'];
+    }
+    const { width, height: optionsHeight, fit = 'fill', ...rest } = widthOrOptions;
     if (width === undefined && optionsHeight === undefined) throw new TypeError('resize() needs a width, a height or both');
-    return [width ?? ResizeModes.AUTO, optionsHeight ?? ResizeModes.AUTO, options];
+    oneOf(fit, RESIZE_FITS, 'fit');
+    return [width === undefined ? undefined : finite(width, 'width'), optionsHeight === undefined ? undefined : finite(optionsHeight, 'height'), rest, fit];
 }
 
-function resizeOptions(modeOrOptions?: ResizeMode | ResizeOptions): { mode: ResizeMode, fast: boolean } {
-    const options = isOptions(modeOrOptions) ? modeOrOptions : { mode: modeOrOptions };
-    const mode = options.mode ?? ResizeModes.BILINEAR;
-    return { mode: LEGACY_RESIZE_MODES.get(mode) ?? mode, fast: options.fast ?? true };
+/**
+ * The size of an image of `width` x `height` resized to fit inside a box of `boxWidth` x `boxHeight`, keeping its aspect
+ * ratio: the limiting side matches the box exactly (rounded instead of floored), the other one is at least 1 pixel
+ */
+export function insideSize(width: number, height: number, boxWidth: number, boxHeight: number): [width: number, height: number] {
+    boxWidth = Math.floor(boxWidth);
+    boxHeight = Math.floor(boxHeight);
+    const scale = Math.min(boxWidth / width, boxHeight / height);
+    return [Math.max(1, Math.min(boxWidth, Math.round(width * scale))), Math.max(1, Math.min(boxHeight, Math.round(height * scale)))];
 }
 
-// the deprecated SVG scale mode numbers (Image.SVG_MODE_*) and the names they stand for
-const LEGACY_SVG_MODES = new Map<unknown, SVGScaleMode>([[1, 'scale'], [2, 'width'], [3, 'height']]);
+const RESIZE_MODES: readonly ResizeMode[] = ['nearest-neighbor', 'bilinear', 'bicubic', 'area'];
+
+// the resize options with their defaults, the mode checked before anything changes
+function resizeOptions(options?: ResizeOptions): { mode: ResizeMode } {
+    return { mode: options?.mode === undefined ? 'bilinear' : oneOf(options.mode, RESIZE_MODES, 'resize mode') };
+}
 
 // separable blend functions of normalized channel values (W3C Compositing and Blending Level 1)
 const hardLight = (b: number, s: number): number => s <= 0.5 ? b * 2 * s : 1 - (1 - b) * (1 - (2 * s - 1));
@@ -3538,11 +3278,7 @@ const BLEND_MODES: Record<BlendMode, (backdrop: number, source: number) => numbe
 
 // the color at every position of a gradient, from its stops
 function gradientFunction(stops: Record<number, Color> | Color[]): (position: number) => Color {
-    if (!Array.isArray(stops)) return Colors.gradient(stops);
-    if (!stops.length) throw new RangeError('Invalid gradient point count');
-    // (one color is a gradient of two equal ones)
-    const colors = stops.length === 1 ? [stops[0], stops[0]] : stops;
-    return Colors.gradient(Object.fromEntries(colors.map((color, i) => [i / (colors.length - 1), color])));
+    return Colors.gradient(stops);
 }
 
 /**

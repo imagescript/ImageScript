@@ -38,7 +38,7 @@ export interface EncodeOptions {
     palette?: Uint8Array;
     /** alpha per palette entry */
     transparency?: Uint8Array;
-    /** whether to paeth filter the rows (pays off for truecolor and greyscale images) */
+    /** whether to paeth filter the rows (pays off for truecolor and grayscale images) */
     filter?: boolean;
 }
 
@@ -69,7 +69,7 @@ const ADAM7 = [[0, 0, 8, 8], [4, 0, 8, 8], [0, 4, 4, 8], [2, 0, 4, 4], [0, 2, 2,
  * Encodes raw pixel data into a PNG
  * @param data Raw pixel data, rows packed MSB first for depths below 8
  */
-export async function encode(data: Uint8Array, { text, width, height, channels, depth = 8, level = 0, palette, transparency, filter: filterRows = false }: EncodeOptions): Promise<Uint8Array> {
+export async function encode(data: Uint8Array, { text, width, height, channels, depth = 8, level = 0, palette, transparency, filter: filterRows = false }: EncodeOptions): Promise<Uint8Array<ArrayBuffer>> {
     const header = new Uint8Array(13);
     const view = new DataView(header.buffer);
     view.setUint32(0, width);
@@ -110,7 +110,7 @@ function filter(data: Uint8Array, rowBytes: number, y0: number, y1: number, bpp:
         const row = y * rowBytes, o = (y - y0) * (rowBytes + 1) + 1;
         out[o - 1] = 4;
 
-        // the first row has no row above, the first pixel of every row no left neighbour
+        // the first row has no row above, the first pixel of every row no left neighbor
         if (y === 0) {
             for (let i = 0; i < rowBytes; i++) out[o + i] = data[row + i] - (i >= bpp ? data[row + i - bpp] : 0);
             continue;
@@ -183,11 +183,11 @@ export interface PixelFormat {
 
 /**
  * Picks the smallest lossless format that fits all the given RGBA images: a palette for up to 256 colors,
- * otherwise greyscale or RGB, with alpha only if a pixel isn't opaque
+ * otherwise grayscale or RGB, with alpha only if a pixel isn't opaque
  */
 /**
  * How much more an opaque image costs per pixel with transparent pixels than without them, given the pixel formats
- * (palette, grey or truecolor) both get: e.g. 4/3 for RGBA instead of RGB, 4 for RGBA instead of a palette when the
+ * (palette, gray or truecolor) both get: e.g. 4/3 for RGBA instead of RGB, 4 for RGBA instead of a palette when the
  * transparent pixels are the 257th color, 2 for 8 instead of 4 bit palette indices when they're the 17th
  * @param images RGBA, only the transparent pixels aren't opaque
  */
@@ -199,7 +199,7 @@ export function alphaCost(images: Uint8Array[]): number {
 
 /** {@link alphaCost}, of images given one at a time */
 export class AlphaCost {
-    private grey = true;
+    private gray = true;
     private colors = new Set<number>();
     private done = false;
 
@@ -214,10 +214,10 @@ export class AlphaCost {
             previous = value;
             const o = i * 4;
             if (rgba[o + 3] === 0) continue;
-            if (rgba[o] !== rgba[o + 1] || rgba[o] !== rgba[o + 2]) this.grey = false;
+            if (rgba[o] !== rgba[o + 1] || rgba[o] !== rgba[o + 2]) this.gray = false;
             if (colors.size <= 256) colors.add(value);
-            // more than 256 colors and not grey: truecolor either way, nothing else can change
-            else if (!this.grey) {
+            // more than 256 colors and not gray: truecolor either way, nothing else can change
+            else if (!this.gray) {
                 this.done = true;
                 return;
             }
@@ -225,11 +225,11 @@ export class AlphaCost {
     }
 
     cost(): number {
-        const { colors, grey } = this;
-        // bytes per pixel: palette 1/8 to 1 (by its bit depth), grey 1 (with alpha 2), truecolor 3 (with alpha 4)
+        const { colors, gray } = this;
+        // bytes per pixel: palette 1/8 to 1 (by its bit depth), gray 1 (with alpha 2), truecolor 3 (with alpha 4)
         const palette = (entries: number): number => (entries <= 2 ? 1 : entries <= 4 ? 2 : entries <= 16 ? 4 : 8) / 8;
-        const transparent = colors.size < 256 ? palette(colors.size + 1) : grey ? 2 : 4;
-        const opaque = colors.size <= 256 ? palette(colors.size) : grey ? 1 : 3;
+        const transparent = colors.size < 256 ? palette(colors.size + 1) : gray ? 2 : 4;
+        const opaque = colors.size <= 256 ? palette(colors.size) : gray ? 1 : 3;
         return transparent / opaque;
     }
 }
@@ -243,7 +243,7 @@ function pixelFormat(images: Uint8Array[]): PixelFormat {
 /** {@link pixelFormat} of images given one at a time */
 export class FormatScanner {
     private opaque = true;
-    private grey = true;
+    private gray = true;
     // up to 256 distinct colors, by their first appearance
     private colors: Map<number, number> | null = new Map();
 
@@ -258,22 +258,22 @@ export class FormatScanner {
 
             const o = i * 4;
             if (rgba[o + 3] !== 255) this.opaque = false;
-            if (rgba[o] !== rgba[o + 1] || rgba[o] !== rgba[o + 2]) this.grey = false;
+            if (rgba[o] !== rgba[o + 1] || rgba[o] !== rgba[o + 2]) this.gray = false;
             if (this.colors && !this.colors.has(value)) {
                 if (this.colors.size === 256) this.colors = null;
                 else this.colors.set(value, this.colors.size);
             }
             // nothing left to find out: RGBA it is
-            if (!this.colors && !this.opaque && !this.grey) return;
+            if (!this.colors && !this.opaque && !this.gray) return;
         }
     }
 
     format(): PixelFormat {
-        return formatOf(this.colors, this.opaque, this.grey);
+        return formatOf(this.colors, this.opaque, this.gray);
     }
 }
 
-function formatOf(colors: Map<number, number> | null, opaque: boolean, grey: boolean): PixelFormat {
+function formatOf(colors: Map<number, number> | null, opaque: boolean, gray: boolean): PixelFormat {
     if (colors) {
         // opaque entries are moved to the end, so tRNS can be cut short
         const entries = [...colors.keys()].map(value => new Uint8Array(new Uint32Array([value]).buffer));
@@ -311,7 +311,7 @@ function formatOf(colors: Map<number, number> | null, opaque: boolean, grey: boo
         };
     }
 
-    const channels = (grey ? 1 : 3) + (opaque ? 0 : 1);
+    const channels = (gray ? 1 : 3) + (opaque ? 0 : 1);
     return {
         channels, depth: 8,
         convert(rgba, width, height) {
@@ -343,7 +343,7 @@ const aligned = (rgba: Uint8Array): Uint8Array => rgba.byteOffset % 4 ? rgba.sli
  * Rows of non-palette images are paeth filtered where that compresses better (unless the data isn't compressed),
  * palette indices aren't filtered (like libpng recommends)
  */
-export async function encodeRGBA(rgba: Uint8Array, width: number, height: number, level: number, text?: EncodeOptions['text']): Promise<Uint8Array> {
+export async function encodeRGBA(rgba: Uint8Array, width: number, height: number, level: number, text?: EncodeOptions['text']): Promise<Uint8Array<ArrayBuffer>> {
     rgba = aligned(rgba.subarray(0, width * height * 4));
     const format = pixelFormat([rgba]);
     const { channels, depth, palette, transparency } = format;
@@ -372,7 +372,7 @@ export interface APNGEncodeFrame {
  * @param plays How often to play the animation, 0 = forever
  * @param text tEXt chunks, empty values are skipped
  */
-export async function encodeAnimation(frames: APNGEncodeFrame[], width: number, height: number, plays: number, level: number, text?: EncodeOptions['text']): Promise<Uint8Array> {
+export async function encodeAnimation(frames: APNGEncodeFrame[], width: number, height: number, plays: number, level: number, text?: EncodeOptions['text']): Promise<Uint8Array<ArrayBuffer>> {
     if (!frames.length) throw new Error('PNG: an animation needs at least one frame');
 
     frames = [coverCanvas(frames[0], width, height), ...frames.slice(1)];
@@ -415,7 +415,7 @@ export function frameData(rgba: Uint8Array, width: number, height: number, forma
 }
 
 /** An APNG from its compressed frames, all in one pixel format */
-export function animationFile(frames: EncodedAPNGFrame[], width: number, height: number, plays: number, format: PixelFormat, text?: EncodeOptions['text']): Uint8Array {
+export function animationFile(frames: EncodedAPNGFrame[], width: number, height: number, plays: number, format: PixelFormat, text?: EncodeOptions['text']): Uint8Array<ArrayBuffer> {
     const { channels, depth, palette, transparency } = format;
     const header = new Uint8Array(13);
     const hv = new DataView(header.buffer);
@@ -498,6 +498,8 @@ interface Parsed {
     frames: Array<{ control: APNGFrameControl, data: Uint8Array[] }>;
     /** set if the animation is broken, which makes decoders fall back to the default image */
     animationError: boolean;
+    /** set for an animation that ends before its IEND chunk: the frames that are there are what it has (the last one can be cut) */
+    truncated: boolean;
 }
 
 function parse(array: Uint8Array): Parsed {
@@ -518,6 +520,7 @@ function parse(array: Uint8Array): Parsed {
     let current: Parsed['frames'][number] | null = null;
     let sequence = 0;
     let animationError = false;
+    let ended = false, truncated = false;
 
     let offset = 8;
     while (offset + 8 <= array.length) {
@@ -585,7 +588,7 @@ function parse(array: Uint8Array): Parsed {
         else if (type === iCCP) iccp ??= chunk;
         else if (type === sRGB) srgb = true;
         else if (type === tEXt || type === zTXt || type === iTXt) text.push({ type, chunk });
-        else if (type === IEND) break;
+        else if (type === IEND) { ended = true; break; }
 
         offset = end + 4;
     }
@@ -603,9 +606,15 @@ function parse(array: Uint8Array): Parsed {
     // more frames than announced are ignored; fewer (or none) make the animation invalid
     if (animation) {
         if (frames.length > animation.frames) frames.length = animation.frames;
-        if (!frames.length || frames.length < animation.frames || frames.some(f => !f.data.length)) animationError = true;
+        // a file cut short keeps the frames that arrived (the last one may be cut: the decoder checks), like it does
+        // for GIF; one that ends properly with fewer frames than it announced is invalid
+        if (!ended) {
+            truncated = true;
+            while (frames.length && !frames[frames.length - 1].data.length) frames.pop();
+        }
+        if (!frames.length || (frames.length < animation.frames && !truncated) || frames.some(f => !f.data.length)) animationError = true;
     }
-    return { header, palette, transparency, idat, exif, iccp: srgb ? null : iccp, text, animation, frames, animationError };
+    return { header, palette, transparency, idat, exif, iccp: srgb ? null : iccp, text, animation, frames, animationError, truncated };
 }
 
 // the interlace passes of an image ([x start, y start, x step, y step, width, height]) and its inflated size
@@ -715,36 +724,51 @@ export function isAnimated(array: Uint8Array): boolean {
 
 /**
  * Decodes an APNG (https://wiki.mozilla.org/APNG_Specification) into its (uncomposited) frames; a plain PNG becomes
- * a single frame
+ * a single frame. The frames are decoded one at a time as they are iterated (once), so compositing them doesn't hold
+ * all of them
  * @return plays: 0 = forever
  */
-export async function decodeAnimation(array: Uint8Array, onlyFirstFrame = false, maxPixels = MAX_PIXELS): Promise<{ width: number, height: number, plays: number, frames: APNGFrame[], icc?: Uint8Array, orientation: number }> {
+export async function decodeAnimation(array: Uint8Array, firstFrameOnly = false, maxPixels = MAX_PIXELS): Promise<{ width: number, height: number, plays: number, frames: AsyncIterable<APNGFrame>, icc?: Uint8Array, orientation: number }> {
     const p = parse(array);
     const { width, height } = p.header;
     const orientation = p.exif ? exifOrientation(p.exif) : await textOrientation(p.text);
     // every frame is composited onto a canvas of its own
-    checkPixels(width, height, maxPixels, !p.animation || p.animationError || onlyFirstFrame ? 1 : Math.max(1, p.frames.length));
+    checkPixels(width, height, maxPixels, !p.animation || p.animationError || firstFrameOnly ? 1 : Math.max(1, p.frames.length));
 
     // broken animations show the default image, like browsers do
     if (!p.animation || p.animationError) {
         const pixels = await decodeImageData(p, p.idat, width, height);
-        return { width, height, plays: 0, frames: [{ x: 0, y: 0, width, height, duration: 0, dispose: 0, blend: 0, pixels }], icc: await profile(p.iccp), orientation };
+        const still = async function* (): AsyncGenerator<APNGFrame> {
+            yield { x: 0, y: 0, width, height, duration: 0, dispose: 0, blend: 0, pixels };
+        };
+        return { width, height, plays: 0, frames: still(), icc: await profile(p.iccp), orientation };
     }
 
-    const frames: APNGFrame[] = [];
-    for (const { control: c, data } of p.frames) {
+    for (const { control: c } of p.frames)
         if (!c.width || !c.height || c.x + c.width > width || c.y + c.height > height) throw new Error('PNG: invalid APNG frame region');
-        frames.push({
-            x: c.x, y: c.y, width: c.width, height: c.height, duration: c.delay,
-            // DISPOSE_OP_PREVIOUS on the first frame means background
-            dispose: !frames.length && c.dispose === 2 ? 1 : c.dispose,
-            blend: c.blend,
-            pixels: await decodeImageData(p, data, c.width, c.height)
-        });
-        if (onlyFirstFrame) break;
+    async function* frames(): AsyncGenerator<APNGFrame> {
+        let count = 0;
+        for (const { control: c, data } of p.frames) {
+            let pixels: Uint8Array;
+            try {
+                pixels = await decodeImageData(p, data, c.width, c.height);
+            } catch (error) {
+                // (the last frame of a file that is cut off can be incomplete: the ones before it are what the file has)
+                if (p.truncated && count) return;
+                throw error;
+            }
+            yield {
+                x: c.x, y: c.y, width: c.width, height: c.height, duration: c.delay,
+                // DISPOSE_OP_PREVIOUS on the first frame means background
+                dispose: !count++ && c.dispose === 2 ? 1 : c.dispose,
+                blend: c.blend,
+                pixels
+            };
+            if (firstFrameOnly) return;
+        }
     }
 
-    return { width, height, plays: p.animation.plays, frames, icc: await profile(p.iccp), orientation };
+    return { width, height, plays: p.animation.plays, frames: frames(), icc: await profile(p.iccp), orientation };
 }
 
 /**
@@ -752,10 +776,15 @@ export async function decodeAnimation(array: Uint8Array, onlyFirstFrame = false,
  * blend_op section, https://wiki.mozilla.org/APNG_Specification)
  */
 export function compositeAnimation({ width, height, frames }: { width: number, height: number, frames: APNGFrame[] }): Array<{ pixels: Uint8Array, duration: number }> {
-    const canvas = new Uint8Array(width * height * 4);
-    const output = [];
+    const step = compositor(width, height);
+    return frames.map(f => ({ pixels: step(f), duration: f.duration }));
+}
 
-    for (const f of frames) {
+/** {@link compositeAnimation} one frame at a time: each call composites the next frame and returns the canvas shown */
+export function compositor(width: number, height: number): (f: APNGFrame) => Uint8Array {
+    const canvas = new Uint8Array(width * height * 4);
+
+    return f => {
         const previous = f.dispose === 2 ? canvas.slice() : null;
 
         for (let y = 0; y < f.height; y++) {
@@ -782,14 +811,14 @@ export function compositeAnimation({ width, height, frames }: { width: number, h
             }
         }
 
-        output.push({ pixels: canvas.slice(), duration: f.duration });
+        const shown = canvas.slice();
 
         if (f.dispose === 1)
             for (let y = 0; y < f.height; y++) canvas.fill(0, ((f.y + y) * width + f.x) * 4, ((f.y + y) * width + f.x + f.width) * 4);
         else if (previous) canvas.set(previous);
-    }
 
-    return output;
+        return shown;
+    };
 }
 
 const RAW_EXIF = /^Raw profile type (exif|APP1)$/;
@@ -846,7 +875,7 @@ function unfilter(data: Uint8Array, offset: number, height: number, rowBytes: nu
     const out = inPlace ? data.subarray(offset, offset + height * rowBytes) : new Uint8Array(height * rowBytes);
     const first = Math.min(bpp, rowBytes);
 
-    // the first row and the first pixel of every row have zero neighbours, those are handled by separate loops
+    // the first row and the first pixel of every row have zero neighbors, those are handled by separate loops
     for (let y = 0; y < height; y++) {
         const filter = data[offset++];
         const row = y * rowBytes;
@@ -868,11 +897,11 @@ function unfilter(data: Uint8Array, offset: number, height: number, rowBytes: nu
             }
         } else if (filter === 4) {
             if (y === 0) {
-                // paeth with no row above picks the left neighbour
+                // paeth with no row above picks the left neighbor
                 out.set(data.subarray(offset, offset + first), row);
                 for (let i = row + bpp; i < row + rowBytes; i++) out[i] = data[src + i] + out[i - bpp];
             } else {
-                // and with no left neighbour the one above
+                // and with no left neighbor the one above
                 for (let i = row; i < row + first; i++) out[i] = data[src + i] + out[i - rowBytes];
                 if (bpp === 3 || bpp === 4) paethRow(data, src, out, row, rowBytes, bpp);
                 else for (let i = row + bpp; i < row + rowBytes; i++) {
@@ -891,7 +920,7 @@ function unfilter(data: Uint8Array, offset: number, height: number, rowBytes: nu
     return out;
 }
 
-// the paeth filter on a row of 3 or 4 byte pixels, the left and upper left neighbours in variables: as above, with each
+// the paeth filter on a row of 3 or 4 byte pixels, the left and upper left neighbors in variables: as above, with each
 // channel's predictor not waiting for the byte just stored
 function paethRow(data: Uint8Array, src: number, out: Uint8Array, row: number, rowBytes: number, bpp: number): void {
     const up = row - rowBytes, end = row + rowBytes;

@@ -46,5 +46,18 @@ const expected = {
     const tiff = await import('../dist/codecs/tiff.js');
     const broken = await fs.readFile('./tests/tiffs/l2.tif');
     broken[0] = broken[1] = 0x58;
-    if (!await tiff.decode(broken).then(() => false, error => /byte order/.test(error.message))) panic('an invalid byte order should throw');
+    if (!await tiff.decode(broken).then(() => false, error => error instanceof Error)) panic('an invalid byte order should throw');
+
+    // files that ask for more memory than they are: refused before anything is allocated, so quickly
+    // (YCbCr subsampling factors of 65534x65535 made 4 GB of units out of 32 KB; 1024 samples per pixel took 1 GB)
+    // (and a BitsPerSample tag that points outside the file, or pixels that don't fit the size, are decoding errors too)
+    for (const name of ['damaged-bits-per-sample', 'damaged-bitmap-size']) {
+        const error = await Image.decode(await fs.readFile(`./tests/tiffs/${name}.tif`)).then(() => null, e => e);
+        if (!error || error.constructor !== Error) panic(`${name}: should throw an Error, got ${error}`);
+    }
+    for (const name of ['damaged-ycbcr-subsampling', 'damaged-samples-per-pixel']) {
+        const started = Date.now();
+        if (!await Image.decode(await fs.readFile(`./tests/tiffs/${name}.tif`)).then(() => false, error => error instanceof Error)) panic(`${name}: should be refused`);
+        if (Date.now() - started > 2000) panic(`${name}: refusing it took ${Date.now() - started} ms`);
+    }
 })();

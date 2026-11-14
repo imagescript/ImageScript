@@ -1,83 +1,67 @@
+import { oneOf } from './util/options.ts';
+import type { Layout } from './render/text.ts';
+
 /** Where lines are wrapped: between words or at any character */
 export type WrapStyle = 'word' | 'char';
-/** Alignment of the lines relative to the widest line */
+/** Where the lines are placed horizontally: in the `width`, or (without one) relative to the widest line */
 export type HorizontalAlign = 'left' | 'center' | 'right';
-/** Which lines to keep when the text is cut off at `maxHeight` */
+/** Where the text is placed vertically in the `height` (and which lines are kept when not all of them fit) */
 export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
-/** Options of {@link TextLayout} */
+/** The layout options of {@link Image.renderText} (part of {@link RenderTextOptions}): the size, wrapping and alignment */
 export interface TextLayoutOptions {
-    /** Longer lines are wrapped. Default: `Infinity` */
-    maxWidth?: number;
-    /** Lines that don't fit are cut off. Default: `Infinity` */
-    maxHeight?: number;
-    /** Whether to wrap between words or at any character. Default: `'word'` */
+    /**
+     * The image's width in pixels: lines are wrapped to fit into it (inside the outline, see
+     * {@link TextStyleOptions.strokeWidth}) and placed in it by `horizontalAlign`
+     * @defaultValue The widest line's width
+     */
+    width?: number;
+    /**
+     * The image's height in pixels: lines that don't fit are left out, and the text is placed in it by `verticalAlign`.
+     * @defaultValue The height of the lines
+     */
+    height?: number;
+    /**
+     * Whether to wrap between words or at any character
+     * @defaultValue `'word'`
+     */
     wrapStyle?: WrapStyle;
     /**
-     * Alignment of the lines relative to the widest line. Default: `'left'`
-     * (before 3.0 this was called verticalAlign, the values of the other axis (`'top'`, `'middle'`, `'bottom'`) are
-     * accepted for compatibility, which will be removed in 4.0)
+     * Where the lines are placed horizontally: `'left'`, `'center'` or `'right'` in the `width`, or (without one)
+     * relative to the widest line
+     * @defaultValue `'left'`
      */
-    horizontalAlign?: HorizontalAlign | VerticalAlign;
+    horizontalAlign?: HorizontalAlign;
     /**
-     * Which lines to keep when cutting off at `maxHeight`. Default: `'top'`
-     * (before 3.0 this was called horizontalAlign, the values of the other axis (`'left'`, `'center'`, `'right'`) are
-     * accepted for compatibility, which will be removed in 4.0)
+     * Where the text is placed vertically in the `height`: `'top'`, `'middle'` or `'bottom'`. When not all lines fit,
+     * these keep the first, the middle or the last lines. Without a `height`, it has no effect
+     * @defaultValue `'top'`
      */
-    verticalAlign?: VerticalAlign | HorizontalAlign;
-    /** Whether to break lines at newline characters. Default: `true` */
-    wrapHardBreaks?: boolean;
+    verticalAlign?: VerticalAlign;
 }
 
-const HORIZONTAL: readonly string[] = ['left', 'center', 'right'];
-const VERTICAL: readonly string[] = ['top', 'middle', 'bottom'];
+const HORIZONTAL: readonly HorizontalAlign[] = ['left', 'center', 'right'];
+const VERTICAL: readonly VerticalAlign[] = ['top', 'middle', 'bottom'];
+
+/** A size option: undefined, or a whole number of pixels from 1 */
+function boxSide(value: number | undefined, name: string): number | undefined {
+    if (value === undefined) return undefined;
+    const side = Math.floor(Number(value));
+    if (typeof value !== 'number' || !(side >= 1) || !Number.isFinite(side)) throw new RangeError(`${name} must be a finite number from 1, not ${String(value)}`);
+    return side;
+}
 
 /**
- * Layout options for {@link Image.renderText}
+ * The layout options checked, with their defaults, for the text renderer
+ * @internal
  */
-export class TextLayout {
-    /** Longer lines are wrapped */
-    maxWidth: number;
-    /** Lines that don't fit are cut off */
-    maxHeight: number;
-    /** Whether to wrap between words or at any character */
-    wrapStyle: WrapStyle;
-    /** Alignment of the lines relative to the widest line */
-    horizontalAlign: HorizontalAlign = 'left';
-    /** Which lines to keep when cutting off at `maxHeight` */
-    verticalAlign: VerticalAlign = 'top';
-    /** Whether to break lines at newline characters */
-    wrapHardBreaks: boolean;
-
-    /**
-     * Creates a layout, missing options take their defaults
-     * @param options See {@link TextLayoutOptions}
-     */
-    constructor(options: TextLayoutOptions = {}) {
-        const { maxWidth, maxHeight, wrapStyle, verticalAlign, horizontalAlign, wrapHardBreaks } = options;
-
-        // (undefined and 0 mean no limit, NaN is invalid)
-        this.maxWidth = maxWidth === undefined || maxWidth === 0 ? Infinity : Number(maxWidth);
-        if (isNaN(this.maxWidth) || this.maxWidth < 1)
-            throw new RangeError('Invalid maxWidth');
-
-        this.maxHeight = maxHeight === undefined || maxHeight === 0 ? Infinity : Number(maxHeight);
-        if (isNaN(this.maxHeight) || this.maxHeight < 1)
-            throw new RangeError('Invalid maxHeight');
-
-        this.wrapStyle = wrapStyle || 'word';
-        if (!['word', 'char'].includes(this.wrapStyle))
-            throw new RangeError('Invalid wrapStyle');
-
-        for (const value of [horizontalAlign, verticalAlign]) {
-            if (value === undefined) continue;
-            if (HORIZONTAL.includes(value)) this.horizontalAlign = value as HorizontalAlign;
-            else if (VERTICAL.includes(value)) this.verticalAlign = value as VerticalAlign;
-            else throw new RangeError(`Invalid alignment: ${value}`);
-        }
-
-        this.wrapHardBreaks = typeof wrapHardBreaks === 'undefined' ? true : wrapHardBreaks;
-        if (typeof this.wrapHardBreaks !== 'boolean')
-            throw new TypeError('Invalid wrapHardBreaks');
-    }
+export function textLayout(options: TextLayoutOptions): Layout {
+    const { width, height, wrapStyle, verticalAlign, horizontalAlign } = options;
+    return {
+        width: boxSide(width, 'width'),
+        height: boxSide(height, 'height'),
+        wrapStyle: wrapStyle === undefined ? 'word' : oneOf(wrapStyle, ['word', 'char'], 'wrapStyle'),
+        horizontalAlign: horizontalAlign === undefined ? 'left' : oneOf(horizontalAlign, HORIZONTAL, 'horizontalAlign'),
+        verticalAlign: verticalAlign === undefined ? 'top' : oneOf(verticalAlign, VERTICAL, 'verticalAlign')
+    };
 }

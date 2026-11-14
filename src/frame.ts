@@ -1,63 +1,62 @@
-import { Image, ResizeMode, ResizeOptions, ResizeToOptions, Color, TrimOptions, resizeArguments } from './image.ts';
-import { isOptions, finite } from './util/options.ts';
+import { Image, ResizeOptions, ResizeToOptions, TrimOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions } from './image.ts';
+import { checkOptions, finite, oneOf } from './util/options.ts';
 
-/** Names of the frame disposal modes, see {@link Frame.disposalMode} */
-export type FrameDisposalModeName = 'any' | 'keep' | 'previous' | 'background';
 /**
- * Ids of the frame disposal modes, as GIFs store them (0 any, 1 keep, 2 previous, 3 background)
- * @deprecated Use the names ({@link FrameDisposalModeName}: `'any'`, `'keep'`, `'previous'`, `'background'`), the ids will
- *     be removed in 4.0
+ * What happens to a frame's area before the next frame is drawn, see {@link Frame.disposalMode}:
+ * - `'keep'` (the default): the frame stays, the next one is drawn over it
+ * - `'background'`: the frame's area is cleared to transparent
+ * - `'previous'`: the frame's area goes back to what it was before the frame
+ * - `'any'`: the decoder decides (in practice like `'keep'`)
  */
-export type FrameDisposalModeId = 0 | 1 | 2 | 3;
+export type FrameDisposalMode = 'any' | 'keep' | 'previous' | 'background';
 
-// (the ids inside the library, without the deprecation shown to its own code)
+// the ids the library stores the modes as (0 any, 1 keep, 2 previous, 3 background, like GIFs)
 type DisposalId = 0 | 1 | 2 | 3;
 
-const DISPOSAL_MODES: readonly FrameDisposalModeName[] = ['any', 'keep', 'previous', 'background'];
+const DISPOSAL_MODES: readonly FrameDisposalMode[] = ['any', 'keep', 'previous', 'background'];
 
-/** What happens to a frame's area before the next frame is drawn, see {@link Frame.disposalMode} */
-export class FrameDisposalModes {
-    /** The decoder decides (in practice like {@link FrameDisposalModes.KEEP}) */
-    static readonly ANY = 'any';
-
-    /** The frame stays, the next one is drawn over it (the default) */
-    static readonly KEEP = 'keep';
-
-    /** The frame's area goes back to what it was before the frame */
-    static readonly PREVIOUS = 'previous';
-
-    /** The frame's area is cleared to transparent */
-    static readonly BACKGROUND = 'background';
-
-    private constructor() {}
-}
-
-/** Options of {@link Frame} and {@link Frame.from} */
+/** Options of {@link Frame} */
 export interface FrameOptions {
-    /** The frame's duration in milliseconds. Default: `100` */
+    /**
+     * The frame's duration in milliseconds
+     * @defaultValue `100`
+     */
     duration?: number;
-    /** The frame's offset on the x-axis. Default: `0` */
+    /**
+     * The frame's offset on the x-axis
+     * @defaultValue `0`
+     */
     xOffset?: number;
-    /** The frame's offset on the y-axis. Default: `0` */
+    /**
+     * The frame's offset on the y-axis
+     * @defaultValue `0`
+     */
     yOffset?: number;
-    /** The frame's disposal mode, see {@link Frame.disposalMode}. Default: `'keep'` */
-    disposalMode?: FrameDisposalModeName | FrameDisposalModeId;
+    /**
+     * The frame's disposal mode, see {@link Frame.disposalMode}
+     * @defaultValue `'keep'`
+     */
+    disposalMode?: FrameDisposalMode;
 }
 
 /**
- * Represents a frame of an {@link Animation}: an {@link Image} with a duration, offsets and a disposal mode, so every
- * method of {@link Image} works on it too
+ * A frame of an {@link Animation}: an {@link Image} ({@link Frame.image}) with a duration, offsets and a disposal mode
+ * @remarks
+ * The frame has the methods that change the image's size (`resize()` including its `'contain'` and `'cover'` fit
+ * modes, `scale()`, `crop()`, `trim()`, `rotate()`, `transform()`, `dropShadow()` and `outline()`), which move the
+ * offsets along so the frame stays in place in the animation; every other change goes to the image
+ * (`frame.image.blur(2)`). The image's own size-changing methods leave the offsets as they are. Offsets can become
+ * negative: the parts of a frame outside the animation's canvas aren't encoded
  */
-export class Frame extends Image {
-    /**
-     * Milliseconds. GIFs store hundredths of a second, so this is rounded to 10 ms when encoding a GIF;
-     * note that browsers play frames shorter than 20 ms with 100 ms
-     */
-    duration: number;
-    /** The frame's horizontal offset in the animation */
-    xOffset: number;
-    /** The frame's vertical offset in the animation */
-    yOffset: number;
+export class Frame {
+    /** @internal @ignore */
+    private __image__: Image;
+    /** @internal @ignore */
+    private __duration__ = 100;
+    /** @internal @ignore */
+    private __x__ = 0;
+    /** @internal @ignore */
+    private __y__ = 0;
     /**
      * @internal
      * @ignore
@@ -65,79 +64,105 @@ export class Frame extends Image {
     private __disposalMode__: DisposalId = 1;
 
     /**
-     * @deprecated Use {@link FrameDisposalModes.ANY}, `Frame.DISPOSAL_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly DISPOSAL_ANY: typeof FrameDisposalModes.ANY = FrameDisposalModes.ANY;
-
-    /**
-     * @deprecated Use {@link FrameDisposalModes.KEEP}, `Frame.DISPOSAL_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly DISPOSAL_KEEP: typeof FrameDisposalModes.KEEP = FrameDisposalModes.KEEP;
-
-    /**
-     * @deprecated Use {@link FrameDisposalModes.PREVIOUS}, `Frame.DISPOSAL_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly DISPOSAL_PREVIOUS: typeof FrameDisposalModes.PREVIOUS = FrameDisposalModes.PREVIOUS;
-
-    /**
-     * @deprecated Use {@link FrameDisposalModes.BACKGROUND}, `Frame.DISPOSAL_*` will be removed in 4.0
-     * @group Deprecated
-     */
-    static readonly DISPOSAL_BACKGROUND: typeof FrameDisposalModes.BACKGROUND = FrameDisposalModes.BACKGROUND;
-
-    /**
      * @internal
      * @ignore
      */
-    static __convert_disposal_mode__(mode: FrameDisposalModeName | FrameDisposalModeId): DisposalId {
-        const id = typeof mode === 'string' ? DISPOSAL_MODES.indexOf(mode) : mode;
-        if (!(id >= 0 && id <= 3))
-            throw new RangeError('Invalid disposal mode');
-
-        return id as DisposalId;
+    static __convert_disposal_mode__(mode: FrameDisposalMode): DisposalId {
+        return DISPOSAL_MODES.indexOf(oneOf(mode, DISPOSAL_MODES, 'disposal mode')) as DisposalId;
     }
 
     /**
-     * Creates a new, blank frame
-     * @param width The width in pixels
-     * @param height The height in pixels
+     * Creates a frame of an image. The frame uses the image as it is (it isn't copied): changes to it are the frame's
+     * @param image The frame's pixels
      * @param options See {@link FrameOptions}
      */
-    constructor(width: number, height: number, options?: FrameOptions);
-    /**
-     * Creates a new, blank frame
-     * @param width The width in pixels
-     * @param height The height in pixels
-     * @param duration The frame's duration (in ms)
-     * @param xOffset The frame's offset on the x-axis
-     * @param yOffset The frame's offset on the y-axis
-     * @param disposalMode The frame's disposal mode
-     * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
-     */
-    constructor(width: number, height: number, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId);
-    constructor(width: number, height: number, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId) {
-        const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = FrameDisposalModes.KEEP } =
-            isOptions(durationOrOptions) ? durationOrOptions : { duration: durationOrOptions, xOffset, yOffset, disposalMode };
-        if (finite(duration, 'frame duration') < 0)
-            throw new RangeError('Invalid frame duration');
-        finite(x, 'x offset');
-        finite(y, 'y offset');
-
-        super(width, height);
+    constructor(image: Image, options?: FrameOptions);
+    constructor(image: Image, options: FrameOptions = {}) {
+        if (!(image instanceof Image)) throw new TypeError('A frame takes an Image, like new Frame(image, { duration: 100 })');
+        checkOptions(options, 'Frame(image, { duration: 100 })');
+        const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = 'keep' } = options;
+        this.__image__ = image;
         this.duration = duration;
         this.xOffset = x;
         this.yOffset = y;
         this.disposalMode = disposal;
     }
 
+    /** The frame's pixels. Changing the image changes the frame; the offsets stay as they are */
+    get image(): Image {
+        return this.__image__;
+    }
+
     /**
-     * The frame's disposal mode (`'any'`, `'keep'`, `'previous'` or `'background'`). Setting it by id (0-3) is deprecated,
-     * the ids will be removed in 4.0
+     * Replaces the frame's pixels
+     * @param image The new image (used as it is, not copied)
      */
-    get disposalMode(): FrameDisposalModeName {
+    set image(image: Image) {
+        if (!(image instanceof Image)) throw new TypeError('A frame\'s image has to be an Image');
+        this.__image__ = image;
+    }
+
+    /** The frame's width (its image's) */
+    get width(): number {
+        return this.__image__.width;
+    }
+
+    /** The frame's height (its image's) */
+    get height(): number {
+        return this.__image__.height;
+    }
+
+    /**
+     * The frame's duration in milliseconds (a finite number from 0, else it throws a RangeError). GIFs store
+     * hundredths of a second, so this is rounded to 10 ms when encoding a GIF; note that browsers play frames shorter
+     * than 20 ms with 100 ms
+     */
+    get duration(): number {
+        return this.__duration__;
+    }
+
+    /**
+     * Sets the duration
+     * @param duration Milliseconds, a finite number from 0
+     */
+    set duration(duration: number) {
+        const value = finite(duration, 'frame duration');
+        if (value < 0) throw new RangeError('Invalid frame duration');
+        this.__duration__ = value;
+    }
+
+    /**
+     * The frame's horizontal offset in the animation: an integer, values with a fraction are truncated like image sizes
+     * (a value that isn't a finite number throws a RangeError)
+     */
+    get xOffset(): number {
+        return this.__x__;
+    }
+
+    /**
+     * Sets the horizontal offset
+     * @param x The offset in pixels
+     */
+    set xOffset(x: number) {
+        // (|| 0: no negative zero)
+        this.__x__ = Math.trunc(finite(x, 'x offset')) || 0;
+    }
+
+    /** The frame's vertical offset in the animation: an integer, like {@link Frame.xOffset} */
+    get yOffset(): number {
+        return this.__y__;
+    }
+
+    /**
+     * Sets the vertical offset
+     * @param y The offset in pixels
+     */
+    set yOffset(y: number) {
+        this.__y__ = Math.trunc(finite(y, 'y offset')) || 0;
+    }
+
+    /** The frame's disposal mode, see {@link FrameDisposalMode} */
+    get disposalMode(): FrameDisposalMode {
         return DISPOSAL_MODES[this.__disposalMode__];
     }
 
@@ -152,131 +177,124 @@ export class Frame extends Image {
 
     /**
      * Sets the disposal mode
-     * @param disposalMode The mode's name (`'any'`, `'keep'`, `'previous'`, `'background'`) or, deprecated, its id (0-3)
+     * @param disposalMode The mode's name (`'any'`, `'keep'`, `'previous'`, `'background'`)
      */
-    set disposalMode(disposalMode: FrameDisposalModeName | FrameDisposalModeId) {
+    set disposalMode(disposalMode: FrameDisposalMode) {
         this.__disposalMode__ = Frame.__convert_disposal_mode__(disposalMode);
     }
 
     /** A short description for debugging, e.g. `Frame<64x64x100ms>` */
-    override toString(): string {
+    toString(): string {
         return `Frame<${this.width}x${this.height}x${this.duration}ms>`;
     }
 
-    /**
-     * Converts an Image instance to a Frame, cloning it in the process
-     * @param image The image to create the frame from
-     * @param options See {@link FrameOptions}
-     */
-    static from(image: Image, options?: FrameOptions): Frame;
-    /**
-     * Converts an Image instance to a Frame, cloning it in the process
-     * @param image The image to create the frame from
-     * @param duration The frame's duration (in ms)
-     * @param xOffset The frame's offset on the x-axis
-     * @param yOffset The frame's offset on the y-axis
-     * @param disposalMode The frame's disposal mode
-     * @deprecated Pass {@link FrameOptions} instead, the positional arguments will be removed in 4.0
-     */
-    static from(image: Image, duration?: number, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId): Frame;
-    static from(image: Image, durationOrOptions?: number | FrameOptions, xOffset?: number, yOffset?: number, disposalMode?: FrameDisposalModeName | FrameDisposalModeId): Frame {
-        if (!(image instanceof Image))
-            throw new TypeError('Invalid image passed');
-
-        const options = isOptions(durationOrOptions) ? durationOrOptions : { duration: durationOrOptions, xOffset, yOffset, disposalMode };
-        const frame = new Frame(image.width, image.height, options);
-        frame.bitmap.set(image.bitmap);
-
-        return frame;
+    /** Clones the frame: its image (with its pixels and gain map), duration, offsets and disposal mode */
+    clone(): Frame {
+        return new Frame(this.__image__.clone(), { duration: this.duration, xOffset: this.xOffset, yOffset: this.yOffset, disposalMode: this.disposalMode });
     }
 
     /**
-     * Clones the frame, including its duration, offsets and disposal mode
-     */
-    override clone(): Frame {
-        return Frame.from(this, { duration: this.duration, xOffset: this.xOffset, yOffset: this.yOffset, disposalMode: this.disposalMode });
-    }
-
-    /**
+     * Runs a change of the image, moving the offsets the way the image reports its pixels moved
      * @internal
      * @ignore
      */
-    protected override __room__(): { left: number, top: number } {
-        return { left: this.xOffset, top: this.yOffset };
+    private __tracked__(change: (image: Image) => unknown): this {
+        const image = this.__image__;
+        image.__moved__ = (scaleX, scaleY, x, y) => {
+            this.xOffset = Math.round(this.xOffset * scaleX + x);
+            this.yOffset = Math.round(this.yOffset * scaleY + y);
+        };
+        try {
+            change(image);
+        } finally {
+            delete image.__moved__;
+        }
+        return this;
     }
 
     /**
-     * @internal
-     * @ignore
-     */
-    protected override __grown__(left: number, top: number): void {
-        this.xOffset -= left;
-        this.yOffset -= top;
-    }
-
-    /**
-     * Removes borders of one color, moving the frame's offsets so the remaining pixels stay in place
-     * @param options See {@link TrimOptions}
-     */
-    override trim(options?: TrimOptions): this;
-    /**
-     * Removes borders of one color, moving the frame's offsets so the remaining pixels stay in place
-     * @param color The border color, by default the color of the top left pixel
-     * @param options See {@link TrimOptions}
-     * @deprecated Pass {@link TrimOptions} instead, the positional arguments will be removed in 4.0
-     */
-    override trim(color?: Color, options?: TrimOptions): this;
-    override trim(colorOrOptions?: Color | TrimOptions, optionsArgument: TrimOptions = {}): this {
-        const { color, ...options } = isOptions(colorOrOptions) ? colorOrOptions : { ...optionsArgument, color: colorOrOptions ?? optionsArgument.color };
-        const bounds = this.__trim_bounds__(color, options);
-        if (!bounds) return this;
-        this.xOffset += bounds[0];
-        this.yOffset += bounds[1];
-        return this.__apply__(this.__crop__(...bounds));
-    }
-
-    /**
-     * Resizes the frame, scaling its offsets along with it.
-     * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
+     * Resizes the frame, scaling its offsets along with it (as if the whole animation was resized by the same factor)
      * @param width The new width
      * @param height The new height
      * @param options See {@link ResizeOptions}
      */
-    override resize(width: number, height: number, options?: ResizeOptions): this;
-    /**
-     * Resizes the frame, scaling its offsets along with it.
-     * @param width The new width
-     * @param height The new height
-     * @param mode The resizing mode (default: {@link ResizeModes.BILINEAR})
-     * @deprecated Pass {@link ResizeOptions} with `mode` instead, the positional mode will be removed in 4.0
-     */
-    override resize(width: number, height: number, mode?: ResizeMode): this;
+    resize(width: number, height: number, options?: ResizeOptions): this;
     /**
      * Resizes the frame, scaling its offsets along with it: to the given width or height (the other side keeps the
      * aspect ratio), or to both
      * @param options The size and how to resize, see {@link ResizeToOptions}
      */
-    override resize(options: ResizeToOptions): this;
-    override resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, modeArgument?: ResizeMode | ResizeOptions): this {
-        const [width, height, modeOrOptions] = resizeArguments(widthOrOptions, heightArgument, modeArgument);
-        const originalWidth = this.width;
-        const originalHeight = this.height;
-
-        super.resize(width, height, modeOrOptions as ResizeMode);
-
-        this.xOffset = Math.round(this.xOffset * this.width / originalWidth);
-        this.yOffset = Math.round(this.yOffset * this.height / originalHeight);
-
-        return this;
+    resize(options: ResizeToOptions): this;
+    resize(widthOrOptions: number | ResizeToOptions, heightArgument?: number, optionsArgument?: ResizeOptions): this {
+        return this.__tracked__(image => typeof widthOrOptions === 'number'
+            ? image.resize(widthOrOptions, heightArgument as number, optionsArgument)
+            : image.resize(widthOrOptions));
     }
 
     /**
-     * Scales the offsets like {@link Frame.resize} for a resize to the given size (that only produces a part of it)
-     * @internal
-     * @ignore
+     * Scales the frame by a factor, and its offsets along with it
+     * @param factor The factor
+     * @param options See {@link ResizeOptions}
      */
-    protected override __rescaled__(width: number, height: number): void {
-        this.xOffset = Math.round(this.xOffset * width / this.width);
-        this.yOffset = Math.round(this.yOffset * height / this.height);
+    scale(factor: number, options?: ResizeOptions): this {
+        return this.__tracked__(image => image.scale(factor, options));
+    }
+
+    /**
+     * Crops the frame to a region of it, moving the offsets so the remaining pixels stay where they are in the
+     * animation. The region is clipped to the frame
+     * @param x The x offset in the frame (0-based)
+     * @param y The y offset in the frame (0-based)
+     * @param width The new width
+     * @param height The new height
+     */
+    crop(x: number, y: number, width: number, height: number): this {
+        return this.__tracked__(image => image.crop(x, y, width, height));
+    }
+
+    /**
+     * Removes borders of one color, moving the offsets so the remaining pixels stay where they are in the animation
+     * @param options See {@link TrimOptions}
+     */
+    trim(options?: TrimOptions): this {
+        return this.__tracked__(image => image.trim(options));
+    }
+
+    /**
+     * Rotates the frame clockwise around its middle, like {@link Image.rotate}: when it grows (or shrinks), the
+     * offsets move so its middle stays where it is in the animation
+     * @param angle The angle in degrees, clockwise
+     * @param options See {@link RotateOptions}
+     */
+    rotate(angle: number, options?: RotateOptions): this {
+        return this.__tracked__(image => image.rotate(angle, options));
+    }
+
+    /**
+     * Transforms the frame with an affine transform, like {@link Image.transform}: when it grows, the offsets move
+     * so the transform's origin stays where it is in the animation
+     * @param matrix The six values [a, b, c, d, e, f]
+     * @param options See {@link TransformOptions}
+     */
+    transform(matrix: AffineTransform, options?: TransformOptions): this {
+        return this.__tracked__(image => image.transform(matrix, options));
+    }
+
+    /**
+     * Adds a shadow behind the frame's image, like {@link Image.dropShadow}: when it grows up or left, the offsets
+     * move so the image stays where it is in the animation
+     * @param options See {@link ShadowOptions}
+     */
+    dropShadow(options?: ShadowOptions): this {
+        return this.__tracked__(image => image.dropShadow(options));
+    }
+
+    /**
+     * Draws an outline around the frame's shape, like {@link Image.outline}: when it grows up or left, the offsets
+     * move so the image stays where it is in the animation
+     * @param options See {@link OutlineOptions}
+     */
+    outline(options?: OutlineOptions): this {
+        return this.__tracked__(image => image.outline(options));
     }
 }

@@ -81,11 +81,12 @@ const DEFAULT_EPF = (): EPF => ({
 
 const DEFAULT_GAB = [0.115169525, 0.061248592, 0.115169525, 0.061248592, 0.115169525, 0.061248592];
 
-function blendingInfo(r: BitReader, haveExtra: boolean, resets: (mode: number) => boolean, mainMode = -1): BlendingInfo {
+function blendingInfo(r: BitReader, numExtra: number, resets: (mode: number) => boolean, mainMode = -1): BlendingInfo {
     const mode = r.u32(0, 1, 2, [3, 2]);
     if (mode > 4) throw new Error('JPEG XL: invalid blend mode');
-    const usesAlpha = haveExtra && (mode === BLEND_BLEND || mode === BLEND_MULADD);
+    const usesAlpha = numExtra > 0 && (mode === BLEND_BLEND || mode === BLEND_MULADD);
     const alphaChannel = usesAlpha ? r.u32(0, 1, 2, [3, 3]) : 0;
+    if (alphaChannel >= Math.max(1, numExtra)) throw new Error('JPEG XL: invalid blend alpha channel');
     const clamp = usesAlpha || mode === BLEND_MUL ? r.bool() : false;
     const source = resets(mainMode >= 0 ? mainMode : mode) ? 0 : r.bits(2);
     return { mode, alphaChannel, clamp, source };
@@ -164,8 +165,8 @@ export function frameHeader(r: BitReader, image: ImageHeader): FrameHeader {
     let blending: BlendingInfo = { mode: BLEND_REPLACE, alphaChannel: 0, clamp: false, source: 0 };
     const ecBlending: BlendingInfo[] = [];
     if (!allDefault && normal) {
-        blending = blendingInfo(r, numExtra > 0, resets);
-        for (let i = 0; i < numExtra; i++) ecBlending.push(blendingInfo(r, true, resets, blending.mode));
+        blending = blendingInfo(r, numExtra, resets);
+        for (let i = 0; i < numExtra; i++) ecBlending.push(blendingInfo(r, numExtra, resets, blending.mode));
     } else for (let i = 0; i < numExtra; i++) ecBlending.push({ ...blending });
     let duration = 0, isLast = type === FRAME_REGULAR, saveAsReference = 0;
     if (!allDefault && normal) {

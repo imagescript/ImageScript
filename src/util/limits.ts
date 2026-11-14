@@ -1,7 +1,13 @@
 // limits against decompression bombs: small files declaring huge images
 
-/** Thrown when an image exceeds the decode options' maxPixels */
-export class LimitError extends RangeError {}
+/**
+ * Thrown when an image exceeds a limit of the decode options (`maxPixels`) or the render options of SVGs
+ * @hideconstructor
+ */
+export class LimitError extends RangeError {
+    /** `'LimitError'`: tells a limit apart from other `RangeError`s */
+    override name = 'LimitError';
+}
 
 /** The default of the decode options' maxPixels: 16383 squared (like sharp's limitInputPixels) */
 export const MAX_PIXELS = 0x3fff * 0x3fff;
@@ -13,6 +19,15 @@ export const MAX_PIXELS = 0x3fff * 0x3fff;
 export function checkPixels(width: number, height: number, limit: number, count = 1): void {
     if (!(width * height * count <= limit))
         throw new LimitError(`Image too large: ${count > 1 ? `${count} frames of ` : ''}${width}x${height} pixels exceed the limit of ${limit} (the decode options' maxPixels)`);
+}
+
+/**
+ * Throws a {@link LimitError} naming the operation if an image it makes would have more pixels than an image can
+ * (the default `maxPixels` of the decoders): a shadow or outline of a huge size or offset would only fail allocating
+ */
+export function checkGrowth(width: number, height: number, what: string): void {
+    if (!(width * height <= MAX_PIXELS))
+        throw new LimitError(`${what} would make the image ${width}x${height} pixels, more than the limit of ${MAX_PIXELS}`);
 }
 
 /** The most bytes of raw samples per pixel of the limit (4 samples of 16 bits) */

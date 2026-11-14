@@ -1,4 +1,4 @@
-const {Image, Frame, GIF} = require('..');
+const {Image, Frame, Animation, Colors} = require('..');
 const panic = msg => {
     console.error(msg);
     process.exit(1);
@@ -16,33 +16,30 @@ try {
 } catch {
 }
 
-if (new Image(1, 1).toString() !== 'Image<1x1>')
-    panic('toString failed');
+for (const [x, y] of new Image(1, 1).pixels())
+    if (x !== 0 || y !== 0) panic('pixels failed');
 
-for (const [x, y] of new Image(1, 1))
-    if (x !== 0 || y !== 0) panic('Symbol.iterator failed');
+for (const [x, y, color] of new Image(1, 1).fill(0xff8000ff).pixels())
+    if (x !== 0 || y !== 0 || color !== 0xff8000ff) panic('pixels failed');
 
-for (const [x, y, color] of new Image(1, 1).fill(0xff8000ff).iterateWithColors())
-    if (x !== 0 || y !== 0 || color !== 0xff8000ff) panic('iterateWithColors failed');
-
-if (Image.rgbToColor(0xff, 0x80, 0x00) !== 0xff8000ff)
+if (Colors.fromRGB(0xff, 0x80, 0x00) !== 0xff8000ff)
     panic('rgbToColor failed');
 
-if (Image.hslaToColor(0, 0, 1, 0xff) !== 0xffffffff)
+if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
     panic('hslaToColor for s=0 failed');
 
 {
-    for (const rgba of [0xff0000ff, 0x00ff00ff, 0x0000ffff, 0x000000ff, 0xffffffff].map(x => Image.colorToRGBA(x))) {
-        const hsla = Image.rgbaToHSLA(...rgba);
-        const rgbaBacktransform = Image.colorToRGBA(Image.hslaToColor(...hsla));
+    for (const rgba of [0xff0000ff, 0x00ff00ff, 0x0000ffff, 0x000000ff, 0xffffffff].map(x => Colors.toRGBA(x))) {
+        const hsla = Colors.toHSLA(Colors.fromRGBA(...rgba));
+        const rgbaBacktransform = Colors.toRGBA(Colors.fromHSLA(...hsla));
         for (let i = 0; i < 4; i++)
             if (rgba[i] !== rgbaBacktransform[i])
-                panic('rgbaToHSLA failed');
+                panic('Colors.toHSLA failed');
     }
 }
 
 {
-    const rgb = Image.colorToRGB(0xff8000ff);
+    const rgb = Colors.toRGB(0xff8000ff);
     const target = [0xff, 0x80, 0x00];
     for (let i = 0; i < 3; i++)
         if (rgb[i] !== target[i])
@@ -56,45 +53,11 @@ if (Image.hslaToColor(0, 0, 1, 0xff) !== 0xffffffff)
     const pixel = image.getPixelAt(0, 0);
     if (pixel !== 0xff8000ff) panic('getPixelAt fails');
 
-    const rgba = image.getRGBAAt(0, 0);
+    const rgba = Colors.toRGBA(image.getPixelAt(0, 0));
     const target = [0xff, 0x80, 0x00, 0xff];
     for (let i = 0; i < 4; i++)
         if (rgba[i] !== target[i])
-            panic('colorToRGB failed');
-}
-
-{
-    const image = new Image(1, 1);
-    try {
-        image.__check_boundaries__('a', 1);
-        panic('check boundaries for x as NaN failed');
-    } catch {
-    }
-    try {
-        image.__check_boundaries__(1, 'a');
-        panic('check boundaries for y as NaN failed');
-    } catch {
-    }
-    try {
-        image.__check_boundaries__(0, 1);
-        panic('check boundaries for x as 0 failed');
-    } catch {
-    }
-    try {
-        image.__check_boundaries__(1, 0);
-        panic('check boundaries for y as 0 failed');
-    } catch {
-    }
-    try {
-        image.__check_boundaries__(2, 1);
-        panic('check boundaries for x as 2 failed');
-    } catch {
-    }
-    try {
-        image.__check_boundaries__(1, 2);
-        panic('check boundaries for y as 2 failed');
-    } catch {
-    }
+            panic('Colors.toRGBA failed');
 }
 
 {
@@ -128,27 +91,12 @@ if (Image.hslaToColor(0, 0, 1, 0xff) !== 0xffffffff)
     } catch {
     }
     try {
-        image.resize(1, 1, 'garbage');
+        image.resize(1, 1, {mode: 'garbage'});
         panic('resize with invalid mode failed');
     } catch {
     }
-    try {
-        image.resize(Image.RESIZE_AUTO, Image.RESIZE_AUTO);
-        panic('resize with RESIZE_AUTO for both x and y failed');
-    } catch {
-    }
 }
 
-{
-    const image = new Image(1, 1);
-    image.drawBox(0, 0, 1, 1, 0xff8000ff);
-    if (image.getPixelAt(0, 0) !== 0xff8000ff)
-        panic('static drawBox failed');
-
-    image.drawBox(0, 0, 1, 1, () => 0x00ff00ff);
-    if (image.getPixelAt(0, 0) !== 0x00ff00ff)
-        panic('fn drawBox failed');
-}
 
 {
     const image = new Image(1, 1);
@@ -157,54 +105,30 @@ if (Image.hslaToColor(0, 0, 1, 0xff) !== 0xffffffff)
     for (const func of funcs)
         for (const value of toFail)
             try {
-                func.call(image, toFail);
+                func.call(image, value);
                 panic(`${func.name} failed with value ${JSON.stringify(value)}`);
             } catch {
             }
-
-    const toPass = [[1, true], [1, false], [0, true], [0, false]];
-    for (const func of funcs)
-        for (const value of toPass)
-            func.call(image, ...value);
 }
 
 {
     const image = new Image(512, 256);
     const overlay = new Image(1024, 512);
-    image.composite(overlay, -512, -256);
+    image.composite(overlay, {x: -512, y: -256});
     overlay.fill(0x80);
-    image.composite(overlay, -512, -256);
+    image.composite(overlay, {x: -512, y: -256});
     overlay.fill(0xff);
-    image.composite(overlay, -512, -256);
+    image.composite(overlay, {x: -512, y: -256});
 }
 
 try {
-    new Frame(1, 1, -1);
+    new Frame(new Image(1, 1), {duration: -1});
     panic('frame duration failed');
 } catch {
 }
 
-if (new Frame(1, 2, 3).toString() !== 'Frame<1x2x3ms>') panic('frame toString failed');
-
 {
-    const image = new Image(512, 512);
-    Frame.from(image, 10);
-    try {
-        Frame.from({}, 10);
-        panic('frame instanceof image failed');
-    } catch {
-    }
-}
-
-try {
-    new GIF([{}]);
-    panic('gif frame instanceof failed');
-} catch {
-}
-
-{
-    const frame = new Frame(512, 128, 123);
-    const gif = new GIF([frame]);
-    if (gif.toString() !== 'GIF<512x128x123ms>') panic('gif tostring failed');
-    if (gif.duration !== 123) panic('gif duration failed');
+    const frame = new Frame(new Image(512, 128), {duration: 123});
+    const animation = new Animation([frame]);
+    if (animation.duration !== 123) panic('animation duration failed');
 }
