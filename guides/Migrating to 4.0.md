@@ -566,8 +566,9 @@ left corner stays where it was, and the turned image hangs from it.
 
 Values that were only checked when they were used are now checked when they are set: `frame.duration`,
 `frame.xOffset` and `frame.yOffset` (a finite number, truncated to an integer for the offsets; a duration from 0), and the parameters of a `GainMap` (finite,
-1 or 3 values per channel, a gamma above 0, `hdrCapacityMin` from 0, `useBaseColorSpace` a boolean). An invalid value
-throws a `RangeError` (a `TypeError` for `useBaseColorSpace`) and the old value stays.
+a scalar or 3 values per channel, a gamma above 0, `hdrCapacityMin` from 0 and below `hdrCapacityMax`,
+`useBaseColorSpace` a boolean). An invalid value throws a `RangeError` (a `TypeError` for `useBaseColorSpace`) and the
+old value stays.
 
 An `Animation` now has a canvas size of its own: `animation.width` and `animation.height` are the decoded file's, the
 one given as `new Animation(frames, { width, height })` (`AnimationCanvasOptions`), or the one `resize()` and `crop()` set.

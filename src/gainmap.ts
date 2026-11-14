@@ -66,8 +66,7 @@ const perChannel = (value: GainMapChannelValues, name: string): number[] => {
     const given: unknown = value;
     if (typeof given !== 'number' && !Array.isArray(given)) throw new TypeError(`${name} must be a number or an array of 3 numbers, not ${given === null ? 'null' : typeof given}`);
     const values: number[] = typeof value === 'number' ? [value, value, value] : Array.from(value);
-    if (values.length === 1) values.push(values[0], values[0]);
-    if (values.length !== 3) throw new RangeError(`${name} must be a number or an array of 3 numbers`);
+    if (values.length !== 3) throw new RangeError(`${name} must be a number or an array of 3 numbers, not ${values.length}`);
     return values.map(v => finite(v, name));
 };
 
@@ -146,20 +145,30 @@ export class GainMap {
     get hdrCapacityMin(): number { return this.__capacityMin__; }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
-     * @param value A finite number from 0
+     * @param value A finite number from 0, below `hdrCapacityMax`
      */
     set hdrCapacityMin(value: number) {
         const capacity = finite(value, 'hdrCapacityMin');
         if (capacity < 0) throw new RangeError('The gain map\'s hdrCapacityMin can\'t be negative');
+        // (checked against the other one when both are set: the constructor sets min first)
+        if ((this.__capacityMax__ as number | undefined) !== undefined && !(capacity < this.__capacityMax__))
+            // eslint-disable-next-line no-restricted-syntax -- a relation between two values of the gain map
+            throw new RangeError(`The gain map's hdrCapacityMin must be below its hdrCapacityMax (${capacity} >= ${this.__capacityMax__})`);
         this.__capacityMin__ = capacity;
     }
     /** log2 of the display headroom at which it applies fully (above `hdrCapacityMin`) */
     get hdrCapacityMax(): number { return this.__capacityMax__; }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
-     * @param value A finite number
+     * @param value A finite number above `hdrCapacityMin`
      */
-    set hdrCapacityMax(value: number) { this.__capacityMax__ = finite(value, 'hdrCapacityMax'); }
+    set hdrCapacityMax(value: number) {
+        const capacity = finite(value, 'hdrCapacityMax');
+        if ((this.__capacityMin__ as number | undefined) !== undefined && !(capacity > this.__capacityMin__))
+            // eslint-disable-next-line no-restricted-syntax -- a relation between two values of the gain map
+            throw new RangeError(`The gain map's hdrCapacityMax (by default the largest max) must be above its hdrCapacityMin (${capacity} <= ${this.__capacityMin__})`);
+        this.__capacityMax__ = capacity;
+    }
     /** Whether the boost applies in the SDR image's color space (else in the HDR image's) */
     get useBaseColorSpace(): boolean { return this.__useBaseColorSpace__; }
     /**
@@ -259,9 +268,7 @@ export class GainMap {
         for (let c = 0; c < 3; c++)
             // eslint-disable-next-line no-restricted-syntax -- a relation between two values of the gain map
             if (this.__max__[c] < this.__min__[c]) throw new RangeError(`The gain map's max must be at least its min (${this.__max__[c]} < ${this.__min__[c]}; the values are checked together when the map is cloned or encoded)`);
-        if (this.__capacityMax__ <= this.__capacityMin__)
-            // eslint-disable-next-line no-restricted-syntax -- a relation between two values of the gain map
-            throw new RangeError(`The gain map's hdrCapacityMax (by default the largest max) must be above its hdrCapacityMin (${this.__capacityMax__} <= ${this.__capacityMin__})`);
+        // (the capacities are checked against each other by their setters)
     }
 
     /** The map's pixels. Changes to them are written when the image is encoded */
