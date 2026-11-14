@@ -712,11 +712,12 @@ export class Animation {
      * const webp = await animation.resize({ width: 320 }).encodeWebP({ quality: 75 });
      * ```
      * @remarks A still image becomes one frame of 100 ms, the {@link Frame} default. An AVIF image sequence is decoded as
-     * its first frame only
+     * its first frame only. A file that is cut off keeps the frames that arrived whole (like browsers show it) and
+     * throws when not even the first one did
      * @param input The binary data to decode
      * @param options See {@link DecodeOptions}
      * @throws {@link LimitError} if the frames have more than `options.maxPixels` pixels together
-     * @throws `Error` if the data isn't a supported image, or is damaged or truncated
+     * @throws `Error` if the data isn't a supported image, or is damaged or cut off before its first whole frame
      */
     static decode(input: BinaryData, options?: DecodeOptions): Promise<Animation>;
     static async decode(input: BinaryData, options: DecodeOptions = {}): Promise<Animation> {
