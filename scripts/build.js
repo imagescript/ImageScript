@@ -52,5 +52,6 @@ const threadsCode = fs.readFileSync(threads, 'utf8');
 if (!threadsCode.includes("new URL('./worker.ts', import.meta.url)")) throw new Error('build: the worker URL in threads.js not found');
 fs.writeFileSync(threads, threadsCode.replace("new URL('./worker.ts', import.meta.url)", "new URL('./worker.js', import.meta.url)"));
 
-// the package itself has no "type", so mark the build as ES modules
-fs.writeFileSync(path.join(root, 'dist/package.json'), '{"type":"module"}\n');
+// the package itself has no "type", so mark the build as ES modules. Bundlers read "sideEffects" from the nearest
+// package.json, which this one is for everything in dist/: without it they keep every module of the library
+fs.writeFileSync(path.join(root, 'dist/package.json'), '{"type":"module","sideEffects":false}\n');
