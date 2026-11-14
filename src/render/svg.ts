@@ -239,7 +239,12 @@ function documentSize(root: XNode): { width: number, height: number } {
         if (/%\s*$/.test(value)) return fallback * parseFloat(value) / 100;
         return parseLength(value, null, 16);
     };
-    return { width: lengthOf(root.attrs.width, viewBox ? viewBox[2] : 100), height: lengthOf(root.attrs.height, viewBox ? viewBox[3] : 100) };
+    const width = lengthOf(root.attrs.width, viewBox ? viewBox[2] : 100), height = lengthOf(root.attrs.height, viewBox ? viewBox[3] : 100);
+    // (one side given with a viewBox: the other follows its aspect ratio, like browsers size an <svg> image)
+    const given = (value: string | undefined): boolean => value !== undefined && value !== 'auto';
+    if (viewBox && viewBox[2] > 0 && viewBox[3] > 0 && given(root.attrs.width) !== given(root.attrs.height))
+        return given(root.attrs.width) ? { width, height: width * viewBox[3] / viewBox[2] } : { width: height * viewBox[2] / viewBox[3], height };
+    return { width, height };
 }
 
 // SVG fonts' glyph documents by their offset in the font

@@ -130,4 +130,20 @@ const has = (bytes, text) => Buffer.from(bytes).includes(Buffer.from(text, 'lati
         const t = await translucent.encodeJPEG();
         if (t[t.indexOf(0xc0, 2) + 8] !== 1) panic('a translucent gray image on black should be a grayscale JPEG');
     }
+
+    // an SVG with a viewBox and one of width and height: the other follows the viewBox's aspect ratio (like browsers)
+    {
+        const svg = (attrs) => `<svg xmlns="http://www.w3.org/2000/svg" ${attrs}><rect width="100" height="60" fill="red"/></svg>`;
+        const byWidth = await Image.renderSVG(svg('viewBox="0 0 100 60" width="50"'));
+        if (byWidth.width !== 50 || byWidth.height !== 30) panic(`viewBox + width: ${byWidth.width}x${byWidth.height} instead of 50x30`);
+        if (byWidth.getPixelAt(49, 29) !== 0xff0000ff || byWidth.getPixelAt(0, 0) !== 0xff0000ff) panic('viewBox + width: the content should fill the image');
+        const byHeight = await Image.renderSVG(svg('viewBox="0 0 100 60" height="30"'));
+        if (byHeight.width !== 50 || byHeight.height !== 30) panic(`viewBox + height: ${byHeight.width}x${byHeight.height} instead of 50x30`);
+        const both = await Image.renderSVG(svg('viewBox="0 0 100 60" width="50" height="60"'));
+        if (both.width !== 50 || both.height !== 60) panic('width and height given: both are used');
+        const percent = await Image.renderSVG(svg('viewBox="0 0 100 60" width="50%"'));
+        if (percent.width !== 50 || percent.height !== 30) panic(`viewBox + width 50%: ${percent.width}x${percent.height} instead of 50x30`);
+        const none = await Image.renderSVG(svg('width="50"'));
+        if (none.width !== 50 || none.height !== 100) panic('without a viewBox the other side is the default 100');
+    }
 })();
