@@ -95,6 +95,13 @@ if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration 
     if (first.image === second.image) panic('frames that need different sizes can\'t share the image');
     if (second.xOffset + second.width > animation.width) panic('a frame reaches past the canvas');
     throwsA(() => new Animation([new Frame(new Image(4, 4))]).resize(0, 0), RangeError, 'resize(0, 0)');
+    // the canvas gets the size an Image of it would get from the same call: sides cut to whole pixels, scale() never below one
+    for (const [width, height, call] of [[9, 7, a => a.scale(0.5)], [9, 7, a => a.resize({width: 4.7})], [9, 7, a => a.resize({height: 3.9})], [9, 7, a => a.resize(5.5, 3.5)],
+        [9, 7, a => a.resize({width: 5.5, height: 5.5, fit: 'inside'})], [4, 4, a => a.scale(0.1)], [7, 1, a => a.scale(0.5)]]) {
+        const fromImage = call(new Image(width, height));
+        const animation = call(new Animation([new Frame(new Image(width, height))]));
+        if (animation.width !== fromImage.width || animation.height !== fromImage.height) panic(`animation ${animation.width}x${animation.height}, image ${fromImage.width}x${fromImage.height} from the same resize of ${width}x${height}`);
+    }
 }
 
 // a frame listed twice (to hold it, or in a ping-pong), or two frames of one image, change once

@@ -241,13 +241,20 @@ export class Animation {
         const originalWidth = this.width, originalHeight = this.height;
         if (!originalWidth || !originalHeight) throw new RangeError('An animation without frames or canvas can\'t be resized');
         // (a side that is given has to be a pixel at least, like Image.resize() wants; one that follows the other can't be less)
-        if (givenWidth !== undefined && Math.round(givenWidth) < 1) throw new RangeError('The animation has to be at least 1 pixel wide');
-        if (givenHeight !== undefined && Math.round(givenHeight) < 1) throw new RangeError('The animation has to be at least 1 pixel high');
-        // a side left out follows the other one, keeping the aspect ratio
-        let width = givenWidth ?? originalWidth / originalHeight * (givenHeight as number);
-        let height = givenHeight ?? originalHeight / originalWidth * width;
-        if (fit === 'inside' && givenWidth !== undefined && givenHeight !== undefined) [width, height] = insideSize(originalWidth, originalHeight, givenWidth, givenHeight);
-        const canvas = canvasSize(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
+        if (givenWidth !== undefined && Math.floor(givenWidth) < 1) throw new RangeError('The animation has to be at least 1 pixel wide');
+        if (givenHeight !== undefined && Math.floor(givenHeight) < 1) throw new RangeError('The animation has to be at least 1 pixel high');
+        // the size of the canvas as Image.resize() works it out: a side that is given is cut to whole pixels, one left
+        // out follows the other, keeping the aspect ratio
+        let width: number, height: number;
+        if (fit === 'inside' && givenWidth !== undefined && givenHeight !== undefined) [width, height] = insideSize(originalWidth, originalHeight, givenWidth, givenHeight).map(Math.floor);
+        else if (givenWidth === undefined) {
+            height = Math.floor(givenHeight as number);
+            width = Math.max(1, Math.round(originalWidth / originalHeight * height));
+        } else if (givenHeight === undefined) {
+            width = Math.floor(givenWidth);
+            height = Math.max(1, Math.round(originalHeight / originalWidth * width));
+        } else [width, height] = [Math.floor(givenWidth), Math.floor(givenHeight)];
+        const canvas = canvasSize(Math.max(1, width), Math.max(1, height));
 
         const sx = width / originalWidth, sy = height / originalHeight;
         // (a frame listed twice, or two frames of one image, change once: the sizes and offsets are worked out before anything does)
@@ -366,7 +373,8 @@ export class Animation {
      */
     scale(factor: number, options?: ResizeOptions): this {
         if (!(finite(factor, 'factor') > 0)) throw new RangeError(`Invalid scale factor: ${factor}`);
-        return this.resize(this.width * factor, this.height * factor, options);
+        // (a side doesn't shrink below one pixel, like Image.scale())
+        return this.resize(Math.max(1, this.width * factor), Math.max(1, this.height * factor), options);
     }
 
     /**
