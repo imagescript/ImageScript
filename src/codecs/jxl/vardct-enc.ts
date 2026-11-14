@@ -321,7 +321,10 @@ export async function encodeVarDCT(rgba: Uint8Array, width: number, height: numb
     // threads for the XYB planes, the quantization field, the varblock search, the coefficients and their tokens, if
     // they start (the same files). Started first, they load while the work begins here
     const n = Math.min(options.threads, Math.ceil(height / 64), Math.max(4, Math.floor(width * height / PIXELS_PER_THREAD[options.effort])));
-    const pool = { threads: n > 1 && width * height >= MIN_THREADED_PIXELS[options.effort] ? startThreads(n) : null };
+    // (fewer than 4 threads save less than their start costs on smaller images: on 2 cores, effort 1 took 1.3-1.7x as
+    // long with threads from 0.5 to 1 megapixel and broke even at 1.5, where 12 threads already win at 0.5)
+    const minimum = n < 4 ? Math.max(MIN_THREADED_PIXELS[options.effort], MIN_THREADED_PIXELS[0]) : MIN_THREADED_PIXELS[options.effort];
+    const pool = { threads: n > 1 && width * height >= minimum ? startThreads(n) : null };
     try {
         return await encode(rgba, width, height, options, pool);
     } finally {

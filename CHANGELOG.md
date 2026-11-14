@@ -126,6 +126,10 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `RenderSVGOptions` is a union of the sizes (`width`, `height` or `scale`, TypeScript reports a call with more than one, which throws at runtime) and `SVGResourceOptions`, the limits, fonts and images.
 - `renderSVG({ font })` takes a single font without an array, like `renderText()`.
 
+### Performance
+
+- Lossy JPEG XL encoding starts no worker threads below 1.5 megapixels on machines with fewer than 4 threads (a 2-core container or VPS, `threads: 2`): there the threads took 1.3-1.7x as long as one on images from 0.5 to 1 megapixel. With 4 threads or more, nothing changes (threads win from 0.5 megapixels).
+
 ### Fixes
 
 - **Cut-off JPEG and lossy WebP files throw** like the other formats: a JPEG without any scan data, or whose scan ends before its last block, and a WebP whose image data (any chunk of it) ends before its size says. They decoded without an error, as gray or smeared images. A JPEG that only lacks its end marker still decodes.
