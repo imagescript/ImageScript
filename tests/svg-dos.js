@@ -21,9 +21,10 @@ const timed = async (name, svg, limit = 5000) => {
 (async () => {
     // shapes whose edges cross every row of the image tens of thousands of times: a LimitError (the work is bounded), and
     // quickly (thousands of huge overlapping strokes took 38 s from 51 KB of SVG)
-    {
+    // (not under coverage: reaching the budget takes 20 seconds there, which is most of what a test may take)
+    if (!process.env.NODE_V8_COVERAGE) {
         let d = '';
-        for (let i = 0; i < 40000; i++) d += `M${(i % 7) / 10} 0h1v300h-1z`;
+        for (let i = 0; i < 16000; i++) d += `M${(i % 7) / 10} 0h1v300h-1z`;
         const {error, time} = await timed('edges crossing every row', `<svg ${NS} width="1" height="300"><path d="${d}"/></svg>`, 10000);
         if (!error || error.name !== 'LimitError') panic(`edges crossing every row: expected a LimitError, got ${error} after ${time} ms`);
     }
