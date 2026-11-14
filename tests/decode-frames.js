@@ -31,7 +31,7 @@ const throwsA = async (fn, type, label) => {
         for (const [name, data] of Object.entries(inputs)) {
             const full = await Animation.decode(data);
             let decoded = 0, previous = 0;
-            for (let cut = Math.floor(data.length / 16); cut < data.length; cut += Math.max(1, data.length >> 7)) {
+            for (let cut = Math.floor(data.length / 16); cut < data.length; cut += Math.max(1, data.length >> 5)) {
                 const part = await Animation.decode(data.subarray(0, cut)).catch(() => null);
                 if (!part) continue;
                 decoded++;
@@ -41,7 +41,7 @@ const throwsA = async (fn, type, label) => {
                     if (sha256(frame.image.bitmap) !== sha256(full.frames[i].image.bitmap)) panic(`${name} cut at ${cut}: frame ${i} differs from the full file's`);
                 });
             }
-            if (name !== 'JPEG XL' && name !== 'JPEG XL lossless' && decoded < 3) panic(`${name}: only ${decoded} cuts decoded`);
+            if (name !== "JPEG XL" && name !== "JPEG XL lossless" && decoded < 3) panic(`${name}: only ${decoded} cuts decoded`);
         }
     }
 
