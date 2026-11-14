@@ -1665,7 +1665,9 @@ export class Image {
         // (the loop stays inline here: as a method of its own it ran about 20% slower)
         const left = Math.max(0, x), top = Math.max(0, y);
         const right = Math.min(this.width, x + source.width), bottom = Math.min(this.height, y + source.height);
-        const dst = this.bitmap, src = source.bitmap;
+        const dst = this.bitmap;
+        // (a source sharing the destination's memory, itself or through the bitmap setter, is read before it is written)
+        const src = source.bitmap.buffer === dst.buffer ? source.bitmap.slice() : source.bitmap;
 
         for (let row = top; row < bottom; row++) {
             for (let column = left, s = 4 * ((row - y) * source.width + left - x), d = 4 * (row * this.width + left); column < right; column++, s += 4, d += 4) {
@@ -1776,7 +1778,9 @@ export class Image {
     protected __blend__(source: Image, x: number, y: number, opacity: number, blend: (backdrop: number, source: number) => number): this {
         const left = Math.max(0, x), top = Math.max(0, y);
         const right = Math.min(this.width, x + source.width), bottom = Math.min(this.height, y + source.height);
-        const dst = this.bitmap, src = source.bitmap;
+        const dst = this.bitmap;
+        // (a source sharing the destination's memory, itself or through the bitmap setter, is read before it is written)
+        const src = source.bitmap.buffer === dst.buffer ? source.bitmap.slice() : source.bitmap;
 
         for (let row = top; row < bottom; row++) {
             for (let column = left; column < right; column++) {
