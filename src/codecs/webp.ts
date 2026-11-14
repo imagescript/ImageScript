@@ -10,7 +10,7 @@ import { encodeVP8, encodeAlpha } from './vp8-enc.ts';
 import { rgbaToYUV } from './vp8-enc-dsp.ts';
 import { orientation as exifOrientation } from './exif.ts';
 import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
-import { effort as checkEffort, quality as checkQuality } from '../util/options.ts';
+import { effort as checkEffort, quality as checkQuality, boolean as checkBoolean } from '../util/options.ts';
 import { startThreads } from '../util/threads.ts';
 
 const fourCC = (s: string): number => s.charCodeAt(0) | s.charCodeAt(1) << 8 | s.charCodeAt(2) << 16 | s.charCodeAt(3) << 24;
@@ -391,6 +391,7 @@ export function lossyOptions(quality: number | undefined, effort: number, sharp:
     // (checked for lossless images too, which don't use them)
     checkEffort(effort, 6);
     const a = checkQuality(alphaQuality, 'alphaQuality');
+    checkBoolean(sharp, 'sharpYuv');
     if (quality === undefined) return undefined;
     return { quality: checkQuality(quality), method: effort, sharp, alphaQuality: Math.round(a) };
 }

@@ -7,7 +7,7 @@ import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel, loopCount, toPlays, fitLoops, fitDuration, maxDuration } from './util/options.ts';
+import { checkOptions, finite, compressionLevel, loopCount, toPlays, fitLoops, fitDuration, maxDuration, boolean } from './util/options.ts';
 import type { AnimationOptions, WebPAnimationEncodeOptions, GIFAnimationEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
@@ -122,6 +122,7 @@ export class AnimationEncoder {
 
     /** @internal */
     static __webp__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 }: WebPAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
+        boolean(optimize, 'optimize');
         const loops = fitLoops(loopCount(count), 'WebP');
         canvas(width, height, 'WebP');
         if (width > 1 << 24 || height > 1 << 24) throw new RangeError('WebP: canvas too large');
@@ -155,6 +156,7 @@ export class AnimationEncoder {
     static __gif__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, colors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85 }: GIFAnimationEncodeOptions & AnimationOptions): AnimationEncoder {
         const checked = paletteOptions(colors, dither, ditherStrength);
         const palette = { colors: checked.colors as number, dither: checked.dither, strength: checked.strength };
+        boolean(optimize, 'optimize');
         const loops = fitLoops(loopCount(count), 'GIF');
         canvas(width, height, 'GIF');
         const comments = gifComments(resolveMetadata(metadata));
@@ -184,6 +186,7 @@ export class AnimationEncoder {
     /** @internal */
     static __apng__(width: number, height: number, { loopCount: count = Infinity, metadata = {}, optimize = true, compression: compressionOption = 4 }: APNGEncodeOptions & AnimationOptions): AnimationEncoder {
         const compression = compressionLevel(compressionOption);
+        boolean(optimize, 'optimize');
         const loops = fitLoops(loopCount(count), 'APNG');
         canvas(width, height, 'APNG');
         const text = pngText(resolveMetadata(metadata));

@@ -12,7 +12,7 @@ import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, oneOf, pixelLimit, checkThreads, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, color as checkColor } from './util/options.ts';
+import { checkOptions, oneOf, pixelLimit, checkThreads, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding, checkPixels } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 import { describe } from './util/inspect.ts';
@@ -538,6 +538,7 @@ export class Animation {
     async encodeGIF(options: GIFAnimationEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encodeGIF({ colors: 64 })');
         const { colors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85, metadata = {}, optimize = true } = options;
+        boolean(optimize, 'optimize');
         const palette = paletteOptions(colors, dither, ditherStrength);
         const loops = fitLoops(this.loopCount, 'GIF');
         this.__validate__('GIF');
@@ -571,6 +572,7 @@ export class Animation {
     async encodeAPNG(options: APNGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'encodeAPNG({ compression: 9 })');
         const { compression = 4, metadata = {}, optimize = true } = options;
+        boolean(optimize, 'optimize');
         const loops = fitLoops(this.loopCount, 'APNG');
         this.__validate__('APNG');
 
@@ -591,6 +593,7 @@ export class Animation {
     async encodeWebP(options: WebPAnimationEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'animation.encodeWebP({ quality: 80 })');
         const { metadata = {}, optimize = true, quality, effort = 2, sharpYuv = false, alphaQuality = 100 } = options;
+        boolean(optimize, 'optimize');
         const loops = fitLoops(this.loopCount, 'WebP');
         this.__validate__('WebP');
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
@@ -738,6 +741,9 @@ export class Animation {
      */
     private static async __decode__(input: BinaryData, options: DecodeOptions): Promise<Animation> {
         const { maxPixels = MAX_PIXELS, applyColorProfile = true, threads = Math.max(1, Math.min(availableThreads(), 8)), applyOrientation = true, toneMapping = 'reinhard', gainMap = true } = options;
+        boolean(applyOrientation, 'applyOrientation');
+        boolean(applyColorProfile, 'applyColorProfile');
+        boolean(gainMap, 'gainMap');
         const orient = (frames: Frame[], orientation: number): Frame[] => {
             if (applyOrientation && orientation > 1) for (const frame of frames) frame.image.__orient__(orientation);
             return frames;

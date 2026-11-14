@@ -56,4 +56,28 @@ const has = (bytes, text) => Buffer.from(bytes).includes(Buffer.from(text, 'lati
         await rejects('encodeWebP lossy alphaQuality 101', () => image.encodeWebP({quality: 80, alphaQuality: 101}), RangeError);
         await rejects('encodeWebP alphaQuality -1', () => image.encodeWebP({quality: 80, alphaQuality: -1}), RangeError);
     }
+
+    // boolean options take true or false only: a string like 'yes' is a TypeError, not true
+    {
+        const png = await image.encodePNG();
+        const animation = new Animation([new Frame(image.clone()), new Frame(image.clone().invert())]);
+        const booleans = {
+            'decode applyOrientation': () => Image.decode(png, {applyOrientation: 'no'}), 'decode applyColorProfile': () => Image.decode(png, {applyColorProfile: 0}),
+            'decode gainMap': () => Image.decode(png, {gainMap: 'yes'}), 'Animation.decode applyOrientation': () => Animation.decode(png, {applyOrientation: 'no'}),
+            'dominantColor ignoreBlack': () => image.dominantColor({ignoreBlack: 'yes'}), 'dominantColor ignoreWhite': () => image.dominantColor({ignoreWhite: 1}),
+            'rotate expand': () => image.clone().rotate(45, {expand: 'no'}), 'transform expand': () => image.clone().transform([1, 0, 0, 1, 0, 0], {expand: 'no'}),
+            'dropShadow expand': () => image.clone().dropShadow({expand: 'no'}), 'outline expand': () => image.clone().outline({expand: 'no'}),
+            'encodeWebP sharpYuv': () => image.encodeWebP({quality: 80, sharpYuv: 'yes'}), 'encodeWebP lossless sharpYuv': () => image.encodeWebP({sharpYuv: 'yes'}),
+            'encodeJPEG gainMap': () => image.encodeJPEG({gainMap: 'yes'}), 'encodeAVIF gainMap': () => image.encodeAVIF({gainMap: 'yes'}), 'encodeJXL gainMap': () => image.encodeJXL({gainMap: 'yes'}),
+            'encodeGIF optimize': () => animation.encodeGIF({optimize: 'yes'}), 'encodeAPNG optimize': () => animation.encodeAPNG({optimize: 'yes'}), 'encodeWebP optimize': () => animation.encodeWebP({optimize: 'yes'}),
+            'gifEncoder optimize': () => Animation.gifEncoder(8, 8, {optimize: 'yes'}), 'apngEncoder optimize': () => Animation.apngEncoder(8, 8, {optimize: 'yes'}), 'webpEncoder optimize': () => Animation.webpEncoder(8, 8, {optimize: 'yes'}),
+            'renderText hinting': async () => Image.renderText('x', {font: await fs.readFile('./tests/fonts/opensans bold.ttf'), size: 12, hinting: 'yes'})
+        };
+        for (const [name, call] of Object.entries(booleans)) await rejects(name, call, TypeError);
+        // (the valid values keep working)
+        await Image.decode(png, {applyOrientation: false, applyColorProfile: false, gainMap: false});
+        image.dominantColor({ignoreBlack: false, ignoreWhite: false});
+        await image.encodeWebP({quality: 80, sharpYuv: true});
+        await animation.encodeGIF({optimize: false});
+    }
 })();

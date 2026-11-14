@@ -24,6 +24,12 @@ export function oneOf<T extends string>(value: unknown, allowed: readonly T[], n
     return value as T;
 }
 
+/** A boolean option (`optimize`, `hinting`, ...): anything else, strings like `'yes'` included, throws a TypeError */
+export function boolean(value: unknown, name: string): boolean {
+    if (typeof value !== 'boolean') throw new TypeError(`${name} must be true or false, not ${value === null ? 'null' : typeof value === 'string' ? `'${value}'` : typeof value}`);
+    return value;
+}
+
 /** Throws a TypeError naming the argument unless it is a number (NaN and the infinities are numbers) */
 export function checkNumber(value: unknown, name: string): void {
     if (typeof value !== 'number') throw new TypeError(`${name} must be a number, not ${value === null ? 'null' : typeof value}`);

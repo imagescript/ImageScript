@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, nonNegative, positive, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, nonNegative, positive, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -2073,6 +2073,7 @@ export class Image {
         const values = Array.from({ length: 6 }, (_, i) => finite(typeof matrix[i] === 'number' ? matrix[i] : NaN, 'transform value'));
         const { origin = {}, expand = true, mode = 'bilinear' } = options;
         oneOf(mode, TRANSFORM_MODES, 'transform mode');
+        boolean(expand, 'expand');
         const { x: pivotX = this.width / 2, y: pivotY = this.height / 2 } = origin;
         finite(pivotX, 'origin x');
         finite(pivotY, 'origin y');
@@ -2122,6 +2123,7 @@ export class Image {
     dropShadow(options: ShadowOptions = {}): this {
         checkOptions(options, 'image.dropShadow({ blur: 8 })');
         const { x = 0, y = 0, blur = 0, spread = 0, color = 0x00000080, expand = true } = options;
+        boolean(expand, 'expand');
         finite(x, 'x');
         finite(y, 'y');
         if (finite(blur, 'blur') < 0) throw new RangeError('Invalid blur radius');
@@ -2170,6 +2172,7 @@ export class Image {
     outline(options: OutlineOptions = {}): this {
         checkOptions(options, 'image.outline({ width: 4 })');
         const { width = 1, color = 0x000000ff, expand = true } = options;
+        boolean(expand, 'expand');
         if (finite(width, 'outline width') < 0) throw new RangeError('Invalid outline width');
         const [r, g, b, a] = Colors.toRGBA(checkColor(color));
         if (width === 0) return this;
@@ -2414,6 +2417,8 @@ export class Image {
     dominantColor(options: DominantColorOptions = {}): Color {
         checkOptions(options, 'dominantColor({ ignoreBlack: false })');
         const { ignoreBlack = true, ignoreWhite = true, threshold: bwThreshold = 60 } = options;
+        boolean(ignoreBlack, 'ignoreBlack');
+        boolean(ignoreWhite, 'ignoreWhite');
         const threshold = finite(bwThreshold, 'threshold');
         if (threshold < 0 || threshold > 256) throw new RangeError(`threshold has to be between 0 and 256, not ${threshold}`);
         const pixels = this.__bytes__();
@@ -2444,6 +2449,7 @@ export class Image {
         checkOptions(options, 'rotate(angle, { expand: false })');
         const { expand = true, mode = 'bilinear' } = options;
         oneOf(mode, TRANSFORM_MODES, 'rotate mode');
+        boolean(expand, 'expand');
         // (counterclockwise from here on: the image's y axis points down, so this turns it clockwise on screen)
         angle = ((-finite(angle, 'angle') % 360) + 360) % 360;
         if (angle === 0) return this;
@@ -2882,6 +2888,9 @@ export class Image {
         checkThreads(threads);
         pixelLimit(maxPixels);
         oneOf(toneMapping, TONE_MAPPINGS, 'toneMapping');
+        boolean(applyOrientation, 'applyOrientation');
+        boolean(applyColorProfile, 'applyColorProfile');
+        boolean(gainMap, 'gainMap');
         const data = view(input);
         const dataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
 
@@ -3114,6 +3123,7 @@ export class Image {
         if (options.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
         const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {}, maxPixels = MAX_PIXELS } = options;
         pixelLimit(maxPixels);
+        boolean(hinting, 'hinting');
         const { width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign } = options;
         const layout = textLayout({ width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign });
         const axes = textRenderer.axisValues(variations);
