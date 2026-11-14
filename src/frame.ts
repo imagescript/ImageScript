@@ -1,5 +1,6 @@
 import { Image, ResizeOptions, ResizeToOptions, TrimOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions } from './image.ts';
 import { checkOptions, finite, oneOf } from './util/options.ts';
+import { describe } from './util/inspect.ts';
 
 /**
  * What happens to a frame's area before the next frame is drawn, see {@link Frame.disposalMode}:
@@ -298,3 +299,5 @@ export class Frame {
         return this.__tracked__(image => image.outline(options));
     }
 }
+
+describe(Frame, frame => ({ width: frame.width, height: frame.height, duration: frame.duration }));

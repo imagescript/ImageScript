@@ -15,6 +15,7 @@ import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { checkOptions, oneOf, pixelLimit, checkThreads, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding, checkPixels } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
+import { describe } from './util/inspect.ts';
 
 // frames decoded fully composited, as full canvas frames
 function canvasFrames(width: number, height: number, frames: Array<{ pixels: Uint8Array | Uint8ClampedArray, duration: number }>): Frame[] {
@@ -707,7 +708,8 @@ export class Animation {
      * const animation = await Animation.decode(gifBytes);
      * const webp = await animation.resize({ width: 320 }).encodeWebP({ quality: 75 });
      * ```
-     * @remarks An AVIF image sequence is decoded as its first frame only
+     * @remarks A still image becomes one frame of 100 ms, the {@link Frame} default. An AVIF image sequence is decoded as
+     * its first frame only
      * @param input The binary data to decode
      * @param options See {@link DecodeOptions}
      * @throws {@link LimitError} if the frames have more than `options.maxPixels` pixels together
@@ -756,13 +758,15 @@ export class Animation {
             const frames = orient(profile(canvasFrames(decoded.width, decoded.height, webp.composite(decoded)), decoded.icc), decoded.orientation);
             const animation = new Animation(frames, { loopCount: fromPlays(decoded.loopCount), width: frames[0]?.width ?? decoded.width, height: frames[0]?.height ?? decoded.height });
             animation.__animationSignal__ = animated;
+            // (a still image has no duration: the frame's default)
+            if (!animated) for (const frame of frames) frame.duration = 100;
             return animation;
         }
 
         // (still PNGs decode like images)
         if (type === 'png' && !png.isAnimated(data)) {
             const image = await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile });
-            return new Animation(canvasFrames(image.width, image.height, [{ pixels: image.bitmap, duration: 0 }]), { loopCount: Infinity, width: image.width, height: image.height });
+            return new Animation(canvasFrames(image.width, image.height, [{ pixels: image.bitmap, duration: 100 }]), { loopCount: Infinity, width: image.width, height: image.height });
         }
         if (type === 'png') {
             const decoded = await png.decodeAnimation(data, false, maxPixels);
@@ -809,12 +813,14 @@ export class Animation {
             }
             const animation = new Animation(frames, { loopCount: animated ? loops : Infinity, ...(frames.length ? { width: frames[0].width, height: frames[0].height } : {}) });
             animation.__animationSignal__ = animated;
+            // (a still image has no duration: the frame's default)
+            if (!animated) for (const frame of frames) frame.duration = 100;
             return animation;
         }
 
         if (type) {
             const image = await Image.decode(data, { maxPixels, applyOrientation, applyColorProfile, toneMapping, gainMap, threads });
-            return new Animation([new Frame(image, { duration: 0 })], { width: image.width, height: image.height });
+            return new Animation([new Frame(image)], { width: image.width, height: image.height });
         }
         throw new Error('Unsupported image type');
     }
@@ -837,3 +843,5 @@ function canvasSize(width: number, height: number): [width: number, height: numb
     if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`Invalid canvas size: ${width}x${height}`);
     return [width, height];
 }
+
+describe(Animation, animation => ({ width: animation.width, height: animation.height, duration: animation.duration, frames: animation.frames.length }));

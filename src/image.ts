@@ -37,6 +37,7 @@ import { multiply, invert } from './util/matrix.ts';
 import { sampleAffine } from './util/affine.ts';
 import { rotateBilinear } from './util/rotate.ts';
 import * as gainMapCodec from './codecs/gainmap.ts';
+import { describe } from './util/inspect.ts';
 
 /** A color as a 32-bit RGBA integer (`0xRRGGBBAA`) */
 export type Color = number;
@@ -312,7 +313,8 @@ export interface OutlineOptions {
 export interface GradientOptions {
     /**
      * The colors along the gradient: their positions (0..1) and colors (`{ 0: 0xff0000ff, 0.5: 0xffff00ff, 1: 0x00ff00ff }`),
-     * or just the colors, evenly spaced (`[0xff0000ff, 0x00ff00ff]`), like {@link Colors.gradient} takes them
+     * or just the colors, evenly spaced (`[0xff0000ff, 0x00ff00ff]`), like {@link Colors.gradient} takes them. A
+     * position outside 0..1 is allowed, see {@link Colors.gradient}
      */
     stops: Record<number, Color> | Color[];
 }
@@ -848,6 +850,9 @@ function featureList(features: Record<string, boolean | number>): Array<[string,
 /**
  * An RGBA image; provides the codecs and the manipulation functions. Methods that change the image modify it in place
  * and return it, so calls can be chained
+ *
+ * @remarks Subclassing is not supported: the methods that make an image ({@link Image.clone}, {@link Image.extract},
+ * {@link Image.decode}, ...) return plain `Image`s, without calling a subclass' constructor
  */
 export class Image {
     /**
@@ -885,7 +890,8 @@ export class Image {
      * Creates a new image with the given dimensions, all pixels transparent black
      * @param width The width in pixels
      * @param height The height in pixels
-     * @throws `RangeError` if the width or height is not a number of at least 1, or the image is too large to allocate
+     * @throws `TypeError` if the width or height is not a number
+     * @throws `RangeError` if the width or height is less than 1, or the image is too large to allocate
      */
     constructor(width: number, height: number) {
         width = Math.trunc(finite(width, 'width'));
@@ -984,14 +990,17 @@ export class Image {
     }
 
     /**
-     * Yields an [x, y, color] array for every pixel in the image (0-based), row by row
+     * Yields an [x, y, color] array for every pixel in the image (0-based), row by row. The pixels are those the image
+     * had when the iteration started: changing the image meanwhile (even its size) doesn't affect them
      * @yields The coordinates and color of the pixel ([x, y, color])
      */
     *pixels(): Generator<[x: number, y: number, color: Color], void, undefined> {
+        // (the pixels as they are now: resizing the image meanwhile doesn't change what this yields)
         const view = new DataView(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
+        const width = this.width, height = this.height;
         let offset = 0;
-        for (let y = 0; y < this.height; y++)
-            for (let x = 0; x < this.width; x++, offset += 4)
+        for (let y = 0; y < height; y++)
+            for (let x = 0; x < width; x++, offset += 4)
                 yield [x, y, view.getUint32(offset, false)];
     }
 
@@ -2661,7 +2670,7 @@ export class Image {
 
     /**
      * Encodes the image into a PNG, with the smallest lossless color type (a palette for up to 256 colors,
-     * grayscale or RGB, alpha only if needed). Uses the runtime's native zlib when available
+     * grayscale or RGB, alpha only if needed). Uses the runtime's native zlib when available (the files differ between runtimes, whose zlibs compress differently: about a quarter larger on Deno than on Node and Bun)
      * @param options See {@link PNGEncodeOptions}
      * @return The encoded data
      */
@@ -3409,3 +3418,5 @@ function distanceTransform(f: Float64Array, n: number, d: Float64Array, v: Int32
         nearest[q] = v[j];
     }
 }
+
+describe(Image, image => ({ width: image.width, height: image.height }));

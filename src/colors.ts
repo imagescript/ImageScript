@@ -95,7 +95,9 @@ function gradientBetween(startColor: Color, endColor: Color): (position: number)
  * and return, and gradients between colors
  */
 export class Colors {
-    private constructor() {}
+    private constructor() {
+        throw new TypeError('Colors only has static methods, like Colors.fromRGBA()');
+    }
 
     /**
      * Converts RGBA components to an RGBA value, values are rounded and clamped to 0..255
@@ -204,6 +206,9 @@ export class Colors {
      * Creates a multi-point gradient generator
      * @param stops The colors along the gradient: their positions (0..1) and colors (`{ 0: 0xff0000ff, 1: 0x00ff00ff }`),
      *     or just the colors, evenly spaced (`[0xff0000ff, 0x00ff00ff]`), like {@link GradientOptions.stops}
+     * @remarks A stop may lie outside 0..1 (`{ 0: red, 2: blue }`): it is where it says, so the part between 0 and 1
+     *     shows only part of the way between its colors. Before the first stop and after the last one, the gradient has
+     *     their colors
      * @return The gradient generator. The function argument is the position in the gradient (0..1).
      */
     static gradient(stops: Record<number, Color> | Color[]): (position: number) => Color {
