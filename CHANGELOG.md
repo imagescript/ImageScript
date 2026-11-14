@@ -6,7 +6,7 @@
 
 Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://github.com/imagescript/ImageScript/blob/v4/guides/Migrating%20to%204.0.md) covers the 3.x-to-4.0 API changes and the sixteen behavior changes that don't show up as deprecations or compile errors.
 
-- **Methods that take options refuse anything else than an object**: a stray number, string, boolean or `null` as the options of `cropCircle()`, `Image.renderText()`, the encoders (`encodeWebP()`, `encodeAVIF()`, `encodeJXL()`, ...), `quantize()`, `transform()`, `dropShadow()`, `outline()`, the gradients, `Image.decode()`, the animation encoders, and `new GainMap()` throws a `TypeError` that names the working form (e.g. `cropCircle({ size: 'cover' })`), so the 3.x calls that are gone like `cropCircle(true)` or `Image.renderText(font, 32, 'Hi')` fail instead of being ignored. Only the type of the argument is checked: a key that isn't an option is still ignored, so a typo like `{ maxWith: 300 }` isn't caught.
+- **Methods that take options refuse anything else than an object**: a stray number, string, boolean or `null` as the options of `cropCircle()`, `Image.renderText()`, the encoders (`encodeWebP()`, `encodeAVIF()`, `encodeJXL()`, ...), `quantize()`, `transform()`, `dropShadow()`, `outline()`, the gradients, `Image.decode()`, the animation encoders, and `new GainMap()` throws a `TypeError` that names the working form (e.g. `cropCircle({ fit: 'cover' })`), so the 3.x calls that are gone like `cropCircle(true)` or `Image.renderText(font, 32, 'Hi')` fail instead of being ignored. Only the type of the argument is checked: a key that isn't an option is still ignored, so a typo like `{ maxWith: 300 }` isn't caught.
 
 - **The mode constants are removed, modes are plain strings**: `Image.RESIZE_*`, `Image.SVG_MODE_*`, `Frame.DISPOSAL_*` and the `ResizeModes`, `SVGScaleModes` and `FrameDisposalModes` classes are gone. Resize modes are `'nearest-neighbor'`, `'bilinear'`, `'bicubic'` and `'area'` (the `ResizeMode` type), disposal modes `'any'`, `'keep'`, `'previous'` and `'background'` (`FrameDisposalMode`), and the SVG modes became options of `renderSVG()` (below). `Image.RESIZE_AUTO`/`ResizeModes.AUTO` is `image.resize({ width: 256 })`. The old values are no longer accepted either: `'RESIZE_BILINEAR'`, the numbers 1-3 for SVG scale modes and the numeric disposal ids 0-3.
 
@@ -22,7 +22,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`PNGMetadata` is removed**: use `Metadata`, which the encoders that write metadata take. The type is the same.
 
-- **The `max` argument of `cropCircle()` is removed**: `cropCircle(true, feathering)` and `cropCircle({ max: true })` are now `cropCircle({ fit: 'cover', feathering })`, and `cropCircle(false)` is `cropCircle()`, the default `size: 'contain'`.
+- **The `max` argument of `cropCircle()` is removed**: `cropCircle(true, feathering)` and `cropCircle({ max: true })` are now `cropCircle({ fit: 'cover', feathering })`, and `cropCircle(false)` is `cropCircle()`, the default `fit: 'contain'`.
 
 - **The positional forms of `Image.renderText()` are removed**: `Image.renderText(font, size, text, color?, layout?, style?)` and `Image.renderText(font, size, text, options?)` are now `Image.renderText(text, { font, size, color, ...layout, ...style })`.
 
