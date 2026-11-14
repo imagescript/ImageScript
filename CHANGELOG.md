@@ -4,7 +4,7 @@
 
 ### Breaking changes
 
-Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://github.com/imagescript/ImageScript/blob/v4/guides/Migrating%20to%204.0.md) covers the 3.x-to-4.0 API changes and the twelve behavior changes that don't show up as deprecations or compile errors.
+Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://github.com/imagescript/ImageScript/blob/v4/guides/Migrating%20to%204.0.md) covers the 3.x-to-4.0 API changes and the sixteen behavior changes that don't show up as deprecations or compile errors.
 
 - **Methods that take options refuse anything else than an object**: a stray number, string, boolean or `null` as the options of `cropCircle()`, `Image.renderText()`, the encoders (`encodeWebP()`, `encodeAVIF()`, `encodeJXL()`, ...), `quantize()`, `transform()`, `dropShadow()`, `outline()`, the gradients, `Image.decode()`, the animation encoders, and `new GainMap()` throws a `TypeError` that names the working form (e.g. `cropCircle({ size: 'cover' })`), so the 3.x calls that are gone like `cropCircle(true)` or `Image.renderText(font, 32, 'Hi')` fail instead of being ignored. Only the type of the argument is checked: a key that isn't an option is still ignored, so a typo like `{ maxWith: 300 }` isn't caught.
 
@@ -20,7 +20,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Iterating over an image, `iterateWithColors()` and `coordinates()` are removed**: `for (const [x, y] of image)`, `image.coordinates()` and `image.iterateWithColors()` are `image.pixels()`, which yields `[x, y, color]` for every pixel (`for (const [x, y] of image.pixels())`).
 
-- **`PNGMetadata` is removed**: use `Metadata`, which all encoders take. The type is the same.
+- **`PNGMetadata` is removed**: use `Metadata`, which the encoders that write metadata take. The type is the same.
 
 - **The `max` argument of `cropCircle()` is removed**: `cropCircle(true, feathering)` and `cropCircle({ max: true })` are now `cropCircle({ fit: 'cover', feathering })`, and `cropCircle(false)` is `cropCircle()`, the default `size: 'contain'`.
 
@@ -52,7 +52,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`decode()` takes options only**: `decode(data, true)` is `Image.decode(data)` for the first frame, and a boolean throws a `TypeError` that names the options form.
 
-- **`resize()` needs a height in the positional form**: `image.resize(100)` throws a `RangeError`; `resize({ width: 100 })` keeps the aspect ratio. The positional form takes both sides as finite numbers, `Image`, `Frame` and `Animation` alike.
+- **`resize()` needs a height in the positional form**: `image.resize(100)` throws a `TypeError`; `resize({ width: 100 })` keeps the aspect ratio. The positional form takes both sides as finite numbers, `Image`, `Frame` and `Animation` alike.
 
 - **Loop counts a format can't store throw a `RangeError`**: a GIF stores up to 65535 loops, a WebP up to 65534 and an APNG up to 2147483646 (2^31 - 2). A larger count used to wrap around silently (65536 as a GIF was forever). The encoders and the streaming encoders refuse it before encoding; `Infinity` is always fine.
 
@@ -128,14 +128,13 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### Fixes
 
-- `Animation.resize()`, `scale()`, `crop()`, `trim()` and `flip()` change a frame once when the animation lists the same `Frame` (or two frames share one `Image`) more than once, as a hold or a ping-pong does; each listing resized or moved it again before (`new Animation([f, f, f]).resize(50, 50)` made 13x13 frames).
+- `Animation.resize()` changes a frame once when the animation lists the same `Frame` (or two frames share one `Image`) more than once, as a hold or a ping-pong does; each listing resized or moved it again before (`new Animation([f, f, f]).resize(50, 50)` made 13x13 frames).
 - The animation encoders (`Animation.webpEncoder()`, `gifEncoder()` and `apngEncoder()`) cut frames to the canvas like `Animation.encode*()` does when `optimize` is `false`: a frame reaching over the edge lost the part it covered (GIF, WebP) or threw (APNG).
 - `AnimationEncoder.add()` rejects its promise for invalid frames instead of throwing synchronously, so `encoder.add(frame).catch()` sees them.
 - `Image.linearGradient()` and `radialGradient()` work with fractional sizes (`width / 2`, ...) at the truncated size of the image; they threw a `RangeError` because they wrote past the pixels.
 - `scale()` keeps each side at least one pixel like `resize()`, where `new Image(7, 1).scale(0.5)` threw.
 - A damaged JPEG XL whose blend refers to a channel that doesn't exist throws the decoding error instead of a `TypeError` from inside the decoder.
 - The gain map's checks across its values (`min` and `max`, `hdrCapacityMin` and `hdrCapacityMax`) name the values that conflict, since they apply when the map is cloned or encoded, not when a value is set.
-- `Animation.crop()` clips a region that starts outside the canvas like `Image.crop()` does: `crop(-5, -5, 10, 10)` of a 20x20 canvas gave 10x10 instead of 5x5.
 - `Animation.resize()` resizes frames that share one `Image` at different offsets to the size their edges give (they got the first one's width, so a frame could reach past the canvas), and throws for a width or height below one pixel instead of returning 1x1.
 - The GIF encoders throw a `RangeError` for a canvas wider or higher than 65535 pixels (it was stored modulo 65536: 70000 became 4464), and all encoders for an animation without a canvas (every frame outside it), which WebP wrote as 16777216x16777216.
 - `Animation.decode()` of a JPEG XL animation counts the pixels of all frames against `maxPixels`, like the other formats; a frame was counted alone.

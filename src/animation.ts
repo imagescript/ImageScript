@@ -218,6 +218,9 @@ export class Animation {
     /**
      * Resizes the animation to the given dimensions, scaling every frame and its offsets proportionally.
      * Pass {@link ResizeToOptions} with only a width or a height to keep the aspect ratio.
+     * @remarks
+     * With `fit: 'contain'` and a `background` that isn't transparent, the frames are composited onto it, so the animation
+     * has whole frames afterwards (the file shows the same, but it can't keep the frames' parts apart anymore)
      * @param width The new width
      * @param height The new height
      * @param options See {@link ResizeOptions}

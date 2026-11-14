@@ -469,7 +469,7 @@ export interface RoundCornersOptions {
 export interface FisheyeOptions {
     /**
      * The distortion strength (exponent of the radial mapping), above 0: higher values bulge the center more. At 1 and
-     * below, the picture shrinks into the middle of the image (0 and negative strengths leave nothing of it)
+     * below, the picture shrinks into the middle of the image, and 0 or less would leave nothing of it (it throws)
      * @defaultValue `2`
      */
     strength?: number;
@@ -759,7 +759,7 @@ export interface CropCircleOptions {
      */
     fit?: 'contain' | 'cover';
     /**
-     * Share of the radius (0..1) over which the edge fades out
+     * Share of the radius (0 to 1, a value outside of it throws) over which the edge fades out
      * @defaultValue `0`
      */
     feathering?: number;

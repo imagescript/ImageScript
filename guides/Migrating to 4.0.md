@@ -87,7 +87,7 @@ and `[0]` on variables that hold an animation.
 ### Loop counts
 
 In 3.x, `-1` meant "forever", and decoded animations reported `-1`. In 4.0, `Infinity` is forever, it is the default,
-and decoded animations report `Infinity`.
+and decoded animations report `Infinity` (a GIF without a loop extension, which plays once, reports `0`).
 
 ```ts
 // 3.x
@@ -107,8 +107,7 @@ old count when it throws), and to the encoders `Animation.gifEncoder()`, `webpEn
 
 The formats store a finite count in fixed-size fields: a GIF up to `65535`, a WebP up to `65534` and an APNG up to
 `2147483646` (2^31 - 2). A larger count throws a `RangeError` before anything is encoded, from `encodeGIF()`,
-`encodeWebP()`, `encodeAPNG()` and the streaming encoders. This limit is already enforced in the latest 3.x release,
-3.20.2; earlier releases silently wrapped a GIF count of `65536` to `0`, which means forever. `Infinity` is always
+`encodeWebP()`, `encodeAPNG()` and the streaming encoders. This limit is enforced since 3.x release 3.20.2; earlier releases silently wrapped a GIF count of `65536` to `0`, which means forever. `Infinity` is always
 fine.
 
 Search your code for: `loopCount: -1`, `loopCount = -1`, `loopCount === -1` and `loopCount < 0`.
@@ -446,7 +445,7 @@ Each of them extends the options of the format's still images: `GIFAnimationEnco
 | `image.cropCircle(true, feathering)` | `image.cropCircle({ fit: 'cover', feathering })` |
 | `image.cropCircle(false)` | `image.cropCircle()`, the default `fit: 'contain'` |
 | `image.cropCircle({ max: true })` | `image.cropCircle({ fit: 'cover' })` |
-| `PNGMetadata` (type) | `Metadata`, which all encoders take |
+| `PNGMetadata` (type) | `Metadata`, which the encoders that write metadata take |
 
 `renderText()` takes the text first. The font, the size, the color, the layout options ({@link TextLayoutOptions}) and
 the style are all in the one options object, documented in {@link RenderTextOptions}. Crop options are in
@@ -467,7 +466,7 @@ object under the names of their options. The options of each method are on its o
 | --- | --- |
 | `image.resize(256, 256, 'bicubic')`, `image.resize(256, 256, ResizeModes.AREA)` | `image.resize(256, 256, { mode: 'bicubic' })` |
 | `image.scale(0.5, 'area')`, `image.scale(0.5, ResizeModes.AREA)` | `image.scale(0.5, { mode: 'area' })` |
-| `image.resize(100)` (width only, the height left out) | `image.resize({ width: 100 })`, which keeps the aspect ratio. The positional form throws a `RangeError` without a height |
+| `image.resize(100)` (width only, the height left out) | `image.resize({ width: 100 })`, which keeps the aspect ratio. The positional form throws a `TypeError` without a height |
 | `image.contain(w, h, mode)`, `image.fit(w, h, mode)`, `image.cover(w, h, mode)` | `image.resize({ width: w, height: h, fit: 'inside', mode })`, with `'contain'` or `'cover'` as needed; see [Resize fit modes](#resize-fit-modes) |
 | `Frame` and `Animation`: `resize(w, h, mode)` | `resize(w, h, { mode })` |
 | `image.composite(logo, 10, 20, { opacity: 0.5 })` | `image.composite(logo, { x: 10, y: 20, opacity: 0.5 })` |
@@ -493,6 +492,8 @@ object under the names of their options. The options of each method are on its o
 | `decode(data, { onlyFirstFrame: true })` | `Image.decode(data)` |
 
 `decode()` and `Animation.decode()` take options only: a boolean throws a `TypeError` that names the options form.
+`onlyFirstFrame` is not an option anymore, and options that don't exist are ignored without an error: `decode(data, { onlyFirstFrame: true })`
+quietly returns an `Animation` for a file with several frames, so search for `onlyFirstFrame` too.
 
 In 3.x, `image.encodePNG({ author })` was read as metadata. In 4.0 the metadata goes in `metadata`, and an `author` key
 at the top level is ignored like any other unknown key: TypeScript reports it for an inline object, JavaScript doesn't.
@@ -611,7 +612,7 @@ grep -rnE 'iterateWithColors|coordinates\(|for \(const \[[a-z]+, ?[a-z]+\] of' s
 grep -rnE 'PNGMetadata|AnimationEncoderOptions|AdjustOptions|TextOptions|FrameDisposalModeId|FrameDisposalModeName|SVGOptions|\bTextStyle\b|\bGIF\b' src
 
 # decode and animations
-grep -rnE 'decode\(.*, *(true|false)\)' src
+grep -rnE 'decode\(.*, *(true|false)\)|onlyFirstFrame' src
 grep -rnE 'loopCount\s*(:|=|===)\s*-1|loopCount\s*<\s*0' src
 grep -rnE 'Array\.isArray|\.slice\(|\.frames\b|\.length\s*=' src
 

@@ -45,6 +45,9 @@ calling thread: the output is the same, only slower, and nothing warns about it.
 origin, so the jsDelivr example above runs single-threaded; serve the package from your own origin (on a cross-origin
 isolated page) to get threads.
 
+Bundlers that write one file (esbuild, webpack) don't copy the worker's module: serve `dist/util/worker.js` next to the
+bundle, or the same single-threaded fallback is used. Vite and Rollup emit it.
+
 ---
 
 ### Example
