@@ -754,7 +754,10 @@ export class Animation {
         }
         if (type === 'png') {
             const decoded = await png.decodeAnimation(data, false, maxPixels);
-            const frames = orient(profile(canvasFrames(decoded.width, decoded.height, png.compositeAnimation(decoded)), decoded.icc), decoded.orientation);
+            // (composited as they are decoded: the raw frames don't pile up)
+            const step = png.compositor(decoded.width, decoded.height), shown: Array<{ pixels: Uint8Array, duration: number }> = [];
+            for await (const frame of decoded.frames) shown.push({ pixels: step(frame), duration: frame.duration });
+            const frames = orient(profile(canvasFrames(decoded.width, decoded.height, shown), decoded.icc), decoded.orientation);
             const animation = new Animation(frames, { loopCount: fromPlays(decoded.plays), width: frames[0]?.width ?? decoded.width, height: frames[0]?.height ?? decoded.height });
             animation.__animationSignal__ = true;
             return animation;

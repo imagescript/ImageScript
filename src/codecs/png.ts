@@ -724,10 +724,11 @@ export function isAnimated(array: Uint8Array): boolean {
 
 /**
  * Decodes an APNG (https://wiki.mozilla.org/APNG_Specification) into its (uncomposited) frames; a plain PNG becomes
- * a single frame
+ * a single frame. The frames are decoded one at a time as they are iterated (once), so compositing them doesn't hold
+ * all of them
  * @return plays: 0 = forever
  */
-export async function decodeAnimation(array: Uint8Array, firstFrameOnly = false, maxPixels = MAX_PIXELS): Promise<{ width: number, height: number, plays: number, frames: APNGFrame[], icc?: Uint8Array, orientation: number }> {
+export async function decodeAnimation(array: Uint8Array, firstFrameOnly = false, maxPixels = MAX_PIXELS): Promise<{ width: number, height: number, plays: number, frames: AsyncIterable<APNGFrame>, icc?: Uint8Array, orientation: number }> {
     const p = parse(array);
     const { width, height } = p.header;
     const orientation = p.exif ? exifOrientation(p.exif) : await textOrientation(p.text);
@@ -737,31 +738,37 @@ export async function decodeAnimation(array: Uint8Array, firstFrameOnly = false,
     // broken animations show the default image, like browsers do
     if (!p.animation || p.animationError) {
         const pixels = await decodeImageData(p, p.idat, width, height);
-        return { width, height, plays: 0, frames: [{ x: 0, y: 0, width, height, duration: 0, dispose: 0, blend: 0, pixels }], icc: await profile(p.iccp), orientation };
+        const still = async function* (): AsyncGenerator<APNGFrame> {
+            yield { x: 0, y: 0, width, height, duration: 0, dispose: 0, blend: 0, pixels };
+        };
+        return { width, height, plays: 0, frames: still(), icc: await profile(p.iccp), orientation };
     }
 
-    const frames: APNGFrame[] = [];
-    for (const { control: c, data } of p.frames) {
+    for (const { control: c } of p.frames)
         if (!c.width || !c.height || c.x + c.width > width || c.y + c.height > height) throw new Error('PNG: invalid APNG frame region');
-        let pixels: Uint8Array;
-        try {
-            pixels = await decodeImageData(p, data, c.width, c.height);
-        } catch (error) {
-            // (the last frame of a file that is cut off can be incomplete: the ones before it are what the file has)
-            if (p.truncated && frames.length) break;
-            throw error;
+    async function* frames(): AsyncGenerator<APNGFrame> {
+        let count = 0;
+        for (const { control: c, data } of p.frames) {
+            let pixels: Uint8Array;
+            try {
+                pixels = await decodeImageData(p, data, c.width, c.height);
+            } catch (error) {
+                // (the last frame of a file that is cut off can be incomplete: the ones before it are what the file has)
+                if (p.truncated && count) return;
+                throw error;
+            }
+            yield {
+                x: c.x, y: c.y, width: c.width, height: c.height, duration: c.delay,
+                // DISPOSE_OP_PREVIOUS on the first frame means background
+                dispose: !count++ && c.dispose === 2 ? 1 : c.dispose,
+                blend: c.blend,
+                pixels
+            };
+            if (firstFrameOnly) return;
         }
-        frames.push({
-            x: c.x, y: c.y, width: c.width, height: c.height, duration: c.delay,
-            // DISPOSE_OP_PREVIOUS on the first frame means background
-            dispose: !frames.length && c.dispose === 2 ? 1 : c.dispose,
-            blend: c.blend,
-            pixels
-        });
-        if (firstFrameOnly) break;
     }
 
-    return { width, height, plays: p.animation.plays, frames, icc: await profile(p.iccp), orientation };
+    return { width, height, plays: p.animation.plays, frames: frames(), icc: await profile(p.iccp), orientation };
 }
 
 /**
@@ -769,10 +776,15 @@ export async function decodeAnimation(array: Uint8Array, firstFrameOnly = false,
  * blend_op section, https://wiki.mozilla.org/APNG_Specification)
  */
 export function compositeAnimation({ width, height, frames }: { width: number, height: number, frames: APNGFrame[] }): Array<{ pixels: Uint8Array, duration: number }> {
-    const canvas = new Uint8Array(width * height * 4);
-    const output = [];
+    const step = compositor(width, height);
+    return frames.map(f => ({ pixels: step(f), duration: f.duration }));
+}
 
-    for (const f of frames) {
+/** {@link compositeAnimation} one frame at a time: each call composites the next frame and returns the canvas shown */
+export function compositor(width: number, height: number): (f: APNGFrame) => Uint8Array {
+    const canvas = new Uint8Array(width * height * 4);
+
+    return f => {
         const previous = f.dispose === 2 ? canvas.slice() : null;
 
         for (let y = 0; y < f.height; y++) {
@@ -799,14 +811,14 @@ export function compositeAnimation({ width, height, frames }: { width: number, h
             }
         }
 
-        output.push({ pixels: canvas.slice(), duration: f.duration });
+        const shown = canvas.slice();
 
         if (f.dispose === 1)
             for (let y = 0; y < f.height; y++) canvas.fill(0, ((f.y + y) * width + f.x) * 4, ((f.y + y) * width + f.x + f.width) * 4);
         else if (previous) canvas.set(previous);
-    }
 
-    return output;
+        return shown;
+    };
 }
 
 const RAW_EXIF = /^Raw profile type (exif|APP1)$/;

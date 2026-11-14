@@ -40,7 +40,8 @@ export interface WebPAnimation {
     loopCount: number;
     /** ARGB background color hint (decoders, like browsers, are free to ignore it) */
     background: number;
-    frames: WebPFrame[];
+    /** decoded one at a time as they are iterated (once), so compositing doesn't hold all of them */
+    frames: Iterable<WebPFrame>;
     /** the embedded ICC profile */
     icc?: Uint8Array;
     /** Exif orientation (1-8) */
@@ -181,7 +182,8 @@ export function decode(data: Uint8Array, maxPixels = MAX_PIXELS): { width: numbe
 }
 
 /**
- * Decodes an animated WebP into its frames (not composited); still WebPs become a single frame
+ * Decodes an animated WebP into its frames (not composited, decoded one at a time as they are iterated); still WebPs
+ * become a single frame
  */
 export function decodeAnimation(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX_PIXELS): WebPAnimation {
     const list = container(data);
@@ -196,19 +198,20 @@ export function decodeAnimation(data: Uint8Array, firstFrameOnly = false, maxPix
     // every frame is composited onto a canvas of its own
     checkPixels(width, height, maxPixels, firstFrameOnly ? 1 : list.filter(c => c.type === ANMF).length);
     let loopCount = 0, background = 0;
-    const frames: WebPFrame[] = [];
+    const anim = list.find(c => c.type === ANIM && c.data.length >= 6);
+    if (anim) {
+        const d = anim.data;
+        // stored as BGRA
+        background = (d[3] << 24 | d[2] << 16 | d[1] << 8 | d[0]) >>> 0;
+        loopCount = d[4] | d[5] << 8;
+    }
+    const anmf = list.filter(c => c.type === ANMF);
+    for (const { data } of anmf) if (data.length < 16) throw new Error('WebP: invalid ANMF chunk');
 
-    for (const chunk of list) {
-        if (chunk.type === ANIM && chunk.data.length >= 6) {
-            const d = chunk.data;
-            // stored as BGRA
-            background = (d[3] << 24 | d[2] << 16 | d[1] << 8 | d[0]) >>> 0;
-            loopCount = d[4] | d[5] << 8;
-        } else if (chunk.type === ANMF) {
-            const d = chunk.data;
-            if (d.length < 16) throw new Error('WebP: invalid ANMF chunk');
+    function* frames(): Generator<WebPFrame> {
+        for (const { data: d } of anmf) {
             const frame = decodeBitstream(chunks(d, 16, d.length), maxPixels);
-            frames.push({
+            yield {
                 x: u24(d, 0) * 2,
                 y: u24(d, 3) * 2,
                 width: frame.width,
@@ -217,13 +220,12 @@ export function decodeAnimation(data: Uint8Array, firstFrameOnly = false, maxPix
                 blend: (d[15] & 2) === 0,
                 dispose: (d[15] & 1) === 1,
                 pixels: frame.pixels
-            });
-            if (firstFrameOnly) break;
+            };
+            if (firstFrameOnly) return;
         }
     }
 
-    if (!frames.length) throw new Error('WebP: animation without frames');
-    return { width, height, loopCount, background, frames, icc: list.find(c => c.type === ICCP)?.data, orientation: orientationOf(list) };
+    return { width, height, loopCount, background, frames: frames(), icc: list.find(c => c.type === ICCP)?.data, orientation: orientationOf(list) };
 }
 
 // the Exif orientation of a WebP's chunks, 1 without one
@@ -234,7 +236,7 @@ function orientationOf(list: Chunk[]): number {
 
 /**
  * Composites animation frames onto the canvas like browsers do (transparent background, the background color hint
- * is ignored as the spec allows)
+ * is ignored as the spec allows). Each frame is let go once it is composited
  */
 export function composite({ width, height, frames }: WebPAnimation): Array<{ pixels: Uint8Array, duration: number }> {
     const canvas = new Uint8Array(width * height * 4);

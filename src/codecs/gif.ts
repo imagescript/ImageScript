@@ -9,6 +9,7 @@ const DISPOSAL_FROM_GIF = [0, 1, 3, 2, 0, 0, 0, 0];
 
 const MAX_CODE = 4095;
 const UNEXPECTED_END = new Error('GIF: unexpected end of data');
+const EMPTY = new Uint8Array(0);
 
 export interface GIFFrame {
     x: number;
@@ -370,6 +371,8 @@ export function composite({ width, height, frames }: DecodedGIF): Array<{ pixels
         }
 
         output.push({ pixels: new Uint8Array(canvas.slice().buffer), delay: frame.delay });
+        // (its indices aren't needed anymore: let them go, so they don't add up with the composited frames)
+        frame.indices = EMPTY;
 
         if (frame.dispose === 3) {
             for (let y = y0; y < y1; y++) canvas.fill(0, y * width + x0, y * width + x1);
