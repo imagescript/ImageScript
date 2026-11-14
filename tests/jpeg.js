@@ -75,13 +75,13 @@ const withoutExif = data => {
 			panic('stray bytes: decoded pixels don\'t match');
 	}
 
-	// a scan with restart markers that ends early (cut, then EOI): what was decoded is kept
+	// a scan with restart markers that ends early (cut, then EOI) is a decoding error, like a cut-off scan without them
 	{
 		const data = await fs.readFile('./tests/jpegs/restart.jpg');
 		const sos = data.indexOf(Buffer.from([0xff, 0xda]));
 		const cut = Buffer.concat([data.subarray(0, sos + (data.length - sos >> 1)), Buffer.from([0xff, 0xd9])]);
-		const decoded = await Image.decode(cut);
-		if (decoded.width !== 227 || decoded.height !== 149) panic('early ending scan: dimensions don\'t match');
+		const error = await Image.decode(cut).then(() => null, e => e);
+		if (!error || error.constructor !== Error) panic(`a scan cut short should throw an Error, got ${error}`);
 	}
 
 	if (!await Image.decode(await fs.readFile('./tests/jpegs/arithmetic.jpg')).then(() => false, error => error instanceof Error)) panic('arithmetic coded JPEG was accepted');

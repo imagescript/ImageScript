@@ -104,6 +104,7 @@ export function decode(data: Uint8Array, { transform, maxPixels = MAX_PIXELS }: 
     // the ICC profile's parts (APP2 ICC_PROFILE segments) by their sequence numbers
     const profile: Uint8Array[] = [];
     let restartInterval = 0;
+    let scans = 0;
     let pos = 2;
 
     const u16 = (offset: number): number => data[offset] << 8 | data[offset + 1];
@@ -234,6 +235,7 @@ export function decode(data: Uint8Array, { transform, maxPixels = MAX_PIXELS }: 
                 const successiveHigh = data[p + 2] >> 4;
                 const successiveLow = data[p + 2] & 15;
 
+                scans++;
                 pos = decodeScan(data, end, frame, components, restartInterval, spectralStart, spectralEnd, successiveHigh, successiveLow);
                 continue;
             }
@@ -243,6 +245,7 @@ export function decode(data: Uint8Array, { transform, maxPixels = MAX_PIXELS }: 
     }
 
     if (!frame) throw new Error('JPEG: missing frame header');
+    if (!scans) throw new Error('JPEG: no image data (the file is truncated)');
     // (the profile only if no part is missing)
     const icc = profile.length && Array.from(profile).every(Boolean) ? concat(profile) : undefined;
     return { width: frame.width, height: frame.height, pixels: output(frame, adobe, jfif, transform), orientation, icc };
@@ -321,18 +324,22 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
     // bit reader state
     let pos = offset;
     let buffer = 0, bits = 0;
+    // the zero bytes fed after the scan's data ran out (the end of the file, or a marker): a scan that reads any of
+    // them is cut off
+    let padding = 0;
 
     const fill = (): void => {
         while (bits <= 24) {
-            let byte = 0;
+            let byte = 0, fed = false;
             if (pos < data.length) {
                 byte = data[pos];
                 if (byte === 0xff) {
                     const next = data[pos + 1];
                     if (next === 0x00) pos += 2;
-                    else byte = 0; // marker reached, feed zeros
+                    else fed = true; // marker reached, feed zeros
                 } else pos++;
-            }
+            } else fed = true;
+            if (fed) { byte = 0; padding++; }
 
             buffer = buffer << 8 | byte;
             bits += 8;
@@ -373,6 +380,11 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
 
     const extend = (value: number, size: number): number => value < 1 << size - 1 ? value + (-1 << size) + 1 : value;
     const receiveExtend = (size: number): number => size ? extend(getBits(size), size) : 0;
+
+    // (the bits read are the real ones first, then the fed zeros: the ones still in the buffer are the last of those)
+    const checkComplete = (): void => {
+        if (padding * 8 > bits) throw new Error('JPEG: the scan data is truncated');
+    };
 
     let eobrun = 0;
 
@@ -531,8 +543,10 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         if (unit >= total) break;
 
         // restart: discard remaining bits and expect an RSTn marker
+        checkComplete();
         bits = 0;
         buffer = 0;
+        padding = 0;
         while (pos + 1 < data.length && !(data[pos] === 0xff && data[pos + 1] >= 0xd0 && data[pos + 1] <= 0xd7)) {
             // a different marker means the scan ended early
             if (data[pos] === 0xff && data[pos + 1] !== 0x00 && data[pos + 1] !== 0xff) {
@@ -551,6 +565,7 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         for (const component of components) component.pred = 0;
     }
 
+    checkComplete();
     finish();
     return pos;
 }
