@@ -2695,7 +2695,8 @@ export class Image {
 
     /**
      * Encodes the image into a JPEG. JPEG has no transparency: an image with transparent or translucent pixels is
-     * composited onto the `background` color (black by default) first, the image itself stays unchanged
+     * composited onto the `background` color (black by default) first, the image itself stays unchanged. An image whose
+     * pixels are all gray is written as a grayscale JPEG (one component)
      * @param options See {@link JPEGEncodeOptions}
      */
     encodeJPEG(options?: JPEGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
@@ -2707,11 +2708,12 @@ export class Image {
         const backgroundColor = checkColor(background, 'background');
         const embed = gainMapEmbed(gainMapOption);
         const m = resolveMetadata(metadata);
-        const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined, subsampling };
 
         // transparent pixels: composited onto the opaque background (with the gain map, so the HDR light dims alike)
         const source = this.__flattened__(backgroundColor, embed !== null) ?? this;
         const gainMap = source.__gain_map__;
+        // (an image whose pixels are all gray is written with one component, like cjpeg -grayscale: a third the data)
+        const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined, subsampling, gray: source.__is_gray__() };
         if (!gainMap || !embed) return jpeg.encode(source.__bytes__(), source.width, source.height, quality, base);
 
         // the gain map's JPEG first: the primary's XMP holds its length
@@ -2725,6 +2727,17 @@ export class Image {
         const map = gainMapCodec.mapWithMetadata(gainMap.__body__(mapQuality, width, height), params);
         const primary = jpeg.encode(source.__bytes__(), source.width, source.height, quality, { ...base, segments: gainMapCodec.primarySegments(map.length) });
         return gainMapCodec.finish(primary, map);
+    }
+
+    /**
+     * Whether every pixel has the same red, green and blue (a grayscale image)
+     * @internal
+     * @ignore
+     */
+    protected __is_gray__(): boolean {
+        const px = this.bitmap;
+        for (let i = 0; i < px.length; i += 4) if (px[i] !== px[i + 1] || px[i] !== px[i + 2]) return false;
+        return true;
     }
 
     /**

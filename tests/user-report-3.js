@@ -110,4 +110,24 @@ const has = (bytes, text) => Buffer.from(bytes).includes(Buffer.from(text, 'lati
         const decoded = await Image.decode(bare);
         if (decoded.width !== 8) panic(`${name}: the file without Exif doesn't decode`);
     }
+
+    // grayscale images are grayscale JPEGs (one component, a third the data), decoding to the same pixels as the color
+    // encoding does
+    {
+        const gray = new Image(32, 32).fill((x, y) => Colors.fromRGB(x * 8, x * 8, x * 8));
+        const encoded = await gray.encodeJPEG({quality: 90});
+        const sof = encoded.indexOf(0xc0, 2);
+        if (encoded[sof - 1] !== 0xff || encoded[sof + 8] !== 1) panic(`a gray image should be a one component JPEG, got ${encoded[sof + 8]} components`);
+        const decoded = await Image.decode(encoded);
+        for (let i = 0; i < decoded.bitmap.length; i += 4)
+            if (decoded.bitmap[i] !== decoded.bitmap[i + 1] || decoded.bitmap[i] !== decoded.bitmap[i + 2] || Math.abs(decoded.bitmap[i] - gray.bitmap[i]) > 4) panic('the grayscale JPEG decodes to other pixels');
+        const color = gray.clone();
+        color.setPixelAt(0, 0, 0xff0000ff);
+        const colorSof = (await color.encodeJPEG()).indexOf(0xc0, 2);
+        if ((await color.encodeJPEG())[colorSof + 8] !== 3) panic('an image with a colored pixel should be a 3 component JPEG');
+        // (translucent gray pixels on a black background stay gray)
+        const translucent = gray.clone().opacity(0.5);
+        const t = await translucent.encodeJPEG();
+        if (t[t.indexOf(0xc0, 2) + 8] !== 1) panic('a translucent gray image on black should be a grayscale JPEG');
+    }
 })();
