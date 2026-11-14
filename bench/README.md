@@ -16,41 +16,41 @@ single run. The Method section explains the test inputs and measurements.
 
 ## Numbers
 
-Time per operation (less is faster), measured 2026-11-08 with Node.js v24.22.2 on Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz, ImageScript 3.20.1.
+Time per operation (less is faster), measured 2026-11-12 with Node.js v26.13.1 on AMD EPYC 9V45 96-Core Processor, ImageScript 3.20.3.
 
 | | **ImageScript** | **Jimp** | **image-js** | **PureJsImage** | **Photon** | **sharp** | **jsquash** | **@napi-rs/canvas** |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| decode JPEG | **79 ms** | 169 ms | 183 ms | 141 ms | 49 ms | 16 ms | – | 21 ms |
-| decode PNG | **33 ms** | 64 ms | 132 ms | 87 ms | 28 ms | 22 ms | – | 21 ms |
-| decode WebP (lossy) | **98 ms** | – | – | 113 ms | 91 ms | 30 ms | – | 18 ms |
-| decode AVIF | **274 ms** | – | – | 1.9 s | – | 95 ms | 232 ms | 70 ms |
-| decode JPEG XL | **450 ms** | – | – | fails | – | – | 508 ms | 82 ms |
-| decode animated GIF | **71 ms** | – | – | – | – | 69 ms | – | – |
-| decode animated WebP | **304 ms** | – | – | – | – | 274 ms | – | – |
-| encode JPEG (quality 80) | **78 ms** | 434 ms | 113 ms | 147 ms | 125 ms | 19 ms | – | 28 ms |
-| encode PNG | **183 ms** | 258 ms | 344 ms | 562 ms | 101 ms | 133 ms | – | 464 ms |
-| encode WebP (quality 80) | **228 ms** | – | – | 144 ms | – | 194 ms | – | 181 ms |
-| encode WebP (lossless) | **1.3 s** | – | – | 2.9 s | 44 ms | 1.5 s | – | 476 ms |
-| encode AVIF (quality 60) | **5.6 s** | – | – | 1.5 s | – | 2.4 s | 2.5 s | – |
-| encode JPEG XL (quality 90) | **2.5 s** | – | – | – | – | – | 2.3 s | – |
-| encode JPEG XL (lossless) | **892 ms** | – | – | – | – | – | 469 ms | – |
-| encode animated GIF | **253 ms** | – | – | – | – | 1.1 s | – | – |
-| encode animated WebP (q 80) | **1.1 s** | – | – | – | – | 813 ms | – | – |
-| resize to half | **16 ms** | 16 ms | 94 ms | 76 ms | 65 ms | 11 ms | – | 3.8 ms |
-| resize to half, bicubic | **69 ms** | 176 ms | 367 ms | – | 85 ms | 13 ms | – | – |
-| thumbnail (cover 400×400) | **21 ms** | 61 ms | – | 50 ms | – | 6.9 ms | – | 1.6 ms |
-| crop | **2.2 ms** | 25 ms | 22 ms | 13 ms | 6.6 ms | 1.1 ms | – | 1.4 ms |
-| rotate by 30° | **57 ms** | 685 ms | 718 ms | 568 ms | 264 ms | 51 ms | – | 39 ms |
-| rotate by 90° | **13 ms** | 62 ms | 27 ms | 150 ms | 192 ms | 5.8 ms | – | 16 ms |
-| flip | **2.8 ms** | 110 ms | 15 ms | 69 ms | 27 ms | 5.0 ms | – | 13 ms |
-| blur (radius 5) | **87 ms** | 98 s | 908 ms | – | 202 ms | 18 ms | – | 32 ms |
-| sharpen | **293 ms** | – | – | – | 136 ms | 243 ms | – | – |
-| composite an overlay | **2.8 ms** | 36 ms | 12 ms | – | 8.2 ms | 5.9 ms | – | 3.6 ms |
-| greyscale | **7.3 ms** | 130 ms | 20 ms | – | 8.4 ms | 32 ms | – | 8.7 ms |
-| brightness and contrast | **14 ms** | 287 ms | – | – | 34 ms | 18 ms | – | 15 ms |
-| render text | **0.59 ms** | – | – | – | – | 0.73 ms | – | 0.48 ms |
-| render SVG | **172 ms** | – | – | – | – | 43 ms | – | 19 ms |
-| thumbnail, keeping HDR | **180 ms** | – | – | – | – | 167 ms | – | – |
+| decode JPEG | **40 ms** | 80 ms | 100 ms | 77 ms | 31 ms | 9.7 ms | – | 13 ms |
+| decode PNG | **19 ms** | 37 ms | 68 ms | 48 ms | 16 ms | 13 ms | – | 14 ms |
+| decode WebP (lossy) | **48 ms** | – | – | 62 ms | 62 ms | 19 ms | – | 11 ms |
+| decode AVIF | **134 ms** | – | – | 1.0 s | – | 62 ms | 143 ms | 43 ms |
+| decode JPEG XL | **220 ms** | – | – | fails | – | – | 265 ms | 46 ms |
+| decode animated GIF | **39 ms** | – | – | – | – | 48 ms | – | – |
+| decode animated WebP | **157 ms** | – | – | – | – | 190 ms | – | – |
+| encode JPEG (quality 80) | **37 ms** | 259 ms | 67 ms | 95 ms | 65 ms | 12 ms | – | 17 ms |
+| encode PNG | **117 ms** | 151 ms | 173 ms | 392 ms | 66 ms | 97 ms | – | 344 ms |
+| encode WebP (quality 80) | **124 ms** | – | – | 82 ms | – | 134 ms | – | 121 ms |
+| encode WebP (lossless) | **812 ms** | – | – | 1.4 s | 27 ms | 1.0 s | – | 339 ms |
+| encode AVIF (quality 60) | **3.0 s** | – | – | 795 ms | – | 1.3 s | 1.5 s | – |
+| encode JPEG XL (quality 90) | **1.3 s** | – | – | – | – | – | 1.6 s | – |
+| encode JPEG XL (lossless) | **455 ms** | – | – | – | – | – | 274 ms | – |
+| encode animated GIF | **139 ms** | – | – | – | – | 717 ms | – | – |
+| encode animated WebP (q 80) | **590 ms** | – | – | – | – | 517 ms | – | – |
+| resize to half | **7.5 ms** | 8.7 ms | 43 ms | 41 ms | 33 ms | 5.5 ms | – | 2.7 ms |
+| resize to half, bicubic | **26 ms** | 140 ms | 182 ms | – | 47 ms | 6.0 ms | – | – |
+| thumbnail (cover 400×400) | **8.8 ms** | 24 ms | – | 27 ms | – | 3.4 ms | – | 1.2 ms |
+| crop | **0.93 ms** | 10 ms | 8.3 ms | 6.6 ms | 3.0 ms | 0.63 ms | – | 0.62 ms |
+| rotate by 30° | **32 ms** | 352 ms | 424 ms | 293 ms | 125 ms | 26 ms | – | 22 ms |
+| rotate by 90° | **6.5 ms** | 26 ms | 13 ms | 74 ms | 83 ms | 3.4 ms | – | 8.6 ms |
+| flip | **1.3 ms** | 56 ms | 6.2 ms | 36 ms | 11 ms | 2.8 ms | – | 8.0 ms |
+| blur (radius 5) | **41 ms** | 48 s | 426 ms | – | 87 ms | 9.5 ms | – | 11 ms |
+| sharpen | **107 ms** | – | – | – | 61 ms | 116 ms | – | – |
+| composite an overlay | **1.3 ms** | 20 ms | 5.4 ms | – | 3.7 ms | 3.7 ms | – | 1.6 ms |
+| greyscale | **3.7 ms** | 69 ms | 9.5 ms | – | 4.1 ms | 15 ms | – | 3.1 ms |
+| brightness and contrast | **6.6 ms** | 153 ms | – | – | 19 ms | 8.4 ms | – | 7.1 ms |
+| render text | **0.38 ms** | – | – | – | – | 0.30 ms | – | 0.42 ms |
+| render SVG | **106 ms** | – | – | – | – | 25 ms | – | 6.8 ms |
+| thumbnail, keeping HDR | **115 ms** | – | – | – | – | 94 ms | – | – |
 
 Encoded sizes. For lossy files, the dB score estimates how closely the decoded image matches the source; higher is
 closer.
@@ -77,7 +77,7 @@ closer.
 | | **ImageScript** | **Jimp** | **image-js** | **PureJsImage** | **Photon** | **sharp** | **jsquash** | **@napi-rs/canvas** |
 |---|---|---|---|---|---|---|---|---|
 | kind | JavaScript | JavaScript | JavaScript | JavaScript | WebAssembly | native (libvips) | WebAssembly | native (Skia) |
-| package | `imagescript@3.20.1` | `jimp@1.6.1` | `image-js@1.7.1` | `purejsimage@0.17.0` | `@silvia-odwyer/photon-node@0.3.4` | `sharp@0.35.5` | `@jsquash/avif@2.1.1 @jsquash/jxl@1.3.0` | `@napi-rs/canvas@1.0.11` |
+| package | `imagescript@3.20.3` | `jimp@1.6.1` | `image-js@1.7.1` | `purejsimage@0.17.0` | `@silvia-odwyer/photon-node@0.3.4` | `sharp@0.35.5` | `@jsquash/avif@2.1.1 @jsquash/jxl@1.3.0` | `@napi-rs/canvas@1.0.11` |
 | install size | 2.6 MB | 26.8 MB | 47.8 MB | 6.7 MB | 2.3 MB | 20.3 MB | 14.2 MB | 35.0 MB |
 | packages | 1 | 64 | 55 | 1 | 1 | 6 | 3 | 2 |
 

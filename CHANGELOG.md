@@ -151,6 +151,18 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `renderSVG()` keeps the memory of dashed strokes bounded: dashes beside the image are left out and the others are stroked a batch at a time, so a line of a million dashes (157 bytes of SVG) no longer takes 650 MB. The rasterizer also keeps one sub-scanline's crossings at a time instead of 16.
 - `renderSVG()` parses `transform` lists in linear time: a long list of unclosed functions took 4.8 s at 280 KB.
 
+## 3.20.3
+
+### Deprecated
+
+- **`image.coordinates()`** is deprecated and will be removed in 4.0, like iterating over the image (`for (const [x, y] of image)`), which now points to `pixels()` instead of `coordinates()`. Use `for (const [x, y] of image.pixels())`: `pixels()` yields `[x, y, color]`, so the color comes with the position.
+
+## 3.20.2
+
+### Fixes
+
+- Loop counts that don't fit the file format are refused with a `RangeError` naming the format's largest count, instead of wrapping around: a GIF with `loopCount: 65536` was written with 0, which plays forever (GIF and animated WebP store up to 65535 and 65534, APNG up to 2147483646). This applies to `encodeGIF()`, `encodeWebP()` and `encodeAPNG()` of animations and to the streaming encoders.
+
 ## 3.20.1
 
 ### Performance
