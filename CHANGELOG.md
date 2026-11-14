@@ -128,7 +128,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### Fixes
 
-- **Cut-off JPEG and lossy WebP files throw** like the other formats: a JPEG without any scan data, or whose scan ends before its last block, and a WebP whose partitions end early. They decoded without an error, as gray or smeared images. A JPEG that only lacks its end marker still decodes.
+- **Cut-off JPEG and lossy WebP files throw** like the other formats: a JPEG without any scan data, or whose scan ends before its last block, and a WebP whose image data (any chunk of it) ends before its size says. They decoded without an error, as gray or smeared images. A JPEG that only lacks its end marker still decodes.
 - `Image.pixels()` yields the pixels the image had when the iteration started, where resizing the image meanwhile threw an error from the inside or stopped early.
 - `Animation.decode()` gives a still image (PNG, JPEG XL, WebP, JPEG, ...) a frame of 100 ms, the `Frame` default, not 0 ms.
 - `JSON.stringify()` and `console.log()` of an `Image`, `Frame` or `Animation` show their size (and duration), not every pixel; `new Colors()` throws.

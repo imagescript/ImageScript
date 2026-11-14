@@ -990,12 +990,13 @@ export class Image {
     }
 
     /**
-     * Yields an [x, y, color] array for every pixel in the image (0-based), row by row. The pixels are those the image
-     * had when the iteration started: changing the image meanwhile (even its size) doesn't affect them
+     * Yields an [x, y, color] array for every pixel in the image (0-based), row by row. Resizing the image meanwhile
+     * doesn't affect the iteration (it goes on over the pixels it started with), but other changes to the pixels, like
+     * `setPixelAt()`, are seen by the pixels not yet yielded
      * @yields The coordinates and color of the pixel ([x, y, color])
      */
     *pixels(): Generator<[x: number, y: number, color: Color], void, undefined> {
-        // (the pixels as they are now: resizing the image meanwhile doesn't change what this yields)
+        // (the pixels and the size as they are now: resizing the image meanwhile doesn't change what this yields)
         const view = new DataView(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
         const width = this.width, height = this.height;
         let offset = 0;

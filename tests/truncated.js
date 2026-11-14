@@ -25,6 +25,20 @@ const panic = message => {
         if (failed !== cuts - 1) panic(`${name}: ${cuts - 1 - failed} of ${cuts - 1} cut-off files decoded without an error`);
     }
 
+    // a small lossy WebP cut anywhere inside of its image data, not only where the data is read to (every cut before the
+    // bitstream's size is reached)
+    {
+        const small = await Image.linearGradient(67, 41, {stops: [0xff2040ff, 0x3040ffff], angle: 135}).encodeWebP({quality: 80});
+        const view = new DataView(small.buffer, small.byteOffset);
+        // (the VP8 chunk of the extended format, after the VP8X chunk of 18 bytes)
+        let at = 12;
+        while (String.fromCharCode(...small.subarray(at, at + 4)) !== 'VP8 ') at += 8 + view.getUint32(at + 4, true) + (view.getUint32(at + 4, true) & 1);
+        const end = at + 8 + view.getUint32(at + 4, true);
+        for (let cut = at + 8; cut < end; cut++)
+            if (await decodes(small.subarray(0, cut))) panic(`a lossy WebP cut ${end - cut} bytes before the end of its image data decoded`);
+        if (!await decodes(small)) panic('the whole small WebP does not decode');
+    }
+
     // a JPEG without its end marker has all its pixels
     const jpeg = await photo.encodeJPEG({quality: 80});
     if (!await decodes(jpeg.subarray(0, jpeg.length - 2))) panic('a JPEG without its end marker is rejected');

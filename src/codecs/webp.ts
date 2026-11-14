@@ -86,6 +86,8 @@ const u24 = (d: Uint8Array, o: number): number => d[o] | d[o + 1] << 8 | d[o + 2
 function decodeBitstream(list: Chunk[], maxPixels: number): { width: number, height: number, pixels: Uint8Array } {
     let alpha: Chunk | null = null;
     for (const chunk of list) {
+        // (the bitstream decoders read missing bytes as zeros, so a chunk that ends before its size says is cut off)
+        if ((chunk.type === ALPH || chunk.type === VP8L || chunk.type === VP8) && chunk.cut) throw new Error('WebP: the image data is truncated');
         if (chunk.type === ALPH) alpha ??= chunk;
         else if (chunk.type === VP8L) {
             const { width, height, argb } = vp8l.decode(chunk.data, maxPixels);
