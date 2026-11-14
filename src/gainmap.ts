@@ -63,7 +63,8 @@ export interface GainMapOptions {
 }
 
 const perChannel = (value: GainMapChannelValues, name: string): number[] => {
-    const values = typeof value === 'number' ? [value, value, value] : Array.from(value);
+    if (typeof value !== 'number' && !Array.isArray(value)) throw new TypeError(`${name} must be a number or an array of 3 numbers, not ${value === null ? 'null' : typeof value}`);
+    const values: number[] = typeof value === 'number' ? [value, value, value] : Array.from(value);
     if (values.length === 1) values.push(values[0], values[0]);
     if (values.length !== 3) throw new RangeError(`${name} must be a number or an array of 3 numbers`);
     return values.map(v => finite(v, name));
@@ -189,7 +190,7 @@ export class GainMap {
         this.offsetSDR = offsetSDR;
         this.offsetHDR = offsetHDR;
         this.hdrCapacityMin = hdrCapacityMin;
-        this.hdrCapacityMax = options.hdrCapacityMax ?? Math.max(...this.__max__);
+        this.hdrCapacityMax = options.hdrCapacityMax === undefined ? Math.max(...this.__max__) : options.hdrCapacityMax;
         this.useBaseColorSpace = useBaseColorSpace;
         this.__pixels__ = image;
         this.__check__();

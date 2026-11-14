@@ -98,6 +98,13 @@ export function nonNegative(value: number, name: string): number {
     return value;
 }
 
+/** A number from 0 to 1, finite: a number outside of it throws a RangeError naming the argument */
+export function unitInterval(value: number, name: string): number {
+    finite(value, name);
+    if (value < 0 || value > 1) throw new RangeError(`${name} must be 0-1, not ${value}`);
+    return value;
+}
+
 /** A number above 0, finite: 0 and negative ones throw a RangeError naming the argument */
 export function positive(value: number, name: string): number {
     finite(value, name);

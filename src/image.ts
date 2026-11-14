@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, nonNegative, positive, oneOf, pixelLimit, checkThreads, gainMapScale, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, nonNegative, positive, unitInterval, oneOf, pixelLimit, checkThreads, gainMapScale, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -1169,6 +1169,7 @@ export class Image {
     scale(factor: number, options?: ResizeOptions): this {
         checkOptions(options, 'scale(factor, { mode: \'area\' })');
         const { mode } = resizeOptions(options);
+        finite(factor, 'scale factor');
         const image = this.__scale__(factor, mode);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         this.__moved__?.(image.width / this.width, image.height / this.height, 0, 0);
@@ -1481,7 +1482,7 @@ export class Image {
     cropCircle(options: CropCircleOptions = {}): this {
         checkOptions(options, 'cropCircle({ fit: \'cover\' })');
         const { fit = 'contain', feathering = 0 } = options;
-        finite(feathering, 'feathering');
+        unitInterval(feathering, 'feathering');
         oneOf(fit, CIRCLE_FITS, 'fit');
         const radius = (fit === 'cover' ? Math.max : Math.min)(this.width, this.height) / 2;
         const cx = this.width / 2, cy = this.height / 2;
@@ -1653,13 +1654,9 @@ export class Image {
     composite(source: Image, options: CompositeOptions = {}): this {
         checkOptions(options, 'composite(source, { x: 10, y: 20 })');
         if (!(source instanceof Image)) throw new TypeError('composite() takes an Image as its source, like image.composite(logo, { x: 10, y: 20 })');
-        const { opacity = 1, mode = 'normal' } = options;
-        let x = options.x ?? 0, y = options.y ?? 0;
-        x = Math.trunc(finite(x, 'x'));
-        y = Math.trunc(finite(y, 'y'));
-
-        if (isNaN(opacity) || opacity < 0 || opacity > 1)
-            throw new RangeError('Invalid composite opacity');
+        const { opacity = 1, mode = 'normal', x: givenX = 0, y: givenY = 0 } = options;
+        const x = Math.trunc(finite(givenX, 'x')), y = Math.trunc(finite(givenY, 'y'));
+        unitInterval(opacity, 'opacity');
         const blend = BLEND_MODES[oneOf(mode, Object.keys(BLEND_MODES) as BlendMode[], 'blend mode')];
         if (opacity === 0) return this;
         if (this.__gain_map__ || source.__gain_map__) return this.__composite_gain__(source, x, y, opacity, mode);
@@ -1933,8 +1930,7 @@ export class Image {
      * @param radius The blur radius: the gaussian's standard deviation in pixels, like CSS' blur()
      */
     blur(radius: number): this {
-        if (!Number.isFinite(radius) || radius < 0)
-            throw new RangeError('Invalid blur radius');
+        nonNegative(radius, 'blur radius');
         // (the gain map blurred alike, at its resolution)
         const map = this.__gain_map__;
         if (map && radius * map.width / this.width >= 0.5) map.image = map.image.clone().blur(radius * map.width / this.width);
@@ -2228,11 +2224,8 @@ export class Image {
     sharpen(options?: SharpenOptions): this;
     sharpen(options: SharpenOptions = {}): this {
         checkOptions(options, 'sharpen({ amount: 0.5 })');
-        const { amount = 1, radius = 1 } = options;
-        if (!Number.isFinite(amount) || amount < 0)
-            throw new RangeError('Invalid sharpen amount');
-        if (!Number.isFinite(radius) || radius <= 0)
-            throw new RangeError('Invalid sharpen radius');
+        const { amount: givenAmount = 1, radius: givenRadius = 1 } = options;
+        const amount = nonNegative(givenAmount, 'sharpen amount'), radius = positive(givenRadius, 'sharpen radius');
 
         const blurred = premultiply(this.bitmap);
         gaussianBlur(blurred, this.width, this.height, radius);
@@ -2594,8 +2587,8 @@ export class Image {
     roundCorners(options?: RoundCornersOptions): this;
     roundCorners(options: RoundCornersOptions = {}): this {
         checkOptions(options, 'roundCorners({ radius: 10 })');
-        let radius = options.radius ?? Math.min(this.width, this.height) / 4;
-        radius = nonNegative(radius, 'radius');
+        const { radius: givenRadius = Math.min(this.width, this.height) / 4 } = options;
+        let radius = nonNegative(givenRadius, 'radius');
         radius = Math.min(radius, this.width / 2, this.height / 2);
         const size = Math.ceil(radius);
 
@@ -2622,7 +2615,7 @@ export class Image {
     fisheye(options?: FisheyeOptions): this;
     fisheye(options: FisheyeOptions = {}): this {
         checkOptions(options, 'fisheye({ strength: 3 })');
-        const strength = positive(options.strength ?? 2, 'strength');
+        const strength = positive(options.strength === undefined ? 2 : options.strength, 'strength');
         const r = new Image(this.width, this.height);
 
         const w = this.width;
@@ -3106,8 +3099,7 @@ export class Image {
         const { width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign } = options;
         const layout = textLayout({ width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign });
         const axes = textRenderer.axisValues(variations);
-        const size = finite(options.size, 'font size');
-        if (size < 0) throw new RangeError(`Invalid font size: ${size}`);
+        const size = positive(options.size, 'font size');
         if (finite(strokeWidth, 'stroke width') < 0)
             throw new RangeError('Invalid stroke width');
         const fonts = Array.isArray(font) ? font : [font];

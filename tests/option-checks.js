@@ -195,6 +195,28 @@ const rejects = async (name, fn, Type) => {
         await rejects('encodeGIF without frames', () => new Animation([]).encodeGIF(), Error);
     }
 
+    // numbers have to be numbers everywhere: a string, null or a boolean is a TypeError, also as an option's value (null
+    // isn't "not given") and in the setters of a gain map; a number outside of what the argument takes is a RangeError
+    {
+        const {GainMap} = require('..');
+        const gain = () => new GainMap(new Image(2, 2).fill(0x808080ff), {max: 2});
+        const typeErrors = {
+            'scale("2")': () => image.clone().scale('2'), 'scale(true)': () => image.clone().scale(true), 'blur("2")': () => image.clone().blur('2'), 'blur(null)': () => image.clone().blur(null),
+            'composite opacity null': () => image.clone().composite(image, {opacity: null}), 'composite x null': () => image.clone().composite(image, {x: null}),
+            'roundCorners radius null': () => image.clone().roundCorners({radius: null}), 'fisheye strength null': () => image.clone().fisheye({strength: null}),
+            'sharpen amount "1"': () => image.clone().sharpen({amount: '1'}), 'cropCircle feathering "0.5"': () => image.clone().cropCircle({feathering: '0.5'}),
+            'gain map max true': () => { gain().max = true; }, 'gain map min null': () => { gain().min = null; }, 'gain map hdrCapacityMax null': () => new GainMap(new Image(2, 2), {hdrCapacityMax: null}),
+            'encoder frame duration null': () => encoded(Animation.gifEncoder(8, 8), {duration: null}), 'encoder frame xOffset "1"': () => encoded(Animation.gifEncoder(8, 8), {xOffset: '1'})
+        };
+        for (const [name, call] of Object.entries(typeErrors)) await rejects(name, call, TypeError);
+        for (const [name, call] of Object.entries({
+            'cropCircle feathering -1': () => image.clone().cropCircle({feathering: -1}), 'cropCircle feathering 5': () => image.clone().cropCircle({feathering: 5}),
+            'composite opacity 2': () => image.clone().composite(image, {opacity: 2}), 'blur NaN': () => image.clone().blur(NaN), 'sharpen radius 0': () => image.clone().sharpen({radius: 0})
+        })) await rejects(name, call, RangeError);
+        image.clone().cropCircle({feathering: 0});
+        image.clone().cropCircle({feathering: 1});
+    }
+
     // a shadow or outline too large for an image fails with a LimitError, before it allocates
     {
         const {LimitError} = require('..');

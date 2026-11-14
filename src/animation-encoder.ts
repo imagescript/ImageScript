@@ -81,12 +81,12 @@ export class AnimationEncoder {
         const own = frame instanceof Frame ? frame : null;
         const image = own ? own.image : frame;
         if (!(image instanceof Image)) throw new TypeError('encoder.add() takes a Frame or an Image');
-        const duration = finite(options.duration ?? own?.duration ?? 100, 'frame duration');
+        const duration = finite(options.duration === undefined ? own?.duration ?? 100 : options.duration, 'frame duration');
         if (duration < 0) throw new RangeError('Invalid frame duration');
         fitDuration(duration, this.format.name);
         // (offsets are truncated to integers, like a frame's)
-        const x = Math.trunc(finite(options.xOffset ?? own?.xOffset ?? 0, 'x offset')) || 0;
-        const y = Math.trunc(finite(options.yOffset ?? own?.yOffset ?? 0, 'y offset')) || 0;
+        const x = Math.trunc(finite(options.xOffset === undefined ? own?.xOffset ?? 0 : options.xOffset, 'x offset')) || 0;
+        const y = Math.trunc(finite(options.yOffset === undefined ? own?.yOffset ?? 0 : options.yOffset, 'y offset')) || 0;
         const disposal = options.disposalMode !== undefined ? Frame.__convert_disposal_mode__(options.disposalMode) : own ? own.__disposal_id__ : 1;
         const input: InputFrame & { disposal: number } = {
             x, y, width: image.width, height: image.height, duration, disposal,

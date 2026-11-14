@@ -485,6 +485,10 @@ const panic = message => {
         await tooLarge('an outline over the default maxPixels', {strokeWidth: 10000});
         const unlimited = await Image.renderText('hi', {font, size: 16, strokeWidth: 3, maxPixels: Infinity});
         if (unlimited.width !== plain.width + 6) panic('maxPixels: Infinity should lift the limit');
+        // a size of 0 draws nothing (it was a 1x1 image), like a negative one it throws
+        for (const size of [0, -1, NaN]) {
+            if (!await Image.renderText('hi', {font, size}).then(() => false, error => error instanceof RangeError)) panic(`renderText size ${size} should throw a RangeError`);
+        }
         for (const [maxPixels, type] of [[0, RangeError], [-1, RangeError], [NaN, RangeError], ['many', TypeError], ['100', TypeError]]) {
             let error = null;
             try { await Image.renderText('hi', {font, size: 16, maxPixels}); } catch (err) { error = err; }
