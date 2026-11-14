@@ -2910,6 +2910,9 @@ export class Image {
             const { icc, cicp, colorSpace } = decoded;
             (icc ? profileTransform(icc) : cicp ? cicpTransform(...cicp) : colorSpace ? colorSpaceTransform(colorSpace.xy, colorSpace.curve) : null)?.(decoded.pixels);
         }
+        // (a decoder that reads sizes from damaged data can end up with none, or with other pixels than they say)
+        if (!(decoded.width >= 1 && decoded.height >= 1) || decoded.pixels.length !== decoded.width * decoded.height * 4)
+            throw new Error('Image: damaged or truncated image data');
         // the decoded pixels become the bitmap, without a copy
         const image = new Image(decoded.width, decoded.height);
         image.bitmap = alignedPixels(decoded.pixels);

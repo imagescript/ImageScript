@@ -103,6 +103,13 @@ const panic = message => {
         const unknown = await Animation.decode(Buffer.concat([binary.subarray(0, -1), Buffer.from([0x99, 0x3b])]));
         if (unknown.length !== 30) panic(`unknown block: ${unknown.length} frames decoded`);
 
+        // a screen of no pixels is a decoding error, not a RangeError from making an image of it
+        const flat = Buffer.from(binary);
+        flat.writeUInt16LE(0, 8);
+        for (const [name, decode] of [['Animation.decode', () => Animation.decode(flat)], ['Image.decode', () => Image.decode(flat)]]) {
+            if (!await decode().then(() => false, error => error.constructor === Error)) panic(`${name} of a GIF without height should throw an Error`);
+        }
+
         // cut off before the first frame is whole: there is no image, not a blank one
         for (const length of [13, 20, 40]) {
             for (const [name, decode] of [['Animation.decode', () => Animation.decode(binary.subarray(0, length))], ['Image.decode', () => Image.decode(binary.subarray(0, length))]]) {

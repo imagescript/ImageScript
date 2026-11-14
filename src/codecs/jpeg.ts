@@ -173,6 +173,7 @@ export function decode(data: Uint8Array, { transform, maxPixels = MAX_PIXELS }: 
 
             case 0xc0: case 0xc1: case 0xc2: { // SOF baseline, extended, progressive
                 if (frame) throw new Error('JPEG: multiple frames are not supported');
+                if (end - start < 6) throw new Error('JPEG: truncated frame header');
                 if (data[start] !== 8) throw new Error(`JPEG: ${data[start]}-bit precision is not supported`);
                 checkPixels(u16(start + 3), u16(start + 1), maxPixels);
                 frame = createFrame(marker === 0xc2, u16(start + 1), u16(start + 3), data.subarray(start + 5, end));

@@ -105,4 +105,10 @@ const withoutExif = data => {
 			panic(`q${quality}: not better than the previous quality`);
 		previous = {size: encoded.length, psnr};
 	}
+
+	// a frame header cut short is a decoding error of the codec, not a read of missing bytes
+	{
+		const error = await Image.decode(await fs.readFile('./tests/jpegs/damaged-truncated-frame-header.jpg')).then(() => null, e => e);
+		if (!error || error.constructor !== Error) panic(`a truncated frame header should throw an Error, got ${error}`);
+	}
 })();

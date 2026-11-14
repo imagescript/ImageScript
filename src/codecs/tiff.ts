@@ -142,6 +142,7 @@ export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS): Promise<
     const samplesPerPixel = value(TAGS.SamplesPerPixel, 1);
     const bitsPerSample = values(TAGS.BitsPerSample, [1]);
     const bps = bitsPerSample[0];
+    if (typeof bps !== 'number') throw new Error('TIFF: invalid BitsPerSample');
     if (bitsPerSample.some(b => b !== bps)) throw new Error('TIFF: mixed bit depths are not supported');
 
     const compression = value(TAGS.Compression, 1);
