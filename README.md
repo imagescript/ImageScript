@@ -90,6 +90,9 @@ and encoded as GIF, APNG or WebP, all at once or
 [frame by frame](https://imagescript.dev/classes/Animation.html#webpencoder). Lossless encoding keeps every pixel
 exactly; lossy encoding makes smaller files by approximating some image detail.
 
+Not supported (decoding them throws an error): CCITT-compressed TIFF and arithmetic-coded JPEG. Lossless JPEG XL is
+fast but not small: for small lossless files, PNG or WebP are the better choice.
+
 Embedded color profiles are converted to sRGB, the standard color format for most screens, where supported. CMYK and
 lookup-table profiles are left unchanged.
 

@@ -428,7 +428,8 @@ export interface WebPEncodeOptions extends EncodeOptions {
     quality?: number;
     /**
      * Compression effort (0-6): higher values usually take longer but may make smaller files. For lossless images,
-     * `0` prioritizes speed; `2` and above spend more time reducing file size
+     * `0` prioritizes speed; `2` and above spend more time reducing file size (lossless images are encoded the same at
+     * `2` and above)
      * @defaultValue `2`
      */
     effort?: number;
@@ -648,7 +649,7 @@ export interface JXLEncodeOptions extends EncodeOptions {
     quality?: number;
     /**
      * Compression effort (0-2): higher values usually take longer but may make smaller files. `0` prioritizes speed;
-     * `2` spends the most time compressing
+     * `2` spends the most time compressing (lossy images only: lossless images are encoded the same at `1` and `2`)
      * @defaultValue `1`
      */
     effort?: number;
@@ -1113,7 +1114,7 @@ export class Image {
     /**
      * Fills the image data with the supplied color
      * @param color The color, or a function returning the color of each pixel (checked like any color: a result that
-     *     isn't one throws a RangeError)
+     *     isn't a number throws a TypeError, a number that isn't a color a RangeError)
      */
     fill(color: Color | ColorFunction): this {
         const view = new DataView(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
@@ -2403,7 +2404,8 @@ export class Image {
     dominantColor(options: DominantColorOptions = {}): Color {
         checkOptions(options, 'dominantColor({ ignoreBlack: false })');
         const { ignoreBlack = true, ignoreWhite = true, threshold: bwThreshold = 60 } = options;
-        const threshold = Math.min(256, Math.max(0, finite(bwThreshold, 'threshold')));
+        const threshold = finite(bwThreshold, 'threshold');
+        if (threshold < 0 || threshold > 256) throw new RangeError(`threshold has to be between 0 and 256, not ${threshold}`);
         const pixels = this.__bytes__();
 
         const color = quantize.dominantColor(pixels, (r, g, b) =>

@@ -237,6 +237,27 @@ const rejects = async (name, fn, Type) => {
         if (decoded.width !== 65535) panic(`GIF at the largest canvas: width ${decoded.width}`);
     }
 
+    // out-of-range values and wrong types throw (nothing is clamped or ignored)
+    await rejects('dominantColor threshold 300', () => image.dominantColor({threshold: 300}), RangeError);
+    await rejects('dominantColor threshold -1', () => image.dominantColor({threshold: -1}), RangeError);
+    image.dominantColor({threshold: 256});
+    const {GainMap} = require('..');
+    const map = new GainMap(new Image(4, 4).fill(0x808080ff), {max: 2});
+    await rejects('gain map quality 0', () => map.encodeJPEG({quality: 0}), RangeError);
+    for (const metadata of ['hi', 5, true]) await rejects(`encodePNG metadata ${metadata}`, () => image.encodePNG({metadata}), TypeError);
+    await rejects('new AnimationEncoder()', () => new (require('..').AnimationEncoder)(), TypeError);
+
+    // a self composite reads the source before it is written
+    {
+        const base = new Image(40, 30).fill((x, y) => ((x * 7 % 256) << 24 | (y * 13 % 256) << 16 | ((x ^ y) % 256) << 8 | 0xff) >>> 0);
+        for (const options of [{x: 10, y: 10}, {x: 10, y: 0}, {x: 0, y: 10}, {x: 10, y: 10, mode: 'multiply'}, {x: 5, y: 5, opacity: 0.5}]) {
+            const a = base.clone().composite(base.clone(), options);
+            const self = base.clone();
+            self.composite(self, options);
+            if (Buffer.compare(Buffer.from(a.bitmap), Buffer.from(self.bitmap))) panic(`composite onto itself differs from a clone: ${JSON.stringify(options)}`);
+        }
+    }
+
     // valid values keep working
     for (const effort of [0, 1, 2]) await image.encodeAVIF({effort});
     for (const subsampling of ['4:4:4', '4:2:0']) await image.encodeAVIF({quality: 50, subsampling});

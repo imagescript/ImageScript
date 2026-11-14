@@ -379,8 +379,11 @@ export class GainMap {
     encodeJPEG(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodeJPEG(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'gainMap.encodeJPEG({ quality: 80 })');
-        let quality = options?.quality;
-        if (quality !== undefined) quality = Math.max(1, checkQuality(quality));
+        const quality = options?.quality;
+        if (quality !== undefined) {
+            checkQuality(quality);
+            if (quality < 1) throw new RangeError(`quality has to be between 1 and 100, not ${quality}`);
+        }
         return codec.mapWithMetadata(this.__body__(quality), this.__params__());
     }
 

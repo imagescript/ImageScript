@@ -12,6 +12,9 @@ import * as exif from './codecs/exif.ts';
  * | GIF | software, comment (comment extensions) |
  * | TGA | author, comment, creation time, software (extension area) |
  *
+ * The Exif and TGA text fields are ASCII in the file format; other characters are written as UTF-8, which readers
+ * that follow the format show wrongly. PNG text chunks take any text.
+ *
  * Empty fields (and `null` ones) are left out. Without metadata, the files only say which software made them (`software`), so the same
  * image always encodes to the same bytes
  */
@@ -68,6 +71,7 @@ const TEXT_FIELDS = ['title', 'author', 'description', 'copyright', 'software', 
  * @ignore
  */
 export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
+    if (metadata !== null && typeof metadata !== 'object') throw new TypeError(`metadata takes an object, like { title: 'Sunset' }, not ${typeof metadata}`);
     const { creationTime, software } = metadata || {};
     const resolved: ResolvedMetadata = {};
     if (creationTime !== undefined && creationTime !== null) {

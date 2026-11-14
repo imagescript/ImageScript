@@ -707,6 +707,7 @@ export class Animation {
      * const animation = await Animation.decode(gifBytes);
      * const webp = await animation.resize({ width: 320 }).encodeWebP({ quality: 75 });
      * ```
+     * @remarks An AVIF image sequence is decoded as its first frame only
      * @param input The binary data to decode
      * @param options See {@link DecodeOptions}
      * @throws {@link LimitError} if the frames have more than `options.maxPixels` pixels together
