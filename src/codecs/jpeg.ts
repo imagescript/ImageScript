@@ -357,6 +357,9 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         return buffer >>> --bits & 1;
     };
 
+    // corrupt entropy data (an invalid code): with restart markers, the rest of the interval is left empty and the next
+    // marker resyncs the decoder, like libjpeg does; without them, nothing can
+    let broken = false;
     const huffman = (table: HuffmanTable | undefined): number => {
         if (!table) throw new Error('JPEG: missing huffman table');
         if (bits < 16) fill();
@@ -370,7 +373,11 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         let length = 10;
         let code = buffer >>> bits - 10 & 1023;
         while (code > table.maxCode[length]) {
-            if (++length > 16) throw new Error('JPEG: invalid huffman code');
+            if (++length > 16) {
+                if (!restartInterval) throw new Error('JPEG: invalid huffman code');
+                broken = true;
+                return 0;
+            }
             code = buffer >>> bits - length & (1 << length) - 1;
         }
 
@@ -521,9 +528,9 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
                 const column = unit % component.blocksPerLine;
                 if (sequential) {
                     pending = row;
-                    decodeBlock(component, column * 64);
+                    if (!broken) decodeBlock(component, column * 64);
                     if (column === component.blocksPerLine - 1) finish();
-                } else decodeBlock(component, (row * component.blocksPerLineForMcu + column) * 64);
+                } else if (!broken) decodeBlock(component, (row * component.blocksPerLineForMcu + column) * 64);
             } else {
                 const mcuRow = unit / frame.mcusPerLine | 0;
                 const mcuColumn = unit % frame.mcusPerLine;
@@ -534,7 +541,7 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
                         for (let h = 0; h < component.h; h++) {
                             const row = sequential ? v : mcuRow * component.v + v;
                             const column = mcuColumn * component.h + h;
-                            decodeBlock(component, (row * component.blocksPerLineForMcu + column) * 64);
+                            if (!broken) decodeBlock(component, (row * component.blocksPerLineForMcu + column) * 64);
                         }
                 if (sequential && mcuColumn === frame.mcusPerLine - 1) finish();
             }
@@ -543,7 +550,8 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         if (unit >= total) break;
 
         // restart: discard remaining bits and expect an RSTn marker
-        checkComplete();
+        if (!broken) checkComplete();
+        broken = false;
         bits = 0;
         buffer = 0;
         padding = 0;
@@ -565,7 +573,7 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         for (const component of components) component.pred = 0;
     }
 
-    checkComplete();
+    if (!broken) checkComplete();
     finish();
     return pos;
 }

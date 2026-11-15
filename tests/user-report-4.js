@@ -39,4 +39,30 @@ const rejects = async (name, fn, Type) => {
         await rejects('bad checksum on IDAT', () => Image.decode(broken('IDAT')), Error);
         await rejects('bad checksum on IHDR', () => Image.decode(broken('IHDR')), Error);
     }
+
+    // JPEG: corrupt entropy data in a scan with restart markers decodes on from the next marker (like libjpeg), without
+    // markers nothing can resync, so it is an error
+    {
+        const restart = await fs.readFile('./tests/jpegs/restart.jpg');
+        const clean = await Image.decode(restart);
+        const markers = [];
+        for (let i = 0; i < restart.length - 1; i++) if (restart[i] === 0xff && restart[i + 1] >= 0xd0 && restart[i + 1] <= 0xd7) markers.push(i);
+        if (markers.length < 2) panic('restart.jpg should have restart markers');
+        const damaged = Buffer.from(restart), from = markers[0] + 2 + (markers[1] - markers[0] >> 2), count = markers[1] - markers[0] >> 2;
+        for (let i = 0; i < count; i++) damaged[from + i] = i & 1 ? 0 : 0xff;
+        const decoded = await Image.decode(damaged);
+        if (decoded.width !== clean.width || decoded.height !== clean.height) panic('a damaged restart interval changed the size');
+        let same = 0;
+        for (let i = 0; i < clean.bitmap.length; i += 4)
+            if (clean.bitmap[i] === decoded.bitmap[i] && clean.bitmap[i + 1] === decoded.bitmap[i + 1] && clean.bitmap[i + 2] === decoded.bitmap[i + 2]) same++;
+        if (same < clean.width * clean.height * 0.7) panic(`a damaged restart interval should leave the other intervals intact: ${same} of ${clean.width * clean.height} pixels unchanged`);
+
+        const plain = (await Promise.all((await fs.readdir('./tests/jpegs')).filter(name => name.endsWith('.jpg')).map(name => fs.readFile(`./tests/jpegs/${name}`))))
+            .find(data => data.indexOf(Buffer.from([0xff, 0xdd])) < 0 && data.indexOf(Buffer.from([0xff, 0xda])) > 0 && data.length > data.indexOf(Buffer.from([0xff, 0xda])) + 400);
+        if (!plain) panic('no JPEG fixture without restart markers');
+        const scan = plain.indexOf(Buffer.from([0xff, 0xda])) + 2 + plain.readUInt16BE(plain.indexOf(Buffer.from([0xff, 0xda])) + 2);
+        const damagedPlain = Buffer.from(plain);
+        for (let i = 0; i < 60; i++) damagedPlain[scan + 150 + i] = i & 1 ? 0 : 0xff;
+        await rejects('corrupt scan data without restart markers', () => Image.decode(damagedPlain), Error);
+    }
 })();
