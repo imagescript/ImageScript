@@ -226,11 +226,13 @@ Several values that 3.x quietly changed into something else now throw, naming th
 | `frame.xOffset`, `frame.yOffset` (and encoder `add()` offsets) | stored as given, fractions included (`0.4`) | truncated to integers when set, like image sizes, so the offset you read is the one that is encoded |
 | `image.bitmap = view` with a view that doesn't start at a multiple of 4 bytes | copied, so changes to the view no longer reached the image | a `TypeError`: pass an aligned view, or `view.slice()` for a copy |
 | A number given as a string (`'0.5'`), `null` or a boolean where a number goes (`opacity('0.5')`, `quality: '50'`, `frame.duration = '40'`, `maxPixels: '100'`, `Colors.gradient()`'s positions) | converted by some methods (`'0.5'` was `0.5`, `null` was `0`), rejected by others | a `TypeError` naming the value, by all of them |
+| A string where a boolean goes (`optimize: 'yes'`, `applyOrientation: 'no'`, `sharpYuv`, `hinting`, ...) | read as `true` (also `'no'` and `'false'`) | a `TypeError`: `true` or `false` only |
 | `roundCorners({ radius })` below 0 | clamped to 0 | a `RangeError` |
 | `fisheye({ strength })` of 0 or less | an empty image | a `RangeError` |
 | `Colors.gradient()` at a `NaN` position | transparent black with two stops, a `RangeError` with more | a `RangeError` with any number of stops |
 | `encodeGIF()` of an animation without frames | a GIF that doesn't decode | an `Error`, like `encodeAPNG()` and `encodeWebP()` |
 | `quality` of `encodeJPEG()` | clamped to 1-100 | a number from 0 to 100 (0 is 1), else a `RangeError`, like the other lossy formats |
+| JPEG and lossy WebP data that is cut off (a scan that ends before its last block, a WebP chunk shorter than its size) | decoded without an error, as a gray or smeared image | an `Error`, like the other formats. A JPEG that only lacks its end marker still decodes |
 | The source of `composite()` when it isn't an `Image` | a `TypeError` from inside (`Cannot read properties of undefined`) or nothing | a `TypeError` naming the call |
 
 A value outside a fixed set of choices is a `TypeError` naming them all, like `resize mode must be 'nearest-neighbor',
@@ -658,4 +660,4 @@ search can't tell an animation from an array, so check the type of each receiver
 Then compile with `tsc`, and run the tests that cover your decode and encode paths. The seventeen behavior changes need
 runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every resize fit mode, every HSL hue,
 every `rotate()`, every `dominantColor()` threshold, all text rendered with a size, every JPEG made from an image with transparency, every `quantize()`, the size changes of frames, the
-values that now throw, gradients with transparent stops, gain maps given to images, anything that reads the metadata of encoded files, and every SVG with images.
+values that now throw (cut-off uploads among them), gradients with transparent stops, gain maps given to images, anything that reads the metadata of encoded files, and every SVG with images.
