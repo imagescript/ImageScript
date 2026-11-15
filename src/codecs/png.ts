@@ -537,8 +537,13 @@ function parse(array: Uint8Array): Parsed {
 
         const chunk = array.subarray(start, end);
 
-        if (end + 4 <= array.length && crc32(array.subarray(offset + 4, end)) !== view.getUint32(end))
-            throw new Error('PNG: chunk checksum mismatch');
+        if (end + 4 <= array.length && crc32(array.subarray(offset + 4, end)) !== view.getUint32(end)) {
+            // a damaged chunk: the image's own (the critical ones and the animation's) are an error, color and text
+            // metadata is skipped, like libpng and browsers do
+            if (!(type & 0x20000000) || type === acTL || type === fcTL || type === fdAT) throw new Error('PNG: chunk checksum mismatch');
+            offset = end + 4;
+            continue;
+        }
 
         if (type === IHDR) {
             if (length < 13) throw new Error('PNG: invalid IHDR');
