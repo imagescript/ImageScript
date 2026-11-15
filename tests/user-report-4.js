@@ -131,4 +131,14 @@ const rejects = async (name, fn, Type) => {
         }
         for (const message of messages) if (/\[object|Cannot read|not of type|undefined/.test(message)) panic(`raw message: ${message}`);
     }
+
+    // options can't be arrays, metadata can't be null or an array
+    {
+        await rejects('encodePNG array options', () => image.encodePNG([1]), TypeError);
+        await rejects('decode array options', async () => Image.decode(await image.encodePNG(), [1]), TypeError);
+        await rejects('resize array options', () => image.clone().resize(4, 4, []), TypeError);
+        await rejects('metadata null', () => image.encodePNG({metadata: null}), TypeError);
+        await rejects('metadata array', () => image.encodeJPEG({metadata: ['Sunset']}), TypeError);
+        if ((await image.encodePNG({metadata: {}})).length < 50) panic('metadata {}');
+    }
 })();

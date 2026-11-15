@@ -71,8 +71,9 @@ const TEXT_FIELDS = ['title', 'author', 'description', 'copyright', 'software', 
  * @ignore
  */
 export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
-    if (metadata !== null && typeof metadata !== 'object') throw new TypeError(`metadata takes an object, like { title: 'Sunset' }, not ${typeof metadata}`);
-    const { creationTime, software } = metadata || {};
+    if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata))
+        throw new TypeError(`metadata takes an object, like { title: 'Sunset' }, not ${metadata === null ? 'null' : Array.isArray(metadata) ? 'an array' : typeof metadata}`);
+    const { creationTime, software } = metadata;
     const resolved: ResolvedMetadata = {};
     if (creationTime !== undefined && creationTime !== null) {
         const time = new Date(creationTime);
@@ -80,7 +81,7 @@ export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
         resolved.creationTime = time;
     }
     for (const key of TEXT_FIELDS) {
-        const value = key === 'software' && software === undefined ? 'ImageScript' : metadata?.[key];
+        const value = key === 'software' && software === undefined ? 'ImageScript' : metadata[key];
         if (value === undefined || value === null || value === '') continue;
         if (typeof value !== 'string') throw new TypeError(`metadata ${key} must be a string, not ${typeof value}`);
         resolved[key] = value;
