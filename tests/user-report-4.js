@@ -73,4 +73,24 @@ const rejects = async (name, fn, Type) => {
         const half = await Image.decode(await new Image(3, 2).fill(0xff000080).encodeBMP());
         if (half.bitmap[3] !== 0x80) panic('BMP alpha lost');
     }
+
+    // a right-to-left line with a space at its wrap point (which sits at its visual left) is placed by its ink
+    {
+        const font = await fs.readFile('./tests/fonts/noto naskh arabic subset.ttf');
+        const inkLeft = image => {
+            let left = image.width;
+            for (const [x, , color] of image.pixels()) if (color & 0xff) left = Math.min(left, x);
+            return left;
+        };
+        const word = await Image.renderText('مرحبا', {font, size: 28, width: 120, horizontalAlign: 'left'});
+        const spaced = await Image.renderText('مرحبا ', {font, size: 28, width: 120, horizontalAlign: 'left'});
+        if (inkLeft(spaced) !== inkLeft(word)) panic(`a trailing space moved a left-aligned right-to-left line: ${inkLeft(spaced)} instead of ${inkLeft(word)}`);
+        const wrapped = await Image.renderText('مرحبا بالعالم', {font, size: 28, width: 90, horizontalAlign: 'left'});
+        if (inkLeft(wrapped.extract(0, 0, 90, 36)) > 3) panic('the first line of a wrapped right-to-left paragraph should be flush left');
+        const centered = await Image.renderText('مرحبا ', {font, size: 28, width: 120, horizontalAlign: 'center'});
+        const centeredWord = await Image.renderText('مرحبا', {font, size: 28, width: 120, horizontalAlign: 'center'});
+        if (Math.abs(inkLeft(centered) - inkLeft(centeredWord)) > 1) panic('a trailing space moved a centered right-to-left line');
+        const right = await Image.renderText('مرحبا ', {font, size: 28, width: 120});
+        if (right.width !== 120 || inkLeft(right) < 40) panic('right alignment changed');
+    }
 })();

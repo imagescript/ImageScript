@@ -90,6 +90,8 @@ interface Line {
     glyphs: PlacedGlyph[];
     /** the right edge of the ink */
     extent: number;
+    /** the left edge of the ink of a right-to-left line (a space at a wrap point sits there, before the ink), else 0 */
+    start: number;
     /** whether the line's paragraph runs right to left (its start is on the right) */
     rtl: boolean;
 }
@@ -256,7 +258,7 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
 
     for (const [n, line] of visible.entries()) {
         const align = layout.horizontalAlign ?? (line.rtl ? 'right' : 'left');
-        let offset = align === 'right' ? width - line.extent : align === 'center' ? (width - line.extent) / 2 : 0;
+        let offset = align === 'right' ? width - line.extent : align === 'center' ? (width - line.extent - line.start) / 2 : -line.start;
         if (primary.hinter) offset = Math.round(offset);
         const baseline = top + ascent + n * lineHeight;
 
@@ -429,7 +431,7 @@ const isSpace = (codepoint: number): boolean => codepoint === 0x20 || codepoint 
 function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => SizedFont, size: number, features: Features): Line[] {
     const n = p.codepoints.length;
     const rtl = (p.bidi.level & 1) === 1;
-    if (!n) return [{ glyphs: [], extent: 0, rtl }];
+    if (!n) return [{ glyphs: [], extent: 0, start: 0, rtl }];
 
     // the width of each character's cluster in the paragraph shaped as one line (characters within a cluster have
     // none, and lines can't break inside clusters)
@@ -482,9 +484,12 @@ function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => Size
         const shifted = new Int8Array(n);
         shifted.set(levels, start);
         const { glyphs } = ranges.length === 1 ? whole : shapeRange(p, start, end, shifted, font, size, features);
-        let extent = 0;
-        for (const { x, dx, glyph } of glyphs) if (glyph.ink) extent = Math.max(extent, x + dx + glyph.ink.right);
-        return { glyphs, extent, rtl };
+        let extent = 0, left = Infinity;
+        for (const { x, dx, glyph } of glyphs) if (glyph.ink) {
+            extent = Math.max(extent, x + dx + glyph.ink.right);
+            left = Math.min(left, x + dx + glyph.ink.left);
+        }
+        return { glyphs, extent, start: rtl && left < Infinity ? Math.max(0, left) : 0, rtl };
     });
 }
 
