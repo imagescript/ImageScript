@@ -93,4 +93,13 @@ const rejects = async (name, fn, Type) => {
         const right = await Image.renderText('مرحبا ', {font, size: 28, width: 120});
         if (right.width !== 120 || inkLeft(right) < 40) panic('right alignment changed');
     }
+
+    // renderSVG() refuses null sizes (a null width gave a 1x1 image, a null scale was ignored)
+    {
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" width="50"/>';
+        await rejects('renderSVG width null', () => Image.renderSVG(svg, {width: null}), TypeError);
+        await rejects('renderSVG height null', () => Image.renderSVG(svg, {height: null}), TypeError);
+        await rejects('renderSVG scale null', () => Image.renderSVG(svg, {scale: null}), TypeError);
+        if ((await Image.renderSVG(svg, {width: 100})).height !== 60) panic('renderSVG width');
+    }
 })();

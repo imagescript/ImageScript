@@ -3058,7 +3058,7 @@ export class Image {
         const sizes = [givenWidth, givenHeight, scale].filter(value => value !== undefined).length;
         if (sizes > 1) throw new TypeError('renderSVG() takes one of width, height and scale');
         const mode = givenWidth !== undefined ? 'width' : givenHeight !== undefined ? 'height' : 'scale';
-        const size = finite(givenWidth ?? givenHeight ?? scale ?? 1, `SVG ${mode}`);
+        const size = finite(mode === 'width' ? givenWidth as number : mode === 'height' ? givenHeight as number : scale === undefined ? 1 : scale, `SVG ${mode}`);
         if (mode === 'scale' && size <= 0)
             // eslint-disable-next-line no-restricted-syntax -- the SVG size is only checked here
             throw new RangeError('SVG scale must be > 0');
