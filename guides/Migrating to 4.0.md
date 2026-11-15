@@ -84,6 +84,12 @@ into a new array, so later changes to `list` don't reach the animation.
 Search your code for: `Array.isArray`, `.slice(`, `.map(`, `.filter(`, `.forEach(`, `.reduce(`, `.push(`, `.splice(`, `.length =`
 and `[0]` on variables that hold an animation.
 
+### `JSON.stringify()` and `console.log()` show the size
+
+`JSON.stringify(image)` gives `{"width":64,"height":48}` (a `Frame` adds its duration, an `Animation` its duration and
+frame count) and `console.log(image)` prints `Image<64x48>`, where 3.x serialized the internal fields, every pixel
+included. Use `image.bitmap` for the pixels.
+
 ### Loop counts
 
 In 3.x, `-1` meant "forever", and decoded animations reported `-1`. In 4.0, `Infinity` is forever, it is the default,
@@ -421,7 +427,8 @@ Do it per pixel: read the color with `Colors.toHSLA()`, set the lightness or sat
 | `AnimationEncoder.frames` | `AnimationEncoder.frameCount` |
 | `toString()` of a GIF, `GIF<64x64x1000ms>` | `Animation<64x64x1000ms>` |
 
-The option types of the animation encoders are renamed, and each one takes `loopCount` through `AnimationOptions`:
+The option types of the streaming animation encoders are renamed, and each one takes `loopCount` through
+`AnimationOptions` (`encodeGIF()`, `encodeAPNG()` and `encodeWebP()` use the animation's own `loopCount`):
 
 | 3.x | 4.0 |
 | --- | --- |

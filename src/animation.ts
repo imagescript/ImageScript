@@ -531,7 +531,8 @@ export class Animation {
      * before and merges identical frames (unless the `optimize` option is false), so the file decodes to what the
      * animation shows, but not necessarily to the same frames. Semi-transparent pixels become opaque or transparent
      * after the frames are composited
-     * @param options See {@link GIFAnimationEncodeOptions}
+     * @param options See {@link GIFAnimationEncodeOptions}; the loop count is the animation's {@link loopCount} (the
+     *     streaming {@link gifEncoder} takes it as an option)
      * @throws `Error` if the animation has no frames
      * @throws `RangeError` if the loop count or a frame's duration is more than GIF stores, or the canvas is wider or
      * higher than 65535 pixels
@@ -566,7 +567,8 @@ export class Animation {
      * the first frame. Each frame is stored as the area that changed since the frame before, identical frames are
      * merged (unless the `optimize` option is false): the file shows exactly the same animation, but doesn't
      * necessarily decode to the same frames
-     * @param options See {@link APNGEncodeOptions}
+     * @param options See {@link APNGEncodeOptions}; the loop count is the animation's {@link loopCount} (the streaming
+     *     {@link apngEncoder} takes it as an option)
      * @throws `Error` if the animation has no frames
      * @throws `RangeError` if the loop count or a frame's duration is more than APNG stores
      */
@@ -588,7 +590,8 @@ export class Animation {
      * Encodes the animation as animated WebP, lossless or (with a quality) lossy. Each frame is stored as the area that
      * changed since the frame before, identical frames are merged (unless the `optimize` option is false): the file
      * shows the same animation, but doesn't necessarily decode to the same frames
-     * @param options See {@link WebPAnimationEncodeOptions}
+     * @param options See {@link WebPAnimationEncodeOptions}; the loop count is the animation's {@link loopCount} (the
+     *     streaming {@link webpEncoder} takes it as an option)
      * @throws `Error` if the animation has no frames
      * @throws `RangeError` if the loop count or a frame's duration is more than WebP stores
      */

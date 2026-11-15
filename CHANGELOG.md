@@ -128,7 +128,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### Performance
 
-- Lossy JPEG XL encoding starts no worker threads below 1.5 megapixels on machines with fewer than 4 threads (a 2-core container or VPS, `threads: 2`): there the threads took 1.3-1.7x as long as one on images from 0.5 to 1 megapixel. With 4 threads or more, nothing changes (threads win from 0.5 megapixels).
+- Lossy JPEG XL encoding starts no worker threads below 1.5 megapixels when fewer than 4 threads are used (a machine with 2 or 3, or `threads: 2`): there the threads took 1.3-1.7x as long as one on images from 0.5 to 1 megapixel. With 4 threads or more, nothing changes (threads win from 0.5 megapixels).
 
 ### Fixes
 
@@ -154,7 +154,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `encodeBMP()` of a fully transparent image decodes to transparent pixels again: the decoder took an alpha channel that is zero everywhere for an unused one, which is right for the implicit alpha of 32-bit icons, not for the alpha mask the file declares.
 - A wrapped right-to-left paragraph with `horizontalAlign: 'left'` or `'center'` places its lines by their ink: the space at a wrap point sits at the visual left of a right-to-left line, which pushed the lines right by its width.
 - `renderSVG(svg, { width: null })` and `{ scale: null }` throw a `TypeError` (the width gave a 1x1 image, the scale was ignored).
-- `encodeJPEG()` writes an image whose pixels are all gray as a grayscale JPEG (one component, like `cjpeg -grayscale`), about a third smaller; it was written with three components.
+- `encodeJPEG()` writes an image whose pixels are all gray as a grayscale JPEG (one component, like `cjpeg -grayscale`), a few percent smaller and quicker for readers; it was written with three components.
 - `renderSVG()` of an SVG with a `viewBox` and only one of `width` and `height` sizes the other side by the viewBox's aspect ratio, like browsers (`<svg viewBox="0 0 100 60" width="50">` is 50x30; it was 50x60 with the content letterboxed).
 - Right-to-left text (Arabic, Hebrew, ...) is aligned to the right by default (the start of its direction, like CSS' `text-align: start`), left-to-right text to the left, each paragraph by its own direction; `horizontalAlign` overrides it. A wrapped right-to-left paragraph was ragged on the right.
 - `Animation.resize()` resizes frames that share one `Image` at different offsets to the size their edges give (they got the first one's width, so a frame could reach past the canvas), and throws for a width or height below one pixel instead of returning 1x1.
