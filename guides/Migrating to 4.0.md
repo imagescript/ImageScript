@@ -1,7 +1,7 @@
 # Migrating to 4.0
 
-ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes sixteen behaviors. Most of the
-removals are mechanical: the compiler points at them. The sixteen behavior changes are not deprecations, nothing warns
+ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes seventeen behaviors. Most of the
+removals are mechanical: the compiler points at them. The seventeen behavior changes are not deprecations, nothing warns
 about them, and code keeps compiling while it does something else. Read the first section even if your build is clean.
 
 Node.js 22.13 or newer is required, as it was for 3.x (`engines` in `package.json`).
@@ -13,7 +13,7 @@ The recommended path:
    problems list, or a lint rule for deprecated APIs (typescript-eslint has `no-deprecated`), to get the full list.
 2. Fix every deprecation hint, using the tables below.
 3. Switch to 4.0, fix what the compiler reports with the [renamed and reshaped APIs](#renamed-and-reshaped-apis), and go
-   through the sixteen behavior changes. The [checklist](#checklist) at the end has grep patterns
+   through the seventeen behavior changes. The [checklist](#checklist) at the end has grep patterns
    for finding the code they affect.
 
 ## Behavior changes
@@ -655,7 +655,7 @@ grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
 Also search for the variables that hold animations, and for `[0]`, `.map(`, `.filter(` and `.forEach(` on them: the
 search can't tell an animation from an array, so check the type of each receiver.
 
-Then compile with `tsc`, and run the tests that cover your decode and encode paths. The sixteen behavior changes need
+Then compile with `tsc`, and run the tests that cover your decode and encode paths. The seventeen behavior changes need
 runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every resize fit mode, every HSL hue,
 every `rotate()`, every `dominantColor()` threshold, all text rendered with a size, every JPEG made from an image with transparency, every `quantize()`, the size changes of frames, the
 values that now throw, gradients with transparent stops, gain maps given to images, anything that reads the metadata of encoded files, and every SVG with images.
