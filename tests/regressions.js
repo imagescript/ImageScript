@@ -1015,9 +1015,12 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             if (!await Promise.resolve().then(() => call(NaN)).then(() => false, e => e instanceof RangeError)) panic(`renderText: a NaN ${name} should throw a RangeError`);
         // (no size is a valid layout; an infinite one, 0 and one the outline fills aren't)
         await Image.renderText('a', { font, size: 12, width: undefined, height: undefined });
-        for (const side of ['width', 'height'])
-            for (const value of [Infinity, 0, -5, '20'])
+        for (const side of ['width', 'height']) {
+            for (const value of [Infinity, 0, -5])
                 if (!await Image.renderText('a', { font, size: 12, [side]: value }).then(() => false, e => e instanceof RangeError)) panic(`renderText: ${side} ${String(value)} should throw a RangeError`);
+            // (a numeric string is the wrong type, like everywhere else)
+            if (!await Image.renderText('a', { font, size: 12, [side]: '20' }).then(() => false, e => e instanceof TypeError)) panic(`renderText: ${side} '20' should throw a TypeError`);
+        }
         if (!await Image.renderText('a', { font, size: 12, width: 6, strokeWidth: 3 }).then(() => false, e => e instanceof RangeError)) panic('renderText: a width the outline fills should throw');
 
         for (const [name, call] of Object.entries({crop: () => image().crop('1', 1, 4, 4), rotate: () => image().rotate('45'), opacity: () => image().opacity('0.5'),

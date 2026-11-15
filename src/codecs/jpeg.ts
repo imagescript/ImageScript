@@ -549,8 +549,9 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
 
         if (unit >= total) break;
 
-        // restart: discard remaining bits and expect an RSTn marker
-        if (!broken) checkComplete();
+        // restart: discard remaining bits and expect an RSTn marker. An interval whose data ran out early (the zeros fed
+        // at the marker were read) is damage like a bad code when a marker follows, a cut-off scan when none does
+        const short = !broken && padding * 8 > bits;
         broken = false;
         bits = 0;
         buffer = 0;
@@ -558,6 +559,7 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         while (pos + 1 < data.length && !(data[pos] === 0xff && data[pos + 1] >= 0xd0 && data[pos + 1] <= 0xd7)) {
             // a different marker means the scan ended early
             if (data[pos] === 0xff && data[pos + 1] !== 0x00 && data[pos + 1] !== 0xff) {
+                if (short) throw new Error('JPEG: the scan data is truncated');
                 finish();
                 return pos;
             }
@@ -565,6 +567,7 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         }
 
         if (pos + 1 >= data.length) {
+            if (short) throw new Error('JPEG: the scan data is truncated');
             finish();
             return pos;
         }

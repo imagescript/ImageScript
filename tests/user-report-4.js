@@ -56,6 +56,11 @@ const rejects = async (name, fn, Type) => {
         for (let i = 0; i < clean.bitmap.length; i += 4)
             if (clean.bitmap[i] === decoded.bitmap[i] && clean.bitmap[i + 1] === decoded.bitmap[i + 1] && clean.bitmap[i + 2] === decoded.bitmap[i + 2]) same++;
         if (same < clean.width * clean.height * 0.7) panic(`a damaged restart interval should leave the other intervals intact: ${same} of ${clean.width * clean.height} pixels unchanged`);
+        // an interval whose data is cut short (the decoder reads into the next marker) is damage too, not a cut-off file
+        const shortened = Buffer.concat([restart.subarray(0, markers[0] + 40), restart.subarray(markers[1] - 10)]);
+        if ((await Image.decode(shortened)).width !== clean.width) panic('a shortened restart interval changed the size');
+        const cut = Buffer.concat([restart.subarray(0, markers[1] + 40), Buffer.from([0xff, 0xd9])]);
+        await rejects('a scan cut off after a restart marker', () => Image.decode(cut), Error);
 
         const plain = (await Promise.all((await fs.readdir('./tests/jpegs')).filter(name => name.endsWith('.jpg')).map(name => fs.readFile(`./tests/jpegs/${name}`))))
             .find(data => data.indexOf(Buffer.from([0xff, 0xdd])) < 0 && data.indexOf(Buffer.from([0xff, 0xda])) > 0 && data.length > data.indexOf(Buffer.from([0xff, 0xda])) + 400);
