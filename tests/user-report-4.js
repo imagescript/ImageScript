@@ -65,4 +65,12 @@ const rejects = async (name, fn, Type) => {
         for (let i = 0; i < 60; i++) damagedPlain[scan + 150 + i] = i & 1 ? 0 : 0xff;
         await rejects('corrupt scan data without restart markers', () => Image.decode(damagedPlain), Error);
     }
+
+    // a fully transparent image round-trips through BMP: the file declares its alpha mask, so its zeros are alpha
+    {
+        const back = await Image.decode(await new Image(3, 2).encodeBMP());
+        if (back.bitmap[3] !== 0) panic('a fully transparent BMP decoded as opaque');
+        const half = await Image.decode(await new Image(3, 2).fill(0xff000080).encodeBMP());
+        if (half.bitmap[3] !== 0x80) panic('BMP alpha lost');
+    }
 })();

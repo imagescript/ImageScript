@@ -201,8 +201,10 @@ export function decodeDIB(d: Uint8Array, o: number, pixelOffset: number | null, 
                     : (a << 24 | sample(cb, v) << 16 | sample(cg, v) << 8 | sample(cr, v)) >>> 0;
             }
         }
-        // an alpha channel that is zero everywhere is unused (writers that don't know about it leave it zero)
-        if (ca.max && !alphaSeen) for (let i = 0; i < out.length; i++) out[i] |= 0xff000000;
+        // an alpha channel that is zero everywhere is unused when the header doesn't declare it (writers that don't know
+        // about it leave it zero: the implicit alpha of 32-bit icons); a declared mask (bit fields, as encode() writes) is
+        // what it says
+        if (ca.max && !alphaSeen && !info.masks) for (let i = 0; i < out.length; i++) out[i] |= 0xff000000;
         if (ico && bits === 32 && alphaSeen) return { width, height, pixels };
     }
 
