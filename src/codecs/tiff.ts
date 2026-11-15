@@ -156,7 +156,7 @@ export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS): Promise<
     if (COMPRESSION_NAMES[compression]) throw new Error(`TIFF: ${COMPRESSION_NAMES[compression]} compression is not supported`);
     if (![1, 5, 7, 8, 32773, 32946].includes(compression)) throw new Error(`TIFF: compression ${compression} is not supported`);
     if (![0, 1, 2, 3, 5, 6].includes(photometric)) throw new Error(`TIFF: photometric interpretation ${photometric} is not supported`);
-    if (sampleFormat === 3 ? bps !== 32 && bps !== 64 : bps < 1 || bps > 32) throw new Error(`TIFF: ${bps}-bit samples are not supported`);
+    if (sampleFormat === 3 ? bps !== 32 && bps !== 64 : bps < 1 || bps > 32) throw new Error(`TIFF: ${bps}-bit ${sampleFormat === 3 ? 'floating-point ' : ''}samples are not supported`);
 
     const colorChannels = ({ 0: 1, 1: 1, 2: 3, 3: 1, 5: 4, 6: 3 } as Record<number, number>)[photometric];
     if (samplesPerPixel < colorChannels) throw new Error('TIFF: not enough samples per pixel');
