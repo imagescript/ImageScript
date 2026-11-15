@@ -235,6 +235,8 @@ export class AnimationEncoder {
 }
 
 function canvas(width: number, height: number, format: 'GIF' | 'APNG' | 'WebP'): void {
+    finite(width, 'width');
+    finite(height, 'height');
     if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`Invalid canvas size: ${width}x${height}`);
     // (the GIF header stores the size in 16 bits, WebP in 24; larger ones would wrap)
     if (format === 'GIF' && (width > 0xffff || height > 0xffff)) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${width}x${height}`);

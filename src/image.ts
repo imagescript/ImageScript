@@ -1015,7 +1015,7 @@ export class Image {
      */
     static linearGradient(width: number, height: number, options: LinearGradientOptions): Image {
         checkOptions(options, 'Image.linearGradient(100, 50, { stops, angle: 90 })');
-        if (options === undefined) throw new TypeError('Image.linearGradient(width, height, options) needs the stops in the options');
+        if (options === undefined || options.stops === undefined) throw new TypeError('Image.linearGradient(width, height, { stops }) needs the stops in the options');
         const { stops, angle = 180 } = options;
         const color = gradientFunction(stops);
         finite(angle, 'angle');
@@ -1045,7 +1045,7 @@ export class Image {
         const image = new Image(width, height);
         // (sizes with a fraction are truncated by the image: the pixels are written to that size)
         ({ width, height } = image);
-        if (options === undefined) throw new TypeError('Image.radialGradient(width, height, options) needs the stops in the options');
+        if (options === undefined || options.stops === undefined) throw new TypeError('Image.radialGradient(width, height, { stops }) needs the stops in the options');
         const { stops, x: cx = width / 2, y: cy = height / 2, radius = Math.hypot(Math.max(cx, width - cx), Math.max(cy, height - cy)) } = options;
         const color = gradientFunction(stops);
         finite(cx, 'x');
@@ -2030,7 +2030,7 @@ export class Image {
         if (matrix.length !== 9 && matrix.length !== 20) throw new RangeError('A color matrix has 9 or 20 values');
         const m = new Float64Array(20);
         // (numbers only: a string is a mistake in data like this)
-        const value = (v: unknown): number => finite(typeof v === 'number' ? v : NaN, 'color matrix value');
+        const value = (v: unknown): number => finite(v as number, 'color matrix value');
         if (matrix.length === 20) for (let i = 0; i < 20; i++) m[i] = value(matrix[i]);
         else for (let row = 0; row < 3; row++) for (let column = 0; column < 3; column++) m[row * 5 + column] = value(matrix[row * 3 + column]);
         // (nine values leave the alpha as it is)
@@ -2074,8 +2074,9 @@ export class Image {
         if (matrix === null || typeof matrix !== 'object') throw new TypeError(`transform() takes an array of 6 values, like transform([1, 0, 0, 1, 0, 0]), not ${matrix === null ? 'null' : typeof matrix}`);
         if (matrix.length !== 6) throw new RangeError('A transform has 6 values: [a, b, c, d, e, f]');
         // (numbers only: a string is a mistake in data like this)
-        const values = Array.from({ length: 6 }, (_, i) => finite(typeof matrix[i] === 'number' ? matrix[i] : NaN, 'transform value'));
+        const values = Array.from({ length: 6 }, (_, i) => finite(matrix[i], 'transform value'));
         const { origin = {}, expand = true, mode = 'bilinear' } = options;
+        if (typeof origin !== 'object' || origin === null) throw new TypeError(`transform() takes an origin object like { x: 10, y: 20 }, not ${origin === null ? 'null' : typeof origin}`);
         oneOf(mode, TRANSFORM_MODES, 'transform mode');
         boolean(expand, 'expand');
         const { x: pivotX = this.width / 2, y: pivotY = this.height / 2 } = origin;

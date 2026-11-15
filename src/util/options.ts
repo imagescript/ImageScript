@@ -1,3 +1,13 @@
+/** How a wrong value is named in an error: 'null', 'an array', 'an object', a quoted string, or its type */
+export function shown(value: unknown): string {
+    if (value === null) return 'null';
+    if (Array.isArray(value)) return 'an array';
+    if (typeof value === 'string') return `'${value}'`;
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'object') return 'an object';
+    return typeof value;
+}
+
 /** Whether an argument is an options object rather than a positional value */
 export function isOptions<T>(value: T): value is Extract<T, object> {
     return typeof value === 'object' && value !== null && !ArrayBuffer.isView(value);
@@ -8,7 +18,7 @@ export function isOptions<T>(value: T): value is Extract<T, object> {
  * being ignored silently, naming the form that works (`usage`, e.g. `cropCircle({ fit: 'cover' })`)
  */
 export function checkOptions(value: unknown, usage: string): void {
-    if (value !== undefined && !isOptions(value)) throw new TypeError(`${usage.split('(')[0]}() takes an options object, like ${usage}, not ${value === null ? 'null' : typeof value}`);
+    if (value !== undefined && !isOptions(value)) throw new TypeError(`${usage.split('(')[0]}() takes an options object, like ${usage}, not ${shown(value)}`);
 }
 
 /**
@@ -19,20 +29,20 @@ export function oneOf<T extends string>(value: unknown, allowed: readonly T[], n
     if (typeof value !== 'string' || !allowed.includes(value as T)) {
         const list = allowed.map(a => `'${a}'`);
         const expected = list.length > 1 ? `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}` : list[0];
-        throw new TypeError(`${name} must be ${expected}, not ${typeof value === 'string' ? `'${value}'` : String(value)}`);
+        throw new TypeError(`${name} must be ${expected}, not ${shown(value)}`);
     }
     return value as T;
 }
 
 /** A boolean option (`optimize`, `hinting`, ...): anything else, strings like `'yes'` included, throws a TypeError */
 export function boolean(value: unknown, name: string): boolean {
-    if (typeof value !== 'boolean') throw new TypeError(`${name} must be true or false, not ${value === null ? 'null' : typeof value === 'string' ? `'${value}'` : typeof value}`);
+    if (typeof value !== 'boolean') throw new TypeError(`${name} must be true or false, not ${shown(value)}`);
     return value;
 }
 
 /** Throws a TypeError naming the argument unless it is a number (NaN and the infinities are numbers) */
 export function checkNumber(value: unknown, name: string): void {
-    if (typeof value !== 'number') throw new TypeError(`${name} must be a number, not ${value === null ? 'null' : typeof value}`);
+    if (typeof value !== 'number') throw new TypeError(`${name} must be a number, not ${shown(value)}`);
 }
 
 /**
@@ -50,7 +60,7 @@ export function finite(value: number, name: string): number {
  * a number throws a RangeError, anything that isn't one a TypeError
  */
 export function loopCount(value: unknown, name = 'loop count'): number {
-    if (typeof value !== 'number') throw new TypeError(`${name} must be a number (Infinity or an integer from 0), not ${value === null ? 'null' : typeof value}`);
+    if (typeof value !== 'number') throw new TypeError(`${name} must be a number (Infinity or an integer from 0), not ${shown(value)}`);
     if (value !== Infinity && (!Number.isInteger(value) || value < 0))
         throw new RangeError(`${name} must be Infinity or an integer from 0, not ${value}`);
     return value;
@@ -139,7 +149,7 @@ export function pixelLimit(value: number, name = 'maxPixels'): number {
 export function gainMapEmbed(value: unknown): { quality?: number, scale?: number } | null {
     if (value === false) return null;
     if (value === true) return {};
-    if (typeof value !== 'object' || value === null) throw new TypeError(`gainMap must be true, false or an options object like { quality: 90, scale: 0.5 }, not ${value === null ? 'null' : typeof value === 'string' ? `'${value}'` : typeof value}`);
+    if (typeof value !== 'object' || value === null) throw new TypeError(`gainMap must be true, false or an options object like { quality: 90, scale: 0.5 }, not ${shown(value)}`);
     const { quality: q, scale } = value as { quality?: unknown, scale?: unknown };
     const options: { quality?: number, scale?: number } = {};
     if (q !== undefined) {

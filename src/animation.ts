@@ -159,6 +159,8 @@ export class Animation {
      * @param frames The new frames (copied into the animation; the array itself isn't kept)
      */
     set frames(frames: readonly Frame[]) {
+        if (frames === null || typeof frames !== 'object' || typeof (frames as Iterable<Frame>)[Symbol.iterator] !== 'function')
+            throw new TypeError(`Animation() takes an array of Frame objects, not ${frames === null ? 'null' : typeof frames}`);
         const copy: Frame[] = [];
         for (const frame of frames) {
             if (!(frame instanceof Frame)) throw new TypeError(`Frame ${copy.length} is not an instance of Frame`);
@@ -847,6 +849,8 @@ export class Animation {
 
 // a canvas size: positive integers
 function canvasSize(width: number, height: number): [width: number, height: number] {
+    finite(width, 'width');
+    finite(height, 'height');
     if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`Invalid canvas size: ${width}x${height}`);
     return [width, height];
 }

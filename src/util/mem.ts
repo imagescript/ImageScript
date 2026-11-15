@@ -11,7 +11,7 @@ export function view(buffer: BinaryData): Uint8Array {
     if (ArrayBuffer.isView(buffer)) return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
     if (typeof SharedArrayBuffer !== 'undefined' && (buffer as unknown) instanceof SharedArrayBuffer) return new Uint8Array(buffer);
 
-    throw new TypeError('The provided value is not of type \'(ArrayBuffer or ArrayBufferView)\'');
+    throw new TypeError(`Binary data has to be an ArrayBuffer or a typed array like Uint8Array, not ${(buffer as unknown) === null ? 'null' : typeof buffer}`);
 }
 
 /**

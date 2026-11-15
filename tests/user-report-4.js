@@ -102,4 +102,33 @@ const rejects = async (name, fn, Type) => {
         await rejects('renderSVG scale null', () => Image.renderSVG(svg, {scale: null}), TypeError);
         if ((await Image.renderSVG(svg, {width: 100})).height !== 60) panic('renderSVG width');
     }
+
+    // more values of the wrong type are TypeErrors, with a designed message
+    {
+        const font = await fs.readFile('./tests/fonts/sourcesans3 regular.otf');
+        await rejects('renderText width string', () => Image.renderText('Hi', {font, size: 20, width: '300'}), TypeError);
+        await rejects('renderText height null', () => Image.renderText('Hi', {font, size: 20, height: null}), TypeError);
+        await rejects('transform string value', () => image.clone().transform([1, 0, 0, 1, 0, '0']), TypeError);
+        await rejects('colorMatrix string value', () => image.clone().colorMatrix([1, 0, 0, 0, 1, 0, 0, 0, '1']), TypeError);
+        await rejects('gifEncoder string width', () => Animation.gifEncoder('64', 64), TypeError);
+        await rejects('apngEncoder string height', () => Animation.apngEncoder(64, '64'), TypeError);
+        await rejects('Animation canvas string', () => new Animation([new Frame(image)], {width: '8', height: 8}), TypeError);
+        await rejects('transform origin null', () => image.clone().transform([1, 0, 0, 1, 0, 0], {origin: null}), TypeError);
+        await rejects('transform origin number', () => image.clone().transform([1, 0, 0, 1, 0, 0], {origin: 0}), TypeError);
+        await rejects('Animation frames NaN', () => new Animation(NaN), TypeError);
+        await rejects('Animation frames null', () => new Animation(null), TypeError);
+        await rejects('decode null', () => Image.decode(null), TypeError);
+        await rejects('linearGradient without stops', () => Image.linearGradient(4, 4, {}), TypeError);
+        await rejects('radialGradient without stops', () => Image.radialGradient(4, 4, {}), TypeError);
+        const messages = [];
+        for (const fn of [() => Image.renderText('Hi', {font, size: 20, width: {}}), () => image.clone().resize(2, 2, {mode: {}}), () => new Animation(null), () => Image.decode(null), () => image.clone().transform([1, 0, 0, 1, 0, 0], {origin: null})]) {
+            try {
+                await fn();
+                panic('a wrong type was accepted');
+            } catch (error) {
+                messages.push(error.message);
+            }
+        }
+        for (const message of messages) if (/\[object|Cannot read|not of type|undefined/.test(message)) panic(`raw message: ${message}`);
+    }
 })();
