@@ -72,6 +72,8 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`renderText()` takes the image's `width` and `height`**: `maxWidth` and `maxHeight` are `width` and `height`, which also set the image's size: lines wrap to the width (inside the outline), lines that don't fit the height are left out, and `horizontalAlign` and `verticalAlign` place the text in that box. Without them, the image is as large as the text, as before. `wrapHardBreaks` is removed: remove the line breaks from the text instead. An old `maxWidth` is ignored, so the text doesn't wrap: search for it. `0` no longer means no limit (it throws).
 
+- **Right-to-left text is aligned to the right by default**: `horizontalAlign` defaults to the start of each paragraph's direction (like CSS' `text-align: start`), so Arabic, Hebrew and other right-to-left paragraphs are aligned to the right and left-to-right ones to the left, where 3.x aligned everything to the left. Pass `horizontalAlign: 'left'` for the old placement.
+
 - **The `fast` option of `resize()` and `scale()` is removed**, on `Image`, `Frame` and `Animation`: resizing always works like its default (`fast: true`); `{ fast: false }` is ignored. The precise path took 15-25% longer for opaque images, for results at most a step or two closer.
 
 - **`encodeJPEG()` composites transparent pixels onto a background**, black by default (`background` sets the color), instead of dropping the alpha and showing the stored color. Opaque images encode as before.
@@ -155,7 +157,6 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - A wrapped right-to-left paragraph with `horizontalAlign: 'left'` or `'center'` places its lines by their ink: the space at a wrap point sits at the visual left of a right-to-left line, which pushed the lines right by its width.
 - `encodeJPEG()` writes an image whose pixels are all gray as a grayscale JPEG (one component, like `cjpeg -grayscale`), a few percent smaller and quicker for readers; it was written with three components.
 - `renderSVG()` of an SVG with a `viewBox` and only one of `width` and `height` sizes the other side by the viewBox's aspect ratio, like browsers (`<svg viewBox="0 0 100 60" width="50">` is 50x30; it was 50x60 with the content letterboxed).
-- Right-to-left text (Arabic, Hebrew, ...) is aligned to the right by default (the start of its direction, like CSS' `text-align: start`), left-to-right text to the left, each paragraph by its own direction; `horizontalAlign` overrides it. A wrapped right-to-left paragraph was ragged on the right.
 - `Animation.resize()` resizes frames that share one `Image` at different offsets to the size their edges give (they got the first one's width, so a frame could reach past the canvas), and throws for a width or height below one pixel instead of returning 1x1.
 - The GIF encoders throw a `RangeError` for a canvas wider or higher than 65535 pixels (it was stored modulo 65536: 70000 became 4464), and all encoders for an animation without a canvas (every frame outside it), which WebP wrote as 16777216x16777216.
 - `Animation.decode()` of a JPEG XL animation counts the pixels of all frames against `maxPixels`, like the other formats; a frame was counted alone.
