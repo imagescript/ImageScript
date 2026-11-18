@@ -8,6 +8,7 @@ import { Hinter } from './hinting.ts';
 import { ColorLayer, BitmapGlyph, parseColorLayers, parseBitmaps } from './color.ts';
 import { Direction } from './buffer.ts';
 import { ShapeFont, shapeFont, shapeRun, isDefaultIgnorableCodepoint, Features } from './shape.ts';
+import { shown } from '../util/options.ts';
 import './shapers/index.ts';
 import { classOf, resolve, lineLevels, Paragraph as BidiParagraph } from './bidi.ts';
 import { lineBreaks, Break } from './linebreak.ts';
@@ -129,7 +130,7 @@ export function axisValues(variations: Record<string, number | boolean>): Record
         const tag = AXES[key] ?? (key.length === 4 ? key : null);
         if (!tag) throw new RangeError(`Unknown font variation ${key}: use weight, width, slant, italic, opticalSize or an axis tag`);
         const v = typeof value === 'boolean' ? +value : value;
-        if (typeof v !== 'number') throw new TypeError(`The font variation ${key} must be a number or a boolean, not ${v === null ? 'null' : typeof v}`);
+        if (typeof v !== 'number') throw new TypeError(`The font variation ${key} must be a number or a boolean, not ${shown(v)}`);
         if (!Number.isFinite(v)) throw new RangeError(`Invalid font variation ${key}: ${String(value)}`);
         values[tag] = v;
     }

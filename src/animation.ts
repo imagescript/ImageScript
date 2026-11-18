@@ -161,7 +161,7 @@ export class Animation {
      */
     set frames(frames: readonly Frame[]) {
         if (frames === null || typeof frames !== 'object' || typeof (frames as Iterable<Frame>)[Symbol.iterator] !== 'function')
-            throw new TypeError(`Animation() takes an array of Frame objects, not ${frames === null ? 'null' : typeof frames}`);
+            throw new TypeError(`Animation() takes an array of Frame objects, not ${shown(frames)}`);
         const copy: Frame[] = [];
         for (const frame of frames) {
             if (!(frame instanceof Frame)) throw new TypeError(`frames[${copy.length}] must be a Frame, not ${shown(frame)}`);

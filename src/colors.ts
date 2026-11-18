@@ -1,4 +1,4 @@
-import { finite, notNaN, byte, unitInterval, color as checkColor } from './util/options.ts';
+import { shown, finite, notNaN, byte, unitInterval, color as checkColor } from './util/options.ts';
 import type { Color } from './image.ts';
 
 // wraps a hue into 0..1 (negative hues included), exactly like (h % 1 + 1) % 1 but without the slow float modulo
@@ -199,7 +199,7 @@ export class Colors {
      * @return The gradient generator. The function argument is the position in the gradient (0..1).
      */
     static gradient(stops: Record<number, Color> | Color[]): (position: number) => Color {
-        if (typeof stops !== 'object' || stops === null) throw new TypeError(`gradient() takes an array of colors or an object of positions and colors, not ${stops === null ? 'null' : typeof stops}`);
+        if (typeof stops !== 'object' || stops === null) throw new TypeError(`gradient() takes an array of colors or an object of positions and colors, not ${shown(stops)}`);
         let colors: Record<number, Color>;
         if (Array.isArray(stops)) {
             if (!stops.length) throw new RangeError('gradient() takes at least one color, not 0');

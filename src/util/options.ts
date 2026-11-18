@@ -2,7 +2,8 @@
 export function shown(value: unknown): string {
     if (value === null) return 'null';
     if (Array.isArray(value)) return 'an array';
-    if (typeof value === 'string') return `'${value}'`;
+    // (a long string is cut: a message shouldn't carry the megabytes someone passed by mistake)
+    if (typeof value === 'string') return value.length > 40 ? `'${value.slice(0, 40)}...'` : `'${value}'`;
     if (typeof value === 'number') return String(value);
     if (typeof value === 'object') return 'an object';
     return typeof value;
@@ -18,7 +19,8 @@ export function isOptions<T>(value: T): value is Extract<T, object> {
  * being ignored silently, naming the form that works (`usage`, e.g. `cropCircle({ fit: 'cover' })`)
  */
 export function checkOptions(value: unknown, usage: string): void {
-    if (value !== undefined && !isOptions(value)) throw new TypeError(`${usage.split('(')[0]}() takes an options object, like ${usage}, not ${shown(value)}`);
+    // (named by the method: 'encodeWebP', not 'image.encodeWebP' or 'new GainMap', which only the example keeps)
+    if (value !== undefined && !isOptions(value)) throw new TypeError(`${usage.split('(')[0].replace(/^new /, '').replace(/^[a-z]\w*\./, '')}() takes an options object, like ${usage}, not ${shown(value)}`);
 }
 
 /**

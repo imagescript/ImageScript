@@ -851,7 +851,7 @@ function featureList(features: Record<string, boolean | number>): Array<[string,
         // eslint-disable-next-line no-restricted-syntax -- the OpenType features are only used by the text functions
         if (!/^[\x20-\x7e]{4}$/.test(tag)) throw new RangeError(`An OpenType feature tag must be 4 printable ASCII characters, not ${JSON.stringify(tag)}`);
         if (typeof value === 'boolean') return [tag, value ? 1 : 0];
-        if (typeof value !== 'number') throw new TypeError(`The value of the OpenType feature ${tag} must be a boolean or a number, not ${value === null ? 'null' : typeof value}`);
+        if (typeof value !== 'number') throw new TypeError(`The value of the OpenType feature ${tag} must be a boolean or a number, not ${shown(value)}`);
         if (!Number.isInteger(value) || value < 0 || value > 255) throw new RangeError(`The value of the OpenType feature ${tag} must be a whole number from 0 to 255, not ${value}`);
         return [tag, value];
     });
@@ -1981,7 +1981,7 @@ export class Image {
      * @param matrix The 9 or 20 values
      */
     colorMatrix(matrix: ArrayLike<number>): this {
-        if (matrix === null || typeof matrix !== 'object') throw new TypeError(`colorMatrix() takes an array of 9 or 20 values, not ${matrix === null ? 'null' : typeof matrix}`);
+        if (matrix === null || typeof matrix !== 'object') throw new TypeError(`colorMatrix() takes an array of 9 or 20 values, not ${shown(matrix)}`);
         if (matrix.length !== 9 && matrix.length !== 20) throw new RangeError(`a color matrix must have 9 or 20 values, not ${matrix.length}`);
         const m = new Float64Array(20);
         // (numbers only: a string is a mistake in data like this)
@@ -2026,12 +2026,12 @@ export class Image {
      */
     transform(matrix: AffineTransform, options: TransformOptions = {}): this {
         checkOptions(options, 'image.transform([1, 0, 0, 1, 0, 0], { expand: false })');
-        if (matrix === null || typeof matrix !== 'object') throw new TypeError(`transform() takes an array of 6 values, like transform([1, 0, 0, 1, 0, 0]), not ${matrix === null ? 'null' : typeof matrix}`);
+        if (matrix === null || typeof matrix !== 'object') throw new TypeError(`transform() takes an array of 6 values, like transform([1, 0, 0, 1, 0, 0]), not ${shown(matrix)}`);
         if (matrix.length !== 6) throw new RangeError(`a transform must have 6 values, [a, b, c, d, e, f], not ${(matrix as ArrayLike<number>).length}`);
         // (numbers only: a string is a mistake in data like this)
         const values = Array.from({ length: 6 }, (_, i) => finite(matrix[i], 'transform value'));
         const { origin = {}, expand = true, mode = 'bilinear' } = options;
-        if (typeof origin !== 'object' || origin === null) throw new TypeError(`transform() takes an origin object like { x: 10, y: 20 }, not ${origin === null ? 'null' : typeof origin}`);
+        if (typeof origin !== 'object' || origin === null) throw new TypeError(`transform() takes an origin object like { x: 10, y: 20 }, not ${shown(origin)}`);
         oneOf(mode, TRANSFORM_MODES, 'transform mode');
         boolean(expand, 'expand');
         const { x: pivotX = this.width / 2, y: pivotY = this.height / 2 } = origin;
@@ -3226,6 +3226,7 @@ export function alignedPixels<T extends Uint8Array | Uint8ClampedArray>(pixels: 
  */
 export function resizeArguments(widthOrOptions: number | ResizeToOptions, height?: number, options?: ResizeOptions): [width: number | undefined, height: number | undefined, options: ResizeRuntimeOptions | undefined, fit: ResizeFit] {
     if (!isOptions(widthOrOptions)) {
+        if (typeof widthOrOptions !== 'number') throw new TypeError(`resize() takes a width and a height, like resize(300, 200), or an options object, like resize({ width: 300 }), not ${shown(widthOrOptions)}`);
         checkOptions(options, 'resize(width, height, { mode: \'area\' })');
         return [finite(widthOrOptions, 'width'), finite(height as number, 'height'), options, 'fill'];
     }

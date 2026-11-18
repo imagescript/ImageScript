@@ -80,7 +80,7 @@ const TEXT_FIELDS = ['title', 'author', 'description', 'copyright', 'software', 
  */
 export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
     if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata))
-        throw new TypeError(`metadata takes an object, like { title: 'Sunset' }, not ${metadata === null ? 'null' : Array.isArray(metadata) ? 'an array' : typeof metadata}`);
+        throw new TypeError(`metadata takes an object, like { title: 'Sunset' }, not ${shown(metadata)}`);
     const { creationTime, software } = metadata;
     const resolved: ResolvedMetadata = {};
     if (creationTime !== undefined && creationTime !== null) {

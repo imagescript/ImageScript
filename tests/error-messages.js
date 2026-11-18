@@ -119,6 +119,22 @@ const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
     for (const [name, fn, expected] of [
         ['frame.image article', () => { new Frame(image()).image = 5; }, /must be an Image,/],
         ['metadata field value', () => image().encodePNG({metadata: {title: 42}}), /must be a string, not 42$/],
+        // a wrong argument is named by its value, not by its type ('abc', 42, an array, an object), like everywhere else
+        ['Animation frames', () => new Animation('abc'), /not 'abc'$/],
+        ['gradient stops', () => Colors.gradient('abc'), /not 'abc'$/],
+        ['binary data', () => Image.decode('abc'), /not 'abc'$/],
+        ['binary data, a long string', () => Image.decode('x'.repeat(5000)), /^.{0,200}$/],
+        ['colorMatrix', () => image().colorMatrix('abc'), /not 'abc'$/],
+        ['transform matrix', () => image().transform(42), /not 42$/],
+        ['transform origin', () => image().transform([1, 0, 0, 1, 0, 0], {origin: 'abc'}), /not 'abc'$/],
+        ['gain map parameter', () => new GainMap(new Image(4, 4), {max: 'abc'}), /not 'abc'$/],
+        ['font feature value', () => Image.renderText('A', {font, size: 20, features: {liga: 'x'}}), /not 'x'$/],
+        ['font variation value', () => Image.renderText('A', {font, size: 20, variations: {wght: 'x'}}), /not 'x'$/],
+        ['resize(null)', () => image().resize(null), /^resize\(\)/],
+        // the options check names the method, not its receiver
+        ['encodeWebP(5)', () => image().encodeWebP(5), /^encodeWebP\(\) takes an options object, like image\.encodeWebP\(/],
+        ['new GainMap(image, 5)', () => new GainMap(new Image(4, 4), 5), /^GainMap\(\) takes an options object/],
+        ['Image.decode(data, 5)', () => Image.decode(new Uint8Array(4), 5), /^Image\.decode\(\) takes an options object/],
         ['renderText sparse fonts', () => Image.renderText('A', {font: new Array(2), size: 20}), /^(?!Cannot read)/],
         ['renderSVG sparse fonts', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {font: new Array(2)}), /^(?!Cannot read)/]
     ]) {

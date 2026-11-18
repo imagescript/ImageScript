@@ -4,7 +4,7 @@ import { MAX_PIXELS, decoding } from './util/limits.ts';
 import * as jpeg from './codecs/jpeg.ts';
 import * as codec from './codecs/gainmap.ts';
 import { BinaryData, view } from './util/mem.ts';
-import { instance, nonNegative, finite, checkOptions, pixelLimit, boolean, quality as checkQuality } from './util/options.ts';
+import { shown, instance, nonNegative, finite, checkOptions, pixelLimit, boolean, quality as checkQuality } from './util/options.ts';
 
 /** Options of {@link GainMap.encodeJPEG} */
 export interface GainMapEncodeOptions {
@@ -76,7 +76,7 @@ const bounded = (value: number, name: string): number => {
 
 const perChannel = (value: GainMapChannelValues, name: string): number[] => {
     const given: unknown = value;
-    if (typeof given !== 'number' && !Array.isArray(given)) throw new TypeError(`${name} must be a number or an array of 3 numbers, not ${given === null ? 'null' : typeof given}`);
+    if (typeof given !== 'number' && !Array.isArray(given)) throw new TypeError(`${name} must be a number or an array of 3 numbers, not ${shown(given)}`);
     const values: number[] = typeof value === 'number' ? [value, value, value] : Array.from(value);
     if (values.length !== 3) throw new RangeError(`${name} must be a number or an array of 3 numbers, not ${values.length}`);
     return values.map(v => bounded(v, name));
