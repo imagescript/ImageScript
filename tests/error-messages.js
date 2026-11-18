@@ -118,6 +118,7 @@ const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
     // inside (Array.prototype.map skips the holes)
     for (const [name, fn, expected] of [
         ['frame.image article', () => { new Frame(image()).image = 5; }, /must be an Image,/],
+        ['metadata field value', () => image().encodePNG({metadata: {title: 42}}), /must be a string, not 42$/],
         ['renderText sparse fonts', () => Image.renderText('A', {font: new Array(2), size: 20}), /^(?!Cannot read)/],
         ['renderSVG sparse fonts', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {font: new Array(2)}), /^(?!Cannot read)/]
     ]) {

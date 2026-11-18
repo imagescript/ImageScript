@@ -89,7 +89,7 @@ export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
     for (const key of TEXT_FIELDS) {
         const value = key === 'software' && software === undefined ? 'ImageScript' : metadata[key];
         if (value === undefined || value === null || value === '') continue;
-        if (typeof value !== 'string') throw new TypeError(`metadata ${key} must be a string, not ${typeof value}`);
+        if (typeof value !== 'string') throw new TypeError(`metadata ${key} must be a string, not ${shown(value)}`);
         resolved[key] = value;
     }
     return resolved;
