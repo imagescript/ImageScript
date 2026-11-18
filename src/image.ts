@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { allocate, instance, shown, isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, cropBounds, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { allocate, scaleFactor, instance, shown, isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, cropBounds, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -1044,15 +1044,17 @@ export class Image {
      */
     static radialGradient(width: number, height: number, options: RadialGradientOptions): Image {
         checkOptions(options, 'Image.radialGradient(100, 50, { stops })');
-        const image = new Image(width, height);
-        // (sizes with a fraction are truncated by the image: the pixels are written to that size)
-        ({ width, height } = image);
+        // (sizes with a fraction are truncated like the image's: the pixels are written to that size; the options are
+        // checked before the image is allocated)
+        width = pixels(width, 'width');
+        height = pixels(height, 'height');
         if (options === undefined || options.stops === undefined) throw new TypeError('Image.radialGradient(width, height, { stops }) needs the stops in the options');
         const { stops, x: cx = width / 2, y: cy = height / 2, radius = Math.hypot(Math.max(cx, width - cx), Math.max(cy, height - cy)) } = options;
         const color = gradientFunction(stops);
         finite(cx, 'x');
         finite(cy, 'y');
         positive(radius, 'radius');
+        const image = new Image(width, height);
         const bitmap = new DataView(image.bitmap.buffer, image.bitmap.byteOffset, image.bitmap.byteLength);
         for (let y = 0, i = 0; y < height; y++)
             for (let x = 0; x < width; x++, i += 4)
@@ -1166,7 +1168,7 @@ export class Image {
     scale(factor: number, options?: ResizeOptions): this {
         checkOptions(options, 'scale(factor, { mode: \'area\' })');
         const { mode } = resizeOptions(options);
-        positive(factor, 'scale factor');
+        scaleFactor(factor, this.width, this.height);
         const image = this.__scale__(factor, mode);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         this.__moved__?.(image.width / this.width, image.height / this.height, 0, 0);

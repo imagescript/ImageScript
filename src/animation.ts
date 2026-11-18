@@ -12,7 +12,7 @@ import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { shown, checkOptions, oneOf, pixelLimit, checkThreads, positive, pixels, canvasSize, cropBounds, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
+import { shown, scaleFactor, checkOptions, oneOf, pixelLimit, checkThreads, pixels, canvasSize, cropBounds, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding, checkPixels } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 import { describe } from './util/inspect.ts';
@@ -390,7 +390,7 @@ export class Animation {
      * @param options See {@link ResizeOptions}
      */
     scale(factor: number, options?: ResizeOptions): this {
-        positive(factor, 'scale factor');
+        scaleFactor(factor, this.width, this.height);
         // (a side doesn't shrink below one pixel, like Image.scale())
         return this.resize(Math.max(1, this.width * factor), Math.max(1, this.height * factor), options);
     }

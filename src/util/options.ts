@@ -144,6 +144,17 @@ export function instance(value: unknown, types: Array<abstract new (...args: nev
     if (!types.some(type => value instanceof type)) throw new TypeError(`${name} must be ${types.map(type => `a ${type.name}`).join(' or ')}, not ${shown(value)}`);
 }
 
+/**
+ * A scale factor of an image or animation of `width`x`height`: above 0, and small enough for the sides it gives
+ * (at most 2147483647 pixels), else a RangeError naming the factor
+ */
+export function scaleFactor(factor: number, width: number, height: number): number {
+    positive(factor, 'scale factor');
+    const largest = Math.floor(0x7fffffff / Math.max(width, height));
+    if (Math.max(width, height) * factor >= 0x7fffffff + 0.5) throw new RangeError(`scale factor must be at most ${largest} for an image of ${width}x${height}, not ${factor}`);
+    return factor;
+}
+
 export function nonNegative(value: number, name: string): number {
     finite(value, name);
     if (value < 0) throw new RangeError(`${name} must be 0 or more, not ${value}`);

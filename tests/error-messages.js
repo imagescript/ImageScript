@@ -100,6 +100,20 @@ const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
             else if (!typeShape.test(error.message)) failures.push(`${name}: the message doesn't say which argument, what it takes and what it got: ${error.message}`);
         }
     }
+    // the message names the argument that is wrong: the scale factor, not the width it would give; the stops of a
+    // gradient before an image of its size is allocated
+    for (const [name, fn, start] of [
+        ['image.scale(2 ** 31)', () => image().scale(2 ** 31), 'scale factor'],
+        ['animation.scale(2 ** 31)', () => new Animation([new Frame(image())]).scale(2 ** 31), 'scale factor'],
+        ['radialGradient without stops', () => Image.radialGradient(1e6, 1e6, {stops: []}), 'gradient()']
+    ]) {
+        try {
+            fn();
+            failures.push(`${name}: accepted`);
+        } catch (error) {
+            if (!(error instanceof RangeError) || !error.message.startsWith(start)) failures.push(`${name}: ${error.message}, expected a RangeError about the ${start}`);
+        }
+    }
     // a gain map's JPEG takes the qualities of Image.encodeJPEG() (0 is 1)
     for (const encode of [() => new GainMap(new Image(4, 4)).encodeJPEG({quality: 0}), () => { const i = image(); i.gainMap = new GainMap(new Image(4, 4)); return i.encodeJPEG({gainMap: {quality: 0}}); }]) {
         try {
