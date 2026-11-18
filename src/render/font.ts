@@ -795,6 +795,7 @@ function parseCFF(font: Font, base: number): CFF {
     const strings = readIndex(topDicts.end);
     const globalSubrs = readIndex(strings.end).items;
 
+    if (!topDicts.items.length) throw new Error('Font: CFF font has no Top DICT');
     const top = parseDict(topDicts.items[0]);
     if (!top[17]) throw new Error('Font: CFF font has no charstrings');
 
@@ -811,6 +812,7 @@ function parseCFF(font: Font, base: number): CFF {
     // CID-keyed fonts select a private dict per glyph
     let privateFor: CFF['privateFor'];
     if (top[1236]) {
+        if (!top[1237]) throw new Error('Font: CID-keyed CFF font has no FDSelect');
         const fdArray = readIndex(base + top[1236][0]).items.map(dict => readPrivate(parseDict(dict)[18]));
         const fdSelect = base + top[1237][0];
         const format = data[fdSelect];
