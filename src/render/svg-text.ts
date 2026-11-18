@@ -106,7 +106,12 @@ export function fontFace(data: Uint8Array, descriptors?: { family?: string, weig
  * instead of being left out without a word
  */
 export function givenFontFace(data: Uint8Array): FontFace {
-    const font = loadFont(data);
+    let font: Font;
+    try {
+        font = loadFont(data);
+    } catch (err) {
+        throw damaged(err);
+    }
     const cached = faces.get(font);
     if (cached) return cached;
     try {

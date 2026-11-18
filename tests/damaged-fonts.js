@@ -106,6 +106,9 @@ const cases = {
         data.writeUInt16BE(0, sbix + data.readUInt32BE(sbix + 8));
         return data;
     })(),
+    // fonts cut off inside their header or table directory: loading them reads past the end
+    'font cut to 12 bytes': fs.readFileSync(fonts + 'carbon phyber.ttf').subarray(0, 12),
+    'font cut to 100 bytes': fs.readFileSync(fonts + 'carbon phyber.ttf').subarray(0, 100),
     'cmap format 14 with a huge record count': withCount('font features.ttf', 'cmap', cmap14('font features.ttf') + 6, 0xffffffff),
     'cblc with a huge strike count': patched('noto color emoji subset.ttf', [[0x27, 44, 12]])
 };
