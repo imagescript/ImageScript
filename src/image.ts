@@ -2629,7 +2629,8 @@ export class Image {
 
     /**
      * Encodes the image into a PNG, with the smallest lossless color type (a palette for up to 256 colors,
-     * grayscale or RGB, alpha only if needed). Uses the runtime's native zlib when available (the files differ between runtimes, whose zlibs compress differently: about a quarter larger on Deno than on Node and Bun)
+     * grayscale or RGB, alpha only if needed). Uses the runtime's native zlib when available, so the compressed
+     * bytes can differ between runtimes and browsers; the pixels are the same
      * @param options See {@link PNGEncodeOptions}
      * @return The encoded data
      */
