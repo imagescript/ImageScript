@@ -24,7 +24,7 @@ npm install imagescript              # Node.js, Bun and bundlers
 deno add jsr:@matmen/imagescript     # Deno
 ```
 
-Upgrading from 3.x? Read [Migrating to 4.0](https://github.com/imagescript/ImageScript/blob/v4/guides/Migrating%20to%204.0.md) first.
+Upgrading from 3.x? Read [Migrating to 4.0](https://github.com/imagescript/ImageScript/blob/master/guides/Migrating%20to%204.0.md) first.
 
 Without a bundler, import it from jsDelivr in the browser:
 
@@ -67,7 +67,7 @@ await writeFile('output.png', await image.encodePNG());
   </a>
 </p>
 
-[![Example](https://github.com/imagescript/ImageScript/raw/master/tests/targets/readme.png)](https://github.com/imagescript/ImageScript/blob/v4/tests/readme.js)
+[![Example](https://github.com/imagescript/ImageScript/raw/master/tests/targets/readme.png)](https://github.com/imagescript/ImageScript/blob/master/tests/readme.js)
 
 ---
 
@@ -116,7 +116,7 @@ Supported image operations preserve gain maps; editing pixels directly with `ima
   [hueShift](https://imagescript.dev/classes/Image.html#hueshift), ...
 
 The [documentation](https://imagescript.dev/) covers the full API. When upgrading from an older major version,
-see the [changelog](https://github.com/imagescript/ImageScript/blob/v4/CHANGELOG.md). [bench/](bench/README.md)
+see the [changelog](https://github.com/imagescript/ImageScript/blob/master/CHANGELOG.md). [bench/](bench/README.md)
 compares ImageScript's speed and file sizes with Jimp, sharp and other libraries.
 
 ---
