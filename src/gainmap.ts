@@ -13,8 +13,18 @@ export interface GainMapEncodeOptions {
 /** Options of the {@link GainMap} constructor: per channel values can be one number for all three or [r, g, b] */
 export interface GainMapOptions {
     /** log2 of the boost of the map's value 0 (`-1`: half as bright). Default: `0` */
-    gainMapMin?: number | number[];
+    min?: number | number[];
     /** log2 of the boost of the map's value 255 (`2`: 4 times as bright). Default: `2` */
+    max?: number | number[];
+    /**
+     * Like {@link GainMapOptions.min}
+     * @deprecated Use `min`, its name in 4.0, which ignores `gainMapMin`
+     */
+    gainMapMin?: number | number[];
+    /**
+     * Like {@link GainMapOptions.max}
+     * @deprecated Use `max`, its name in 4.0, which ignores `gainMapMax`
+     */
     gainMapMax?: number | number[];
     /** the gamma the map's values are stored with. Default: `1` */
     gamma?: number | number[];
@@ -47,9 +57,15 @@ const perChannel = (value: number | number[], name: string): number[] => {
  * light of the image by `2^(gainMapMin + (gainMapMax - gainMapMin) * (v / 255)^(1 / gamma))`
  */
 export class GainMap {
-    /** log2 of the boost of the map's value 0, per channel (red, green, blue) */
+    /**
+     * log2 of the boost of the map's value 0, per channel (red, green, blue)
+     * @deprecated Use {@link GainMap.min}, its name in 4.0
+     */
     gainMapMin: number[];
-    /** log2 of the boost of the map's value 255, per channel */
+    /**
+     * log2 of the boost of the map's value 255, per channel
+     * @deprecated Use {@link GainMap.max}, its name in 4.0
+     */
     gainMapMax: number[];
     /** the gamma the map's values are stored with, per channel */
     gamma: number[];
@@ -73,9 +89,33 @@ export class GainMap {
      *     ignored
      * @param options See {@link GainMapOptions}
      */
+    /** log2 of the boost of the map's value 0, per channel (red, green, blue): {@link GainMap.gainMapMin}, by its name in 4.0 */
+    get min(): number[] {
+        return this.gainMapMin;
+    }
+
+    /** Sets {@link GainMap.gainMapMin} */
+    set min(value: number[]) {
+        this.gainMapMin = value;
+    }
+
+    /** log2 of the boost of the map's value 255, per channel: {@link GainMap.gainMapMax}, by its name in 4.0 */
+    get max(): number[] {
+        return this.gainMapMax;
+    }
+
+    /** Sets {@link GainMap.gainMapMax} */
+    set max(value: number[]) {
+        this.gainMapMax = value;
+    }
+
     constructor(image: Image, options: GainMapOptions = {}) {
         if (!(image instanceof Image)) throw new TypeError('The gain map has to be an Image');
-        const { gainMapMin = 0, gainMapMax = 2, gamma = 1, offsetSDR = 1 / 64, offsetHDR = 1 / 64, hdrCapacityMin = 0, useBaseColorSpace = true } = options;
+        if (options.min !== undefined && options.gainMapMin !== undefined) throw new TypeError('A gain map takes min, or the deprecated gainMapMin, not both');
+        if (options.max !== undefined && options.gainMapMax !== undefined) throw new TypeError('A gain map takes max, or the deprecated gainMapMax, not both');
+        const { gamma = 1, offsetSDR = 1 / 64, offsetHDR = 1 / 64, hdrCapacityMin = 0, useBaseColorSpace = true } = options;
+        // (min and max are the names of 4.0)
+        const gainMapMin = options.min ?? options.gainMapMin ?? 0, gainMapMax = options.max ?? options.gainMapMax ?? 2;
         this.gainMapMin = perChannel(gainMapMin, 'gainMapMin');
         this.gainMapMax = perChannel(gainMapMax, 'gainMapMax');
         this.gamma = perChannel(gamma, 'gamma');

@@ -58,12 +58,14 @@ export type ResizeMode = 'nearest-neighbor' | 'bilinear' | 'bicubic' | 'area'
 /**
  * How {@link Image.renderSVG} scales, see {@link SVGScaleModes}. The numbers 1-3 (the values of the deprecated
  * `Image.SVG_MODE_*`) still work, they are removed in 4.0
+ * @deprecated Use `renderSVG(svg, { width })`, `{ height }` or `{ scale }`: the `mode` option is removed in 4.0
  */
 export type SVGScaleMode = 'scale' | 'width' | 'height' | 1 | 2 | 3;
 
 /**
  * The resampling filters of {@link Image.resize} and the other scaling functions:
  * `image.resize({ width: 256, mode: ResizeModes.BICUBIC })`
+ * @deprecated Use the names, `image.resize({ width: 256, mode: 'bicubic' })`: `ResizeModes` is removed in 4.0
  */
 export class ResizeModes {
     /**
@@ -97,7 +99,11 @@ export class ResizeModes {
     private constructor() {}
 }
 
-/** How {@link Image.renderSVG} scales the SVG to the given size */
+/**
+ * How {@link Image.renderSVG} scales the SVG to the given size
+ * @deprecated Use `renderSVG(svg, { width })`, `{ height }` or `{ scale }`: `SVGScaleModes` and the `mode` option are
+ *     removed in 4.0
+ */
 export class SVGScaleModes {
     /** The size is a factor of the SVG's own size */
     static readonly SCALE = 'scale';
@@ -383,15 +389,34 @@ export interface FisheyeOptions {
     strength?: number;
 }
 
+/** Options of {@link Image.renderSVG}: {@link SVGOptions}, by its name in 4.0 */
+export type RenderSVGOptions = SVGOptions;
+
 /** Options of {@link Image.renderSVG} */
 export interface SVGOptions {
-    /** The scale, or the width or height in pixels, see `mode`. Default: `1` */
+    /** The width in pixels, the height follows the SVG's aspect ratio. Only one of `width`, `height` and `scale` */
+    width?: number;
+    /** The height in pixels, the width follows the SVG's aspect ratio. Only one of `width`, `height` and `scale` */
+    height?: number;
+    /** A factor of the SVG's own size. Only one of `width`, `height` and `scale`. Default: `1` */
+    scale?: number;
+    /**
+     * The scale, or the width or height in pixels, see `mode`. Default: `1`
+     * @deprecated Use `width`, `height` or `scale`, their names in 4.0, which ignores `size` and `mode`:
+     *     `renderSVG(svg, { width: 512 })`
+     */
     size?: number;
     /**
      * What `size` is: one of {@link SVGScaleModes.SCALE}, {@link SVGScaleModes.WIDTH}, {@link SVGScaleModes.HEIGHT}.
      * Default: {@link SVGScaleModes.SCALE}
+     * @deprecated Use `width`, `height` or `scale`, their names in 4.0, which ignores `size` and `mode`:
+     *     `renderSVG(svg, { width: 512 })`
      */
     mode?: SVGScaleMode;
+    /**
+     * Fonts for `<text>`, like {@link SVGOptions.fonts}: one font, or several
+     */
+    font?: BinaryData | BinaryData[];
     /**
      * Fonts for `<text>` (TrueType, OpenType): each text gets the face its `font-family`, `font-weight`, `font-style`
      * and `font-stretch` match best among them, by the names, weights and styles in the fonts (like browsers match
@@ -399,6 +424,7 @@ export interface SVGOptions {
      * other families and text without one get the first font's family; characters a face doesn't have come from the
      * other fonts (TrueType, OpenType or WOFF). Fonts the SVG embeds with `@font-face` (in data: URIs) are used too,
      * before these for their family names. Without any fonts text isn't rendered. Default: `[]`
+     * @deprecated Use `font`, its name in 4.0, which ignores `fonts` (one font, or several in an array)
      */
     fonts?: BinaryData[];
     /**
@@ -580,10 +606,15 @@ export interface CropCircleOptions {
      * `'cover'` covers the image (the larger dimension is its diameter, the corners of a rectangular image stay
      * transparent on the shorter side). Default: `'contain'`
      */
+    fit?: 'contain' | 'cover';
+    /**
+     * The circle's size, like {@link CropCircleOptions.fit}
+     * @deprecated Use `fit`, its name in 4.0, which ignores `size`: `cropCircle({ fit: 'cover' })`
+     */
     size?: 'contain' | 'cover';
     /**
      * Whether to use the larger dimension for the size. Default: `false`
-     * @deprecated Use `size: 'cover'` (`true`) or `size: 'contain'` (`false`), `max` will be removed in 4.0
+     * @deprecated Use `fit: 'cover'` (`true`) or `fit: 'contain'` (`false`), `max` will be removed in 4.0
      */
     max?: boolean;
     /** Share of the radius (0..1) over which the edge fades out. Default: `0` */
@@ -1077,25 +1108,25 @@ export class Image {
     }
 
     /**
-     * @deprecated Use {@link ResizeModes.NEAREST_NEIGHBOR}, `Image.RESIZE_*` will be removed in 4.0
+     * @deprecated Use the name `'nearest-neighbor'`: `Image.RESIZE_*` and `ResizeModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly RESIZE_NEAREST_NEIGHBOR = 'RESIZE_NEAREST_NEIGHBOR';
 
     /**
-     * @deprecated Use {@link ResizeModes.BILINEAR}, `Image.RESIZE_*` will be removed in 4.0
+     * @deprecated Use the name `'bilinear'`: `Image.RESIZE_*` and `ResizeModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly RESIZE_BILINEAR = 'RESIZE_BILINEAR';
 
     /**
-     * @deprecated Use {@link ResizeModes.BICUBIC}, `Image.RESIZE_*` will be removed in 4.0
+     * @deprecated Use the name `'bicubic'`: `Image.RESIZE_*` and `ResizeModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly RESIZE_BICUBIC = 'RESIZE_BICUBIC';
 
     /**
-     * @deprecated Use {@link ResizeModes.AREA}, `Image.RESIZE_*` will be removed in 4.0
+     * @deprecated Use the name `'area'`: `Image.RESIZE_*` and `ResizeModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly RESIZE_AREA = 'RESIZE_AREA';
@@ -1580,13 +1611,14 @@ export class Image {
      * Crops the image into a circle with an antialiased edge
      * @param max Whether to use the larger dimension for the size. Default: `false`
      * @param feathering Share of the radius (0..1) over which the edge fades out. Default: `0`
-     * @deprecated Pass {@link CropCircleOptions} instead, `cropCircle({ size: 'cover' })`. The arguments will be
+     * @deprecated Pass {@link CropCircleOptions} instead, `cropCircle({ fit: 'cover' })`. The arguments will be
      *     removed in 4.0
      */
     cropCircle(max?: boolean, feathering?: number): this;
     cropCircle(maxOrOptions: boolean | CropCircleOptions = false, featheringArgument = 0): this {
-        const { max = false, size = max ? 'cover' : 'contain', feathering = 0 } = typeof maxOrOptions === 'object' && maxOrOptions !== null
-            ? maxOrOptions : { max: maxOrOptions, feathering: featheringArgument };
+        const { max = false, fit, size: givenSize, feathering = 0 } = typeof maxOrOptions === 'object' && maxOrOptions !== null
+            ? maxOrOptions : { max: maxOrOptions, feathering: featheringArgument } as CropCircleOptions;
+        const size = fit ?? givenSize ?? (max ? 'cover' : 'contain');
         finite(feathering, 'feathering');
         if (size !== 'contain' && size !== 'cover') throw new TypeError(`Invalid circle size: ${String(size)}`);
         const radius = (size === 'cover' ? Math.max : Math.min)(this.width, this.height) / 2;
@@ -3230,19 +3262,19 @@ export class Image {
     }
 
     /**
-     * @deprecated Use {@link SVGScaleModes.SCALE}, `Image.SVG_MODE_*` will be removed in 4.0
+     * @deprecated Use `renderSVG(svg, { scale })`: `Image.SVG_MODE_*` and `SVGScaleModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly SVG_MODE_SCALE = 1;
 
     /**
-     * @deprecated Use {@link SVGScaleModes.WIDTH}, `Image.SVG_MODE_*` will be removed in 4.0
+     * @deprecated Use `renderSVG(svg, { width })`: `Image.SVG_MODE_*` and `SVGScaleModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly SVG_MODE_WIDTH = 2;
 
     /**
-     * @deprecated Use {@link SVGScaleModes.HEIGHT}, `Image.SVG_MODE_*` will be removed in 4.0
+     * @deprecated Use `renderSVG(svg, { height })`: `Image.SVG_MODE_*` and `SVGScaleModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly SVG_MODE_HEIGHT = 3;
@@ -3271,11 +3303,22 @@ export class Image {
      * @param size The size to use
      * @param mode The SVG resizing mode to use (one of {@link SVGScaleModes.SCALE}, {@link SVGScaleModes.WIDTH}, {@link SVGScaleModes.HEIGHT})
      * @return The rendered SVG graphic
-     * @deprecated Pass {@link SVGOptions} instead, the positional arguments will be removed in 4.0
+     * @deprecated Pass {@link SVGOptions} instead, `renderSVG(svg, { width: 512 })` (or `height`, `scale`). The
+     *     positional arguments will be removed in 4.0
      */
     static renderSVG(svg: string | BinaryData, size?: number, mode?: SVGScaleMode): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, sizeOrOptions: number | SVGOptions = 1, modeArgument: SVGScaleMode = SVGScaleModes.SCALE): Promise<Image> {
-        const { size = 1, mode: givenMode = SVGScaleModes.SCALE, fonts = [], images: givenImages = {} } = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
+        const options: SVGOptions = isOptions(sizeOrOptions) ? sizeOrOptions : { size: sizeOrOptions, mode: modeArgument };
+        // (the 4.0 names: width, height or scale for size and mode, font for fonts)
+        const sizes = [options.width, options.height, options.scale].filter(value => value !== undefined).length;
+        if (sizes > 1) throw new TypeError('renderSVG() takes one of width, height and scale');
+        if (sizes && (options.size !== undefined || options.mode !== undefined)) throw new TypeError('renderSVG() takes width, height or scale, or the deprecated size and mode, not both');
+        if (options.font !== undefined && options.fonts !== undefined) throw new TypeError('renderSVG() takes font, or the deprecated fonts, not both');
+        const { size = 1, mode: givenMode = SVGScaleModes.SCALE } = options.width !== undefined ? { size: options.width, mode: SVGScaleModes.WIDTH }
+            : options.height !== undefined ? { size: options.height, mode: SVGScaleModes.HEIGHT }
+            : options.scale !== undefined ? { size: options.scale, mode: SVGScaleModes.SCALE } : options;
+        const { images: givenImages = {} } = options;
+        const fonts = options.font === undefined ? options.fonts ?? [] : Array.isArray(options.font) ? options.font : [options.font];
         const mode = LEGACY_SVG_MODES.get(givenMode) ?? givenMode;
         if (mode !== 'scale' && mode !== 'width' && mode !== 'height')
             throw new Error('Invalid SVG scaling mode');

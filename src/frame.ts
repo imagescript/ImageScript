@@ -2,10 +2,15 @@ import { Image, ResizeMode, ResizeOptions, ResizeToOptions, Color, TrimOptions, 
 import { isOptions, finite } from './util/options.ts';
 
 /** Names of the frame disposal modes, see {@link Frame.disposalMode} */
-export type FrameDisposalModeName = 'any' | 'keep' | 'previous' | 'background';
+export type FrameDisposalMode = 'any' | 'keep' | 'previous' | 'background';
+/**
+ * Names of the frame disposal modes, see {@link Frame.disposalMode}
+ * @deprecated Use {@link FrameDisposalMode}, its name in 4.0
+ */
+export type FrameDisposalModeName = FrameDisposalMode;
 /**
  * Ids of the frame disposal modes, as GIFs store them (0 any, 1 keep, 2 previous, 3 background)
- * @deprecated Use the names ({@link FrameDisposalModeName}: `'any'`, `'keep'`, `'previous'`, `'background'`), the ids will
+ * @deprecated Use the names ({@link FrameDisposalMode}: `'any'`, `'keep'`, `'previous'`, `'background'`), the ids will
  *     be removed in 4.0
  */
 export type FrameDisposalModeId = 0 | 1 | 2 | 3;
@@ -15,7 +20,10 @@ type DisposalId = 0 | 1 | 2 | 3;
 
 const DISPOSAL_MODES: readonly FrameDisposalModeName[] = ['any', 'keep', 'previous', 'background'];
 
-/** What happens to a frame's area before the next frame is drawn, see {@link Frame.disposalMode} */
+/**
+ * What happens to a frame's area before the next frame is drawn, see {@link Frame.disposalMode}
+ * @deprecated Use the names, `'background'` for `FrameDisposalModes.BACKGROUND`: `FrameDisposalModes` is removed in 4.0
+ */
 export class FrameDisposalModes {
     /** The decoder decides (in practice like {@link FrameDisposalModes.KEEP}) */
     static readonly ANY = 'any';
@@ -65,25 +73,25 @@ export class Frame extends Image {
     private __disposalMode__: DisposalId = 1;
 
     /**
-     * @deprecated Use {@link FrameDisposalModes.ANY}, `Frame.DISPOSAL_*` will be removed in 4.0
+     * @deprecated Use the name `'any'`: `Frame.DISPOSAL_*` and `FrameDisposalModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly DISPOSAL_ANY: typeof FrameDisposalModes.ANY = FrameDisposalModes.ANY;
 
     /**
-     * @deprecated Use {@link FrameDisposalModes.KEEP}, `Frame.DISPOSAL_*` will be removed in 4.0
+     * @deprecated Use the name `'keep'`: `Frame.DISPOSAL_*` and `FrameDisposalModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly DISPOSAL_KEEP: typeof FrameDisposalModes.KEEP = FrameDisposalModes.KEEP;
 
     /**
-     * @deprecated Use {@link FrameDisposalModes.PREVIOUS}, `Frame.DISPOSAL_*` will be removed in 4.0
+     * @deprecated Use the name `'previous'`: `Frame.DISPOSAL_*` and `FrameDisposalModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly DISPOSAL_PREVIOUS: typeof FrameDisposalModes.PREVIOUS = FrameDisposalModes.PREVIOUS;
 
     /**
-     * @deprecated Use {@link FrameDisposalModes.BACKGROUND}, `Frame.DISPOSAL_*` will be removed in 4.0
+     * @deprecated Use the name `'background'`: `Frame.DISPOSAL_*` and `FrameDisposalModes` are removed in 4.0
      * @group Deprecated
      */
     static readonly DISPOSAL_BACKGROUND: typeof FrameDisposalModes.BACKGROUND = FrameDisposalModes.BACKGROUND;
