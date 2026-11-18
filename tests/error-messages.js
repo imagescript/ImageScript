@@ -44,6 +44,22 @@ const shape = /^[\w() ]+ (must be|takes) .+, not .+$/;
         'SVG width': () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {width: 0}),
         'stroke width': () => Image.renderText('A', {font, size: 20, strokeWidth: -1}),
         'feature tag': () => Image.renderText('A', {font, size: 20, features: {ab: true}}),
+        'new Image width': () => new Image(0, 1),
+        'new Image height': () => new Image(1, 0.5),
+        'new Image too large': () => new Image(2 ** 31, 1),
+        'resize width': () => image().resize(0, 1),
+        'resize contain': () => image().resize({width: 0, height: 4, fit: 'contain'}),
+        'resize cover': () => image().resize({width: 4, height: 0, fit: 'cover'}),
+        'scale 0': () => image().scale(0),
+        'crop outside': () => image().crop(20, 20, 4, 4),
+        'getPixelAt x': () => image().getPixelAt(8, 0),
+        'getPixelAt y': () => image().getPixelAt(0, -1),
+        'setPixelAt': () => image().setPixelAt(0, 8, 0xff),
+        'color': () => image().setPixelAt(0, 0, 1.5),
+        'fill color': () => image().fill(2 ** 32),
+        'animation width': () => new Animation([], {width: 0, height: 1}),
+        'animation resize': () => new Animation([new Frame(image())]).resize({width: 0}),
+        'animation crop': () => new Animation([new Frame(image())]).crop(20, 20, 4, 4),
         'feature value': () => Image.renderText('A', {font, size: 20, features: {abcd: 300}})
     };
 

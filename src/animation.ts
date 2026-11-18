@@ -12,7 +12,7 @@ import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, oneOf, pixelLimit, checkThreads, finite, positive, canvasSize as checkCanvasSize, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
+import { checkOptions, oneOf, pixelLimit, checkThreads, finite, positive, pixels, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding, checkPixels } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 import { describe } from './util/inspect.ts';
@@ -124,7 +124,7 @@ export class Animation {
         const { loopCount: count = Infinity, width, height } = options;
         const loops = loopCount(count);
         if ((width === undefined) !== (height === undefined)) throw new TypeError('Animation() takes both a canvas width and height, or neither');
-        const canvas = width === undefined ? null : canvasSize(Math.floor(finite(width, 'width')), Math.floor(finite(height as number, 'height')));
+        const canvas = width === undefined ? null : canvasSize(width, height as number);
         this.frames = frames;
         this.__loopCount__ = loops;
         this.__canvas__ = canvas;
@@ -248,8 +248,8 @@ export class Animation {
         const originalWidth = this.width, originalHeight = this.height;
         if (!originalWidth || !originalHeight) throw new RangeError('An animation without frames or canvas can\'t be resized');
         // (a side that is given has to be a pixel at least, like Image.resize() wants; one that follows the other can't be less)
-        if (givenWidth !== undefined && Math.floor(givenWidth) < 1) throw new RangeError('The animation has to be at least 1 pixel wide');
-        if (givenHeight !== undefined && Math.floor(givenHeight) < 1) throw new RangeError('The animation has to be at least 1 pixel high');
+        if (givenWidth !== undefined) pixels(givenWidth, 'width');
+        if (givenHeight !== undefined) pixels(givenHeight, 'height');
         // the size of the canvas as Image.resize() works it out: a side that is given is cut to whole pixels, one left
         // out follows the other, keeping the aspect ratio
         let width: number, height: number;
@@ -305,7 +305,8 @@ export class Animation {
         const left = Math.max(0, Math.floor(finite(x, 'x'))), top = Math.max(0, Math.floor(finite(y, 'y')));
         const right = Math.min(this.width, Math.floor(finite(x, 'x')) + Math.floor(finite(width, 'width')));
         const bottom = Math.min(this.height, Math.floor(finite(y, 'y')) + Math.floor(finite(height, 'height')));
-        if (!(right - left >= 1 && bottom - top >= 1)) throw new RangeError('The crop region has to overlap the canvas');
+        // eslint-disable-next-line no-restricted-syntax -- the crop region is only checked here
+        if (!(right - left >= 1 && bottom - top >= 1)) throw new RangeError(`crop region must be partly inside the ${this.width}x${this.height} canvas, not ${width}x${height} at ${x},${y}`);
         for (const frame of this.__distinct__()) {
             frame.xOffset -= left;
             frame.yOffset -= top;
@@ -323,7 +324,7 @@ export class Animation {
         checkOptions(options, 'resize({ width, height, fit: \'contain\', background: 0x000000ff })');
         const { background = 0x00000000, ...resizeOpts } = options ?? {};
         const backgroundColor = checkColor(background, 'background');
-        const [boxWidth, boxHeight] = canvasSize(Math.floor(finite(width, 'width')), Math.floor(finite(height, 'height')));
+        const [boxWidth, boxHeight] = canvasSize(width, height);
         this.resize({ width: boxWidth, height: boxHeight, fit: 'inside', ...resizeOpts });
         const x = (boxWidth - this.width) / 2 | 0, y = (boxHeight - this.height) / 2 | 0;
         for (const frame of this.__distinct__()) {
@@ -346,7 +347,7 @@ export class Animation {
      */
     private __cover__(width: number, height: number, options?: ResizeOptions): this {
         checkOptions(options, 'resize({ width, height, fit: \'cover\' })');
-        const [boxWidth, boxHeight] = canvasSize(Math.floor(finite(width, 'width')), Math.floor(finite(height, 'height')));
+        const [boxWidth, boxHeight] = canvasSize(width, height);
         const scale = Math.max(boxWidth / this.width, boxHeight / this.height);
         this.resize(Math.max(boxWidth, Math.round(this.width * scale)), Math.max(boxHeight, Math.round(this.height * scale)), options);
         return this.crop((this.width - boxWidth) / 2, (this.height - boxHeight) / 2, boxWidth, boxHeight);
@@ -524,7 +525,7 @@ export class Animation {
         const { width, height } = this;
         if (width < 1 || height < 1) throw new RangeError('The animation has no canvas: every frame lies outside of it');
         if (format === 'GIF' && (width > 0xffff || height > 0xffff)) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${width}x${height}`);
-        if (format === 'WebP' && (width > 1 << 24 || height > 1 << 24)) throw new RangeError('WebP: canvas too large');
+        if (format === 'WebP' && (width > 1 << 24 || height > 1 << 24)) throw new RangeError(`WebP: images can be at most 16777216 pixels wide and high, not ${width}x${height}`);
     }
 
     /**
@@ -851,10 +852,9 @@ export class Animation {
     }
 }
 
-// a canvas size: positive integers
+// a canvas size: pixels, fractions truncated
 function canvasSize(width: number, height: number): [width: number, height: number] {
-    checkCanvasSize(width, height);
-    return [width, height];
+    return [pixels(width, 'width'), pixels(height, 'height')];
 }
 
 describe(Animation, animation => ({ width: animation.width, height: animation.height, duration: animation.duration, frames: animation.frames.length }));

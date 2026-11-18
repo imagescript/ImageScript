@@ -143,6 +143,23 @@ export function byte(value: number, name: string): number {
     return rounded;
 }
 
+/**
+ * A size in pixels: a number from 1 (a fraction is truncated, like the size of an image), up to what an image can have.
+ * Anything else throws a RangeError naming the argument and the value given
+ */
+export function pixels(value: number, name: string): number {
+    finite(value, name);
+    const whole = Math.trunc(value);
+    if (whole < 1 || whole > 0x7fffffff) throw new RangeError(`${name} must be 1-2147483647, not ${value}`);
+    return whole;
+}
+
+/** A pixel coordinate: a number from 0 to `last` (the coordinate of the last pixel), else a RangeError naming the coordinate */
+export function coordinate(value: number, last: number, name: string): number {
+    if (!(value >= 0 && value <= last)) throw new RangeError(`${name} must be 0-${last}, not ${value}`);
+    return value;
+}
+
 /** A number from 0 to 1, finite: a number outside of it throws a RangeError naming the argument */
 export function unitInterval(value: number, name: string): number {
     finite(value, name);
@@ -223,6 +240,6 @@ export function compressionLevel(value: number): number {
  */
 export function color(value: number, name = 'color'): number {
     const number = finite(value, name);
-    if (!Number.isInteger(number) || number < -0x80000000 || number > 0xffffffff) throw new RangeError(`Invalid ${name}: ${value} (a color is an integer like 0xrrggbbaa)`);
+    if (!Number.isInteger(number) || number < -0x80000000 || number > 0xffffffff) throw new RangeError(`${name} must be an integer from -2147483648 to 4294967295, like 0xrrggbbaa, not ${value}`);
     return number >>> 0;
 }

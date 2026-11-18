@@ -124,7 +124,7 @@ export class AnimationEncoder {
         boolean(optimize, 'optimize');
         const loops = fitLoops(loopCount(count), 'WebP');
         canvas(width, height, 'WebP');
-        if (width > 1 << 24 || height > 1 << 24) throw new RangeError('WebP: canvas too large');
+        if (width > 1 << 24 || height > 1 << 24) throw new RangeError(`WebP: images can be at most 16777216 pixels wide and high, not ${width}x${height}`);
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
         const resolved = resolveMetadata(metadata), chunks: Uint8Array[] = [];
         let alpha = false;

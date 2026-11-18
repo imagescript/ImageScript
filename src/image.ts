@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, nonNegative, atLeast, positive, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -900,15 +900,8 @@ export class Image {
      * @throws `RangeError` if the width or height is less than 1, or the image is too large to allocate
      */
     constructor(width: number, height: number) {
-        width = Math.trunc(finite(width, 'width'));
-        height = Math.trunc(finite(height, 'height'));
-
-        if (width < 1)
-            throw new RangeError('Image has to be at least 1 pixel wide');
-        if (height < 1)
-            throw new RangeError('Image has to be at least 1 pixel high');
-        if (width > 0x7fffffff) throw new RangeError('Image width is too large');
-        if (height > 0x7fffffff) throw new RangeError('Image height is too large');
+        width = pixels(width, 'width');
+        height = pixels(height, 'height');
 
         this.__width__ = width;
         this.__height__ = height;
@@ -1106,27 +1099,8 @@ export class Image {
      * @ignore
      */
     protected __check_boundaries__(x: number, y: number): void {
-        if (isNaN(x)) throw new TypeError(`Invalid pixel coordinates (x=${x})`);
-        if (isNaN(y)) throw new TypeError(`Invalid pixel coordinates (y=${y})`);
-        if (x < 0)
-            throw new RangeError(`${Image.__out_of_bounds__} (x=${x})<0`);
-        if (x >= this.width)
-            throw new RangeError(`${Image.__out_of_bounds__} (x=${x})>=(width=${this.width})`);
-        if (y < 0)
-            throw new RangeError(`${Image.__out_of_bounds__} (y=${y})<0`);
-        if (y >= this.height)
-            throw new RangeError(`${Image.__out_of_bounds__} (y=${y})>=(height=${this.height})`);
-    }
-
-    /**
-     * @private
-     */
-    /**
-     * @internal
-     * @ignore
-     */
-    protected static get __out_of_bounds__(): string {
-        return 'Tried referencing a pixel outside of the images boundaries:';
+        coordinate(x, this.width - 1, 'x');
+        coordinate(y, this.height - 1, 'y');
     }
 
     /**
@@ -1188,7 +1162,7 @@ export class Image {
     scale(factor: number, options?: ResizeOptions): this {
         checkOptions(options, 'scale(factor, { mode: \'area\' })');
         const { mode } = resizeOptions(options);
-        finite(factor, 'scale factor');
+        positive(factor, 'scale factor');
         const image = this.__scale__(factor, mode);
         this.__gain_map__?.__rescale__(this.width, this.height, image.width, image.height);
         this.__moved__?.(image.width / this.width, image.height / this.height, 0, 0);
@@ -1250,11 +1224,9 @@ export class Image {
         const { background = 0x00000000, ...resizeOpts } = options ?? {};
         const backgroundColor = checkColor(background, 'background');
         resizeOptions(resizeOpts);
-        width = Math.floor(finite(width, 'width'));
-        height = Math.floor(finite(height, 'height'));
         // (checked before anything changes)
-        if (width < 1) throw new RangeError('Image has to be at least 1 pixel wide');
-        if (height < 1) throw new RangeError('Image has to be at least 1 pixel high');
+        width = pixels(width, 'width');
+        height = pixels(height, 'height');
         const result = new Image(width, height);
         if (backgroundColor !== 0) result.fill(backgroundColor);
         this.resize(...insideSize(this.width, this.height, width, height), resizeOpts);
@@ -1271,13 +1243,9 @@ export class Image {
      */
     private __cover__(width: number, height: number, options?: ResizeOptions): this {
         const resizeOpts = resizeOptions(options);
-        width = Math.floor(width);
-        height = Math.floor(height);
         // (checked before anything changes: a box below a pixel used to resize the image, then fail to crop it)
-        if (!(width >= 1 && Number.isFinite(width)))
-            throw new RangeError('Image has to be at least 1 pixel wide');
-        if (!(height >= 1 && Number.isFinite(height)))
-            throw new RangeError('Image has to be at least 1 pixel high');
+        width = pixels(width, 'width');
+        height = pixels(height, 'height');
         const scale = Math.max(width / this.width, height / this.height);
         const resizedWidth = Math.max(width, Math.round(this.width * scale)), resizedHeight = Math.max(height, Math.round(this.height * scale));
         // only the part the crop keeps is resampled (the same pixels as resizing the whole image, then cropping)
@@ -1313,12 +1281,8 @@ export class Image {
      * @ignore
      */
     protected __resize__(width: number, height: number, mode: ResizeMode = 'bilinear', region?: Region): Image {
-        width = Math.floor(width);
-        height = Math.floor(height);
-        if (width < 1)
-            throw new RangeError('Image has to be at least 1 pixel wide');
-        if (height < 1)
-            throw new RangeError('Image has to be at least 1 pixel high');
+        width = pixels(width, 'width');
+        height = pixels(height, 'height');
 
         oneOf(mode, RESIZE_MODES, 'resize mode');
         if (mode === 'nearest-neighbor') return this.__resize_nearest_neighbor__(width, height);
@@ -1414,7 +1378,8 @@ export class Image {
         const left = Math.max(0, x), top = Math.max(0, y);
         const right = Math.min(this.width, x + width), bottom = Math.min(this.height, y + height);
         if (right <= left || bottom <= top)
-            throw new RangeError('Crop region does not overlap the image');
+            // eslint-disable-next-line no-restricted-syntax -- the crop region is only checked here
+            throw new RangeError(`crop region must be partly inside the ${this.width}x${this.height} image, not ${width}x${height} at ${x},${y}`);
 
         return [left, top, right - left, bottom - top];
     }
@@ -1979,7 +1944,6 @@ export class Image {
             const packed = new Uint8Array(palette.length * 3);
             palette.forEach((color, i) => {
                 const value = checkColor(color, 'palette color');
-                if (!Number.isInteger(value) || value < 0 || value > 0xffffffff) throw new RangeError(`Invalid palette color: ${color}`);
                 packed[i * 3] = value >>> 24;
                 packed[i * 3 + 1] = value >>> 16 & 255;
                 packed[i * 3 + 2] = value >>> 8 & 255;
