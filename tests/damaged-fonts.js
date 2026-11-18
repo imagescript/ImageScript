@@ -82,6 +82,18 @@ const cases = {
         data.writeUInt16BE(0, tableOffset(data, 'head') + 18);
         return data;
     })(),
+    // a name record and a cmap format 4 subtable whose offsets lie outside of the font: an SVG doesn't use such a font,
+    // like one that doesn't load (it threw a RangeError)
+    'name record outside of the font': (() => {
+        const data = Buffer.from(fs.readFileSync(fonts + 'carbon phyber.ttf'));
+        data.writeUInt32BE(0x7fffffff, 141352);
+        return data;
+    })(),
+    'cmap format 4 outside of the font': (() => {
+        const data = Buffer.from(fs.readFileSync(fonts + 'resvg/NotoMono-Regular.ttf'));
+        data.writeUInt32BE(0x7fffffff, 952);
+        return data;
+    })(),
     'cmap format 14 with a huge record count': withCount('font features.ttf', 'cmap', cmap14('font features.ttf') + 6, 0xffffffff),
     'cblc with a huge strike count': patched('noto color emoji subset.ttf', [[0x27, 44, 12]])
 };

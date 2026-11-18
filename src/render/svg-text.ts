@@ -16,6 +16,7 @@ import { loadFont } from './text.ts';
 import { parseColorLayers, parseBitmaps, ColorLayer, BitmapGlyph } from './color.ts';
 import { parsePaintGlyphs, PaintGlyphs } from './colr.ts';
 import { Matrix, multiply } from '../util/matrix.ts';
+import { LimitError } from '../util/limits.ts';
 
 export interface BBox {
     x: number;
@@ -90,6 +91,16 @@ export function fontFace(data: Uint8Array, descriptors?: { family?: string, weig
     }
     const cached = !descriptors && faces.get(font);
     if (cached) return cached;
+    // (reading past the end of a damaged font throws a RangeError: the font isn't used, like one that doesn't load)
+    try {
+        return describeFace(font, descriptors);
+    } catch (err) {
+        if (err instanceof RangeError && !(err instanceof LimitError)) return null;
+        throw err;
+    }
+}
+
+function describeFace(font: Font, descriptors?: { family?: string, weight?: number, style?: FontStyle }): FontFace {
 
     const os2 = font.tables['OS/2'] && font.tables['OS/2'].length >= 78 ? font.tables['OS/2'].offset : -1;
     const post = font.tables.post && font.tables.post.length >= 16 ? font.tables.post.offset : -1;
