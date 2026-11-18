@@ -16,7 +16,7 @@ const maxDifference = (a, b) => {
 
 // the AVIFs of scripts/avif-fixtures.py as libavif decodes them (with dav1d)
 const references = {
-    'yuv420': '8538965a0f7e917daac4f08481d827f8ab64b7db15d61c591fb3680c25547481',
+    'yuv420': '90f02dd1ea2311ef04bff00ef3a6d10cd5c906f735a4fec04eea71ea12e62534',
     'yuv420-12bit': '90e1db5bd40f2418d01b6cff2f0a370c77270fcb6a86eb498b3eaf6228fb4232',
     'yuv422-10bit': 'd6191a34034304d914921b21cb4ddc9233cf85754461875c0837338c44674012',
     'yuv444': '5b9fdf4ea98158c29fb9551dc6186f0ae8042eea298ed21e246ed9e2198510d4',
@@ -64,6 +64,13 @@ const references = {
             const max = maxDifference(await Image.decode(binary, {toneMapping}), source);
             if (max > 2) panic(`${name}: differs by ${max} from the source (${toneMapping})`);
         }
+    }
+
+    // 4:2:0 of an odd width: the last column has no chroma sample to its right, and takes its own one (like libavif;
+    // it took the one to its left). odd-width.png is avifdec 1.2.1's bilinear decode of odd-width.avif (33x9)
+    {
+        const max = maxDifference(await Image.decode(await fs.readFile('./tests/avif/odd-width.avif')), await Image.decode(await fs.readFile('./tests/avif/odd-width.png')));
+        if (max > 2) panic(`odd width 4:2:0: differs by ${max} from avifdec`);
     }
 
     // image sequences decode as their first frame
