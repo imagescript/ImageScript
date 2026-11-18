@@ -541,7 +541,7 @@ false })` grows the image again), so search for them too.
 | `Image.renderSVG(svg, { size: 2 })`, `{ size: 2, mode: 'scale' }` | `Image.renderSVG(svg, { scale: 2 })` |
 | `SVGScaleModes`, `SVGScaleMode` | Removed, see the two rows above |
 | `image.drawBox(x, y, w, h, color)` | `image.composite(new Image(w, h).fill(color), { x, y })`. It blends a translucent color over the image; `drawBox()` replaced the pixels |
-| `image.drawCircle(x, y, r, color)` | `image.composite(new Image(2 * r, 2 * r).fill(color).cropCircle(), { x: x - r, y: y - r })` |
+| `image.drawCircle(x, y, r, color)` | `image.composite(new Image(2 * r, 2 * r).fill(color).cropCircle(), { x: x - r, y: y - r })`: an approximation, the edge pixels differ (it blends instead of replacing, and `cropCircle()` has its own antialiasing) |
 | `image.greyscale()` | `image.grayscale()` (the whole API spells American English) |
 | `Image.renderText(text, { font, size, layout: { maxWidth: 300 } })`, `layout: new TextLayout(options)` | `Image.renderText(text, { font, size, width: 300 })`: the layout options ({@link TextLayoutOptions}) are part of the options; `TextLayout` isn't exported |
 | `image.getRGBAAt(x, y)` | `Colors.toRGBA(image.getPixelAt(x, y))`, an array (`getRGBAAt()` returned a view into the bitmap) |
@@ -652,7 +652,7 @@ grep -rnE 'renderSVG\(|renderText\(|cropCircle\(' src
 grep -rnE '\.(red|green|blue|opacity|lightness|saturation)\([^)]*,' src
 
 # renamed and reshaped in 4.0
-grep -rnE '\.(contain|fit)\(|greyscale|drawBox|drawCircle|SVGScaleMode|TextLayout|AnimationDecodeOptions|gainMapM(in|ax)' src
+grep -rnE '\.(contain|fit|cover)\(|greyscale|drawBox|drawCircle|SVGScaleMode|TextLayout|AnimationDecodeOptions|gainMapM(in|ax)' src
 grep -rnE 'fromHSLA?\(|toHSLA\(|\.rotate\(|renderSVG\([^)]*(size|mode)|layout:|getRGBAAt|\.region\(' src
 grep -rnE 'encodeGIF\(|gifEncoder\(|GIFEncodeOptions|encodeJPEG\(' src
 
