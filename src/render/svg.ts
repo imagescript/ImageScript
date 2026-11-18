@@ -194,11 +194,12 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         throw new LimitError(`SVG too large to render: ${outWidth}x${outHeight} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
 
     // (rendering is synchronous: the layers allocated until it returns are this render's)
-    const previous = layerBudget, previousCrossings = crossingsLeft, previousFilterWork = filterWorkLeft;
+    const previous = layerBudget, previousCrossings = crossingsLeft, previousFilterWork = filterWorkLeft, previousPaint = paintLeft;
     layerBudget = { left: maxLayerPixels, limit: maxLayerPixels };
     crossingsLeft = MAX_CROSSINGS;
     // (the work scales with the output: a filter on every pixel of it takes a primitive's worth of work per pixel)
     filterWorkLeft = MAX_FILTER_WORK + FILTER_WORK_PER_PIXEL * outWidth * outHeight;
+    paintLeft = MAX_PAINT + PAINT_PER_PIXEL * outWidth * outHeight;
     try {
         const canvas = new Layer(outWidth, outHeight);
         // (a transform on the root element (SVG 2) applies before the viewBox mapping)
@@ -208,6 +209,7 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         layerBudget = previous;
         crossingsLeft = previousCrossings;
         filterWorkLeft = previousFilterWork;
+        paintLeft = previousPaint;
     }
 }
 
@@ -742,6 +744,15 @@ let crossingsLeft = Infinity;
 // 5 s while a drop shadow on a large image has room (the time it allows grows with the output's size). What is left of it in the render that runs
 const MAX_FILTER_WORK = 2 ** 25, FILTER_WORK_PER_PIXEL = 16;
 let filterWorkLeft = Infinity;
+// the most pixels shapes are filled into and layers composited onto in one render (about 8 ns each): 2^28 and 64 per
+// pixel of the output, 64 times over the whole image, so a few kilobytes of <use> copies or markers of large groups
+// (they took minutes) stop after seconds. What is left of it in the render that runs
+const MAX_PAINT = 2 ** 28, PAINT_PER_PIXEL = 64;
+let paintLeft = Infinity;
+function charge(pixels: number): void {
+    if ((paintLeft -= pixels) < 0)
+        throw new LimitError(`SVG too complex: its shapes and layers paint more pixels than a render of this size allows (${MAX_PAINT} and ${PAINT_PER_PIXEL} per output pixel)`);
+}
 // the work of filters, and the results they keep, against the render's budgets
 const filterBudget: FilterBudget = {
     work(pixels) {
@@ -2917,6 +2928,7 @@ class Layer {
 
     // composites a paint through a coverage mask (source over)
     fill({ x0, y0, w, h, data }: Coverage, paint: Paint): void {
+        charge(w * h);
         const d = this.data;
         const solid = paint.solid;
         this.extend(x0, y0, x0 + w, y0 + h);
@@ -3001,6 +3013,7 @@ class Layer {
 
     composite(layer: Layer, opacity: number, mask: Float32Array | null, blend = 'normal'): void {
         if (layer.x1 <= layer.x0) return;
+        charge((layer.x1 - layer.x0) * (layer.y1 - layer.y0));
         this.extend(layer.x0, layer.y0, layer.x1, layer.y1);
 
         const s = layer.data, d = this.data;
