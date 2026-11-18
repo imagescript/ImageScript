@@ -494,7 +494,7 @@ export interface SVGResourceOptions {
      * small SVG takes. Exceeding it throws a {@link LimitError} (a RangeError). With the defaults, rendering can take about 90 bytes per pixel
      * of `maxPixels` (64 for the layers, up to 20 for the images, 4 for the output): lower `maxPixels` to bound it for
      * untrusted SVGs. Filters have a limit of their own that these options don't change: all the filters' primitives
-     * together may work on 2²⁶ pixels plus 16 per pixel of the output (a primitive counts its region's pixels once
+     * together may work on 2²⁵ pixels plus 16 per pixel of the output (a primitive counts its region's pixels once
      * per pass: an `feConvolveMatrix` per 9 taps of its kernel, an `feTurbulence` per octave, an `feMerge` per node),
      * else a {@link LimitError} is thrown
      * @defaultValue `4 * maxPixels`; `Infinity` disables the limit
@@ -2992,12 +2992,13 @@ export class Image {
      * @param svg The SVG content
      * @param options See {@link RenderSVGOptions}
      * @return The rendered SVG graphic
-     * @throws {@link LimitError} if the output, the layers or the images exceed the limits of the options
+     * @throws {@link LimitError} if the output, the layers or the images exceed the limits of the options, or the SVG
+     *     exceeds a fixed limit of the work it may take: more than 100000 elements drawn through `<use>` references and
+     *     markers, more than 10000 markers, masks, clip paths, patterns, markers and filter images nested so deeply that
+     *     they would multiply, entities that expand past the size limit, or filters past their budget
      * @throws `RangeError` if the requested size is below 1 pixel (or a scale isn't above 0)
-     * @throws `Error` if the SVG can't be parsed (it has no `<svg>` element), an image in it can't be drawn (it isn't given
-     *     or can't be decoded), masks, clip paths, patterns, markers and filter images are nested so deeply that they
-     *     would multiply, or it draws more than 100000 elements through `<use>` references and markers or more than
-     *     10000 markers
+     * @throws `Error` if the SVG can't be parsed (it has no `<svg>` element) or an image in it can't be drawn (it isn't
+     *     given or can't be decoded)
      */
     static renderSVG(svg: string | BinaryData, options?: RenderSVGOptions): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, options: RenderSVGOptions = {}): Promise<Image> {

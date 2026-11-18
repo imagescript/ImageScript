@@ -344,6 +344,10 @@ of a small SVG. The default is `4 * maxPixels`; an SVG over it throws a `RangeEr
 `maxPixels` (64 for the layers, up to 20 for the images, 4 for the output), so `maxPixels: 4096 ** 2` keeps rendering
 around 1.5 GB.
 
+Its fixed limits of work (elements drawn through `<use>` references and markers, masks, clip paths, patterns and
+filter images nested inside each other, entity expansion, filters) throw a `LimitError` too, where 3.x threw an
+`Error`; code that tests for `Error` still catches them.
+
 `Image.renderText()` takes `maxPixels` too (default `16383 ** 2`), which counts the outline (`strokeWidth`), checked
 before anything is allocated.
 

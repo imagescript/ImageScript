@@ -114,6 +114,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### New
 
+- `renderSVG()`'s fixed limits of work throw a `LimitError` like its options' limits (an `Error` in 3.x): elements drawn through `<use>` references, nested masks, clip paths, patterns, markers and filter images, and entity expansion. `LimitError` is a `RangeError`, so `catch` blocks that test for `Error` still catch them.
 - `GainMap.decode(data, { maxPixels })` takes the limit of `Image.decode()`, and the `LimitError` that these limits throw is exported (with `name` `'LimitError'`).
 - `rotate(angle, { expand: false })` keeps the image's size for quarter turns, too: the turned image is centered and what doesn't fit is cut off (they swapped width and height).
 - `renderSVG()` throws for masks, clip paths, patterns, markers and filter images nested in each other so deeply that they would multiply (three per level took minutes at ten levels), and stops at 24 `feTurbulence` octaves, which are all that its output can hold. Shapes far outside the image no longer make rendering hang.
@@ -175,7 +176,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - AVIF 4:2:0 images of an odd width decode the last column like libavif: it took the chroma of the column to its left too (off by up to 51).
 - `Animation.decode()` counts every frame as at least 1024 pixels of `maxPixels`: a frame takes memory however small it is, so a 4.6 MB GIF of 200000 frames of 1x1 took 720 MB.
 - `renderSVG()` bounds the work of markers: their elements count against the 100,000 elements of `<use>` references, and one render draws at most 10,000 markers (120,000 vertices with `marker-mid` took 135 s).
-- `renderSVG()` bounds the work of filters: their primitives may work on 2^26 pixels plus 16 per pixel of the output in one render (once per pass: an `feConvolveMatrix` per 9 taps of its kernel, an `feTurbulence` per octave, an `feMerge` per node), more throws a `LimitError`; a filter's region counts against `maxLayerPixels` like the other layers (one of more than 2^26 pixels was left out without a word) (600 blurs and morphologies over a megapixel, 37 KB of SVG, took more than 3 GB and minutes), and the results a filter keeps for `result=` references count against `maxLayerPixels`.
+- `renderSVG()` bounds the work of filters: their primitives may work on 2^25 pixels plus 16 per pixel of the output in one render (once per pass: an `feConvolveMatrix` per 9 taps of its kernel, an `feTurbulence` per octave, an `feMerge` per node), more throws a `LimitError`; a filter's region counts against `maxLayerPixels` like the other layers (one of more than 2^26 pixels was left out without a word) (600 blurs and morphologies over a megapixel, 37 KB of SVG, took more than 3 GB and minutes), and the results a filter keeps for `result=` references count against `maxLayerPixels`.
 - `renderSVG()` parses `transform` lists in linear time: a long list of unclosed functions took 4.8 s at 280 KB.
 
 ## 3.20.3

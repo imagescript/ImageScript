@@ -218,7 +218,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         const svg = `<!DOCTYPE svg [${dtd}]><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><desc>${'&e4;'.repeat(50)}</desc></svg>`;
         let error = null;
         try { await Image.renderSVG(svg); } catch (err) { error = err; }
-        assert(error instanceof Error, 'SVG: entity expansion should be limited');
+        assert(error instanceof LimitError, `SVG: entity expansion should be limited with a LimitError (${error})`);
     }
 
     // resizing filters average instead of skipping pixels, in premultiplied alpha
@@ -981,7 +981,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         for (let i = 1; i <= 9; i++) defs += `<g id="l${i}">${`<use href="#l${i - 1}"/>`.repeat(10)}</g>`;
         let start = Date.now(), error = null;
         try { await Image.renderSVG(`<svg ${NS} width="100" height="100"><defs>${defs}</defs><use href="#l9"/></svg>`, {width: 100}); } catch (err) { error = err; }
-        assert(error instanceof Error && Date.now() - start < 10000, `billion laughs should throw quickly (${error && error.message}, ${Date.now() - start} ms)`);
+        assert(error instanceof LimitError && Date.now() - start < 10000, `billion laughs should throw quickly (${error && error.message}, ${Date.now() - start} ms)`);
 
         start = Date.now();
         const dashed = await Image.renderSVG(`<svg ${NS} width="100" height="100"><path d="M0 50 L100000000 50" stroke="black" stroke-width="4" stroke-dasharray="0.0001"/></svg>`, {width: 100});

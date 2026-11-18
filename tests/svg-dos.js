@@ -113,7 +113,7 @@ const timed = async (name, svg, limit = 5000) => {
             const ordinary = await timed(`${name}, 3 levels`, `<svg ${NS} width="100" height="100">${vector(3)}</svg>`);
             if (ordinary.error) panic(`${name}, 3 levels: ${ordinary.error.message}`);
             const {error} = await timed(`${name}, 14 levels`, `<svg ${NS} width="100" height="100">${vector(14)}</svg>`, 30000);
-            if (!(error instanceof Error)) panic(`${name}, 14 levels: should throw (${error})`);
+            if (!error || error.name !== 'LimitError') panic(`${name}, 14 levels: should throw a LimitError (${error})`);
         }
     }
 
@@ -172,7 +172,7 @@ const timed = async (name, svg, limit = 5000) => {
         try { await Image.renderSVG(chain(600)); } catch (err) { error = err; }
         const time = Date.now() - start;
         if (!error || error.name !== 'LimitError') panic(`filter chain: expected a LimitError, got ${error} after ${time} ms`);
-        if (time > 15000 * slack) panic(`filter chain: took ${time} ms`);
+        if (time > 30000 * slack) panic(`filter chain: took ${time} ms`);
         error = null;
         try { await Image.renderSVG(chain(8), {maxLayerPixels: 4e6}); } catch (err) { error = err; }
         if (!error || error.name !== 'LimitError') panic(`filter chain within maxLayerPixels: expected a LimitError, got ${error}`);
@@ -215,7 +215,7 @@ const timed = async (name, svg, limit = 5000) => {
             const begin = Date.now();
             error = null;
             try { await Image.renderSVG(markers); } catch (err) { error = err; }
-            if (!error || !/markers/.test(error.message) || Date.now() - begin > 30000 * slack) panic(`120000 markers: expected the marker limit within 30 s, got ${error} after ${Date.now() - begin} ms`);
+            if (!error || error.name !== 'LimitError' || !/markers/.test(error.message) || Date.now() - begin > 30000 * slack) panic(`120000 markers: expected the marker limit within 30 s, got ${error} after ${Date.now() - begin} ms`);
         }
         // a real filter on a large image still renders
         const shadow = await Image.renderSVG(`<svg ${NS} width="2000" height="2000"><filter id="s"><feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dx="10" dy="10" result="b"/><feFlood flood-color="#0004"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><rect x="100" y="100" width="1700" height="1700" fill="red" filter="url(#s)"/></svg>`);

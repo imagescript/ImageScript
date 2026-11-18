@@ -386,7 +386,7 @@ function parseXML(text: string): XNode {
             rest = rest.replace(/&([\w.-]+);/g, (match: string, name: string): string => {
                 if (!(name in custom)) return match;
                 size += custom[name].length - match.length;
-                if (size > limit) throw new Error('SVG: entity expansion exceeds the size limit');
+                if (size > limit) throw new LimitError('SVG too complex: entity expansion exceeds the size limit');
                 return custom[name];
             });
         }
@@ -738,9 +738,9 @@ const MAX_CROSSINGS = 2 ** 27;
 // what is left of it in the render that runs (rendering is synchronous), unlimited outside of one
 let crossingsLeft = Infinity;
 // the most pixels the primitives of filters work on in one render (a primitive takes about 0.15 s per megapixel):
-// 2^26 and 16 per pixel of the output, so a small SVG with hundreds of primitives (it took minutes) stops after about
-// 10 s while a drop shadow on a large image has room (the time it allows grows with the output's size). What is left of it in the render that runs
-const MAX_FILTER_WORK = 2 ** 26, FILTER_WORK_PER_PIXEL = 16;
+// 2^25 and 16 per pixel of the output, so a small SVG with hundreds of primitives (it took minutes) stops after about
+// 5 s while a drop shadow on a large image has room (the time it allows grows with the output's size). What is left of it in the render that runs
+const MAX_FILTER_WORK = 2 ** 25, FILTER_WORK_PER_PIXEL = 16;
 let filterWorkLeft = Infinity;
 // the work of filters, and the results they keep, against the render's budgets
 const filterBudget: FilterBudget = {
@@ -941,7 +941,7 @@ class Document {
     renderNode(node: XNode, context: Context, root = false): void {
         if (!node.svg || UNSUPPORTED.has(node.name) || context.depth > 32 || !this.passesConditions(node)) return;
         // <use> references can multiply each other ("billion laughs"), markers repeat at every vertex: their elements are counted
-        if (context.instanced && ++this.budget.instances > MAX_INSTANCES) throw new Error(`SVG: more than ${MAX_INSTANCES} elements rendered through <use> references, markers or embedded SVGs`);
+        if (context.instanced && ++this.budget.instances > MAX_INSTANCES) throw new LimitError(`SVG too complex: more than ${MAX_INSTANCES} elements rendered through <use> references, markers or embedded SVGs`);
 
         const style = this.computeStyle(node, context.style);
         if (style.display === 'none') return;
@@ -1699,7 +1699,7 @@ class Document {
 
                 // (a marker is rendered at every vertex: its elements count like those of <use> references, and the
                 // markers themselves too, each a render of its own)
-                if (++this.budget.markers > MAX_MARKERS) throw new Error(`SVG: more than ${MAX_MARKERS} markers`);
+                if (++this.budget.markers > MAX_MARKERS) throw new LimitError(`SVG too complex: more than ${MAX_MARKERS} markers`);
                 const inner = { ...ctx, matrix, style: markerStyle, depth: ctx.depth + 1, viewport: viewBox ? { width: viewBox[2], height: viewBox[3] } : ctx.viewport, contextElement, instanced: true };
                 this.active.add(marker);
                 this.indirect(0, () => {
@@ -2378,7 +2378,7 @@ class Document {
     indirect<T>(pixels: number, render: () => T): T {
         const budget = this.budget;
         if (budget.nesting > 0 && (budget.nested += Math.max(pixels, MIN_NESTED)) > MAX_NESTED)
-            throw new Error('SVG: too many masks, clip paths, patterns, markers or filter images inside each other');
+            throw new LimitError('SVG too complex: too many masks, clip paths, patterns, markers or filter images inside each other');
         budget.nesting++;
         try {
             return render();
