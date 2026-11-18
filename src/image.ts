@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { allocate, shown, isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, cropBounds, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { allocate, instance, shown, isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, cropBounds, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -361,7 +361,7 @@ export interface EncodeOptions {
  */
 export interface GainMapEmbedOptions {
     /**
-     * The map's quality (1-100, like the format's `quality`; for JPEG XL 100 is lossless)
+     * The map's quality (0-100, like the format's `quality`; for JPEG XL 100 is lossless)
      * @defaultValue `90`
      */
     quality?: number;
@@ -950,10 +950,9 @@ export class Image {
      *     divisible by 4: the image reads it as 32-bit pixels too)
      */
     set bitmap(bitmap: Uint8ClampedArray | Uint8Array) {
-        if (!(bitmap instanceof Uint8ClampedArray || bitmap instanceof Uint8Array))
-            throw new TypeError('The bitmap has to be a Uint8ClampedArray or Uint8Array');
+        instance(bitmap, [Uint8ClampedArray, Uint8Array], 'bitmap');
         if (bitmap.length !== this.width * this.height * 4)
-            throw new RangeError(`The bitmap has to have ${this.width * this.height * 4} bytes (width * height * 4), got ${bitmap.length}`);
+            throw new RangeError(`bitmap must have ${this.width * this.height * 4} bytes (width * height * 4), not ${bitmap.length}`);
         // (a copy would no longer be the array the caller has)
         if (bitmap.byteOffset % 4)
             throw new TypeError(`The bitmap has to start at a byte offset divisible by 4 to be used without copying, not ${bitmap.byteOffset} (pass bitmap.slice() for a copy)`);
@@ -3093,7 +3092,8 @@ export class Image {
         const size = positive(options.size, 'font size');
         nonNegative(strokeWidth, 'stroke width');
         const fonts = Array.isArray(font) ? font : [font];
-        if (!fonts.length) throw new RangeError('No font given');
+        // eslint-disable-next-line no-restricted-syntax -- the one list of fonts
+        if (!fonts.length) throw new TypeError('font must be a font or an array of one or more fonts, not an empty array');
 
         const [r, g, b, a] = Colors.toRGBA(color);
         // the outline needs room around the glyphs (checked against maxPixels with them): a given size is the image's,

@@ -245,7 +245,7 @@ const rejects = async (name, fn, Type) => {
     image.dominantColor({threshold: 256});
     const {GainMap} = require('..');
     const map = new GainMap(new Image(4, 4).fill(0x808080ff), {max: 2});
-    await rejects('gain map quality 0', () => map.encodeJPEG({quality: 0}), RangeError);
+    await rejects('gain map quality -1', () => map.encodeJPEG({quality: -1}), RangeError);
     for (const metadata of ['hi', 5, true]) await rejects(`encodePNG metadata ${metadata}`, () => image.encodePNG({metadata}), TypeError);
     await rejects('new AnimationEncoder()', () => new (require('..').AnimationEncoder)(), TypeError);
 

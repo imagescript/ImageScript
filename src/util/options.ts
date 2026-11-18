@@ -82,7 +82,7 @@ export function allocate<T>(width: number, height: number, make: () => T): T {
     try {
         return make();
     } catch (err) {
-        throw new RangeError(`An image of ${width}x${height} pixels (${width * height * 4} bytes) can't be allocated`, { cause: err });
+        throw new RangeError(`An image of ${width}x${height} pixels (${BigInt(width) * BigInt(height) * 4n} bytes) can't be allocated`, { cause: err });
     }
 }
 
@@ -139,6 +139,11 @@ export function fitDuration(duration: number, format: keyof typeof DURATION_LIMI
 }
 
 /** A number of 0 or more, finite: a negative one throws a RangeError naming the argument */
+/** An instance of one of the classes `types` (an Image, a Frame, ...), else a TypeError naming the argument and the value */
+export function instance(value: unknown, types: Array<abstract new (...args: never[]) => unknown>, name: string): void {
+    if (!types.some(type => value instanceof type)) throw new TypeError(`${name} must be ${types.map(type => `a ${type.name}`).join(' or ')}, not ${shown(value)}`);
+}
+
 export function nonNegative(value: number, name: string): number {
     finite(value, name);
     if (value < 0) throw new RangeError(`${name} must be 0 or more, not ${value}`);
@@ -221,10 +226,7 @@ export function gainMapEmbed(value: unknown): { quality?: number, scale?: number
     if (typeof value !== 'object' || value === null) throw new TypeError(`gainMap must be true, false or an options object like { quality: 90, scale: 0.5 }, not ${shown(value)}`);
     const { quality: q, scale } = value as { quality?: unknown, scale?: unknown };
     const options: { quality?: number, scale?: number } = {};
-    if (q !== undefined) {
-        options.quality = quality(q as number, 'gain map quality');
-        if (options.quality < 1) throw new RangeError(`gain map quality must be 1-100, not ${options.quality}`);
-    }
+    if (q !== undefined) options.quality = quality(q as number, 'gain map quality');
     if (scale !== undefined) options.scale = gainMapScale(scale as number);
     return options;
 }

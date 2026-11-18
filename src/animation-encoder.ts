@@ -7,7 +7,7 @@ import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, nonNegative, canvasSize, compressionLevel, loopCount, toPlays, fitLoops, fitDuration, maxDuration, boolean } from './util/options.ts';
+import { instance, checkOptions, finite, nonNegative, canvasSize, compressionLevel, loopCount, toPlays, fitLoops, fitDuration, maxDuration, boolean } from './util/options.ts';
 import type { AnimationOptions, WebPAnimationEncodeOptions, GIFAnimationEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
@@ -79,9 +79,9 @@ export class AnimationEncoder {
     async add(frame: Frame | Image, options: FrameOptions = {}): Promise<void> {
         checkOptions(options, 'encoder.add(frame, { duration: 40 })');
         if (this.finished) throw new Error('The animation encoder is finished');
+        instance(frame, [Frame, Image], 'the frame of encoder.add()');
         const own = frame instanceof Frame ? frame : null;
-        const image = own ? own.image : frame;
-        if (!(image instanceof Image)) throw new TypeError('encoder.add() takes a Frame or an Image');
+        const image = own ? own.image : frame as Image;
         const duration = nonNegative(options.duration === undefined ? own?.duration ?? 100 : options.duration, 'frame duration');
         fitDuration(duration, this.format.name);
         // (offsets are truncated to integers, like a frame's)

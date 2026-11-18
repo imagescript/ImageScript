@@ -4,12 +4,12 @@ import { MAX_PIXELS, decoding } from './util/limits.ts';
 import * as jpeg from './codecs/jpeg.ts';
 import * as codec from './codecs/gainmap.ts';
 import { BinaryData, view } from './util/mem.ts';
-import { finite, checkOptions, pixelLimit, boolean, quality as checkQuality } from './util/options.ts';
+import { instance, nonNegative, finite, checkOptions, pixelLimit, boolean, quality as checkQuality } from './util/options.ts';
 
 /** Options of {@link GainMap.encodeJPEG} */
 export interface GainMapEncodeOptions {
     /**
-     * The JPEG quality (1-100)
+     * The JPEG quality (0-100, like {@link Image.encodeJPEG}'s: 0 is 1)
      * @defaultValue `90`
      */
     quality?: number;
@@ -148,8 +148,7 @@ export class GainMap {
      * @param value A finite number from 0, below `hdrCapacityMax`
      */
     set hdrCapacityMin(value: number) {
-        const capacity = finite(value, 'hdrCapacityMin');
-        if (capacity < 0) throw new RangeError('The gain map\'s hdrCapacityMin can\'t be negative');
+        const capacity = nonNegative(value, 'hdrCapacityMin');
         // (checked against the other one when both are set: the constructor sets min first)
         if ((this.__capacityMax__ as number | undefined) !== undefined && !(capacity < this.__capacityMax__))
             // eslint-disable-next-line no-restricted-syntax -- a relation between two values of the gain map
@@ -190,7 +189,7 @@ export class GainMap {
      */
     constructor(image: Image, options: GainMapOptions = {}) {
         checkOptions(options, 'new GainMap(image, { max: 2 })');
-        if (!(image instanceof Image)) throw new TypeError('The gain map has to be an Image');
+        instance(image, [Image], 'the gain map image');
         const { min = 0, max = 2, gamma = 1, offsetSDR = 1 / 64, offsetHDR = 1 / 64, hdrCapacityMin = 0, useBaseColorSpace = true } = options;
         this.min = min;
         this.max = max;
@@ -279,7 +278,7 @@ export class GainMap {
      * @param image The new map, at any resolution: it covers the whole image
      */
     set image(image: Image) {
-        if (!(image instanceof Image)) throw new TypeError('The gain map has to be an Image');
+        instance(image, [Image], 'gainMap.image');
         this.__pixels__ = image;
     }
 
@@ -385,10 +384,7 @@ export class GainMap {
     async encodeJPEG(options?: GainMapEncodeOptions): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'gainMap.encodeJPEG({ quality: 80 })');
         const quality = options?.quality;
-        if (quality !== undefined) {
-            checkQuality(quality);
-            if (quality < 1) throw new RangeError(`quality has to be between 1 and 100, not ${quality}`);
-        }
+        if (quality !== undefined) checkQuality(quality);
         return codec.mapWithMetadata(this.__body__(quality), this.__params__());
     }
 

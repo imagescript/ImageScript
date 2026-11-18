@@ -1,5 +1,5 @@
 const fs = require('fs');
-const {Image, Frame, Animation, Colors, LimitError} = require('..');
+const {Image, Frame, Animation, Colors, GainMap, LimitError} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -64,8 +64,22 @@ const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
         'color matrix size': () => image().colorMatrix([1]),
         'transform size': () => image().transform([1]),
         'dominantColor threshold': () => image().dominantColor({threshold: 300}),
-        'feature value': () => Image.renderText('A', {font, size: 20, features: {abcd: 300}})
+        'feature value': () => Image.renderText('A', {font, size: 20, features: {abcd: 300}}),
+        'hdrCapacityMin': () => new GainMap(new Image(2, 2), {hdrCapacityMin: -1}),
+        'bitmap length': () => { image().bitmap = new Uint8Array(4); },
+        'text width': () => Image.renderText('A', {font, size: 20, width: 0.5})
     };
+    // a value of the wrong type throws a TypeError that names the argument and shows the value
+    const typeCases = {
+        'new GainMap(5)': () => new GainMap(5),
+        'gainMap.image': () => { new GainMap(new Image(2, 2)).image = 5; },
+        'frame.image': () => { new Frame(image()).image = 5; },
+        'animation frames': () => new Animation([5]),
+        'encoder.add': () => Animation.gifEncoder(4, 4).add(5),
+        'bitmap type': () => { image().bitmap = [1, 2, 3, 4]; },
+        'renderText without a font': () => Image.renderText('A', {font: [], size: 20})
+    };
+    const typeShape = /^[\w()[\]. ]+ must be .+, not .+$/;
 
     const failures = [];
     for (const [name, fn] of Object.entries(cases)) {
@@ -75,6 +89,23 @@ const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
         } catch (error) {
             if (!(error instanceof RangeError)) failures.push(`${name}: ${error?.constructor?.name}: ${error?.message}, not a RangeError`);
             else if (!shape.test(error.message)) failures.push(`${name}: the message doesn't say which argument, what it takes and what it got: ${error.message}`);
+        }
+    }
+    for (const [name, fn] of Object.entries(typeCases)) {
+        try {
+            await fn();
+            failures.push(`${name}: accepted`);
+        } catch (error) {
+            if (!(error instanceof TypeError)) failures.push(`${name}: ${error?.constructor?.name}: ${error?.message}, not a TypeError`);
+            else if (!typeShape.test(error.message)) failures.push(`${name}: the message doesn't say which argument, what it takes and what it got: ${error.message}`);
+        }
+    }
+    // a gain map's JPEG takes the qualities of Image.encodeJPEG() (0 is 1)
+    for (const encode of [() => new GainMap(new Image(4, 4)).encodeJPEG({quality: 0}), () => { const i = image(); i.gainMap = new GainMap(new Image(4, 4)); return i.encodeJPEG({gainMap: {quality: 0}}); }]) {
+        try {
+            await encode();
+        } catch (error) {
+            failures.push(`gain map quality 0: ${error.message}, Image.encodeJPEG() takes 0`);
         }
     }
     // limits of what an image can become are LimitErrors, like the ones of dropShadow() and outline()

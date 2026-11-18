@@ -1,5 +1,5 @@
 import { Image, ResizeOptions, ResizeToOptions, TrimOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions } from './image.ts';
-import { checkOptions, finite, nonNegative, oneOf } from './util/options.ts';
+import { instance, checkOptions, finite, nonNegative, oneOf } from './util/options.ts';
 import { describe } from './util/inspect.ts';
 
 /**
@@ -99,7 +99,7 @@ export class Frame {
      * @param image The new image (used as it is, not copied)
      */
     set image(image: Image) {
-        if (!(image instanceof Image)) throw new TypeError('A frame\'s image has to be an Image');
+        instance(image, [Image], 'frame.image');
         this.__image__ = image;
     }
 

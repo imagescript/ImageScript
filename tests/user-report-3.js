@@ -44,12 +44,12 @@ const has = (bytes, text) => Buffer.from(bytes).includes(Buffer.from(text, 'lati
         const hdr = image.clone();
         hdr.gainMap = map;
         for (const [name, encode] of Object.entries({jpeg: o => hdr.encodeJPEG(o), avif: o => hdr.encodeAVIF(o), jxl: o => hdr.encodeJXL(o)})) {
-            await rejects(`${name} gain map quality 0`, () => encode({gainMap: {quality: 0}}), RangeError);
+            await rejects(`${name} gain map quality -1`, () => encode({gainMap: {quality: -1}}), RangeError);
             await rejects(`${name} gain map quality 101`, () => encode({gainMap: {quality: 101}}), RangeError);
             await rejects(`${name} gain map scale 0`, () => encode({gainMap: {scale: 0}}), RangeError);
             await rejects(`${name} gain map quality "90"`, () => encode({gainMap: {quality: '90'}}), TypeError);
             // (also for an image without a map)
-            await rejects(`${name} gain map quality 0 without a map`, () => (name === 'jpeg' ? image.encodeJPEG : name === 'avif' ? image.encodeAVIF : image.encodeJXL).call(image, {gainMap: {quality: 0}}), RangeError);
+            await rejects(`${name} gain map quality -1 without a map`, () => (name === 'jpeg' ? image.encodeJPEG : name === 'avif' ? image.encodeAVIF : image.encodeJXL).call(image, {gainMap: {quality: -1}}), RangeError);
             await encode({gainMap: {quality: 1, scale: 0.5}});
         }
         await rejects('encodeWebP alphaQuality 101', () => image.encodeWebP({alphaQuality: 101}), RangeError);

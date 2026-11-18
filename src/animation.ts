@@ -12,7 +12,7 @@ import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, oneOf, pixelLimit, checkThreads, positive, pixels, canvasSize, cropBounds, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
+import { shown, checkOptions, oneOf, pixelLimit, checkThreads, positive, pixels, canvasSize, cropBounds, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding, checkPixels } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 import { describe } from './util/inspect.ts';
@@ -164,7 +164,7 @@ export class Animation {
             throw new TypeError(`Animation() takes an array of Frame objects, not ${frames === null ? 'null' : typeof frames}`);
         const copy: Frame[] = [];
         for (const frame of frames) {
-            if (!(frame instanceof Frame)) throw new TypeError(`Frame ${copy.length} is not an instance of Frame`);
+            if (!(frame instanceof Frame)) throw new TypeError(`frames[${copy.length}] must be a Frame, not ${shown(frame)}`);
             copy.push(frame);
         }
         this.__frames__ = copy;

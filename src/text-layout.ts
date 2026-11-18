@@ -1,4 +1,4 @@
-import { oneOf, checkNumber } from './util/options.ts';
+import { oneOf, pixels } from './util/options.ts';
 import type { Layout } from './render/text.ts';
 
 /** Where lines are wrapped: between words or at any character */
@@ -44,13 +44,9 @@ export interface TextLayoutOptions {
 const HORIZONTAL: readonly HorizontalAlign[] = ['left', 'center', 'right'];
 const VERTICAL: readonly VerticalAlign[] = ['top', 'middle', 'bottom'];
 
-/** A size option: undefined, or a whole number of pixels from 1 */
+/** A size option: undefined, or pixels (a fraction truncated, like the size of an image) */
 function boxSide(value: number | undefined, name: string): number | undefined {
-    if (value === undefined) return undefined;
-    checkNumber(value, name);
-    const side = Math.floor(value);
-    if (!(side >= 1) || !Number.isFinite(side)) throw new RangeError(`${name} must be a finite number from 1, not ${value}`);
-    return side;
+    return value === undefined ? undefined : pixels(value, name);
 }
 
 /**
