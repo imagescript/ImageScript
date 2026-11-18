@@ -112,6 +112,8 @@ export class GainMap {
     __capacityMax__!: number;
     /** @internal @ignore */
     __useBaseColorSpace__!: boolean;
+    /** @internal @ignore the HDR rendition's colors of a decoded AVIF (written again by encodeAVIF) */
+    __alternate__?: [number, number, number];
 
     /** log2 of the boost of the map's value 0, per channel (red, green, blue; a copy: assign to change it) */
     get min(): readonly [red: number, green: number, blue: number] { return [this.__min__[0], this.__min__[1], this.__min__[2]]; }
@@ -261,6 +263,7 @@ export class GainMap {
         this.__capacityMin__ = p.capacityMin;
         this.__capacityMax__ = p.capacityMax;
         this.__useBaseColorSpace__ = p.useBaseColorSpace;
+        this.__alternate__ = p.alternate?.slice() as [number, number, number] | undefined;
     }
 
     /** @internal the parameters, checked */
@@ -268,7 +271,8 @@ export class GainMap {
         this.__check__();
         return {
             min: this.__min__.slice(), max: this.__max__.slice(), gamma: this.__gamma__.slice(), offsetSDR: this.__offsetSDR__.slice(),
-            offsetHDR: this.__offsetHDR__.slice(), capacityMin: this.__capacityMin__, capacityMax: this.__capacityMax__, useBaseColorSpace: this.__useBaseColorSpace__
+            offsetHDR: this.__offsetHDR__.slice(), capacityMin: this.__capacityMin__, capacityMax: this.__capacityMax__, useBaseColorSpace: this.__useBaseColorSpace__,
+            ...this.__alternate__ ? { alternate: this.__alternate__.slice() as [number, number, number] } : {}
         };
     }
 

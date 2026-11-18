@@ -22,6 +22,8 @@ export interface Params {
     capacityMax: number;
     /** whether the gains apply in the base image's color space (else the HDR image's) */
     useBaseColorSpace: boolean;
+    /** the HDR rendition's colors as AVIF's tone mapped item gives them (primaries, transfer, matrix), kept for its encode */
+    alternate?: [number, number, number];
 }
 
 const XMP_NAMESPACE = 'http://ns.adobe.com/xap/1.0/\0';

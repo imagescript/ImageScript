@@ -661,6 +661,12 @@ async function decodeGainMap(d: Uint8Array, primary: number, items: Map<number, 
         const params = readISO(data.subarray(1));
         const mapItem = items.get(inputs[1]);
         if (!params || !mapItem) return undefined;
+        // (the colors of the HDR rendition, written again by encodeAVIF)
+        const colors = { primaries: 0, transfer: 0, matrix: 0 } as Yuv;
+        if (tmap.props.some(({ box }) => box.type === 'colr' && box.end - box.start >= 11 && fourcc(d, box.start) === 'nclx')) {
+            applyColr(d, tmap, colors);
+            params.alternate = [colors.primaries, colors.transfer, colors.matrix];
+        }
         const yuv = await decodeItem(d, mapItem, items, idat, maxPixels, null);
         applyColr(d, mapItem, yuv);
         // (its values as they are: no transfer function to tone map)

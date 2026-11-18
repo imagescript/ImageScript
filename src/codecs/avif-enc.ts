@@ -263,8 +263,9 @@ export async function encode(rgba: Uint8Array, width: number, height: number, { 
             type: 'av01', name: 'GMap', hidden: true, data: [map],
             props: [property(fullBox('ispe', 0, 0, u32(gainMap.width), u32(gainMap.height))), property(av1C(map)) | 0x80, property(nclx(MAP_CICP)), property(pixi(mapGray ? 1 : 3))]
         });
-        // (the HDR rendition's colors: the image's primaries with PQ's transfer, like avifenc assumes for JPEG gain maps)
-        tmapId = items.push({ type: 'tmap', name: 'TMap', data: [[0], writeISO(gainMap.params)], props: [ispe, property(nclx([cicp[0], 16, cicp[2]]))] });
+        // (the HDR rendition's colors: those of the decoded file, else the image's primaries with PQ's transfer, like
+        // avifenc assumes for JPEG gain maps)
+        tmapId = items.push({ type: 'tmap', name: 'TMap', data: [[0], writeISO(gainMap.params)], props: [ispe, property(nclx(gainMap.params.alternate ?? [cicp[0], 16, cicp[2]]))] });
     }
     const exifId = exif?.length ? items.push({ type: 'Exif', name: 'Exif', data: [u32(0), exif], props: [] }) : 0;
     const sizes = items.map(item => item.data.reduce((n, d) => n + d.length, 0));
