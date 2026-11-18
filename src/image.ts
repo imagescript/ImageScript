@@ -1072,8 +1072,8 @@ export class Image {
 
     /**
      * Gets the pixel color at the specified position (0-based). {@link Colors.toRGBA} splits it into its channels
-     * @param x The x coordinate
-     * @param y The y coordinate
+     * @param x The x coordinate (a fraction is dropped: 1.9 is the pixel 1)
+     * @param y The y coordinate (likewise)
      * @returns The color value (`0xRRGGBBAA`)
      * @throws `RangeError` if the position isn't inside the image
      * @see {@link Image.pixels} to go over every pixel
@@ -1118,7 +1118,8 @@ export class Image {
     }
 
     /**
-     * Fills the image data with the supplied color
+     * Fills the image data with the supplied color. The image's gain map, if it has one, is made neutral (no boost
+     * anywhere): the new pixels have no HDR light beyond their own
      * @param color The color, or a function returning the color of each pixel (checked like any color: a result that
      *     isn't a number throws a TypeError, a number that isn't a color a RangeError)
      */
@@ -1168,7 +1169,8 @@ export class Image {
     declare __moved__?: (scaleX: number, scaleY: number, x: number, y: number) => void;
 
     /**
-     * Resizes the image by the given factor
+     * Resizes the image by the given factor: a side of 7 pixels scaled by 0.5 is 3 (fractions are dropped, a side
+     * doesn't go below 1 pixel)
      * @param factor The factor to resize the image with
      * @param options See {@link ResizeOptions}
      */
@@ -3119,6 +3121,8 @@ export class Image {
         if (!fonts.length) throw new TypeError('font must be a font or an array of one or more fonts, not an empty array');
 
         const [r, g, b, a] = Colors.toRGBA(color);
+        // (checked with the stroke width at 0 too: a wrong color doesn't pass until a stroke is set)
+        const [sr, sg, sb, sa] = Colors.toRGBA(strokeColor);
         // the outline needs room around the glyphs (checked against maxPixels with them): a given size is the image's,
         // the text goes inside the outline
         const pad = Math.ceil(strokeWidth);
@@ -3159,7 +3163,6 @@ export class Image {
             for (let i = 0; i < shape.length; i++) shape[i] = Math.max(shape[i], colored[i * 4 + 3]);
         }
         const stroke = strokeWidth ? outline(shape, width, height, strokeWidth) : null;
-        const [sr, sg, sb, sa] = Colors.toRGBA(strokeColor);
 
         // color glyphs over the text (premultiplied, with the text's alpha), both within their outline
         for (let i = 0; i < coverage.length; i++) {

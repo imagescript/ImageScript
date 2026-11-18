@@ -114,7 +114,11 @@ export class AnimationEncoder {
         if (this.finished) throw new Error('The animation encoder is finished');
         this.finished = true;
         await this.queue;
-        if (!this.count) throw new RangeError('An animation needs at least one frame, not 0');
+        if (!this.count) {
+            // (nothing was encoded: the encoder isn't used up, frames can still be added)
+            this.finished = false;
+            throw new RangeError('An animation needs at least one frame, not 0');
+        }
         if (this.optimizer) for (const f of this.optimizer.end()) await this.format.frame(f, true);
         const optimizer = this.optimizer;
         this.optimizer = null;
