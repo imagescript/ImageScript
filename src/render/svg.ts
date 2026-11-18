@@ -744,9 +744,10 @@ let crossingsLeft = Infinity;
 // 5 s while a drop shadow on a large image has room (the time it allows grows with the output's size). What is left of it in the render that runs
 const MAX_FILTER_WORK = 2 ** 25, FILTER_WORK_PER_PIXEL = 16;
 let filterWorkLeft = Infinity;
-// the most pixels shapes are filled into and layers composited onto in one render (about 8 ns each): 2^28 and 64 per
-// pixel of the output, 64 times over the whole image, so a few kilobytes of <use> copies or markers of large groups
-// (they took minutes) stop after seconds. What is left of it in the render that runs
+// the most pixels shapes paint and layers are composited onto in one render (about 8 ns each): 2^28 and 64 per pixel
+// of the output, 64 times over the whole image, so a few kilobytes of <use> copies or markers of large groups (they
+// took minutes) stop after seconds. A fill counts the pixels it paints and a sixteenth of its box, which it scans.
+// What is left of it in the render that runs
 const MAX_PAINT = 2 ** 28, PAINT_PER_PIXEL = 64;
 let paintLeft = Infinity;
 function charge(pixels: number): void {
@@ -2928,8 +2929,10 @@ class Layer {
 
     // composites a paint through a coverage mask (source over)
     fill({ x0, y0, w, h, data }: Coverage, paint: Paint): void {
-        charge(w * h);
         const d = this.data;
+        // (what is painted counts, and a sixteenth of the box for skipping the rest: a thin line across the image
+        // paints few of the pixels of its box)
+        let painted = 0;
         const solid = paint.solid;
         this.extend(x0, y0, x0 + w, y0 + h);
 
@@ -2940,6 +2943,7 @@ class Layer {
                 const c = data[o];
                 if (c <= 0) continue;
 
+                painted++;
                 const color = solid || paint(x0 + x + 0.5, y0 + y + 0.5);
                 const a = color[3] * c;
                 if (a <= 0) continue;
@@ -2955,6 +2959,7 @@ class Layer {
                         let run = 1;
                         while (x + run < w && data[o + run] >= 1) run++;
                         if (run > 1) {
+                            painted += run - 1;
                             for (let filled = 1; filled < run; filled *= 2)
                                 d.copyWithin(i + filled * 4, i, i + Math.min(filled, run - filled) * 4);
                             x += run - 1;
@@ -2972,6 +2977,7 @@ class Layer {
                 d[i + 3] = a + d[i + 3] * inv;
             }
         }
+        charge(painted + (w * h >> 4));
     }
 
     // as premultiplied 8 bit pixels (for filters)

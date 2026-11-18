@@ -69,6 +69,15 @@ const slack = process.versions.bun ? 4 : 1;
             try { await Image.renderSVG(markers); } catch (err) { error = err; }
             if (!error || error.name !== 'LimitError' || !/markers/.test(error.message) || Date.now() - begin > 30000 * slack) panic(`120000 markers: expected the marker limit within 30 s, got ${error} after ${Date.now() - begin} ms`);
         }
+        // what counts is what is painted, not the bounding boxes of the shapes: a chart of 1000 thin lines across the
+        // image renders (each line's box is the whole image)
+        {
+            let lines = '';
+            for (let i = 0; i < 1000; i++) lines += `<path d="M0 ${i} L1000 ${(i * 37) % 1000}" stroke="#08f" stroke-width="0.5"/>`;
+            const begin = Date.now();
+            const chart = await Image.renderSVG(`<svg ${NS} width="1000" height="1000">${lines}</svg>`).catch(err => err);
+            if (!(chart instanceof Image) || Date.now() - begin > 60000 * slack) panic(`a chart of 1000 lines: ${chart} after ${Date.now() - begin} ms, it should render`);
+        }
         // the pixels shapes and layers fill are bounded like the filters' work: 1000 <use> copies of a full-canvas group
         // with opacity (16 KB) took 260 s at 4000x4000, 9999 markers of a 400x400 group 36 s
         for (const [name, svg] of [
