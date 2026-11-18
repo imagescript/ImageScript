@@ -64,7 +64,7 @@ export function parsePaintGlyphs(font: Font): PaintGlyphs | null {
         paint: glyph => {
             // records sorted by glyph
             for (let lo = 0, hi = count - 1; lo <= hi;) {
-                const mid = lo + hi >> 1, record = baseList + 4 + mid * 6, id = font.u16(record);
+                const mid = lo + hi >>> 1, record = baseList + 4 + mid * 6, id = font.u16(record);
                 if (id < glyph) lo = mid + 1;
                 else if (id > glyph) hi = mid - 1;
                 else return baseList + font.u32(record + 2);
@@ -73,7 +73,7 @@ export function parsePaintGlyphs(font: Font): PaintGlyphs | null {
         },
         clip: glyph => {
             for (let lo = 0, hi = clips - 1; lo <= hi;) {
-                const mid = lo + hi >> 1, record = clipList + 5 + mid * 7;
+                const mid = lo + hi >>> 1, record = clipList + 5 + mid * 7;
                 if (font.u16(record + 2) < glyph) lo = mid + 1;
                 else if (font.u16(record) > glyph) hi = mid - 1;
                 else {

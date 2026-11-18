@@ -962,7 +962,7 @@ export class LayoutTable {
                         const second = buffer.info[pos].codepoint;
                         let lo = 0, hi = count - 1, record = -1;
                         while (lo <= hi) {
-                            const mid = lo + hi >> 1, g = f.u16(set + 2 + mid * recordSize);
+                            const mid = lo + hi >>> 1, g = f.u16(set + 2 + mid * recordSize);
                             if (g < second) lo = mid + 1;
                             else if (g > second) hi = mid - 1;
                             else {

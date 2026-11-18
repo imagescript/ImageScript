@@ -36,7 +36,8 @@ export interface Metadata {
     /** The image's copyright info */
     copyright?: string;
     /**
-     * The image's creation time
+     * The image's creation time (a date, a timestamp or a date string, in the years 1000 to 9999: the formats write
+     * the year with 4 digits)
      * @defaultValue None (`null` leaves it out, too)
      */
     creationTime?: string | number | Date | null;
@@ -87,6 +88,10 @@ export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
         const time = new Date(creationTime);
         // eslint-disable-next-line no-restricted-syntax -- the one date in the options
         if (isNaN(time.getTime())) throw new RangeError(`creationTime must be a date, a timestamp or a date string, not ${shown(creationTime)}`);
+        // (the year has 4 digits in Exif and PNG's text, and TGA stores it in 16 bits: years outside of them were written wrapped)
+        const year = time.getUTCFullYear();
+        // eslint-disable-next-line no-restricted-syntax -- the year is part of the one date in the options
+        if (year < 1000 || year > 9999) throw new RangeError(`creationTime's year must be from 1000 to 9999, not ${year}`);
         resolved.creationTime = time;
     }
     for (const key of TEXT_FIELDS) {

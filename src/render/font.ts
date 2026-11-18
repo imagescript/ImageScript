@@ -601,7 +601,7 @@ function parseCmap(font: Font, offset: number): (codepoint: number) => number {
             // binary search over segment end codes
             let lo = 0, hi = segments - 1;
             while (lo < hi) {
-                const mid = lo + hi >> 1;
+                const mid = lo + hi >>> 1;
                 if (font.u16(ends + mid * 2) < c) lo = mid + 1;
                 else hi = mid;
             }
@@ -621,7 +621,7 @@ function parseCmap(font: Font, offset: number): (codepoint: number) => number {
         lookup = (c: number): number => {
             let lo = 0, hi = groups - 1;
             while (lo <= hi) {
-                const mid = lo + hi >> 1;
+                const mid = lo + hi >>> 1;
                 const group = table + 16 + mid * 12;
                 if (c < font.u32(group)) hi = mid - 1;
                 else if (c > font.u32(group + 4)) lo = mid + 1;
@@ -652,7 +652,7 @@ function parseVariations(font: Font, offset: number): ((codepoint: number, selec
     return (codepoint, selector) => {
         let lo = 0, hi = records - 1;
         while (lo <= hi) {
-            const mid = lo + hi >> 1, record = table + 10 + mid * 11, vs = u24(record);
+            const mid = lo + hi >>> 1, record = table + 10 + mid * 11, vs = u24(record);
             if (vs < selector) lo = mid + 1;
             else if (vs > selector) hi = mid - 1;
             else {
@@ -661,7 +661,7 @@ function parseVariations(font: Font, offset: number): ((codepoint: number, selec
                     const o = table + others;
                     let l = 0, h = font.count(font.u32(o), o + 4, 5, 'cmap table') - 1;
                     while (l <= h) {
-                        const m = l + h >> 1, u = u24(o + 4 + m * 5);
+                        const m = l + h >>> 1, u = u24(o + 4 + m * 5);
                         if (u < codepoint) l = m + 1;
                         else if (u > codepoint) h = m - 1;
                         else return font.u16(o + 4 + m * 5 + 3);
@@ -671,7 +671,7 @@ function parseVariations(font: Font, offset: number): ((codepoint: number, selec
                     const o = table + defaults;
                     let l = 0, h = font.count(font.u32(o), o + 4, 4, 'cmap table') - 1;
                     while (l <= h) {
-                        const m = l + h >> 1, start = u24(o + 4 + m * 4);
+                        const m = l + h >>> 1, start = u24(o + 4 + m * 4);
                         if (codepoint < start) h = m - 1;
                         else if (codepoint > start + font.u8(o + 4 + m * 4 + 3)) l = m + 1;
                         else return -1;
@@ -695,7 +695,7 @@ export function parseCoverage(font: Font, table: number): (glyph: number) => num
     return glyph => {
         let lo = 0, hi = count - 1;
         while (lo <= hi) {
-            const mid = lo + hi >> 1;
+            const mid = lo + hi >>> 1;
             if (format === 1) {
                 const value = font.u16(table + 4 + mid * 2);
                 if (value < glyph) lo = mid + 1;
@@ -724,7 +724,7 @@ export function parseClassDef(font: Font, table: number): (glyph: number) => num
     return glyph => {
         let lo = 0, hi = count - 1;
         while (lo <= hi) {
-            const mid = lo + hi >> 1;
+            const mid = lo + hi >>> 1;
             const range = table + 4 + mid * 6;
             if (font.u16(range + 2) < glyph) lo = mid + 1;
             else if (font.u16(range) > glyph) hi = mid - 1;
@@ -756,7 +756,7 @@ function parseKern(font: Font, kern: number): ((left: number, right: number) => 
         for (const { pairs, start } of tables) {
             let lo = 0, hi = pairs - 1;
             while (lo <= hi) {
-                const mid = lo + hi >> 1;
+                const mid = lo + hi >>> 1;
                 const pair = start + mid * 6;
                 const value = font.u32(pair);
                 if (value < key) lo = mid + 1;

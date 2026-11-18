@@ -136,6 +136,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### Fixes
 
+- A `creationTime` with a year outside 1000-9999 throws a `RangeError` instead of being written wrapped (TGA) or without 4 digits (Exif).
 - An SVG with an element of more than about 100,000 children renders (or throws a `LimitError`) instead of a bare `RangeError` from the call stack.
 - A damaged CFF font (a real number in a DICT without its end, which ran the process out of memory within seconds, through `renderText()` and an SVG's `@font-face` alike) throws an `Error`; a CID-keyed one whose FDSelect names a missing private dict throws an `Error` instead of an internal `TypeError`.
 - **Cut-off JPEG and lossy WebP files throw** like the other formats: a JPEG without any scan data, or whose scan ends before its last block, and a WebP whose image data (any chunk of it) ends before its size says. They decoded without an error, as gray or smeared images. A JPEG that only lacks its end marker still decodes.

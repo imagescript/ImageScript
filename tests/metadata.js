@@ -95,6 +95,15 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
 
     if (await image.encodePNG({metadata: {creationTime: 'not a date'}}).then(() => true, () => false)) panic('an invalid creation time should throw');
 
+    // the creation time's year is 4 digits in Exif and fits what TGA stores: other years throw instead of being written
+    // wrapped or without 4 digits ('1:01:01')
+    for (const creationTime of [new Date(Date.UTC(999, 0, 1)), new Date(8.64e15), '+010000-01-01T00:00:00Z', new Date(Date.UTC(-1, 0, 1))]) {
+        const error = await image.encodePNG({metadata: {creationTime}}).then(() => null, err => err);
+        if (!(error instanceof RangeError) || !/creationTime/.test(error.message) || !/1000/.test(error.message)) panic(`creationTime ${creationTime}: ${error?.constructor?.name}: ${error?.message}`);
+    }
+    await image.encodeTGA({metadata: {creationTime: new Date(Date.UTC(1000, 0, 1))}});
+    await image.encodeJPEG({metadata: {creationTime: new Date(Date.UTC(9999, 11, 31, 23, 59, 59))}});
+
     // a JPEG segment holds 65533 bytes: metadata beyond that throws a RangeError naming the field, before encoding
     for (const [metadata, field] of [[{comment: 'x'.repeat(65534)}, 'comment'], [{description: 'x'.repeat(65534)}, 'description'], [{author: 'x'.repeat(40000), software: 'x'.repeat(40000)}, 'author']]) {
         const error = await image.encodeJPEG({metadata}).then(() => null, err => err);

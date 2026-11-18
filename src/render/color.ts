@@ -54,7 +54,7 @@ export function parseColorLayers(font: Font): ((glyph: number) => ColorLayer[] |
         result = null;
         // base glyph records are sorted by glyph
         for (let lo = 0, hi = baseCount - 1; lo <= hi;) {
-            const mid = lo + hi >> 1, record = bases + mid * 6, id = font.u16(record);
+            const mid = lo + hi >>> 1, record = bases + mid * 6, id = font.u16(record);
             if (id < glyph) lo = mid + 1;
             else if (id > glyph) hi = mid - 1;
             else {
