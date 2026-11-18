@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, cropBounds, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -1370,18 +1370,7 @@ export class Image {
      * @ignore
      */
     protected __crop_bounds__(x: number, y: number, width: number, height: number): [number, number, number, number] {
-        x = Math.trunc(finite(x, 'x'));
-        y = Math.trunc(finite(y, 'y'));
-        width = Math.trunc(finite(width, 'width'));
-        height = Math.trunc(finite(height, 'height'));
-
-        const left = Math.max(0, x), top = Math.max(0, y);
-        const right = Math.min(this.width, x + width), bottom = Math.min(this.height, y + height);
-        if (right <= left || bottom <= top)
-            // eslint-disable-next-line no-restricted-syntax -- the crop region is only checked here
-            throw new RangeError(`crop region must be partly inside the ${this.width}x${this.height} image, not ${width}x${height} at ${x},${y}`);
-
-        return [left, top, right - left, bottom - top];
+        return cropBounds(this.width, this.height, x, y, width, height, 'image');
     }
 
     /**

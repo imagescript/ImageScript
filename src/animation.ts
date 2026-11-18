@@ -12,7 +12,7 @@ import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, oneOf, pixelLimit, checkThreads, finite, positive, pixels, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
+import { checkOptions, oneOf, pixelLimit, checkThreads, positive, pixels, cropBounds, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding, checkPixels } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 import { describe } from './util/inspect.ts';
@@ -302,16 +302,12 @@ export class Animation {
      */
     crop(x: number, y: number, width: number, height: number): this {
         // (the part of the region that lies on the canvas)
-        const left = Math.max(0, Math.floor(finite(x, 'x'))), top = Math.max(0, Math.floor(finite(y, 'y')));
-        const right = Math.min(this.width, Math.floor(finite(x, 'x')) + Math.floor(finite(width, 'width')));
-        const bottom = Math.min(this.height, Math.floor(finite(y, 'y')) + Math.floor(finite(height, 'height')));
-        // eslint-disable-next-line no-restricted-syntax -- the crop region is only checked here
-        if (!(right - left >= 1 && bottom - top >= 1)) throw new RangeError(`crop region must be partly inside the ${this.width}x${this.height} canvas, not ${width}x${height} at ${x},${y}`);
+        const [left, top, newWidth, newHeight] = cropBounds(this.width, this.height, x, y, width, height, 'canvas');
         for (const frame of this.__distinct__()) {
             frame.xOffset -= left;
             frame.yOffset -= top;
         }
-        this.__canvas__ = [right - left, bottom - top];
+        this.__canvas__ = [newWidth, newHeight];
         this.frames = this.__clipped_frames__();
         return this;
     }

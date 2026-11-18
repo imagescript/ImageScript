@@ -162,3 +162,20 @@ if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration 
     if (truncated.width !== 3 || truncated.height !== 2) panic(`canvas: ${truncated.width}x${truncated.height} for 3.7x2.9`);
     throwsA(() => new Animation([], {width: 0.9, height: 2}), RangeError, 'a canvas width below 1');
 }
+
+// a crop region with fractions is truncated like an image's (crop(-0.5, 0, 1, 1) is crop(0, 0, 1, 1)), and an error
+// names the region as given
+{
+    const animation = new Animation([new Frame(new Image(8, 6))]);
+    const image = new Image(8, 6).crop(-1.5, 0, 2, 2);
+    const cropped = animation.crop(-1.5, 0, 2, 2);
+    if (cropped.width !== image.width || cropped.height !== image.height) panic(`crop(-1.5, 0, 2, 2): ${cropped.width}x${cropped.height} for an animation, ${image.width}x${image.height} for an image`);
+    for (const target of [new Image(8, 6), new Animation([new Frame(new Image(8, 6))])]) {
+        try {
+            target.crop(0, 0, 0.5, 2);
+            panic(`crop(0, 0, 0.5, 2) of ${target} was accepted`);
+        } catch (error) {
+            if (!(error instanceof RangeError) || !error.message.includes('0.5x2 at 0,0')) panic(`crop(0, 0, 0.5, 2) of ${target}: ${error.message}`);
+        }
+    }
+}

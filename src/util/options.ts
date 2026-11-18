@@ -160,6 +160,19 @@ export function coordinate(value: number, last: number, name: string): number {
     return value;
 }
 
+/**
+ * A crop region clipped to a `width` by `height` image or canvas, as [x, y, width, height]: fractions are truncated, a
+ * region that doesn't overlap it throws a RangeError naming the region as given
+ */
+export function cropBounds(width: number, height: number, x: number, y: number, regionWidth: number, regionHeight: number, what: string): [number, number, number, number] {
+    const rx = Math.trunc(finite(x, 'x')), ry = Math.trunc(finite(y, 'y'));
+    const rw = Math.trunc(finite(regionWidth, 'width')), rh = Math.trunc(finite(regionHeight, 'height'));
+    const left = Math.max(0, rx), top = Math.max(0, ry);
+    const right = Math.min(width, rx + rw), bottom = Math.min(height, ry + rh);
+    if (right <= left || bottom <= top) throw new RangeError(`crop region must be partly inside the ${width}x${height} ${what}, not ${regionWidth}x${regionHeight} at ${x},${y}`);
+    return [left, top, right - left, bottom - top];
+}
+
 /** A number from 0 to 1, finite: a number outside of it throws a RangeError naming the argument */
 export function unitInterval(value: number, name: string): number {
     finite(value, name);
