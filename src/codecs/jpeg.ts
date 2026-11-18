@@ -177,7 +177,7 @@ export function decode(data: Uint8Array, { transform, maxPixels = MAX_PIXELS }: 
                 if (end - start < 6) throw new Error('JPEG: truncated frame header');
                 if (data[start] !== 8) throw new Error(`JPEG: ${data[start]}-bit precision is not supported`);
                 checkPixels(u16(start + 3), u16(start + 1), maxPixels);
-                frame = createFrame(marker === 0xc2, u16(start + 1), u16(start + 3), data.subarray(start + 5, end));
+                frame = createFrame(marker === 0xc2, u16(start + 1), u16(start + 3), data.subarray(start + 5, end), data.length - end);
                 break;
             }
 
@@ -251,7 +251,7 @@ export function decode(data: Uint8Array, { transform, maxPixels = MAX_PIXELS }: 
     return { width: frame.width, height: frame.height, pixels: output(frame, adobe, jfif, transform), orientation, icc };
 }
 
-function createFrame(progressive: boolean, height: number, width: number, componentData: Uint8Array): Frame {
+function createFrame(progressive: boolean, height: number, width: number, componentData: Uint8Array, available: number): Frame {
     const count = componentData[0];
     const sampling: Array<{ id: number, h: number, v: number, tq: number }> = [];
 
@@ -268,6 +268,14 @@ function createFrame(progressive: boolean, height: number, width: number, compon
     const vmax = Math.max(...sampling.map(c => c.v));
     const mcusPerLine = Math.ceil(width / (8 * hmax));
     const mcusPerColumn = Math.ceil(height / (8 * vmax));
+    // a sequential scan codes every block in 2 bits at least (a DC and an end-of-block code): a file with fewer bytes
+    // after the frame header than its blocks need is cut off, and is refused before the planes are allocated (a 19 KB
+    // file declaring 16383x16383 took 16 s and 1.1 GB to end the same way). Progressive scans can skip runs of blocks
+    if (!progressive) {
+        let blocks = 0;
+        for (const c of sampling) blocks += Math.ceil(Math.ceil(width * c.h / hmax) / 8) * Math.ceil(Math.ceil(height * c.v / vmax) / 8);
+        if (blocks * 2 > available * 8) throw new Error('JPEG: the scan data is truncated');
+    }
 
     const components = sampling.map((c): Component => {
         const componentWidth = Math.ceil(width * c.h / hmax);

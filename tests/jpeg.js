@@ -111,4 +111,13 @@ const withoutExif = data => {
 		const error = await Image.decode(await fs.readFile('./tests/jpegs/damaged-truncated-frame-header.jpg')).then(() => null, e => e);
 		if (!error || error.constructor !== Error) panic(`a truncated frame header should throw an Error, got ${error}`);
 	}
+
+	// a baseline file far too small for the size it declares (every block takes at least 2 bits of scan data) is
+	// refused before its planes are allocated: 19 KB declaring 16383x16383 took 16 s and 1.1 GB to end truncated
+	// (damaged-declares-16383.jpg: a CMYK baseline JPEG of 19 KB)
+	{
+		const start = Date.now();
+		const error = await Image.decode(await fs.readFile('./tests/jpegs/damaged-declares-16383.jpg')).then(() => null, e => e);
+		if (!error || error.constructor !== Error || !/truncated/.test(error.message) || Date.now() - start > 1000) panic(`a 19 KB baseline JPEG declaring 16383x16383 should throw a truncated Error at once, got ${error} after ${Date.now() - start} ms`);
+	}
 })();
