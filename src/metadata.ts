@@ -1,4 +1,5 @@
 import { encode as utf8 } from './util/utf8.ts';
+import { shown } from './util/options.ts';
 import * as exif from './codecs/exif.ts';
 
 /**
@@ -77,7 +78,8 @@ export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
     const resolved: ResolvedMetadata = {};
     if (creationTime !== undefined && creationTime !== null) {
         const time = new Date(creationTime);
-        if (isNaN(time.getTime())) throw new RangeError('Invalid creation time');
+        // eslint-disable-next-line no-restricted-syntax -- the one date in the options
+        if (isNaN(time.getTime())) throw new RangeError(`creationTime must be a date, a timestamp or a date string, not ${shown(creationTime)}`);
         resolved.creationTime = time;
     }
     for (const key of TEXT_FIELDS) {

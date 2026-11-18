@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, nonNegative, positive, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { isOptions, checkOptions, finite, nonNegative, atLeast, positive, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -841,10 +841,11 @@ function featureList(features: Record<string, boolean | number>): Array<[string,
     // eslint-disable-next-line no-restricted-syntax -- the OpenType features are only used by the text functions
     if (typeof features !== 'object' || features === null) throw new TypeError('Features must be an object');
     return Object.entries(features).map(([tag, value]) => {
-        if (!/^[\x20-\x7e]{4}$/.test(tag)) throw new RangeError(`Invalid OpenType feature tag: ${JSON.stringify(tag)}`);
+        // eslint-disable-next-line no-restricted-syntax -- the OpenType features are only used by the text functions
+        if (!/^[\x20-\x7e]{4}$/.test(tag)) throw new RangeError(`An OpenType feature tag must be 4 printable ASCII characters, not ${JSON.stringify(tag)}`);
         if (typeof value === 'boolean') return [tag, value ? 1 : 0];
         if (typeof value !== 'number') throw new TypeError(`The value of the OpenType feature ${tag} must be a boolean or a number, not ${value === null ? 'null' : typeof value}`);
-        if (!Number.isInteger(value) || value < 0 || value > 255) throw new RangeError(`Invalid value of the OpenType feature ${tag}: ${value}`);
+        if (!Number.isInteger(value) || value < 0 || value > 255) throw new RangeError(`The value of the OpenType feature ${tag} must be a whole number from 0 to 255, not ${value}`);
         return [tag, value];
     });
 }
@@ -1051,7 +1052,7 @@ export class Image {
         const color = gradientFunction(stops);
         finite(cx, 'x');
         finite(cy, 'y');
-        if (!(finite(radius, 'radius') > 0)) throw new RangeError('Invalid radius');
+        positive(radius, 'radius');
         const bitmap = new DataView(image.bitmap.buffer, image.bitmap.byteOffset, image.bitmap.byteLength);
         for (let y = 0, i = 0; y < height; y++)
             for (let x = 0; x < width; x++, i += 4)
@@ -1437,8 +1438,7 @@ export class Image {
      * @ignore
      */
     __trim_bounds__(color: Color | undefined, { tolerance = 0 }: TrimOptions): [number, number, number, number] | null {
-        finite(tolerance, 'tolerance');
-        if (!(tolerance >= 0 && tolerance <= 1)) throw new RangeError('Invalid tolerance, it has to be between 0 and 1');
+        unitInterval(tolerance, 'tolerance');
 
         const bitmap = this.bitmap;
         const { width, height } = this;
@@ -1566,9 +1566,7 @@ export class Image {
      * @param factor The factor to multiply the opacity with (0..1 lowers it, >1 raises it, results are clamped)
      */
     opacity(factor: number): this {
-        factor = finite(factor, 'opacity value');
-        if (factor < 0)
-            throw new RangeError('Invalid opacity value');
+        factor = nonNegative(factor, 'opacity factor');
 
         this.__set_channel_value__(factor, 3);
 
@@ -1581,9 +1579,7 @@ export class Image {
      */
     red(factor: number): this {
         if (this.__gain_map__) return this.__recolor__(image => image.red(factor));
-        factor = finite(factor, 'red factor');
-        if (factor < 0)
-            throw new RangeError('Invalid red factor');
+        factor = nonNegative(factor, 'red factor');
 
         this.__set_channel_value__(factor, 0);
 
@@ -1596,9 +1592,7 @@ export class Image {
      */
     green(factor: number): this {
         if (this.__gain_map__) return this.__recolor__(image => image.green(factor));
-        factor = finite(factor, 'green factor');
-        if (factor < 0)
-            throw new RangeError('Invalid green factor');
+        factor = nonNegative(factor, 'green factor');
 
         this.__set_channel_value__(factor, 1);
 
@@ -1611,9 +1605,7 @@ export class Image {
      */
     blue(factor: number): this {
         if (this.__gain_map__) return this.__recolor__(image => image.blue(factor));
-        factor = finite(factor, 'blue factor');
-        if (factor < 0)
-            throw new RangeError('Invalid blue factor');
+        factor = nonNegative(factor, 'blue factor');
 
         this.__set_channel_value__(factor, 2);
 
@@ -1635,9 +1627,7 @@ export class Image {
      */
     lightness(factor: number): this {
         if (this.__gain_map__) return this.__recolor__(image => image.lightness(factor));
-        factor = finite(factor, 'lightness factor');
-        if (factor < 0)
-            throw new RangeError('Invalid lightness factor');
+        factor = nonNegative(factor, 'lightness factor');
 
         return this.__map_hsla__(c => { c.l = factor * c.l; });
     }
@@ -1648,9 +1638,7 @@ export class Image {
      */
     saturation(factor: number): this {
         if (this.__gain_map__) return this.__recolor__(image => image.saturation(factor), true);
-        factor = finite(factor, 'saturation factor');
-        if (factor < 0)
-            throw new RangeError('Invalid saturation factor');
+        factor = nonNegative(factor, 'saturation factor');
 
         return this.__map_hsla__(c => { c.s = factor * c.s; });
     }
@@ -2132,8 +2120,8 @@ export class Image {
         boolean(expand, 'expand');
         finite(x, 'x');
         finite(y, 'y');
-        if (finite(blur, 'blur') < 0) throw new RangeError('Invalid blur radius');
-        if (finite(spread, 'spread') < 0) throw new RangeError('Invalid spread');
+        nonNegative(blur, 'blur');
+        nonNegative(spread, 'spread');
         const [r, g, b, a] = Colors.toRGBA(checkColor(color));
 
         // the shadow's room: the spread and what the blur reaches (3 standard deviations), and a border for the outline
@@ -2179,7 +2167,7 @@ export class Image {
         checkOptions(options, 'image.outline({ width: 4 })');
         const { width = 1, color = 0x000000ff, expand = true } = options;
         boolean(expand, 'expand');
-        if (finite(width, 'outline width') < 0) throw new RangeError('Invalid outline width');
+        nonNegative(width, 'outline width');
         const [r, g, b, a] = Colors.toRGBA(checkColor(color));
         if (width === 0) return this;
 
@@ -2275,9 +2263,7 @@ export class Image {
      */
     brightness(factor: number): this {
         if (this.__gain_map__) return this.__recolor__(image => image.brightness(factor), false, v => v * factor);
-        factor = finite(factor, 'brightness factor');
-        if (factor < 0)
-            throw new RangeError('Invalid brightness factor');
+        factor = nonNegative(factor, 'brightness factor');
         return this.__map_channels__(v => v * factor);
     }
 
@@ -2287,9 +2273,7 @@ export class Image {
      */
     contrast(factor: number): this {
         if (this.__gain_map__) return this.__recolor__(image => image.contrast(factor), false, v => (v - 0.5) * factor + 0.5);
-        factor = finite(factor, 'contrast factor');
-        if (factor < 0)
-            throw new RangeError('Invalid contrast factor');
+        factor = nonNegative(factor, 'contrast factor');
         return this.__map_channels__(v => (v - 127.5) * factor + 127.5);
     }
 
@@ -2299,9 +2283,7 @@ export class Image {
      */
     gamma(gamma: number): this {
         if (this.__gain_map__) return this.__recolor__(image => image.gamma(gamma), false, v => Math.max(0, v) ** (1 / gamma));
-        gamma = finite(gamma, 'gamma');
-        if (gamma <= 0)
-            throw new RangeError('Invalid gamma');
+        gamma = positive(gamma, 'gamma');
         return this.__map_channels__(v => 255 * (v / 255) ** (1 / gamma));
     }
 
@@ -2347,7 +2329,8 @@ export class Image {
         finite(transparencyThreshold, 'transparencyThreshold');
         finite(opacityThreshold, 'opacityThreshold');
         if (!(transparencyThreshold >= 0 && opacityThreshold <= 1 && transparencyThreshold < opacityThreshold))
-            throw new RangeError('Invalid thresholds, they have to satisfy 0 <= transparencyThreshold < opacityThreshold <= 1');
+            // eslint-disable-next-line no-restricted-syntax -- two values that have to fit each other
+            throw new RangeError(`transparencyThreshold must be 0 or more and below opacityThreshold, which must be 1 or less, not ${transparencyThreshold} and ${opacityThreshold}`);
 
         const bitmap = this.bitmap;
         if (color !== undefined) color = checkColor(color);
@@ -3061,11 +3044,8 @@ export class Image {
         if (sizes > 1) throw new TypeError('renderSVG() takes one of width, height and scale');
         const mode = givenWidth !== undefined ? 'width' : givenHeight !== undefined ? 'height' : 'scale';
         const size = finite(mode === 'width' ? givenWidth as number : mode === 'height' ? givenHeight as number : scale === undefined ? 1 : scale, `SVG ${mode}`);
-        if (mode === 'scale' && size <= 0)
-            // eslint-disable-next-line no-restricted-syntax -- the SVG size is only checked here
-            throw new RangeError('SVG scale must be > 0');
-        if (mode !== 'scale' && size < 1)
-            throw new RangeError(`SVG ${mode} must be >= 1`);
+        if (mode === 'scale') positive(size, 'SVG scale');
+        else atLeast(size, 1, `SVG ${mode}`);
 
         // the images given by href, checked before anything is decoded
         if (typeof givenImages !== 'object' || givenImages === null || Array.isArray(givenImages) || givenImages instanceof Map)
@@ -3147,8 +3127,7 @@ export class Image {
         const layout = textLayout({ width: boxWidth, height: boxHeight, wrapStyle, horizontalAlign, verticalAlign });
         const axes = textRenderer.axisValues(variations);
         const size = positive(options.size, 'font size');
-        if (finite(strokeWidth, 'stroke width') < 0)
-            throw new RangeError('Invalid stroke width');
+        nonNegative(strokeWidth, 'stroke width');
         const fonts = Array.isArray(font) ? font : [font];
         if (!fonts.length) throw new RangeError('No font given');
 

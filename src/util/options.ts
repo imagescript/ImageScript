@@ -51,8 +51,29 @@ export function checkNumber(value: unknown, name: string): void {
  */
 export function finite(value: number, name: string): number {
     checkNumber(value, name);
-    if (!Number.isFinite(value)) throw new RangeError(`Invalid ${name}: ${value}`);
+    if (!Number.isFinite(value)) throw new RangeError(`${name} must be finite, not ${value}`);
     return value;
+}
+
+/** A number that may be infinite (the ends of a range), but not NaN: NaN throws a RangeError naming the argument */
+export function notNaN(value: number, name: string): number {
+    checkNumber(value, name);
+    if (Number.isNaN(value)) throw new RangeError(`${name} must be a number, not NaN`);
+    return value;
+}
+
+/** A number of `min` or more, finite: a smaller one throws a RangeError naming the argument */
+export function atLeast(value: number, min: number, name: string): number {
+    finite(value, name);
+    if (value < min) throw new RangeError(`${name} must be ${min} or more, not ${value}`);
+    return value;
+}
+
+/** The size of an animation's canvas: whole numbers of 1 or more */
+export function canvasSize(width: number, height: number): void {
+    finite(width, 'width');
+    finite(height, 'height');
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`canvas size must be whole numbers of 1 or more, not ${width}x${height}`);
 }
 
 /**

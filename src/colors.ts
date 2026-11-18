@@ -1,4 +1,4 @@
-import { finite, checkNumber, color as checkColor } from './util/options.ts';
+import { finite, notNaN, color as checkColor } from './util/options.ts';
 import type { Color } from './image.ts';
 
 /** Clamps and rounds a channel value to 0..255 */
@@ -64,8 +64,7 @@ export function rgbaToHSLA(r: number, g: number, b: number, a: number): [h: numb
 
 /** A position along a gradient: a number (the infinities are fine, they reach the ends), not NaN */
 function checkPosition(position: number): void {
-    checkNumber(position, 'gradient position');
-    if (Number.isNaN(position)) throw new RangeError(`Invalid gradient position: ${position}`);
+    notNaN(position, 'gradient position');
 }
 
 function gradientBetween(startColor: Color, endColor: Color): (position: number) => Color {
@@ -215,7 +214,7 @@ export class Colors {
         if (typeof stops !== 'object' || stops === null) throw new TypeError(`gradient() takes an array of colors or an object of positions and colors, not ${stops === null ? 'null' : typeof stops}`);
         let colors: Record<number, Color>;
         if (Array.isArray(stops)) {
-            if (!stops.length) throw new RangeError('Invalid gradient point count');
+            if (!stops.length) throw new RangeError('gradient() takes at least one color, not 0');
             // (one color is a gradient of two equal ones)
             const list = stops.length === 1 ? [stops[0], stops[0]] : stops;
             colors = Object.fromEntries(list.map((color, i) => [i / (list.length - 1), color]));
@@ -224,7 +223,7 @@ export class Colors {
         const positions = entries.map(e => finite(parseFloat(e[0]), 'gradient position'));
         const values = entries.map(e => checkColor(e[1]));
 
-        if (positions.length === 0) throw new RangeError('Invalid gradient point count');
+        if (positions.length === 0) throw new RangeError('gradient() takes at least one color, not 0');
         else if (positions.length === 1) {
             return position => {
                 checkPosition(position);
@@ -274,7 +273,7 @@ export class Colors {
             for (const gradient of gradients)
                 if (position >= gradient.min && position <= gradient.max)
                     return gradient.gradient((position - gradient.min) / (gradient.max - gradient.min));
-            throw new RangeError(`Invalid gradient position: ${position}`);
+            throw new RangeError(`The gradient has no color at position ${position}`);
         };
     }
 }

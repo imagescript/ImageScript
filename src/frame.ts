@@ -1,5 +1,5 @@
 import { Image, ResizeOptions, ResizeToOptions, TrimOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions } from './image.ts';
-import { checkOptions, finite, oneOf } from './util/options.ts';
+import { checkOptions, finite, nonNegative, oneOf } from './util/options.ts';
 import { describe } from './util/inspect.ts';
 
 /**
@@ -127,9 +127,7 @@ export class Frame {
      * @param duration Milliseconds, a finite number from 0
      */
     set duration(duration: number) {
-        const value = finite(duration, 'frame duration');
-        if (value < 0) throw new RangeError('Invalid frame duration');
-        this.__duration__ = value;
+        this.__duration__ = nonNegative(duration, 'frame duration');
     }
 
     /**

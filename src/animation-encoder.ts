@@ -7,7 +7,7 @@ import { Frame, FrameOptions } from './frame.ts';
 import { Optimizer, Compositor, InputFrame, OptimizeOptions, OptimizedFrame, coverCanvas, fillUnchanged } from './util/optimize.ts';
 import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, finite, compressionLevel, loopCount, toPlays, fitLoops, fitDuration, maxDuration, boolean } from './util/options.ts';
+import { checkOptions, finite, nonNegative, canvasSize, compressionLevel, loopCount, toPlays, fitLoops, fitDuration, maxDuration, boolean } from './util/options.ts';
 import type { AnimationOptions, WebPAnimationEncodeOptions, GIFAnimationEncodeOptions, APNGEncodeOptions } from './animation.ts';
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
@@ -82,8 +82,7 @@ export class AnimationEncoder {
         const own = frame instanceof Frame ? frame : null;
         const image = own ? own.image : frame;
         if (!(image instanceof Image)) throw new TypeError('encoder.add() takes a Frame or an Image');
-        const duration = finite(options.duration === undefined ? own?.duration ?? 100 : options.duration, 'frame duration');
-        if (duration < 0) throw new RangeError('Invalid frame duration');
+        const duration = nonNegative(options.duration === undefined ? own?.duration ?? 100 : options.duration, 'frame duration');
         fitDuration(duration, this.format.name);
         // (offsets are truncated to integers, like a frame's)
         const x = Math.trunc(finite(options.xOffset === undefined ? own?.xOffset ?? 0 : options.xOffset, 'x offset')) || 0;
@@ -235,9 +234,7 @@ export class AnimationEncoder {
 }
 
 function canvas(width: number, height: number, format: 'GIF' | 'APNG' | 'WebP'): void {
-    finite(width, 'width');
-    finite(height, 'height');
-    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`Invalid canvas size: ${width}x${height}`);
+    canvasSize(width, height);
     // (the GIF header stores the size in 16 bits, WebP in 24; larger ones would wrap)
     if (format === 'GIF' && (width > 0xffff || height > 0xffff)) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${width}x${height}`);
 }

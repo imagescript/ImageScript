@@ -12,7 +12,7 @@ import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, oneOf, pixelLimit, checkThreads, finite, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
+import { checkOptions, oneOf, pixelLimit, checkThreads, finite, positive, canvasSize as checkCanvasSize, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding, checkPixels } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 import { describe } from './util/inspect.ts';
@@ -378,7 +378,7 @@ export class Animation {
      * @param options See {@link ResizeOptions}
      */
     scale(factor: number, options?: ResizeOptions): this {
-        if (!(finite(factor, 'factor') > 0)) throw new RangeError(`Invalid scale factor: ${factor}`);
+        positive(factor, 'scale factor');
         // (a side doesn't shrink below one pixel, like Image.scale())
         return this.resize(Math.max(1, this.width * factor), Math.max(1, this.height * factor), options);
     }
@@ -852,9 +852,7 @@ export class Animation {
 
 // a canvas size: positive integers
 function canvasSize(width: number, height: number): [width: number, height: number] {
-    finite(width, 'width');
-    finite(height, 'height');
-    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`Invalid canvas size: ${width}x${height}`);
+    checkCanvasSize(width, height);
     return [width, height];
 }
 
