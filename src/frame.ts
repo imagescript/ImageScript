@@ -114,9 +114,10 @@ export class Frame {
     }
 
     /**
-     * The frame's duration in milliseconds (a finite number from 0, else it throws a RangeError). GIFs store
-     * hundredths of a second, so this is rounded to 10 ms when encoding a GIF; note that browsers play frames shorter
-     * than 20 ms with 100 ms
+     * The frame's duration in milliseconds (a finite number from 0, else it throws a RangeError). It doesn't have to
+     * be a whole number: encoding rounds it, to whole milliseconds for APNG and WebP and, as GIFs store hundredths of
+     * a second, to 10 ms for GIF (1.5 ms becomes 0, 5 ms becomes 10). Browsers play GIF frames shorter than 20 ms with
+     * 100 ms
      */
     get duration(): number {
         return this.__duration__;

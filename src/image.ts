@@ -483,7 +483,8 @@ export interface SVGResourceOptions {
     /**
      * Maximum total pixels in the rendered output. Output over the limit throws a {@link LimitError} (a RangeError) before anything is
      * rendered. It's also the default of {@link SVGResourceOptions.maxLayerPixels} and
-     * {@link SVGResourceOptions.maxImagePixels}
+     * {@link SVGResourceOptions.maxImagePixels}. The work limits of rendering grow with it: see
+     * {@link SVGResourceOptions.maxLayerPixels}
      * @defaultValue `268402689` (16383²); `Infinity` disables the limit
      */
     maxPixels?: number;
@@ -491,13 +492,16 @@ export interface SVGResourceOptions {
      * Maximum pixels of the layers rendering uses at once, the output's included. Groups with opacity, masks, clip
      * paths of nested viewports, filters and blend modes are each rendered into a layer of their own (up to the
      * output's size, 16 bytes per pixel) while their content is drawn, so deeply nested ones multiply the memory a
-     * small SVG takes. Exceeding it throws a {@link LimitError} (a RangeError). With the defaults, rendering can take about 90 bytes per pixel
-     * of `maxPixels` (64 for the layers, up to 20 for the images, 4 for the output): lower `maxPixels` to bound it for
-     * untrusted SVGs. Painting has a limit of its own that these options don't change: shapes and layers may paint
-     * 2²⁸ pixels plus 64 per pixel of the output, else a {@link LimitError} is thrown. Filters have one too: all the filters' primitives
-     * together may work on 2²⁵ pixels plus 16 per pixel of the output (a primitive counts its region's pixels once
-     * per pass: an `feConvolveMatrix` per 9 taps of its kernel, an `feTurbulence` per octave, an `feMerge` per node),
-     * else a {@link LimitError} is thrown
+     * small SVG takes. Exceeding it throws a {@link LimitError} (a RangeError). With the defaults, rendering can take
+     * about 90 bytes per pixel of `maxPixels` (64 for the layers, up to 20 for the images, 4 for the output): lower
+     * `maxPixels` to bound it for untrusted SVGs.
+     *
+     * Two limits on the work of a render don't depend on these options, and grow with the size of the output (so
+     * lowering `maxPixels` is what bounds them too). Each throws a {@link LimitError} when exceeded:
+     * - Painting: shapes and layers may paint 2²⁸ pixels plus 64 per pixel of the output
+     * - Filters: all the filters' primitives together may work on 2²⁵ pixels plus 16 per pixel of the output (a
+     *   primitive counts its region's pixels once per pass: an `feConvolveMatrix` per 9 taps of its kernel, an
+     *   `feTurbulence` per octave, an `feMerge` per node)
      * @defaultValue `4 * maxPixels`; `Infinity` disables the limit
      */
     maxLayerPixels?: number;
@@ -2651,6 +2655,7 @@ export class Image {
      * composited onto the `background` color (black by default) first, the image itself stays unchanged. An image whose
      * pixels are all gray is written as a grayscale JPEG (one component)
      * @param options See {@link JPEGEncodeOptions}
+     * @throws `RangeError` if the image is wider or higher than 65535 pixels, or the comment or the Exif fields of the metadata are longer than 65533 bytes
      */
     encodeJPEG(options?: JPEGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodeJPEG(options: JPEGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
@@ -2720,6 +2725,7 @@ export class Image {
      * Encodes the image as WebP: lossless (usually 20-30% smaller than PNG, but slower to encode), or lossy with a
      * quality below 100
      * @param options See {@link WebPEncodeOptions}
+     * @throws `RangeError` if the image is wider or higher than 16383 pixels (lossy) or 16384 (lossless): the limits of the two codecs
      */
     async encodeWebP(options: WebPEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'image.encodeWebP({ quality: 80 })');
@@ -2734,6 +2740,7 @@ export class Image {
     /**
      * Encodes the image as run length encoded TGA (32 bit, or 24 bit if the image is opaque)
      * @param options See {@link TGAEncodeOptions}
+     * @throws `RangeError` if the image is wider or higher than 65535 pixels
      */
     async encodeTGA(options: TGAEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'image.encodeTGA({ metadata })');
@@ -2746,6 +2753,7 @@ export class Image {
      * Encodes the image as a GIF (one frame): at most 256 colors, transparency only on or off (pixels with an alpha below
      * 128 become transparent). For animations, see {@link Animation.encodeGIF}
      * @param options The palette size, the dithering and the metadata, see {@link GIFEncodeOptions}
+     * @throws `RangeError` if the image is wider or higher than 65535 pixels
      */
     async encodeGIF(options: GIFEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'image.encodeGIF({ colors: 64 })');
@@ -2774,6 +2782,7 @@ export class Image {
     /**
      * Encodes the image as AVIF (AV1, with an alpha image if the image has transparency)
      * @param options See {@link AVIFEncodeOptions}
+     * @throws `RangeError` if the image is wider or higher than 65536 pixels
      */
     async encodeAVIF(options: AVIFEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'image.encodeAVIF({ quality: 60 })');
