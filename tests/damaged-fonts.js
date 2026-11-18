@@ -100,6 +100,12 @@ const cases = {
         data[cblc + 8 + 45] = 0;
         return data;
     })(),
+    // an sbix strike of 0 pixels per em (like the CBLC one)
+    'sbix strike of 0 ppem': (() => {
+        const data = Buffer.from(fs.readFileSync(fonts + 'sbix.ttf')), sbix = tableOffset(data, 'sbix');
+        data.writeUInt16BE(0, sbix + data.readUInt32BE(sbix + 8));
+        return data;
+    })(),
     'cmap format 14 with a huge record count': withCount('font features.ttf', 'cmap', cmap14('font features.ttf') + 6, 0xffffffff),
     'cblc with a huge strike count': patched('noto color emoji subset.ttf', [[0x27, 44, 12]])
 };

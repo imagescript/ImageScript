@@ -9,7 +9,8 @@ const fs = require('fs');
     const {Image} = await import('../../dist/index.js');
     const [file, via] = process.argv.slice(2);
     const font = fs.readFileSync(file);
-    const text = 'Hello ffi مرحبا 🙂 \u{1F600}\uFE0F 葛\u{E0100}';
+    // (U+E000 is the bitmap glyph of tests/fonts/sbix.ttf)
+    const text = 'Hello ffi مرحبا 🙂 \u{1F600}\uFE0F 葛\u{E0100} \uE000';
     try {
         if (via === 'option') {
             let refused = false;

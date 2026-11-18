@@ -95,7 +95,9 @@ function parseSbix(font: Font, size: number): ((glyph: number) => BitmapGlyph | 
     const sbix = font.tables.sbix?.offset;
     if (sbix === undefined) return null;
     const strikes = Array.from({ length: font.u32(sbix + 4) }, (_, i) => sbix + font.u32(sbix + 8 + i * 4));
-    const index = closestStrike(strikes.map(strike => font.u16(strike)), size);
+    const ppems = strikes.map(strike => font.u16(strike));
+    if (ppems.includes(0)) throw new Error('Font: damaged sbix table (a strike of 0 pixels per em)');
+    const index = closestStrike(ppems, size);
     if (index < 0) return null;
     const strike = strikes[index], ppem = font.u16(strike);
 
