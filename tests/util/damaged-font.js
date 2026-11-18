@@ -8,7 +8,7 @@ const fs = require('fs');
     const {Image, LimitError} = await import('../../dist/index.js');
     const [file, via] = process.argv.slice(2);
     const font = fs.readFileSync(file);
-    const text = 'Hello ffi مرحبا 🙂';
+    const text = 'Hello ffi مرحبا 🙂 \u{1F600}\uFE0F 葛\u{E0100}';
     try {
         if (via === 'svg') {
             await Image.renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="50"><style>@font-face{font-family:X;src:url(data:font/ttf;base64,${Buffer.from(font).toString('base64')})}</style><text x="0" y="40" font-family="X" font-size="30">${text}</text></svg>`);

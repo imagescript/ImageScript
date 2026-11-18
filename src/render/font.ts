@@ -202,6 +202,16 @@ export class Font {
     i32(o: number): number { return this.view.getInt32(o); }
 
     /**
+     * A count read from the font (`what` is the table it is in, for the error), checked against the font: it can't be
+     * more than the records of `size` bytes that fit after `start`. Counts of damaged fonts can be up to 2^32 - 1, which
+     * made searches over them endless and lists of them run out of memory
+     */
+    count(count: number, start: number, size: number, what: string): number {
+        if (start + count * size > this.data.length) throw new Error(`Font: damaged ${what}`);
+        return count;
+    }
+
+    /**
      * @param {number} codepoint
      * @return {number} glyph index, 0 (.notdef) if the font has no glyph for it
      */
@@ -606,8 +616,7 @@ function parseCmap(font: Font, offset: number): (codepoint: number) => number {
             return glyph ? glyph + delta & 0xffff : 0;
         };
     } else {
-        const groups = font.u32(table + 12);
-        if (table + 16 + groups * 12 > font.data.length) throw new Error('Font: damaged cmap table');
+        const groups = font.count(font.u32(table + 12), table + 16, 12, 'cmap table');
         lookup = (c: number): number => {
             let lo = 0, hi = groups - 1;
             while (lo <= hi) {
@@ -638,7 +647,7 @@ function parseVariations(font: Font, offset: number): ((codepoint: number, selec
     }
     if (table < 0) return null;
     const u24 = (o: number): number => font.u8(o) << 16 | font.u16(o + 1);
-    const records = font.u32(table + 6);
+    const records = font.count(font.u32(table + 6), table + 10, 11, 'cmap table');
     return (codepoint, selector) => {
         let lo = 0, hi = records - 1;
         while (lo <= hi) {
@@ -649,7 +658,7 @@ function parseVariations(font: Font, offset: number): ((codepoint: number, selec
                 const defaults = font.u32(record + 3), others = font.u32(record + 7);
                 if (others) {
                     const o = table + others;
-                    let l = 0, h = font.u32(o) - 1;
+                    let l = 0, h = font.count(font.u32(o), o + 4, 5, 'cmap table') - 1;
                     while (l <= h) {
                         const m = l + h >> 1, u = u24(o + 4 + m * 5);
                         if (u < codepoint) l = m + 1;
@@ -659,7 +668,7 @@ function parseVariations(font: Font, offset: number): ((codepoint: number, selec
                 }
                 if (defaults) {
                     const o = table + defaults;
-                    let l = 0, h = font.u32(o) - 1;
+                    let l = 0, h = font.count(font.u32(o), o + 4, 4, 'cmap table') - 1;
                     while (l <= h) {
                         const m = l + h >> 1, start = u24(o + 4 + m * 4);
                         if (codepoint < start) h = m - 1;

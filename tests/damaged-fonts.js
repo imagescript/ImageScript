@@ -22,6 +22,27 @@ const patched = (name, changes) => {
     return data;
 };
 
+// the offset of a table of the font in its file
+const tableOffset = (data, tag) => {
+    for (let i = 0, count = data.readUInt16BE(4); i < count; i++) if (data.toString('latin1', 12 + i * 16, 16 + i * 16) === tag) return data.readUInt32BE(20 + i * 16);
+    panic(`no ${tag} table`);
+};
+// a count (a 32-bit number) at `offset` of a table, changed to `value`
+const withCount = (name, tag, offset, value) => {
+    const data = Buffer.from(fs.readFileSync(fonts + name));
+    data.writeUInt32BE(value, tableOffset(data, tag) + offset);
+    return data;
+};
+// the first cmap subtable of format 14 (variation sequences), as an offset in the cmap table
+const cmap14 = name => {
+    const data = fs.readFileSync(fonts + name), cmap = tableOffset(data, 'cmap');
+    for (let i = 0, count = data.readUInt16BE(cmap + 2); i < count; i++) {
+        const subtable = data.readUInt32BE(cmap + 4 + i * 8 + 4);
+        if (data.readUInt16BE(cmap + subtable) === 14) return subtable;
+    }
+    panic(`${name} has no cmap format 14`);
+};
+
 const cases = {
     // the CFF table's Top DICT INDEX is empty (the offset of the table after the head is moved)
     'cff without a top dict': patched('sourcesans3 regular.otf', [[0x27, 216, 88]]),
@@ -32,6 +53,19 @@ const cases = {
     // a 1.5 KB font with a cmap format 12 subtable that claims 0xffffffff groups: the binary search over them, with a
     // middle that went negative, ended in an endless loop
     'cmap format 12 with a huge group count': fs.readFileSync(fonts + 'damaged cmap format 12.ttf'),
+    // the counts of the COLRv1 base glyph list (at the offset the table's header gives, 14) and clip list (22) and of the
+    // cmap format 14 records are 32-bit numbers: the searches over them ended in an endless loop, or ran past the font
+    'colr base glyph list with a huge count': (() => {
+        const data = Buffer.from(fs.readFileSync(fonts + 'noto colrv1 subset.ttf')), colr = tableOffset(data, 'COLR');
+        data.writeUInt32BE(0xffffffff, colr + data.readUInt32BE(colr + 14));
+        return data;
+    })(),
+    'colr clip list with a huge count': (() => {
+        const data = Buffer.from(fs.readFileSync(fonts + 'noto colrv1 subset.ttf')), colr = tableOffset(data, 'COLR');
+        data.writeUInt32BE(0x80000001, colr + data.readUInt32BE(colr + 22) + 1);
+        return data;
+    })(),
+    'cmap format 14 with a huge record count': withCount('font features.ttf', 'cmap', cmap14('font features.ttf') + 6, 0xffffffff),
     'cblc with a huge strike count': patched('noto color emoji subset.ttf', [[0x27, 44, 12]])
 };
 

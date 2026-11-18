@@ -58,7 +58,7 @@ export function parsePaintGlyphs(font: Font): PaintGlyphs | null {
     const baseList = font.u32(colr + 14) ? colr + font.u32(colr + 14) : 0;
     if (!baseList) return null;
     const clipList = font.u32(colr + 22) ? colr + font.u32(colr + 22) : 0;
-    const count = font.u32(baseList), clips = clipList ? font.u32(clipList + 1) : 0;
+    const count = font.count(font.u32(baseList), baseList + 4, 6, 'COLR table'), clips = clipList ? font.count(font.u32(clipList + 1), clipList + 5, 7, 'COLR table') : 0;
 
     return {
         paint: glyph => {

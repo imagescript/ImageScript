@@ -540,7 +540,7 @@ export class LayoutTable {
     // their defaults)
     private featureVariations(table: number): void {
         const f = this.font;
-        for (let i = 0, count = f.u32(table + 4); i < count; i++) {
+        for (let i = 0, count = f.count(f.u32(table + 4), table + 8, 8, 'GSUB table'); i < count; i++) {
             const record = table + 8 + i * 8;
             const conditions = f.u32(record), substitution = f.u32(record + 4);
             let matches = true;
