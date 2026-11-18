@@ -2660,12 +2660,18 @@ export class Image {
         const backgroundColor = checkColor(background, 'background');
         const embed = gainMapEmbed(gainMapOption);
         const m = resolveMetadata(metadata);
+        // (checked before the work: a JPEG segment holds 65533 bytes, the Exif one 6 of them for its header)
+        const exif = exifData(m), comment = m.comment ? utf8(m.comment) : undefined;
+        // eslint-disable-next-line no-restricted-syntax -- a limit of the format, not a range of the option
+        if (comment && comment.length > 65533) throw new RangeError(`JPEG: the metadata's comment must be at most 65533 bytes in UTF-8, not ${comment.length}`);
+        // eslint-disable-next-line no-restricted-syntax -- a limit of the format, not a range of the option
+        if (exif && exif.length > 65527) throw new RangeError(`JPEG: the metadata's description, author, copyright, software and creation time must be at most 65533 bytes together in Exif, not ${exif.length + 6}`);
 
         // transparent pixels: composited onto the opaque background (with the gain map, so the HDR light dims alike)
         const source = this.__flattened__(backgroundColor, embed !== null) ?? this;
         const gainMap = source.__gain_map__;
         // (an image whose pixels are all gray is written with one component, like cjpeg -grayscale: a third the data)
-        const base = { exif: exifData(m), comment: m.comment ? utf8(m.comment) : undefined, subsampling, gray: source.__is_gray__() };
+        const base = { exif, comment, subsampling, gray: source.__is_gray__() };
         if (!gainMap || !embed) return jpeg.encode(source.__bytes__(), source.width, source.height, quality, base);
 
         // the gain map's JPEG first: the primary's XMP holds its length

@@ -16,6 +16,10 @@ import * as exif from './codecs/exif.ts';
  * The Exif and TGA text fields are ASCII in the file format; other characters are written as UTF-8, which readers
  * that follow the format show wrongly. PNG text chunks take any text.
  *
+ * Some formats limit the length: in JPEG the comment and the Exif fields together hold up to 65533 bytes each, and
+ * longer ones throw a `RangeError` before encoding. TGA cuts the author and the software to 40 bytes and the comment to
+ * 4 lines of 80 bytes.
+ *
  * Empty fields (and `null` ones) are left out. Without metadata, the files only say which software made them (`software`), so the same
  * image always encodes to the same bytes
  */

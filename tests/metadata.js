@@ -94,4 +94,11 @@ const latin1 = (data, text) => Buffer.from(data).includes(Buffer.from(text, 'lat
     }
 
     if (await image.encodePNG({metadata: {creationTime: 'not a date'}}).then(() => true, () => false)) panic('an invalid creation time should throw');
+
+    // a JPEG segment holds 65533 bytes: metadata beyond that throws a RangeError naming the field, before encoding
+    for (const [metadata, field] of [[{comment: 'x'.repeat(65534)}, 'comment'], [{description: 'x'.repeat(65534)}, 'description'], [{author: 'x'.repeat(40000), software: 'x'.repeat(40000)}, 'author']]) {
+        const error = await image.encodeJPEG({metadata}).then(() => null, err => err);
+        if (!(error instanceof RangeError) || !error.message.includes(field) || !error.message.includes('65533')) panic(`encodeJPEG with too long ${field}: ${error}`);
+    }
+    await image.encodeJPEG({metadata: {comment: 'x'.repeat(65533)}});
 })();
