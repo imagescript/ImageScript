@@ -62,12 +62,24 @@ export interface GainMapOptions {
     useBaseColorSpace?: boolean;
 }
 
+// the largest magnitude of a parameter: what the ISO 21496-1 fractions of JPEG, AVIF and JPEG XL hold (an int32
+// numerator over 1); gamma and the capacities could go to 2^32 - 1 there, but one range is simpler
+const LIMIT = 2 ** 31 - 1;
+// the smallest gamma: 1 / 2^31, the smallest fraction above 0 there
+const MIN_GAMMA = 2 ** -31;
+
+const bounded = (value: number, name: string): number => {
+    finite(value, name);
+    if (Math.abs(value) > LIMIT) throw new RangeError(`${name} must be from -${LIMIT} to ${LIMIT}, not ${value}`);
+    return value;
+};
+
 const perChannel = (value: GainMapChannelValues, name: string): number[] => {
     const given: unknown = value;
     if (typeof given !== 'number' && !Array.isArray(given)) throw new TypeError(`${name} must be a number or an array of 3 numbers, not ${given === null ? 'null' : typeof given}`);
     const values: number[] = typeof value === 'number' ? [value, value, value] : Array.from(value);
     if (values.length !== 3) throw new RangeError(`${name} must be a number or an array of 3 numbers, not ${values.length}`);
-    return values.map(v => finite(v, name));
+    return values.map(v => bounded(v, name));
 };
 
 /**
@@ -80,8 +92,8 @@ const perChannel = (value: GainMapChannelValues, name: string): number[] => {
  * location. For developers who need the exact calculation, the boost is
  * `2^(min + (max - min) * (v / 255)^(1 / gamma))`, per color channel.
  *
- * The parameters are checked when they are set: a value that isn't finite (or an array of other than 1 or 3 of them)
- * throws, and the map keeps its value
+ * The parameters are checked when they are set: a value that isn't finite or lies beyond ±(2^31 - 1) (what the
+ * formats store), a gamma below 2^-31, or an array of other than 1 or 3 of them throws, and the map keeps its value
  */
 export class GainMap {
     /** @internal @ignore the parameters (the accessors check and copy them) */
@@ -119,12 +131,12 @@ export class GainMap {
     get gamma(): readonly [red: number, green: number, blue: number] { return [this.__gamma__[0], this.__gamma__[1], this.__gamma__[2]]; }
     /**
      * Replaces the value (checked: an invalid one throws and the old one stays)
-     * @param value One number above 0 for all channels or [r, g, b]
+     * @param value One number from 2^-31 for all channels or [r, g, b]
      */
     set gamma(value: GainMapChannelValues) {
         const gamma = perChannel(value, 'gamma');
         // eslint-disable-next-line no-restricted-syntax -- a rule of the gain map's values, not a shared option
-        if (gamma.some(g => g <= 0)) throw new RangeError('The gain map\'s gamma must be above 0');
+        if (gamma.some(g => g < MIN_GAMMA)) throw new RangeError(`The gain map's gamma must be 2^-31 or more, not ${gamma.find(g => g < MIN_GAMMA)}`);
         this.__gamma__ = gamma;
     }
     /** Added to the SDR image's linear values before the boost, per channel (a copy: assign to change it) */
@@ -148,7 +160,7 @@ export class GainMap {
      * @param value A finite number from 0, below `hdrCapacityMax`
      */
     set hdrCapacityMin(value: number) {
-        const capacity = nonNegative(value, 'hdrCapacityMin');
+        const capacity = bounded(nonNegative(value, 'hdrCapacityMin'), 'hdrCapacityMin');
         // (checked against the other one when both are set: the constructor sets min first)
         if ((this.__capacityMax__ as number | undefined) !== undefined && !(capacity < this.__capacityMax__))
             // eslint-disable-next-line no-restricted-syntax -- a relation between two values of the gain map
@@ -162,7 +174,7 @@ export class GainMap {
      * @param value A finite number above `hdrCapacityMin`
      */
     set hdrCapacityMax(value: number) {
-        const capacity = finite(value, 'hdrCapacityMax');
+        const capacity = bounded(value, 'hdrCapacityMax');
         if ((this.__capacityMin__ as number | undefined) !== undefined && !(capacity > this.__capacityMin__))
             // eslint-disable-next-line no-restricted-syntax -- a relation between two values of the gain map
             throw new RangeError(`The gain map's hdrCapacityMax (by default the largest max) must be above its hdrCapacityMin (${capacity} <= ${this.__capacityMin__})`);

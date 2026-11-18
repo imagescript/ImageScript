@@ -92,7 +92,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Fewer types and classes**: `TextLayout` isn't exported, `renderText()` takes the layout options with its other options (`{ font, size, width: 300 }`). `AnimationDecodeOptions` is `DecodeOptions`, which all decode functions take. `encodeTGA()` takes `TGAEncodeOptions`; `EncodeOptions` is the `metadata` that every encoder's options extend, and the `gainMap` option of the JPEG, AVIF and JPEG XL encoders is `boolean | GainMapEmbedOptions`.
 
-- **Values are checked when they are set**: `frame.duration`, `frame.xOffset`, `frame.yOffset` and the parameters of a `GainMap` throw for invalid values (instead of failing in a later encode) and keep their value.
+- **Values are checked when they are set**: `frame.duration`, `frame.xOffset`, `frame.yOffset` and the parameters of a `GainMap` throw for invalid values (instead of failing in a later encode) and keep their value. A gain map's parameters lie within ±(2^31 - 1) and its gamma is 2^-31 or more, what JPEG, AVIF and JPEG XL store: beyond that they were written wrapped or as 0, and decoders dropped the map.
 
 - **An animation has its own canvas size**: decoded animations keep the file's, `new Animation(frames, { width, height })` sets one (`AnimationCanvasOptions`), and `resize()` sets the new one. Without one it is the frames' extent, as before. Frames (or their parts) outside the canvas aren't encoded.
 
