@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, cropBounds, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { shown, isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, cropBounds, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -839,7 +839,7 @@ export interface ColorToAlphaOptions {
 // OpenType features as tags and values (tags are 4 printable ASCII characters)
 function featureList(features: Record<string, boolean | number>): Array<[string, number]> {
     // eslint-disable-next-line no-restricted-syntax -- the OpenType features are only used by the text functions
-    if (typeof features !== 'object' || features === null) throw new TypeError('Features must be an object');
+    if (typeof features !== 'object' || features === null) throw new TypeError(`features must be an object, like { liga: false }, not ${shown(features)}`);
     return Object.entries(features).map(([tag, value]) => {
         // eslint-disable-next-line no-restricted-syntax -- the OpenType features are only used by the text functions
         if (!/^[\x20-\x7e]{4}$/.test(tag)) throw new RangeError(`An OpenType feature tag must be 4 printable ASCII characters, not ${JSON.stringify(tag)}`);
@@ -933,7 +933,8 @@ export class Image {
      * @throws `TypeError` if it isn't a {@link GainMap} or `null`
      */
     set gainMap(gainMap: GainMap | null) {
-        if (gainMap !== null && !(gainMap instanceof GainMap)) throw new TypeError('The gain map has to be a GainMap or null');
+        // eslint-disable-next-line no-restricted-syntax -- the one property that takes a GainMap
+        if (gainMap !== null && !(gainMap instanceof GainMap)) throw new TypeError(`gainMap must be a GainMap or null, not ${shown(gainMap)}`);
         this.__gain_map__ = gainMap?.clone() ?? null;
     }
 
@@ -1935,8 +1936,9 @@ export class Image {
         if (colors !== undefined && palette !== undefined) throw new TypeError('quantize takes colors or palette, not both');
         let fixed: Uint8Array | null = null, count = 256;
         if (palette !== undefined) {
-            if (!Array.isArray(palette)) throw new TypeError('palette has to be an array of colors');
-            if (palette.length < 1 || palette.length > 256) throw new RangeError(`palette needs 1 to 256 colors, not ${palette.length}`);
+            // eslint-disable-next-line no-restricted-syntax -- the one palette option
+            if (!Array.isArray(palette)) throw new TypeError(`palette must be an array of colors, not ${shown(palette)}`);
+            if (palette.length < 1 || palette.length > 256) throw new RangeError(`palette must have 1-256 colors, not ${palette.length}`);
             const packed = new Uint8Array(palette.length * 3);
             palette.forEach((color, i) => {
                 const value = checkColor(color, 'palette color');
@@ -1979,7 +1981,7 @@ export class Image {
      */
     colorMatrix(matrix: ArrayLike<number>): this {
         if (matrix === null || typeof matrix !== 'object') throw new TypeError(`colorMatrix() takes an array of 9 or 20 values, not ${matrix === null ? 'null' : typeof matrix}`);
-        if (matrix.length !== 9 && matrix.length !== 20) throw new RangeError('A color matrix has 9 or 20 values');
+        if (matrix.length !== 9 && matrix.length !== 20) throw new RangeError(`a color matrix must have 9 or 20 values, not ${matrix.length}`);
         const m = new Float64Array(20);
         // (numbers only: a string is a mistake in data like this)
         const value = (v: unknown): number => finite(v as number, 'color matrix value');
@@ -2024,7 +2026,7 @@ export class Image {
     transform(matrix: AffineTransform, options: TransformOptions = {}): this {
         checkOptions(options, 'image.transform([1, 0, 0, 1, 0, 0], { expand: false })');
         if (matrix === null || typeof matrix !== 'object') throw new TypeError(`transform() takes an array of 6 values, like transform([1, 0, 0, 1, 0, 0]), not ${matrix === null ? 'null' : typeof matrix}`);
-        if (matrix.length !== 6) throw new RangeError('A transform has 6 values: [a, b, c, d, e, f]');
+        if (matrix.length !== 6) throw new RangeError(`a transform must have 6 values, [a, b, c, d, e, f], not ${(matrix as ArrayLike<number>).length}`);
         // (numbers only: a string is a mistake in data like this)
         const values = Array.from({ length: 6 }, (_, i) => finite(matrix[i], 'transform value'));
         const { origin = {}, expand = true, mode = 'bilinear' } = options;
@@ -2372,7 +2374,8 @@ export class Image {
         boolean(ignoreBlack, 'ignoreBlack');
         boolean(ignoreWhite, 'ignoreWhite');
         const threshold = finite(bwThreshold, 'threshold');
-        if (threshold < 0 || threshold > 256) throw new RangeError(`threshold has to be between 0 and 256, not ${threshold}`);
+        // eslint-disable-next-line no-restricted-syntax -- the one threshold that goes to 256
+        if (threshold < 0 || threshold > 256) throw new RangeError(`threshold must be 0-256, not ${threshold}`);
         const pixels = this.__bytes__();
 
         const color = quantize.dominantColor(pixels, (r, g, b) =>

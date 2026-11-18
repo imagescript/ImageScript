@@ -7,9 +7,9 @@ const panic = message => {
 };
 
 // A value outside of what an argument takes throws a RangeError that says which argument, what it takes, and which
-// value it got: `<name> must be <what it takes>, not <value>` (or `<name> takes <what>, not <value>`). Only that shape is
-// checked here, the wording of each message is free
-const shape = /^[\w() ]+ (must be|takes) .+, not .+$/;
+// value it got: `<name> must be <what it takes>, not <value>` (or `<name> must have <count>, not <count>`, or `<name>
+// takes <what>, not <value>`). Only that shape is checked here, the wording of each message is free
+const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
 
 (async () => {
     const font = fs.readFileSync('./tests/fonts/carbon phyber.ttf');
@@ -60,6 +60,10 @@ const shape = /^[\w() ]+ (must be|takes) .+, not .+$/;
         'animation width': () => new Animation([], {width: 0, height: 1}),
         'animation resize': () => new Animation([new Frame(image())]).resize({width: 0}),
         'animation crop': () => new Animation([new Frame(image())]).crop(20, 20, 4, 4),
+        'palette size': () => image().quantize({palette: []}),
+        'color matrix size': () => image().colorMatrix([1]),
+        'transform size': () => image().transform([1]),
+        'dominantColor threshold': () => image().dominantColor({threshold: 300}),
         'feature value': () => Image.renderText('A', {font, size: 20, features: {abcd: 300}})
     };
 

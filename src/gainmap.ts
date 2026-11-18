@@ -4,7 +4,7 @@ import { MAX_PIXELS, decoding } from './util/limits.ts';
 import * as jpeg from './codecs/jpeg.ts';
 import * as codec from './codecs/gainmap.ts';
 import { BinaryData, view } from './util/mem.ts';
-import { finite, checkOptions, pixelLimit, quality as checkQuality } from './util/options.ts';
+import { finite, checkOptions, pixelLimit, boolean, quality as checkQuality } from './util/options.ts';
 
 /** Options of {@link GainMap.encodeJPEG} */
 export interface GainMapEncodeOptions {
@@ -176,9 +176,7 @@ export class GainMap {
      * @param value Whether the boost applies in the SDR image's color space
      */
     set useBaseColorSpace(value: boolean) {
-        // eslint-disable-next-line no-restricted-syntax -- the only boolean option that is validated
-        if (typeof value !== 'boolean') throw new TypeError('useBaseColorSpace must be a boolean');
-        this.__useBaseColorSpace__ = value;
+        this.__useBaseColorSpace__ = boolean(value, 'useBaseColorSpace');
     }
 
     /** its pixels */
