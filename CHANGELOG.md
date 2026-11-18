@@ -4,7 +4,7 @@
 
 ### Breaking changes
 
-Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://github.com/imagescript/ImageScript/blob/v4/guides/Migrating%20to%204.0.md) covers the 3.x-to-4.0 API changes and the seventeen behavior changes that don't show up as deprecations or compile errors.
+Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation hints, then switch: the [migration guide](https://github.com/imagescript/ImageScript/blob/v4/guides/Migrating%20to%204.0.md) covers the 3.x-to-4.0 API changes and the eighteen behavior changes that don't show up as deprecations or compile errors.
 
 - **Methods that take options refuse anything else than an object**: a stray number, string, boolean, array or `null` as the options of `cropCircle()`, `Image.renderText()`, the encoders (`encodeWebP()`, `encodeAVIF()`, `encodeJXL()`, ...), `quantize()`, `transform()`, `dropShadow()`, `outline()`, the gradients, `Image.decode()`, the animation encoders, and `new GainMap()` throws a `TypeError` that names the working form (e.g. `cropCircle({ fit: 'cover' })`), so the 3.x calls that are gone like `cropCircle(true)` or `Image.renderText(font, 32, 'Hi')` fail instead of being ignored. Only the type of the argument is checked: a key that isn't an option is still ignored, so a typo like `{ maxWith: 300 }` isn't caught.
 
@@ -100,6 +100,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **Numbers have to be numbers**: a numeric string (`opacity('0.5')`, `quality: '50'`, `frame.duration = '40'`, `maxPixels: '100'`), `null` or a boolean where a number goes throws a `TypeError` naming the value. 3.x converted them in some methods and rejected them in others. `NaN` and the infinities are still a `RangeError`.
 - **Values that did nothing useful throw**: `roundCorners({ radius })` below 0 (it was clamped to 0) and `fisheye({ strength })` of 0 or less (which left an empty image).
+- **WebP at quality 100 is lossless**, like AVIF and JPEG XL: `encodeWebP({ quality: 100 })` wrote a lossy file in 3.x. Use `99` for the highest lossy quality
 - **Gradients blend transparency premultiplied**, like CSS: `Colors.gradient()`, `Image.linearGradient()` and `radialGradient()` between a transparent and an opaque color no longer pass through a dark midpoint (transparent to red is `ff00007f` in the middle, was `7f00007f`). Gradients between opaque colors are unchanged.
 - **Images use a copy of the gain map they are given**: `image.gainMap = map` copies it, so images that were given one map no longer change each other's by resizing or cropping.
 

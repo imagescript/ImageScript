@@ -88,7 +88,8 @@ await writeFile('output.png', await image.encodePNG());
 [Animations](https://imagescript.dev/classes/Animation.html) can be decoded from GIF, APNG, WebP and JPEG XL,
 and encoded as GIF, APNG or WebP, all at once or
 [frame by frame](https://imagescript.dev/classes/Animation.html#webpencoder). Lossless encoding keeps every pixel
-exactly; lossy encoding makes smaller files by approximating some image detail.
+exactly; lossy encoding makes smaller files by approximating some image detail. `quality: 100` is lossless for WebP,
+AVIF and JPEG XL (JPEG has no lossless mode). Without a `quality`, WebP and JPEG XL are lossless and AVIF is lossy.
 
 Not supported (decoding them throws an error): CCITT-compressed TIFF and arithmetic-coded JPEG. Lossless JPEG XL is
 fast but not small: for small lossless files, PNG or WebP are the better choice.

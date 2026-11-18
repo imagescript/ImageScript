@@ -1,7 +1,7 @@
 # Migrating to 4.0
 
-ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes seventeen behaviors. Most of the
-removals are mechanical: the compiler points at them. The seventeen behavior changes are not deprecations, nothing warns
+ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes eighteen behaviors. Most of the
+removals are mechanical: the compiler points at them. The eighteen behavior changes are not deprecations, nothing warns
 about them, and code keeps compiling while it does something else. Read the first section even if your build is clean.
 
 Node.js 22.13 or newer is required, as it was for 3.x (`engines` in `package.json`).
@@ -13,7 +13,7 @@ The recommended path:
    problems list, or a lint rule for deprecated APIs (typescript-eslint has `no-deprecated`), to get the full list.
 2. Fix every deprecation hint, using the tables below.
 3. Switch to 4.0, fix what the compiler reports with the [renamed and reshaped APIs](#renamed-and-reshaped-apis), and go
-   through the seventeen behavior changes. The [checklist](#checklist) at the end has grep patterns
+   through the eighteen behavior changes. The [checklist](#checklist) at the end has grep patterns
    for finding the code they affect.
 
 ## Behavior changes
@@ -306,6 +306,18 @@ is only written when `metadata.creationTime` is given, and the default software 
 | `image.encodePNG()` (with the time of encoding) | `image.encodePNG({ metadata: { creationTime: Date.now() } })` |
 
 Search your code for: code that reads `Creation Time`, Exif `DateTime` or the software version from encoded files.
+
+### WebP at quality 100 is lossless
+
+`encodeWebP({ quality: 100 })` and `animation.encodeWebP({ quality: 100 })` wrote a lossy file in 3.x, whose pixels
+differ slightly from the image's. In 4.0, quality 100 is lossless, like it is for AVIF and JPEG XL: the file keeps every
+pixel and is larger, and `effort` means what it does for lossless WebP. The highest lossy quality is 99.
+
+| 3.x | 4.0 |
+| --- | --- |
+| `image.encodeWebP({ quality: 100 })` (lossy) | `image.encodeWebP({ quality: 99 })` |
+
+Search your code for: `encodeWebP(` with a `quality` of 100.
 
 ### SVG and text rendering limits, and images that can't be drawn
 
@@ -648,7 +660,7 @@ grep -rnE 'encodeGIF\(|gifEncoder\(|GIFEncodeOptions|encodeJPEG\(' src
 grep -rnE 'new Frame\(|Frame\.from\(|frame\w*\.[a-zA-Z]+\(' src
 
 # behavior changes without a compile error
-grep -rnE 'maxWidth|maxHeight|wrapHardBreaks|\.(rotate|quantize|contain|encodeJPEG|dominantColor)\(|from(HSLA?)\(|toHSLA\(' src
+grep -rnE 'maxWidth|maxHeight|wrapHardBreaks|\.(rotate|quantize|contain|encodeJPEG|encodeWebP|dominantColor)\(|from(HSLA?)\(|toHSLA\(' src
 grep -rnE 'compression:|[xy]Offset|\.bitmap =|renderSVG\(|Creation Time|DateTime' src
 
 # GainMap
@@ -658,7 +670,7 @@ grep -rnE 'gainMap\.encode\(|\.encode\(\s*[0-9]' src
 Also search for the variables that hold animations, and for `[0]`, `.map(`, `.filter(` and `.forEach(` on them: the
 search can't tell an animation from an array, so check the type of each receiver.
 
-Then compile with `tsc`, and run the tests that cover your decode and encode paths. The seventeen behavior changes need
+Then compile with `tsc`, and run the tests that cover your decode and encode paths. The eighteen behavior changes need
 runtime checks: a file with several frames, a one-frame GIF, any `loopCount: -1`, every resize fit mode, every HSL hue,
-every `rotate()`, every `dominantColor()` threshold, all text rendered with a size, every JPEG made from an image with transparency, every `quantize()`, the size changes of frames, the
+every `rotate()`, every `dominantColor()` threshold, all text rendered with a size, every JPEG made from an image with transparency, every `quantize()`, every `encodeWebP()` with a quality of 100, the size changes of frames, the
 values that now throw (cut-off uploads among them), gradients with transparent stops, gain maps given to images, anything that reads the metadata of encoded files, and every SVG with images.
