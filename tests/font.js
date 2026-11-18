@@ -6,7 +6,7 @@
  https://notofonts.github.io (subsets of Noto Sans Hebrew, Noto Naskh Arabic and Noto Sans Devanagari, SIL OFL, see
    ../shaping/OFL-Noto.md; noto naskh arabic subset.woff is the .ttf as WOFF, by fontTools)
  https://github.com/googlefonts/noto-emoji (subsets of Noto Color Emoji and Noto-COLRv1, SIL OFL, see OFL-NotoColorEmoji.md;
-   damaged noto colrv1 subset.ttf is a damaged copy for tests/regressions.js)
+   damaged noto colrv1 subset.ttf is a damaged copy for tests/regressions.js, damaged cmap format 12.ttf one for tests/damaged-fonts.js)
  colrv1 paints.ttf is built by colrv1-paints.py, sbix.ttf by sbix.py, hinting instructions.ttf by scripts/hinting-fixtures.py
  font features.ttf and the cmap format fonts by scripts/font-fixtures.py, which also copies cff flex.otf and
    source han sans cid subset.otf from HarfBuzz's test fonts (SIL OFL, see OFL-HarfBuzz-Source.md)

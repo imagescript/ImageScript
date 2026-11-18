@@ -607,6 +607,7 @@ function parseCmap(font: Font, offset: number): (codepoint: number) => number {
         };
     } else {
         const groups = font.u32(table + 12);
+        if (table + 16 + groups * 12 > font.data.length) throw new Error('Font: damaged cmap table');
         lookup = (c: number): number => {
             let lo = 0, hi = groups - 1;
             while (lo <= hi) {

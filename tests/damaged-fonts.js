@@ -29,6 +29,9 @@ const cases = {
     'cff fdarray without fdselect': patched('source han sans cid subset.otf', [[0x4f4, 37, 214]]),
     // the CBLC table (its offset is moved) holds a strike count of 0x0c000000 and more: a list of that many strikes
     // ran the process out of memory (a count too big for the sbix table's reads is caught when they leave the font)
+    // a 1.5 KB font with a cmap format 12 subtable that claims 0xffffffff groups: the binary search over them, with a
+    // middle that went negative, ended in an endless loop
+    'cmap format 12 with a huge group count': fs.readFileSync(fonts + 'damaged cmap format 12.ttf'),
     'cblc with a huge strike count': patched('noto color emoji subset.ttf', [[0x27, 44, 12]])
 };
 
