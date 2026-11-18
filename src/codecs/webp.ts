@@ -9,7 +9,7 @@ import * as vp8 from './vp8.ts';
 import { encodeVP8, encodeAlpha } from './vp8-enc.ts';
 import { rgbaToYUV } from './vp8-enc-dsp.ts';
 import { orientation as exifOrientation } from './exif.ts';
-import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
+import { MAX_PIXELS, checkPixels, checkFormatSize } from '../util/limits.ts';
 import { effort as checkEffort, quality as checkQuality, boolean as checkBoolean } from '../util/options.ts';
 import { startThreads } from '../util/threads.ts';
 
@@ -416,7 +416,7 @@ export async function encodeLossy(rgba: Uint8Array, width: number, height: numbe
 
 // the ALPH (if not opaque) and VP8 chunks of a lossy image
 async function lossyChunks(rgba: Uint8Array, width: number, height: number, { quality, method, sharp, alphaQuality }: LossyOptions): Promise<{ alpha: boolean, chunks: Uint8Array[] }> {
-    if (width > 16383 || height > 16383) throw new RangeError('WebP: lossy images can be at most 16383 pixels wide and high');
+    checkFormatSize('WebP', width, height, 16383);
     const picture = rgbaToYUV(rgba, width, height, sharp);
     const frame = encodeVP8(picture, quality, method);
     // (libwebp counts the padding byte in the chunk's size)
@@ -462,7 +462,7 @@ export function lossyTolerance(quality: number): number {
  */
 export async function encodeAnimation(frames: WebPEncodeFrame[], width: number, height: number, plays: number, exif?: Uint8Array, lossy?: LossyOptions, effort = 2): Promise<Uint8Array<ArrayBuffer>> {
     if (!frames.length) throw new Error('WebP: an animation needs at least one frame');
-    if (width > 1 << 24 || height > 1 << 24) throw new RangeError('WebP: canvas too large');
+    checkFormatSize('WebP', width, height, 1 << 24);
 
     let alpha = false;
     for (const [i, f] of frames.entries()) alpha ||= needsAlpha(f, i === 0, width, height);

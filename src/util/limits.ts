@@ -29,6 +29,14 @@ export function checkPixels(width: number, height: number, limit: number, count 
 }
 
 /**
+ * Throws a RangeError for an image that a format can't store: one message for all encoders, naming the format, what it
+ * allows and the size it got
+ */
+export function checkFormatSize(format: string, width: number, height: number, max: number): void {
+    if (!(width <= max && height <= max)) throw new RangeError(`${format}: images can be at most ${max} pixels wide and high, not ${width}x${height}`);
+}
+
+/**
  * Throws a {@link LimitError} naming the operation if an image it makes would have more pixels than an image can
  * (the default `maxPixels` of the decoders): a shadow or outline of a huge size or offset would only fail allocating
  */

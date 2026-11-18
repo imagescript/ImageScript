@@ -1,5 +1,5 @@
 import { encode as utf8 } from '../util/utf8.ts';
-import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
+import { MAX_PIXELS, checkPixels, checkFormatSize } from '../util/limits.ts';
 
 // Truevision TGA: color mapped, truecolor and grayscale images, uncompressed or run length encoded
 
@@ -209,7 +209,8 @@ function extensionArea({ author, comment, time, software }: Extension, alpha: bo
 }
 
 export function encode(rgba: Uint8Array, width: number, height: number, extension?: Extension): Uint8Array<ArrayBuffer> {
-    if (width < 1 || height < 1 || width > 65535 || height > 65535) throw new RangeError('TGA: dimensions must be 1-65535');
+    if (width < 1 || height < 1) throw new RangeError('TGA: dimensions must be at least 1');
+    checkFormatSize('TGA', width, height, 65535);
 
     let opaque = true;
     for (let i = 3; i < rgba.length; i += 4) if (rgba[i] !== 255) { opaque = false; break; }

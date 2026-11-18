@@ -30,7 +30,7 @@ import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts'
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
 import { allocate, scaleFactor, instance, shown, isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, cropBounds, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
-import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
+import { MAX_PIXELS, LimitError, decoding, checkGrowth, checkFormatSize } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
 import { multiply, invert } from './util/matrix.ts';
@@ -2751,7 +2751,7 @@ export class Image {
         checkOptions(options, 'image.encodeGIF({ colors: 64 })');
         const { colors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85, metadata = {} } = options;
         const palette = quantize.paletteOptions(colors, dither, ditherStrength);
-        if (this.width > 0xffff || this.height > 0xffff) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${this.width}x${this.height}`);
+        checkFormatSize('GIF', this.width, this.height, 0xffff);
         const frame = { x: 0, y: 0, width: this.width, height: this.height, delay: 0, dispose: 1, pixels: this.__bytes__() };
         return gif.encode({ width: this.width, height: this.height, loopCount: 0, frames: [frame] }, { colors: palette.colors as number, dither: palette.dither, strength: palette.strength }, gifComments(resolveMetadata(metadata)));
     }

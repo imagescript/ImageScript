@@ -7,7 +7,7 @@
  */
 
 import { ByteWriter } from '../util/bytes.ts';
-import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
+import { MAX_PIXELS, checkPixels, checkFormatSize } from '../util/limits.ts';
 import { runChunks, shared, type ChunkTask, type Thread } from '../util/threads.ts';
 
 /** decoded VP8L image: ARGB pixels (0xAARRGGBB) */
@@ -1579,7 +1579,8 @@ export function predictorChunks({ p, src, modes, width, height, bits, candidates
  * predicting them compresses better (smooth gradients, like alpha)
  */
 export async function encode(argb: Uint32Array, width: number, height: number, threads: Thread[] | null = null, effort = 2): Promise<Uint8Array> {
-    if (width < 1 || height < 1 || width > 16384 || height > 16384) throw new RangeError('VP8L: dimensions must be 1-16384');
+    if (width < 1 || height < 1) throw new RangeError('WebP: dimensions must be at least 1');
+    checkFormatSize('WebP', width, height, 16384);
     const tuning = TUNING[Math.min(2, effort)];
     const colors = new Map<number, number>();
     for (let i = 0; i < argb.length && colors.size <= 256; i++) if (!colors.has(argb[i])) colors.set(argb[i], colors.size);

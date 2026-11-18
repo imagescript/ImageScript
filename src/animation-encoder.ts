@@ -9,6 +9,7 @@ import { compressAsync, decompressAsync } from './codecs/zlib.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { instance, checkOptions, finite, nonNegative, canvasSize, compressionLevel, loopCount, toPlays, fitLoops, fitDuration, maxDuration, boolean } from './util/options.ts';
 import type { AnimationOptions, WebPAnimationEncodeOptions, GIFAnimationEncodeOptions, APNGEncodeOptions } from './animation.ts';
+import { checkFormatSize } from './util/limits.ts';
 
 // a format's part: takes the frames in order once they can't change anymore, then makes the file
 interface Format {
@@ -124,7 +125,7 @@ export class AnimationEncoder {
         boolean(optimize, 'optimize');
         const loops = fitLoops(loopCount(count), 'WebP');
         [width, height] = canvas(width, height, 'WebP');
-        if (width > 1 << 24 || height > 1 << 24) throw new RangeError(`WebP: images can be at most 16777216 pixels wide and high, not ${width}x${height}`);
+        checkFormatSize('WebP', width, height, 1 << 24);
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
         const resolved = resolveMetadata(metadata), chunks: Uint8Array[] = [];
         let alpha = false;
@@ -236,7 +237,7 @@ export class AnimationEncoder {
 function canvas(widthArgument: number, heightArgument: number, format: 'GIF' | 'APNG' | 'WebP'): [width: number, height: number] {
     const [width, height] = canvasSize(widthArgument, heightArgument);
     // (the GIF header stores the size in 16 bits, WebP in 24; larger ones would wrap)
-    if (format === 'GIF' && (width > 0xffff || height > 0xffff)) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${width}x${height}`);
+    if (format === 'GIF') checkFormatSize('GIF', width, height, 0xffff);
     return [width, height];
 }
 

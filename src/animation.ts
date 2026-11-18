@@ -13,7 +13,7 @@ import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { shown, scaleFactor, checkOptions, oneOf, pixelLimit, checkThreads, pixels, canvasSize, cropBounds, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
-import { MAX_PIXELS, decoding, checkPixels } from './util/limits.ts';
+import { MAX_PIXELS, decoding, checkPixels, checkFormatSize } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 import { describe } from './util/inspect.ts';
 
@@ -534,8 +534,8 @@ export class Animation {
         }
         const { width, height } = this;
         if (width < 1 || height < 1) throw new RangeError('The animation has no canvas: every frame lies outside of it');
-        if (format === 'GIF' && (width > 0xffff || height > 0xffff)) throw new RangeError(`GIF: images can be at most 65535 pixels wide and high, not ${width}x${height}`);
-        if (format === 'WebP' && (width > 1 << 24 || height > 1 << 24)) throw new RangeError(`WebP: images can be at most 16777216 pixels wide and high, not ${width}x${height}`);
+        if (format === 'GIF') checkFormatSize('GIF', width, height, 0xffff);
+        if (format === 'WebP') checkFormatSize('WebP', width, height, 1 << 24);
     }
 
     /**

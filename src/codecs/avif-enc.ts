@@ -6,6 +6,7 @@
  */
 import { encodeAV1, encodeAV1Threaded, type AV1Image, type AV1Params } from './av1/encode.ts';
 import { startThreads } from '../util/threads.ts';
+import { checkFormatSize } from '../util/limits.ts';
 import { writeISO, type Params } from './gainmap.ts';
 
 /** Options of the AVIF encoder */
@@ -184,7 +185,7 @@ function seqMonochrome(d: Uint8Array, o: number): boolean {
 /** Encodes RGBA pixels as an AVIF (with an alpha image if the image has transparency) */
 export async function encode(rgba: Uint8Array, width: number, height: number, { quality, alphaQuality, subsampling, effort, exif, threads: maxThreads, gainMap }: AVIFOptions): Promise<Uint8Array<ArrayBuffer>> {
     if (width < 1 || height < 1) throw new RangeError('AVIF: dimensions must be at least 1');
-    if (width > 65536 || height > 65536) throw new RangeError('AVIF: dimensions must be at most 65536');
+    checkFormatSize('AVIF', width, height, 65536);
     let opaque = true;
     for (let i = 3; i < rgba.length; i += 4) if (rgba[i] !== 255) { opaque = false; break; }
     // (lossy: the colors of transparent pixels don't matter, the cheapest are smooth ones)

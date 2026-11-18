@@ -6,7 +6,7 @@
  */
 
 import { ByteWriter } from '../util/bytes.ts';
-import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
+import { MAX_PIXELS, checkPixels, checkFormatSize } from '../util/limits.ts';
 import { orientation as exifOrientation } from './exif.ts';
 import { concat } from '../util/mem.ts';
 import { littleEndian } from '../util/alpha.ts';
@@ -1033,7 +1033,8 @@ export interface EncodeMetadata {
 }
 
 export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment, segments, gray = false, fullChroma = false, subsampling }: EncodeMetadata = {}): Uint8Array<ArrayBuffer> {
-    if (!width || !height || width > 0xffff || height > 0xffff) throw new RangeError('JPEG: invalid dimensions');
+    if (!width || !height) throw new RangeError('JPEG: invalid dimensions');
+    checkFormatSize('JPEG', width, height, 0xffff);
 
     quality = Math.min(100, Math.max(1, Math.round(quality)));
     const scale = quality < 50 ? Math.floor(5000 / quality) : 200 - quality * 2;
