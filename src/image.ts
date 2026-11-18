@@ -3063,7 +3063,7 @@ export class Image {
             }
         }
 
-        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, (Array.isArray(fonts) ? fonts : [fonts]).map(font => view(font)), maxPixels, maxLayerPixels);
+        const {width, height, pixels} = svgRenderer.render(source, mode, size, images, Array.from(Array.isArray(fonts) ? fonts : [fonts], font => view(font)), maxPixels, maxLayerPixels);
         const image = new Image(width, height);
         image.bitmap.set(pixels);
 
@@ -3109,7 +3109,7 @@ export class Image {
         if (layout.width !== undefined) layout.width -= 2 * pad;
         if (layout.height !== undefined) layout.height -= 2 * pad;
         // color glyph layers in the text color take it without its alpha, which applies to the whole color glyph
-        const rendered = await textRenderer.render(fonts.map(view), size, text, layout, hinting, (r << 24 | g << 16 | b << 8 | 255) >>> 0, featureList(features), axes, maxPixels, pad);
+        const rendered = await textRenderer.render(Array.from(fonts, view), size, text, layout, hinting, (r << 24 | g << 16 | b << 8 | 255) >>> 0, featureList(features), axes, maxPixels, pad);
 
         const width = rendered.width + 2 * pad, height = rendered.height + 2 * pad;
         const coverage = new Uint8Array(width * height);

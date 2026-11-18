@@ -141,7 +141,7 @@ export function fitDuration(duration: number, format: keyof typeof DURATION_LIMI
 /** A number of 0 or more, finite: a negative one throws a RangeError naming the argument */
 /** An instance of one of the classes `types` (an Image, a Frame, ...), else a TypeError naming the argument and the value */
 export function instance(value: unknown, types: Array<abstract new (...args: never[]) => unknown>, name: string): void {
-    if (!types.some(type => value instanceof type)) throw new TypeError(`${name} must be ${types.map(type => `a ${type.name}`).join(' or ')}, not ${shown(value)}`);
+    if (!types.some(type => value instanceof type)) throw new TypeError(`${name} must be ${types.map(type => `${/^[AEIOU]/.test(type.name) ? 'an' : 'a'} ${type.name}`).join(' or ')}, not ${shown(value)}`);
 }
 
 /**

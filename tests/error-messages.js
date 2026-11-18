@@ -114,6 +114,20 @@ const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
             if (!(error instanceof RangeError) || !error.message.startsWith(start)) failures.push(`${name}: ${error.message}, expected a RangeError about the ${start}`);
         }
     }
+    // the article fits the class ('an Image'), and a sparse array of fonts names what is missing instead of failing
+    // inside (Array.prototype.map skips the holes)
+    for (const [name, fn, expected] of [
+        ['frame.image article', () => { new Frame(image()).image = 5; }, /must be an Image,/],
+        ['renderText sparse fonts', () => Image.renderText('A', {font: new Array(2), size: 20}), /^(?!Cannot read)/],
+        ['renderSVG sparse fonts', () => Image.renderSVG('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>', {font: new Array(2)}), /^(?!Cannot read)/]
+    ]) {
+        try {
+            await fn();
+            failures.push(`${name}: accepted`);
+        } catch (error) {
+            if (!(error instanceof TypeError) || !expected.test(error.message)) failures.push(`${name}: ${error?.constructor?.name}: ${error?.message}`);
+        }
+    }
     // a gain map's JPEG takes the qualities of Image.encodeJPEG() (0 is 1)
     for (const encode of [() => new GainMap(new Image(4, 4)).encodeJPEG({quality: 0}), () => { const i = image(); i.gainMap = new GainMap(new Image(4, 4)); return i.encodeJPEG({gainMap: {quality: 0}}); }]) {
         try {
