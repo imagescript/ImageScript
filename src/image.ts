@@ -905,7 +905,14 @@ export class Image {
 
         this.__width__ = width;
         this.__height__ = height;
-        this.__set_bitmap__(new Uint8ClampedArray(width * height * 4));
+        let bitmap: Uint8ClampedArray;
+        try {
+            bitmap = new Uint8ClampedArray(width * height * 4);
+        } catch (err) {
+            // (the engine's own message names neither the image nor its size)
+            throw new RangeError(`An image of ${width}x${height} pixels (${width * height * 4} bytes) can't be allocated`, { cause: err });
+        }
+        this.__set_bitmap__(bitmap);
     }
 
     /**
@@ -966,7 +973,7 @@ export class Image {
         if (bitmap.byteOffset % 4) bitmap = bitmap.slice();
         this.__bitmap__ = bitmap;
         this.__view__ = new DataView(bitmap.buffer, bitmap.byteOffset, bitmap.byteLength);
-        this.__u32__ = new Uint32Array(bitmap.buffer, bitmap.byteOffset, bitmap.length >> 2);
+        this.__u32__ = new Uint32Array(bitmap.buffer, bitmap.byteOffset, bitmap.length >>> 2);
     }
 
     /** A short description for debugging, e.g. `Image<64x64>` */
@@ -1832,17 +1839,17 @@ export class Image {
     protected __map_hsla__(map: (hsla: HSLA) => void): this {
         const bitmap = this.bitmap;
         const hsla: HSLA = { h: 0, s: 0, l: 0, a: 0 };
-        const pixels = new Uint32Array(bitmap.buffer, bitmap.byteOffset, bitmap.length >> 2);
+        const pixels = new Uint32Array(bitmap.buffer, bitmap.byteOffset, bitmap.length >>> 2);
 
         // results of recently seen colors (direct mapped by a hash of the color), images often repeat colors
         const keys = new Uint32Array(4096), values = new Uint32Array(4096);
         keys[0] = 1; // so the empty slot 0 can't match the color 0
 
         for (let i = 0; i < bitmap.length; i += 4) {
-            const color = pixels[i >> 2];
+            const color = pixels[i >>> 2];
             const slot = Math.imul(color, 0x9e3779b1) >>> 20;
             if (keys[slot] === color) {
-                pixels[i >> 2] = values[slot];
+                pixels[i >>> 2] = values[slot];
                 continue;
             }
 
@@ -1883,7 +1890,7 @@ export class Image {
             bitmap[i + 3] = Math.round(na * 255);
 
             keys[slot] = color;
-            values[slot] = pixels[i >> 2];
+            values[slot] = pixels[i >>> 2];
         }
 
         return this;
@@ -3114,7 +3121,7 @@ export class Image {
 
         if (!strokeWidth && !colored) {
             // the pixel for each coverage value, written as one word
-            const pixels = new Uint32Array(bitmap.buffer, bitmap.byteOffset, bitmap.length >> 2), lut = new Uint32Array(256);
+            const pixels = new Uint32Array(bitmap.buffer, bitmap.byteOffset, bitmap.length >>> 2), lut = new Uint32Array(256);
             const bytes = new Uint8ClampedArray(lut.buffer);
             for (let v = 1; v < 256; v++) bytes.set([r, g, b, v * a / 255], v * 4);
             for (let i = 0; i < coverage.length; i++) if (coverage[i]) pixels[i] = lut[coverage[i]];

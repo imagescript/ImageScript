@@ -11,7 +11,7 @@ export function useLittleEndian(value: boolean): void {
     littleEndian = value;
 }
 
-const words = (bitmap: Uint8ClampedArray): Int32Array => new Int32Array(bitmap.buffer, bitmap.byteOffset, bitmap.length >> 2);
+const words = (bitmap: Uint8ClampedArray): Int32Array => new Int32Array(bitmap.buffer, bitmap.byteOffset, bitmap.length >>> 2);
 
 /** Whether every pixel of the RGBA bitmap is opaque */
 export function isOpaque(bitmap: Uint8ClampedArray): boolean {
