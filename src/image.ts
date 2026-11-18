@@ -614,7 +614,8 @@ export interface DecodeOptions {
     /**
      * The maximum total pixels to decode. An image declaring more pixels throws a {@link LimitError} (a RangeError) before its pixel buffer
      * is allocated, helping prevent a small or untrusted file from requesting an enormous amount of memory.
-     * {@link Animation.decode} counts all frames together because each frame uses a full canvas. The decoded image
+     * {@link Animation.decode} counts all frames together because each frame uses a full canvas (and at least 1024
+     * pixels, for the memory a frame takes however small it is). The decoded image
      * takes 4 bytes per pixel (about 1 GiB at the default), and decoding needs more while it runs: for 8-bit images,
      * about 4-7 bytes per pixel for PNG, JPEG, WebP, GIF and the simpler formats, about 14 for AVIF and about 60 for
      * lossy JPEG XL on one thread, about 110 with worker threads (more with high bit depths). Lower it to bound the

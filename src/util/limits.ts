@@ -13,11 +13,17 @@ export class LimitError extends RangeError {
 export const MAX_PIXELS = 0x3fff * 0x3fff;
 
 /**
+ * What a frame of an animation counts at least: a frame takes memory however small it is (200000 frames of 1x1, a
+ * 4.6 MB GIF, took 720 MB), so the limit bounds the memory of tiny frames too
+ */
+export const FRAME_PIXELS = 1024;
+
+/**
  * Throws if decoding an image of the given size would exceed the limit, before anything that size is allocated
- * @param count the number of such images (frames)
+ * @param count the number of such images (frames of an animation, each counting at least {@link FRAME_PIXELS})
  */
 export function checkPixels(width: number, height: number, limit: number, count = 1): void {
-    if (!(width * height * count <= limit))
+    if (!((count > 1 ? Math.max(width * height, FRAME_PIXELS) : width * height) * count <= limit))
         throw new LimitError(`Image too large: ${count > 1 ? `${count} frames of ` : ''}${width}x${height} pixels exceed the limit of ${limit} (the decode options' maxPixels)`);
 }
 
