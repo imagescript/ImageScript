@@ -599,7 +599,8 @@ export interface RenderTextOptions extends TextStyleOptions, TextLayoutOptions {
 export interface DecodeOptions {
     /**
      * Whether to rotate or mirror the image according to its saved orientation information, so photos taken with a
-     * rotated camera display upright. This applies to every animation frame too
+     * rotated camera display upright. This applies to every animation frame too. AVIF's rotation and mirroring
+     * (`irot`, `imir`) are part of the image in that format and always applied, like other AVIF decoders do
      * @defaultValue `true`
      */
     applyOrientation?: boolean;
