@@ -711,6 +711,8 @@ function validProperty(name: string, value: string): boolean {
 
 // the most elements to render through <use> references (like librsvg's limit), and dashes of a path
 const MAX_INSTANCES = 100000;
+// the most markers one render draws (each takes about 0.7 ms, a render of its own: 5000 took 3.6 s)
+const MAX_MARKERS = 10000;
 const MAX_OCTAVES = 24;
 // the dashes stroked and rasterized at once
 const DASH_BATCH = 20000;
@@ -762,7 +764,7 @@ const MAX_TILE = 4096 * 1024;
 
 class Document {
     /** elements rendered through <use> references and embedded SVGs so far (shared with the embedded SVGs' documents) */
-    budget = { instances: 0, nested: 0, nesting: 0 };
+    budget = { instances: 0, markers: 0, nested: 0, nesting: 0 };
     ids: Map<string, XNode>;
     active: Set<XNode>;
     root: XNode;
@@ -938,8 +940,8 @@ class Document {
 
     renderNode(node: XNode, context: Context, root = false): void {
         if (!node.svg || UNSUPPORTED.has(node.name) || context.depth > 32 || !this.passesConditions(node)) return;
-        // <use> references can multiply each other ("billion laughs"): their elements are counted
-        if (context.instanced && ++this.budget.instances > MAX_INSTANCES) throw new Error(`SVG: more than ${MAX_INSTANCES} elements rendered through <use> references or embedded SVGs`);
+        // <use> references can multiply each other ("billion laughs"), markers repeat at every vertex: their elements are counted
+        if (context.instanced && ++this.budget.instances > MAX_INSTANCES) throw new Error(`SVG: more than ${MAX_INSTANCES} elements rendered through <use> references, markers or embedded SVGs`);
 
         const style = this.computeStyle(node, context.style);
         if (style.display === 'none') return;
@@ -1695,7 +1697,10 @@ class Document {
                 }
                 matrix = multiply(matrix, [sx * units, 0, 0, sy * units, -refX * sx * units, -refY * sy * units]);
 
-                const inner = { ...ctx, matrix, style: markerStyle, depth: ctx.depth + 1, viewport: viewBox ? { width: viewBox[2], height: viewBox[3] } : ctx.viewport, contextElement };
+                // (a marker is rendered at every vertex: its elements count like those of <use> references, and the
+                // markers themselves too, each a render of its own)
+                if (++this.budget.markers > MAX_MARKERS) throw new Error(`SVG: more than ${MAX_MARKERS} markers`);
+                const inner = { ...ctx, matrix, style: markerStyle, depth: ctx.depth + 1, viewport: viewBox ? { width: viewBox[2], height: viewBox[3] } : ctx.viewport, contextElement, instanced: true };
                 this.active.add(marker);
                 this.indirect(0, () => {
                     if (!clip) this.renderChildren(marker, inner);

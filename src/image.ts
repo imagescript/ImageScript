@@ -2995,8 +2995,9 @@ export class Image {
      * @throws {@link LimitError} if the output, the layers or the images exceed the limits of the options
      * @throws `RangeError` if the requested size is below 1 pixel (or a scale isn't above 0)
      * @throws `Error` if the SVG can't be parsed (it has no `<svg>` element), an image in it can't be drawn (it isn't given
-     *     or can't be decoded), or masks, clip paths, patterns, markers and filter images are nested so deeply that they
-     *     would multiply
+     *     or can't be decoded), masks, clip paths, patterns, markers and filter images are nested so deeply that they
+     *     would multiply, or it draws more than 100000 elements through `<use>` references and markers or more than
+     *     10000 markers
      */
     static renderSVG(svg: string | BinaryData, options?: RenderSVGOptions): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, options: RenderSVGOptions = {}): Promise<Image> {

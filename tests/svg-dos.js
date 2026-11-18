@@ -194,6 +194,15 @@ const timed = async (name, svg, limit = 5000) => {
         error = null;
         try { await Image.renderSVG(`<svg ${NS} width="1e17" height="10"/>`); } catch (err) { error = err; }
         if (!error || error.name !== 'LimitError') panic(`a declared width of 1e17: expected a LimitError, got ${error}`);
+        // markers are limited like the elements of <use> references: 120000 marker-mid instances took 135 s
+        {
+            const points = Array.from({length: 120000}, (_, i) => `${i % 1000} ${i / 1000 | 0}`).join(' L');
+            const markers = `<svg ${NS} width="1000" height="200"><marker id="m" markerWidth="8" markerHeight="8"><circle cx="4" cy="4" r="3"/></marker><path d="M${points}" stroke="black" marker-mid="url(#m)"/></svg>`;
+            const begin = Date.now();
+            error = null;
+            try { await Image.renderSVG(markers); } catch (err) { error = err; }
+            if (!error || !/markers/.test(error.message) || Date.now() - begin > 30000) panic(`120000 markers: expected the marker limit within 30 s, got ${error} after ${Date.now() - begin} ms`);
+        }
         // a real filter on a large image still renders
         const shadow = await Image.renderSVG(`<svg ${NS} width="2000" height="2000"><filter id="s"><feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dx="10" dy="10" result="b"/><feFlood flood-color="#0004"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><rect x="100" y="100" width="1700" height="1700" fill="red" filter="url(#s)"/></svg>`);
         if (shadow.width !== 2000) panic('a drop shadow on a large image should render');
