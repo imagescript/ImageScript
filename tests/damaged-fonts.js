@@ -94,6 +94,12 @@ const cases = {
         data.writeUInt32BE(0x7fffffff, 952);
         return data;
     })(),
+    // a CBLC strike of 0 pixels per em: the text's bitmaps were scaled by Infinity (a LimitError)
+    'cblc strike of 0 ppem': (() => {
+        const data = Buffer.from(fs.readFileSync(fonts + 'noto color emoji subset.ttf')), cblc = tableOffset(data, 'CBLC');
+        data[cblc + 8 + 45] = 0;
+        return data;
+    })(),
     'cmap format 14 with a huge record count': withCount('font features.ttf', 'cmap', cmap14('font features.ttf') + 6, 0xffffffff),
     'cblc with a huge strike count': patched('noto color emoji subset.ttf', [[0x27, 44, 12]])
 };

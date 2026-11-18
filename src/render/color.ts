@@ -130,6 +130,7 @@ function parseCBDT(font: Font, size: number): ((glyph: number) => BitmapGlyph | 
     // (u8() doesn't throw past the end of the font, so a damaged count would only run out of memory)
     const strikes = font.count(font.u32(cblc + 4), cblc + 8, 48, 'CBLC table');
     const ppems = Array.from({ length: strikes }, (_, i) => font.u8(cblc + 8 + i * 48 + 45));
+    if (ppems.includes(0)) throw new Error('Font: damaged CBLC table (a strike of 0 pixels per em)');
     const index = closestStrike(ppems, size);
     if (index < 0) return null;
     const strike = cblc + 8 + index * 48, strikePpem = ppems[index];
