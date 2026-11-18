@@ -424,8 +424,8 @@ export interface JPEGEncodeOptions extends EncodeOptions {
 /** Options of {@link Image.encodeWebP} */
 export interface WebPEncodeOptions extends EncodeOptions {
     /**
-     * Lossy compression (0-100): higher values usually preserve more detail but make larger files. Without it the image
-     * is encoded losslessly, keeping every pixel exact
+     * Lossy compression (0-100): higher values usually preserve more detail but make larger files. `100`, like no
+     * quality, encodes losslessly and keeps every pixel exact (`99` is the highest lossy quality)
      */
     quality?: number;
     /**
@@ -2747,7 +2747,7 @@ export class Image {
 
     /**
      * Encodes the image as WebP: lossless (usually 20-30% smaller than PNG, but slower to encode), or lossy with a
-     * quality
+     * quality below 100
      * @param options See {@link WebPEncodeOptions}
      */
     async encodeWebP(options: WebPEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {

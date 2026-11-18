@@ -588,7 +588,7 @@ export class Animation {
     }
 
     /**
-     * Encodes the animation as animated WebP, lossless or (with a quality) lossy. Each frame is stored as the area that
+     * Encodes the animation as animated WebP, lossless or (with a quality below 100) lossy. Each frame is stored as the area that
      * changed since the frame before, identical frames are merged (unless the `optimize` option is false): the file
      * shows the same animation, but doesn't necessarily decode to the same frames
      * @param options See {@link WebPAnimationEncodeOptions}; the loop count is the animation's {@link loopCount} (the

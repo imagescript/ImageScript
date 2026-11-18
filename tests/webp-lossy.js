@@ -133,6 +133,12 @@ const alphaReferences = {
     }
     if (!chunks(await image.encodeWebP()).VP8L) panic('without a quality WebPs should be lossless');
 
+    // quality 100 is lossless like it is for AVIF and JPEG XL, 99 is the best lossy quality
+    const photo = new Image(24, 16).fill((x, y) => Colors.fromRGBA(x * 10, y * 15, (x * 7 + y * 3) % 256, 255));
+    if (!chunks(await photo.encodeWebP({quality: 100})).VP8L) panic('quality 100 should be lossless');
+    if (!chunks(await photo.encodeWebP({quality: 99}))['VP8 ']) panic('quality 99 should be lossy');
+    if (!String.fromCharCode(...await new Animation([new Frame(photo)]).encodeWebP({quality: 100})).includes('VP8L')) panic('an animation with quality 100 should be lossless');
+
     // lossy animations
     const frames = [0xff0000ff, 0x00ff00ff, 0x0000ff80].map((color, i) => {
         const frame = new Image(40, 30).fill(color);

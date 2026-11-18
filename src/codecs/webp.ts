@@ -385,7 +385,7 @@ export interface LossyOptions {
 
 /**
  * Checks the options of lossy images and frames (quality and alpha quality 0-100, effort 0-6)
- * @returns undefined without a quality: lossless
+ * @returns undefined without a quality or with 100: lossless
  */
 export function lossyOptions(quality: number | undefined, effort: number, sharp: boolean, alphaQuality: number): LossyOptions | undefined {
     // (checked for lossless images too, which don't use them)
@@ -393,7 +393,9 @@ export function lossyOptions(quality: number | undefined, effort: number, sharp:
     const a = checkQuality(alphaQuality, 'alphaQuality');
     checkBoolean(sharp, 'sharpYuv');
     if (quality === undefined) return undefined;
-    return { quality: checkQuality(quality), method: effort, sharp, alphaQuality: Math.round(a) };
+    const q = checkQuality(quality);
+    // (100 is lossless, like for AVIF and JPEG XL)
+    return q === 100 ? undefined : { quality: q, method: effort, sharp, alphaQuality: Math.round(a) };
 }
 
 /**
