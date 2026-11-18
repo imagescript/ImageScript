@@ -162,6 +162,26 @@ const timed = async (name, svg, limit = 5000) => {
         error = null;
         try { await Image.renderSVG(chain(8), {maxLayerPixels: 4e6}); } catch (err) { error = err; }
         if (!error || error.name !== 'LimitError') panic(`filter chain within maxLayerPixels: expected a LimitError, got ${error}`);
+        // one primitive that costs far more than its pixels: a convolution of order 200 took 341 s over a megapixel (80 KB
+        // of SVG); it is charged for its kernel's taps
+        const convolve = `<svg ${NS} width="1000" height="1000"><filter id="f"><feConvolveMatrix order="200" kernelMatrix="${'1 '.repeat(200 * 200)}"/></filter><rect width="1000" height="1000" filter="url(#f)"/></svg>`;
+        const convolveStart = Date.now();
+        error = null;
+        try { await Image.renderSVG(convolve); } catch (err) { error = err; }
+        if (!error || error.name !== 'LimitError' || Date.now() - convolveStart > 15000) panic(`a convolution of order 200: expected a LimitError within 15 s, got ${error} after ${Date.now() - convolveStart} ms`);
+        // the work allowed scales with the size of the render: a drop shadow on a 4096x4096 image (rendered by rc.5) stays within it
+        {
+            const big = await Image.renderSVG(`<svg ${NS} width="4096" height="4096"><filter id="s" x="-10%" y="-10%" width="130%" height="130%"><feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dx="10" dy="10" result="b"/><feFlood flood-color="#0004"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><rect x="100" y="100" width="3800" height="3800" fill="red" filter="url(#s)"/></svg>`);
+            if (big.getPixelAt(2000, 2000) !== 0xff0000ff) panic('a drop shadow on a 4096x4096 image should render');
+        }
+        // a filter region over the layer limit is a LimitError, not a silently missing element
+        error = null;
+        try { await Image.renderSVG(`<svg ${NS} width="9000" height="9000"><filter id="f"><feFlood flood-color="blue"/></filter><rect width="9000" height="9000" fill="red" filter="url(#f)"/></svg>`, {maxPixels: 9000 ** 2, maxLayerPixels: Infinity}); } catch (err) { error = err; }
+        if (!error || error.name !== 'LimitError') panic(`a filter region of more than 2^26 pixels: expected a LimitError, got ${error}`);
+        // a declared size no integer can hold is a LimitError like the other sizes past maxPixels
+        error = null;
+        try { await Image.renderSVG(`<svg ${NS} width="1e17" height="10"/>`); } catch (err) { error = err; }
+        if (!error || error.name !== 'LimitError') panic(`a declared width of 1e17: expected a LimitError, got ${error}`);
         // a real filter on a large image still renders
         const shadow = await Image.renderSVG(`<svg ${NS} width="2000" height="2000"><filter id="s"><feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dx="10" dy="10" result="b"/><feFlood flood-color="#0004"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><rect x="100" y="100" width="1700" height="1700" fill="red" filter="url(#s)"/></svg>`);
         if (shadow.width !== 2000) panic('a drop shadow on a large image should render');

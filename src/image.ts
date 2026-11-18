@@ -493,7 +493,9 @@ export interface SVGResourceOptions {
      * output's size, 16 bytes per pixel) while their content is drawn, so deeply nested ones multiply the memory a
      * small SVG takes. Exceeding it throws a {@link LimitError} (a RangeError). With the defaults, rendering can take about 90 bytes per pixel
      * of `maxPixels` (64 for the layers, up to 20 for the images, 4 for the output): lower `maxPixels` to bound it for
-     * untrusted SVGs
+     * untrusted SVGs. Filters have limits of their own that these options don't change: a filter's region can have at
+     * most 2²⁶ pixels, and all the filters' primitives together may work on 2²⁶ pixels plus 16 per pixel of the output
+     * (an `feConvolveMatrix` counts its kernel's size), else a {@link LimitError} is thrown
      * @defaultValue `4 * maxPixels`; `Infinity` disables the limit
      */
     maxLayerPixels?: number;

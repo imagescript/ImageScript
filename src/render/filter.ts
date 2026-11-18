@@ -271,7 +271,8 @@ function filterResult(filter: Filter, ts: Matrix, full: Pixmap, budget: FilterBu
 function runPrimitives(filter: Filter, matrix: Matrix, region: Rect, outputRegion: Rect, input: (value: Input) => Result, results: Array<{ name: string, image: Result }>, keep: (pixels: number) => void, budget: FilterBudget): { image: Result, region: Rect } | null {
     for (const primitive of filter.primitives) {
         const { kind } = primitive;
-        budget.work(region.width * region.height);
+        // (a convolution costs its kernel's taps per pixel: a blur or a morphology costs about nine)
+        budget.work(region.width * region.height * (kind.type === 'convolve' ? Math.max(1, kind.columns * kind.rows / 9) : 1));
         let subregion = intRect(primitive.rect, matrix);
         if (kind.type === 'offset' && typeof kind.input === 'object') {
             const name = kind.input.result;

@@ -189,7 +189,7 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
     outHeight = Math.max(1, outHeight);
 
     if (!Number.isSafeInteger(outWidth) || !Number.isSafeInteger(outHeight))
-        throw new RangeError(`SVG output dimensions are too large: ${outWidth}x${outHeight}`);
+        throw new LimitError(`SVG too large to render: ${outWidth}x${outHeight} pixels`);
     if (!(outWidth * outHeight <= maxPixels))
         throw new LimitError(`SVG too large to render: ${outWidth}x${outHeight} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
 
@@ -197,7 +197,8 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
     const previous = layerBudget, previousCrossings = crossingsLeft, previousFilterWork = filterWorkLeft;
     layerBudget = { left: maxLayerPixels, limit: maxLayerPixels };
     crossingsLeft = MAX_CROSSINGS;
-    filterWorkLeft = MAX_FILTER_WORK;
+    // (the work scales with the output: a filter on every pixel of it takes a primitive's worth of work per pixel)
+    filterWorkLeft = MAX_FILTER_WORK + FILTER_WORK_PER_PIXEL * outWidth * outHeight;
     try {
         const canvas = new Layer(outWidth, outHeight);
         // (a transform on the root element (SVG 2) applies before the viewBox mapping)
@@ -734,15 +735,16 @@ const MAX_DASHES = 1000000;
 const MAX_CROSSINGS = 2 ** 27;
 // what is left of it in the render that runs (rendering is synchronous), unlimited outside of one
 let crossingsLeft = Infinity;
-// the most pixels the primitives of filters work on in one render (a primitive takes about 0.15 s per megapixel, so
-// about 10 s): hundreds of primitives in a small SVG took minutes. What is left of it in the render that runs
-const MAX_FILTER_WORK = 2 ** 26;
+// the most pixels the primitives of filters work on in one render (a primitive takes about 0.15 s per megapixel):
+// 2^26 and 16 per pixel of the output, so a small SVG with hundreds of primitives (it took minutes) stops after about
+// 10 s while a drop shadow on a large image has room. What is left of it in the render that runs
+const MAX_FILTER_WORK = 2 ** 26, FILTER_WORK_PER_PIXEL = 16;
 let filterWorkLeft = Infinity;
 // the work of filters, and the results they keep, against the render's budgets
 const filterBudget: FilterBudget = {
     work(pixels) {
         if ((filterWorkLeft -= pixels) < 0)
-            throw new LimitError(`SVG too complex: its filters' primitives work on more than ${MAX_FILTER_WORK} pixels`);
+            throw new LimitError(`SVG too complex: its filters' primitives work on more pixels than a render of this size allows (${MAX_FILTER_WORK} and ${FILTER_WORK_PER_PIXEL} per output pixel)`);
     },
     keep(pixels) {
         const budget = layerBudget;
@@ -1976,7 +1978,9 @@ class Document {
         lh = Math.min(ly + lh, Math.ceil(cy1)) - top;
         lx = left;
         ly = top;
-        if (lw <= 0 || lh <= 0 || lw * lh > 1 << 26) return;
+        if (lw <= 0 || lh <= 0) return;
+        if (lw * lh > 1 << 26)
+            throw new LimitError(`SVG too complex: a filter's region of ${lw}x${lh} pixels exceeds ${1 << 26} pixels`);
 
         const shifted = multiply([1, 0, 0, 1, -lx, -ly], scaled);
         const layer = new Layer(lw, lh);
