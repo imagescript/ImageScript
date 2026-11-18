@@ -48,6 +48,11 @@ const cases = {
     'cff without a top dict': patched('sourcesans3 regular.otf', [[0x27, 216, 88]]),
     // a CID-keyed CFF font with an FDArray but no FDSelect (its Top DICT entry is changed to the FDArray operator)
     'cff fdarray without fdselect': patched('source han sans cid subset.otf', [[0x4f4, 37, 214]]),
+    // a CFF DICT whose real number has no 0xf terminator before the end of the dict: the number's loop read past the end
+    // and appended '0' forever until V8 aborted the process (a 2 KB font, through renderText and an @font-face alike)
+    'cff real number without a terminator': fs.readFileSync(fonts + 'damaged/cff-real-operand.bin'),
+    // a CID-keyed CFF font whose FDSelect names a private dict past the FDArray: an internal TypeError
+    'cff fdselect past the fdarray': fs.readFileSync(fonts + 'damaged/cff-fdselect-past-fdarray.bin'),
     // the CBLC table (its offset is moved) holds a strike count of 0x0c000000 and more: a list of that many strikes
     // ran the process out of memory (a count too big for the sbix table's reads is caught when they leave the font)
     // a 1.5 KB font with a cmap format 12 subtable that claims 0xffffffff groups: the binary search over them, with a

@@ -828,15 +828,21 @@ function parseCFF(font: Font, base: number): CFF {
         const fdSelect = base + top[1237][0];
         const format = data[fdSelect];
 
+        // (an FDSelect that names a private dict the FDArray doesn't have is damaged data)
+        const fd = (index: number): { subrs: Uint8Array[] } => {
+            const dict = fdArray[index];
+            if (!dict) throw new Error(`Font: damaged CFF font (glyph selects private dict ${index} of ${fdArray.length})`);
+            return dict;
+        };
         privateFor = glyph => {
-            if (format === 0) return fdArray[data[fdSelect + 1 + glyph]];
+            if (format === 0) return fd(data[fdSelect + 1 + glyph]);
             const ranges = font.u16(fdSelect + 1);
             for (let i = 0; i < ranges; i++) {
                 const r = fdSelect + 3 + i * 3;
                 const next = font.u16(r + 3);
-                if (glyph >= font.u16(r) && glyph < next) return fdArray[data[r + 2]];
+                if (glyph >= font.u16(r) && glyph < next) return fd(data[r + 2]);
             }
-            return fdArray[0];
+            return fd(0);
         };
     } else {
         const shared = readPrivate(top[18]);
@@ -866,6 +872,8 @@ function parseDict(bytes: Uint8Array): Dict {
         } else if (b0 === 30) {
             let s = '';
             for (let done = false; !done;) {
+                // (a number that runs past the dict has no terminator: it can't be read)
+                if (i >= bytes.length) throw new Error('Font: damaged CFF dict (a real number without its end)');
                 const byte = bytes[i++];
                 for (const nibble of [byte >> 4, byte & 15]) {
                     if (nibble === 15) {
