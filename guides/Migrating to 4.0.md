@@ -107,7 +107,7 @@ animation.loopCount === Infinity;
 ```
 
 The finite counts are the same: `0` plays once, `2` plays three times. The valid values are `Infinity` and integers
-from 0 ({@link AnimationOptions.loopCount}). `-1` throws a `RangeError`, like other negative numbers, `NaN` and
+from 0 ([`AnimationOptions.loopCount`](https://imagescript.dev/interfaces/AnimationOptions.html#loopcount)). `-1` throws a `RangeError`, like other negative numbers, `NaN` and
 fractions. Numeric strings, `null` and booleans throw a `TypeError`. The check applies to the constructor, to the setter `animation.loopCount = ...` (which keeps the
 old count when it throws), and to the encoders `Animation.gifEncoder()`, `webpEncoder()` and `apngEncoder()`.
 
@@ -350,8 +350,8 @@ Search your code for: `renderSVG(` with SVGs that reference files or URLs, or th
 
 Each table maps a 3.x API to its 4.0 replacement. The deprecation hint in 3.x names a replacement too, but some of those
 replacements were reshaped in 4.0 as well (for example `ResizeModes`, which became plain strings); the tables give the
-4.0 form. The replacements are documented on their own pages: {@link ResizeMode}, {@link FrameDisposalMode},
-{@link Colors}, {@link Frame}, {@link Animation}, {@link AnimationEncoder} and {@link Metadata}.
+4.0 form. The replacements are documented on their own pages: [`ResizeMode`](https://imagescript.dev/types/ResizeMode.html), [`FrameDisposalMode`](https://imagescript.dev/types/FrameDisposalMode.html),
+[`Colors`](https://imagescript.dev/classes/Colors.html), [`Frame`](https://imagescript.dev/classes/Frame.html), [`Animation`](https://imagescript.dev/classes/Animation.html), [`AnimationEncoder`](https://imagescript.dev/classes/AnimationEncoder.html) and [`Metadata`](https://imagescript.dev/interfaces/Metadata.html).
 
 ### Constants and modes
 
@@ -372,7 +372,7 @@ replacements were reshaped in 4.0 as well (for example `ResizeModes`, which beca
 | Numeric disposal ids: `frame.disposalMode = 3`, `disposalMode: 3` in the frame options | The names: `frame.disposalMode = 'background'`, `disposalMode: 'background'`. `FrameDisposalModeId` is removed |
 
 The modes are plain strings in 4.0: the `ResizeModes` and `FrameDisposalModes` classes are removed, and the types
-{@link ResizeMode} and {@link FrameDisposalMode} list the names. The old string and number values are not accepted
+[`ResizeMode`](https://imagescript.dev/types/ResizeMode.html) and [`FrameDisposalMode`](https://imagescript.dev/types/FrameDisposalMode.html) list the names. The old string and number values are not accepted
 any more, so `image.resize(256, 256, { mode: 'RESIZE_BICUBIC' })` throws.
 
 ### Colors, pixels and encoding on `Image`
@@ -471,20 +471,20 @@ Each of them extends the options of the format's still images: `GIFAnimationEnco
 | `image.cropCircle({ max: true })` | `image.cropCircle({ fit: 'cover' })` |
 | `PNGMetadata` (type) | `Metadata`, which the encoders that write metadata take |
 
-`renderText()` takes the text first. The font, the size, the color, the layout options ({@link TextLayoutOptions}) and
-the style are all in the one options object, documented in {@link RenderTextOptions}. Crop options are in
-{@link CropCircleOptions}. A key that is not an option is ignored without an error, so
+`renderText()` takes the text first. The font, the size, the color, the layout options ([`TextLayoutOptions`](https://imagescript.dev/interfaces/TextLayoutOptions.html)) and
+the style are all in the one options object, documented in [`RenderTextOptions`](https://imagescript.dev/interfaces/RenderTextOptions.html). Crop options are in
+[`CropCircleOptions`](https://imagescript.dev/interfaces/CropCircleOptions.html). A key that is not an option is ignored without an error, so
 `cropCircle({ max: true })` quietly becomes the default `contain`: change it to `fit: 'cover'`.
 
 ### Positional arguments
 
 Methods that took options as their last positional arguments take the options object now. The values go into the
 object under the names of their options. The options of each method are on its own page, for example
-{@link ResizeOptions}, {@link CompositeOptions}, {@link RotateOptions}, {@link SharpenOptions},
-{@link DominantColorOptions}, {@link RoundCornersOptions}, {@link FisheyeOptions}, {@link TrimOptions},
-{@link ColorToAlphaOptions}, {@link PNGEncodeOptions}, {@link JPEGEncodeOptions}, {@link RenderSVGOptions} and
-{@link FrameOptions}. The animation options are {@link GIFAnimationEncodeOptions}, {@link APNGEncodeOptions},
-{@link DecodeOptions} and {@link GainMapEncodeOptions} for `GainMap.encodeJPEG()`.
+[`ResizeOptions`](https://imagescript.dev/interfaces/ResizeOptions.html), [`CompositeOptions`](https://imagescript.dev/interfaces/CompositeOptions.html), [`RotateOptions`](https://imagescript.dev/interfaces/RotateOptions.html), [`SharpenOptions`](https://imagescript.dev/interfaces/SharpenOptions.html),
+[`DominantColorOptions`](https://imagescript.dev/interfaces/DominantColorOptions.html), [`RoundCornersOptions`](https://imagescript.dev/interfaces/RoundCornersOptions.html), [`FisheyeOptions`](https://imagescript.dev/interfaces/FisheyeOptions.html), [`TrimOptions`](https://imagescript.dev/interfaces/TrimOptions.html),
+[`ColorToAlphaOptions`](https://imagescript.dev/interfaces/ColorToAlphaOptions.html), [`PNGEncodeOptions`](https://imagescript.dev/interfaces/PNGEncodeOptions.html), [`JPEGEncodeOptions`](https://imagescript.dev/interfaces/JPEGEncodeOptions.html), [`RenderSVGOptions`](https://imagescript.dev/types/RenderSVGOptions.html) and
+[`FrameOptions`](https://imagescript.dev/interfaces/FrameOptions.html). The animation options are [`GIFAnimationEncodeOptions`](https://imagescript.dev/interfaces/GIFAnimationEncodeOptions.html), [`APNGEncodeOptions`](https://imagescript.dev/interfaces/APNGEncodeOptions.html),
+[`DecodeOptions`](https://imagescript.dev/interfaces/DecodeOptions.html) and [`GainMapEncodeOptions`](https://imagescript.dev/interfaces/GainMapEncodeOptions.html) for `GainMap.encodeJPEG()`.
 
 | 3.x | 4.0 |
 | --- | --- |
@@ -543,7 +543,7 @@ false })` grows the image again), so search for them too.
 | `image.drawBox(x, y, w, h, color)` | `image.composite(new Image(w, h).fill(color), { x, y })`. It blends a translucent color over the image; `drawBox()` replaced the pixels |
 | `image.drawCircle(x, y, r, color)` | `image.composite(new Image(2 * r, 2 * r).fill(color).cropCircle(), { x: x - r, y: y - r })`: an approximation, the edge pixels differ (it blends instead of replacing, and `cropCircle()` has its own antialiasing) |
 | `image.greyscale()` | `image.grayscale()` (the whole API spells American English) |
-| `Image.renderText(text, { font, size, layout: { maxWidth: 300 } })`, `layout: new TextLayout(options)` | `Image.renderText(text, { font, size, width: 300 })`: the layout options ({@link TextLayoutOptions}) are part of the options; `TextLayout` isn't exported |
+| `Image.renderText(text, { font, size, layout: { maxWidth: 300 } })`, `layout: new TextLayout(options)` | `Image.renderText(text, { font, size, width: 300 })`: the layout options ([`TextLayoutOptions`](https://imagescript.dev/interfaces/TextLayoutOptions.html)) are part of the options; `TextLayout` isn't exported |
 | `image.getRGBAAt(x, y)` | `Colors.toRGBA(image.getPixelAt(x, y))`, an array (`getRGBAAt()` returned a view into the bitmap) |
 | `image.region(x, y, w, h)` | `image.extract(x, y, w, h)` |
 | `animation.encodeGIF({ quality })`, `Animation.gifEncoder(w, h, { quality })` | `{ colors }`: the palette size, 2-256. A quality of 90 and above is the default `256`; below, `colors: Math.round(8 * 32 ** (quality / 90))` gives the old palette size. `dither` (`'floyd-steinberg'` by default, `'atkinson'`, `'ordered'` or `'none'`) and `ditherStrength` are new |
