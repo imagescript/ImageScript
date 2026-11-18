@@ -477,12 +477,14 @@ Each of them extends the options of the format's still images: `GIFAnimationEnco
 | `image.cropCircle(true, feathering)` | `image.cropCircle({ fit: 'cover', feathering })` |
 | `image.cropCircle(false)` | `image.cropCircle()`, the default `fit: 'contain'` |
 | `image.cropCircle({ max: true })` | `image.cropCircle({ fit: 'cover' })` |
+| `image.cropCircle({ size: 'cover' })` (what 3.x's deprecation hint suggests) | `image.cropCircle({ fit: 'cover' })` |
 | `PNGMetadata` (type) | `Metadata`, which the encoders that write metadata take |
 
 `renderText()` takes the text first. The font, the size, the color, the layout options ([`TextLayoutOptions`](https://imagescript.dev/interfaces/TextLayoutOptions.html)) and
 the style are all in the one options object, documented in [`RenderTextOptions`](https://imagescript.dev/interfaces/RenderTextOptions.html). Crop options are in
 [`CropCircleOptions`](https://imagescript.dev/interfaces/CropCircleOptions.html). A key that is not an option is ignored without an error, so
-`cropCircle({ max: true })` quietly becomes the default `contain`: change it to `fit: 'cover'`.
+`cropCircle({ max: true })` and `cropCircle({ size: 'cover' })`, the form 3.x's deprecation hint suggests, quietly become
+the default `contain`: change them to `fit: 'cover'`.
 
 ### Positional arguments
 

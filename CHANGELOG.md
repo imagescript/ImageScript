@@ -22,7 +22,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **`PNGMetadata` is removed**: use `Metadata`, which the encoders that write metadata take. The type is the same.
 
-- **The `max` argument of `cropCircle()` is removed**: `cropCircle(true, feathering)` and `cropCircle({ max: true })` are now `cropCircle({ fit: 'cover', feathering })`, and `cropCircle(false)` is `cropCircle()`, the default `fit: 'contain'`.
+- **The `max` argument of `cropCircle()` is removed**: `cropCircle(true, feathering)` and `cropCircle({ max: true })` are now `cropCircle({ fit: 'cover', feathering })`, and `cropCircle(false)` is `cropCircle()`, the default `fit: 'contain'`. The `size` option that 3.x added for it (and that 3.x's deprecation hint suggests) is `fit` too: `cropCircle({ size: 'cover' })` is `cropCircle({ fit: 'cover' })`, and `size` is ignored like any key that isn't an option.
 
 - **The positional forms of `Image.renderText()` are removed**: `Image.renderText(font, size, text, color?, layout?, style?)` and `Image.renderText(font, size, text, options?)` are now `Image.renderText(text, { font, size, color, ...layout, ...style })`.
 
