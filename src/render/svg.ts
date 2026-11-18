@@ -1978,9 +1978,8 @@ class Document {
         lh = Math.min(ly + lh, Math.ceil(cy1)) - top;
         lx = left;
         ly = top;
+        // (the region's layer counts against maxLayerPixels like the others)
         if (lw <= 0 || lh <= 0) return;
-        if (lw * lh > 1 << 26)
-            throw new LimitError(`SVG too complex: a filter's region of ${lw}x${lh} pixels exceeds ${1 << 26} pixels`);
 
         const shifted = multiply([1, 0, 0, 1, -lx, -ly], scaled);
         const layer = new Layer(lw, lh);

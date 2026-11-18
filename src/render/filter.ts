@@ -268,11 +268,19 @@ function filterResult(filter: Filter, ts: Matrix, full: Pixmap, budget: FilterBu
     }
 }
 
+// what a primitive costs per pixel of its region, in passes over it (a blur or a morphology is about one): a
+// convolution its kernel's taps (a 3x3 kernel is one pass), turbulence its octaves, a merge its nodes
+function cost(kind: Kind): number {
+    if (kind.type === 'convolve') return Math.max(1, kind.columns * kind.rows / 9);
+    if (kind.type === 'turbulence') return Math.max(1, kind.octaves);
+    if (kind.type === 'merge') return Math.max(1, kind.inputs.length);
+    return 1;
+}
+
 function runPrimitives(filter: Filter, matrix: Matrix, region: Rect, outputRegion: Rect, input: (value: Input) => Result, results: Array<{ name: string, image: Result }>, keep: (pixels: number) => void, budget: FilterBudget): { image: Result, region: Rect } | null {
     for (const primitive of filter.primitives) {
         const { kind } = primitive;
-        // (a convolution costs its kernel's taps per pixel: a blur or a morphology costs about nine)
-        budget.work(region.width * region.height * (kind.type === 'convolve' ? Math.max(1, kind.columns * kind.rows / 9) : 1));
+        budget.work(region.width * region.height * cost(kind));
         let subregion = intRect(primitive.rect, matrix);
         if (kind.type === 'offset' && typeof kind.input === 'object') {
             const name = kind.input.result;

@@ -174,10 +174,22 @@ const timed = async (name, svg, limit = 5000) => {
             const big = await Image.renderSVG(`<svg ${NS} width="4096" height="4096"><filter id="s" x="-10%" y="-10%" width="130%" height="130%"><feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dx="10" dy="10" result="b"/><feFlood flood-color="#0004"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><rect x="100" y="100" width="3800" height="3800" fill="red" filter="url(#s)"/></svg>`);
             if (big.getPixelAt(2000, 2000) !== 0xff0000ff) panic('a drop shadow on a 4096x4096 image should render');
         }
-        // a filter region over the layer limit is a LimitError, not a silently missing element
+        // primitives that cost more than one pass over their pixels are charged for it: turbulence per octave (83 of 24
+        // octaves, 5.7 KB, took 238 s), a merge per node (5000 nodes took 107 s)
+        for (const [name, filter] of [
+            ['turbulence', '<feTurbulence baseFrequency="0.01" numOctaves="24"/>'.repeat(83)],
+            ['merge', `<feMerge>${'<feMergeNode in="SourceGraphic"/>'.repeat(5000)}</feMerge>`]
+        ]) {
+            const begin = Date.now();
+            error = null;
+            try { await Image.renderSVG(`<svg ${NS} width="1000" height="1000"><filter id="f">${filter}</filter><rect width="1000" height="1000" filter="url(#f)"/></svg>`); } catch (err) { error = err; }
+            if (!error || error.name !== 'LimitError' || Date.now() - begin > 15000) panic(`${name}: expected a LimitError within 15 s, got ${error} after ${Date.now() - begin} ms`);
+        }
+        // a filter region is a layer like the others: over maxLayerPixels it's a LimitError, not a silently missing
+        // element, and the limit is what the option says (a fixed 2^26 pixels refused a filter on the whole of 6900x6900)
         error = null;
-        try { await Image.renderSVG(`<svg ${NS} width="9000" height="9000"><filter id="f"><feFlood flood-color="blue"/></filter><rect width="9000" height="9000" fill="red" filter="url(#f)"/></svg>`, {maxPixels: 9000 ** 2, maxLayerPixels: Infinity}); } catch (err) { error = err; }
-        if (!error || error.name !== 'LimitError') panic(`a filter region of more than 2^26 pixels: expected a LimitError, got ${error}`);
+        try { await Image.renderSVG(`<svg ${NS} width="3000" height="3000"><filter id="f"><feFlood flood-color="blue"/></filter><rect width="3000" height="3000" fill="red" filter="url(#f)"/></svg>`, {maxLayerPixels: 9.5e6}); } catch (err) { error = err; }
+        if (!error || error.name !== 'LimitError' || !/maxLayerPixels/.test(error.message)) panic(`a filter region over maxLayerPixels: expected a LimitError naming it, got ${error}`);
         // a declared size no integer can hold is a LimitError like the other sizes past maxPixels
         error = null;
         try { await Image.renderSVG(`<svg ${NS} width="1e17" height="10"/>`); } catch (err) { error = err; }
