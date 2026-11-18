@@ -69,11 +69,21 @@ export function atLeast(value: number, min: number, name: string): number {
     return value;
 }
 
-/** The size of an animation's canvas: whole numbers of 1 or more */
-export function canvasSize(width: number, height: number): void {
-    finite(width, 'width');
-    finite(height, 'height');
-    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw new RangeError(`canvas size must be whole numbers of 1 or more, not ${width}x${height}`);
+/** The size of an animation's canvas, like that of an image: pixels, fractions truncated */
+export function canvasSize(width: number, height: number): [width: number, height: number] {
+    return [pixels(width, 'width'), pixels(height, 'height')];
+}
+
+/**
+ * Allocates the pixels of `width`x`height` (`make`), else a RangeError that names the size: the engine's own message
+ * ("Array buffer allocation failed", "Invalid typed array length") names neither
+ */
+export function allocate<T>(width: number, height: number, make: () => T): T {
+    try {
+        return make();
+    } catch (err) {
+        throw new RangeError(`An image of ${width}x${height} pixels (${width * height * 4} bytes) can't be allocated`, { cause: err });
+    }
 }
 
 /**

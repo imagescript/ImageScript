@@ -102,4 +102,30 @@ const metadata = {creationTime: 0, software: ''};
     await finished.finish();
     await rejects('adding after finishing', () => finished.add(new Image(4, 4)));
     await rejects('finishing twice', () => finished.finish());
+
+    // the canvas size of the encoders follows new Animation(): fractions truncated, anything below 1 or not a number a
+    // RangeError naming the argument, and a canvas that can't be allocated a RangeError naming its size
+    for (const encoder of ['gifEncoder', 'apngEncoder', 'webpEncoder']) {
+        const fractional = Animation[encoder](4.7, 3.2, {optimize: false});
+        if (fractional.width !== 4 || fractional.height !== 3) panic(`${encoder}(4.7, 3.2): ${fractional.width}x${fractional.height}, expected 4x3 like new Animation()`);
+        const same = new Animation([], {width: 4.7, height: 3.2});
+        if (same.width !== fractional.width || same.height !== fractional.height) panic(`${encoder}: canvas differs from new Animation()`);
+        for (const [w, h, name] of [[0.5, 1, 'width'], [1, -1, 'height'], [NaN, 1, 'width']]) {
+            try {
+                Animation[encoder](w, h);
+                panic(`${encoder}(${w}, ${h}) should throw`);
+            } catch (err) {
+                if (!(err instanceof RangeError) || !err.message.startsWith(name)) panic(`${encoder}(${w}, ${h}): ${err}`);
+            }
+        }
+    }
+    // (the optimizer's canvas, and the compositor's of a WebP that isn't optimized)
+    for (const [encoder, size, optimize] of [['apngEncoder', 2 ** 31 - 1, true], ['webpEncoder', 2 ** 24, false]]) {
+        try {
+            Animation[encoder](size, size, {optimize});
+            panic(`${encoder} of a canvas that can't be allocated should throw`);
+        } catch (err) {
+            if (!(err instanceof RangeError) || !err.message.includes(`${size}x${size}`)) panic(`${encoder} of a canvas that can't be allocated: ${err}`);
+        }
+    }
 })();

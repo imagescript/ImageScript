@@ -29,7 +29,7 @@ import { encode as utf8 } from './util/utf8.ts';
 import { resample, BOX, TRIANGLE, CUBIC, type Region } from './util/resample.ts';
 import { gaussianBlur, boxBlurRGBA, premultiply, unpremultiply } from './util/blur.ts';
 import { Colors, wrapHue, hue2rgb } from './colors.ts';
-import { shown, isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, cropBounds, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
+import { allocate, shown, isOptions, checkOptions, finite, nonNegative, atLeast, positive, pixels, coordinate, cropBounds, unitInterval, oneOf, pixelLimit, checkThreads, gainMapEmbed, boolean, color as checkColor, quality as checkQuality, effort as checkEffort, compressionLevel } from './util/options.ts';
 import { MAX_PIXELS, LimitError, decoding, checkGrowth } from './util/limits.ts';
 import { GainMap } from './gainmap.ts';
 import * as gain from './util/gain.ts';
@@ -905,14 +905,7 @@ export class Image {
 
         this.__width__ = width;
         this.__height__ = height;
-        let bitmap: Uint8ClampedArray;
-        try {
-            bitmap = new Uint8ClampedArray(width * height * 4);
-        } catch (err) {
-            // (the engine's own message names neither the image nor its size)
-            throw new RangeError(`An image of ${width}x${height} pixels (${width * height * 4} bytes) can't be allocated`, { cause: err });
-        }
-        this.__set_bitmap__(bitmap);
+        this.__set_bitmap__(allocate(width, height, () => new Uint8ClampedArray(width * height * 4)));
     }
 
     /**

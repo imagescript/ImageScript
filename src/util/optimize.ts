@@ -1,3 +1,4 @@
+import { allocate } from './options.ts';
 // Frame optimization for the animation encoders: the frames are composited, and each is stored as the rectangle that
 // changed since the frame before, with the pixels that didn't change transparent (they compress better, and GIFs keep
 // their palette for the others). Consecutive identical frames become one. The animation looks the same as before
@@ -99,8 +100,8 @@ export class Optimizer {
 
     constructor(readonly width: number, readonly height: number, readonly options: OptimizeOptions) {
         const size = width * height * 4;
-        this.canvas = new Uint8Array(size);
-        this.shown = new Uint8Array(size);
+        this.canvas = allocate(width, height, () => new Uint8Array(size));
+        this.shown = allocate(width, height, () => new Uint8Array(size));
         this.state = { canvas32: new Int32Array(this.canvas.buffer), shown32: new Int32Array(this.shown.buffer), width, replace: options.replace, tolerance: options.tolerance };
         this.cleared = { x: 0, y: 0, width, height };
     }
@@ -209,7 +210,7 @@ export class Compositor {
     readonly canvas: Uint8Array;
 
     constructor(readonly width: number, readonly height: number) {
-        this.canvas = new Uint8Array(width * height * 4);
+        this.canvas = allocate(width, height, () => new Uint8Array(width * height * 4));
     }
 
     /** the canvas the frame shows (a copy), then its disposal */

@@ -12,7 +12,7 @@ import { ImageType } from './image-type.ts';
 import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
-import { checkOptions, oneOf, pixelLimit, checkThreads, positive, pixels, cropBounds, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
+import { checkOptions, oneOf, pixelLimit, checkThreads, positive, pixels, canvasSize, cropBounds, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding, checkPixels } from './util/limits.ts';
 import { AnimationEncoder } from './animation-encoder.ts';
 import { describe } from './util/inspect.ts';
@@ -673,8 +673,8 @@ export class Animation {
      *     await encoder.add(new Image(64, 64).fill(color), { duration: 200 });
      * const webp = await encoder.finish();
      * ```
-     * @param width The canvas width
-     * @param height The canvas height
+     * @param width The canvas width in pixels (a fraction is truncated, like the size of an image)
+     * @param height The canvas height in pixels (a fraction is truncated)
      * @param options See {@link WebPAnimationEncodeOptions}, and {@link AnimationOptions.loopCount}
      */
     static webpEncoder(width: number, height: number, options: WebPAnimationEncodeOptions & AnimationOptions = {}): AnimationEncoder {
@@ -685,8 +685,8 @@ export class Animation {
     /**
      * An encoder that makes an animated GIF a frame at a time, like {@link Animation.encodeGIF} (the same file),
      * without keeping the frames in memory: `await encoder.add(frame)` for each frame, then `await encoder.finish()`
-     * @param width The canvas width
-     * @param height The canvas height
+     * @param width The canvas width in pixels (a fraction is truncated, like the size of an image)
+     * @param height The canvas height in pixels (a fraction is truncated)
      * @param options See {@link GIFAnimationEncodeOptions}, and {@link AnimationOptions.loopCount}
      */
     static gifEncoder(width: number, height: number, options: GIFAnimationEncodeOptions & AnimationOptions = {}): AnimationEncoder {
@@ -698,8 +698,8 @@ export class Animation {
      * An encoder that makes an APNG a frame at a time, like {@link Animation.encodeAPNG} (the same file), keeping the
      * frames only compressed (the pixel format depends on all of them): `await encoder.add(frame)` for each frame,
      * then `await encoder.finish()`
-     * @param width The canvas width
-     * @param height The canvas height
+     * @param width The canvas width in pixels (a fraction is truncated, like the size of an image)
+     * @param height The canvas height in pixels (a fraction is truncated)
      * @param options See {@link APNGEncodeOptions}, and {@link AnimationOptions.loopCount}
      */
     static apngEncoder(width: number, height: number, options: APNGEncodeOptions & AnimationOptions = {}): AnimationEncoder {
@@ -846,11 +846,6 @@ export class Animation {
         animation.__animationSignal__ = decoded.hasLoopExtension;
         return animation;
     }
-}
-
-// a canvas size: pixels, fractions truncated
-function canvasSize(width: number, height: number): [width: number, height: number] {
-    return [pixels(width, 'width'), pixels(height, 'height')];
 }
 
 describe(Animation, animation => ({ width: animation.width, height: animation.height, duration: animation.duration, frames: animation.frames.length }));
