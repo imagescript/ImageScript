@@ -179,3 +179,22 @@ if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration 
         }
     }
 }
+
+// crop() edits the animation's frames in place, like resize(): a frame that sticks out of the new canvas is cut to it
+// and stays the same object (it was replaced by a cut copy, and the caller's frame was left with moved offsets outside
+// of the animation); an image two frames share isn't changed
+{
+    const shared = new Image(4, 4).fill(0xff0000ff);
+    const inside = new Frame(new Image(2, 2).fill(0x00ff00ff), {xOffset: 3, yOffset: 3});
+    const out = new Frame(shared, {xOffset: 0, yOffset: 0}), alsoOut = new Frame(shared, {xOffset: 4, yOffset: 4});
+    const gone = new Frame(new Image(1, 1).fill(0x0000ffff), {xOffset: 7, yOffset: 0});
+    const animation = new Animation([out, inside, alsoOut, gone, out], {width: 8, height: 8});
+    animation.crop(1, 1, 6, 6);
+    const [a, b, c, d, e] = animation.frames;
+    if (a !== out || b !== inside || c !== alsoOut || d !== gone || e !== out) panic('crop() should keep the frame objects');
+    if (out.xOffset !== 0 || out.yOffset !== 0 || out.width !== 3 || out.height !== 3) panic(`crop(): the first frame is ${out.width}x${out.height} at ${out.xOffset},${out.yOffset}, expected 3x3 at 0,0`);
+    if (inside.xOffset !== 2 || inside.yOffset !== 2 || inside.width !== 2) panic('crop(): a frame inside the canvas should only move');
+    if (alsoOut.xOffset !== 3 || alsoOut.yOffset !== 3 || alsoOut.width !== 3 || alsoOut.height !== 3) panic(`crop(): the third frame is ${alsoOut.width}x${alsoOut.height} at ${alsoOut.xOffset},${alsoOut.yOffset}, expected 3x3 at 3,3`);
+    if (shared.width !== 4 || shared.height !== 4) panic('crop() should leave an image that frames share as it is');
+    if (gone.width !== 1 || gone.height !== 1 || gone.image.getPixelAt(0, 0) !== 0) panic('crop(): a frame outside of the canvas should become a transparent pixel');
+}

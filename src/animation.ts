@@ -293,7 +293,8 @@ export class Animation {
     }
 
     /**
-     * Crops the canvas to the given region: the frames move with it and are cut to the new canvas. The region is
+     * Crops the canvas to the given region: the frames move with it and are cut to the new canvas (the same `Frame`
+     * objects, with new images where they are cut; a frame entirely outside becomes a transparent pixel). The region is
      * clipped to the canvas, so the result can be smaller than the requested size
      * @param x The x offset (0-based)
      * @param y The y offset (0-based)
@@ -303,12 +304,25 @@ export class Animation {
     crop(x: number, y: number, width: number, height: number): this {
         // (the part of the region that lies on the canvas)
         const [left, top, newWidth, newHeight] = cropBounds(this.width, this.height, x, y, width, height, 'canvas');
+        // each frame is cut to the new canvas in place (the same objects, like resize() keeps them; an image frames
+        // share is replaced, not changed)
         for (const frame of this.__distinct__()) {
-            frame.xOffset -= left;
-            frame.yOffset -= top;
+            const frameLeft = frame.xOffset - left, frameTop = frame.yOffset - top;
+            const cutLeft = Math.max(0, frameLeft), cutTop = Math.max(0, frameTop);
+            const cutRight = Math.min(newWidth, frameLeft + frame.width), cutBottom = Math.min(newHeight, frameTop + frame.height);
+            if (cutRight <= cutLeft || cutBottom <= cutTop) {
+                // (entirely outside: a transparent pixel, its duration counts)
+                frame.image = new Image(1, 1);
+                frame.xOffset = frame.yOffset = 0;
+                frame.disposalMode = 'keep';
+            } else {
+                if (cutLeft !== frameLeft || cutTop !== frameTop || cutRight - cutLeft !== frame.width || cutBottom - cutTop !== frame.height)
+                    frame.image = frame.image.extract(cutLeft - frameLeft, cutTop - frameTop, cutRight - cutLeft, cutBottom - cutTop);
+                frame.xOffset = cutLeft;
+                frame.yOffset = cutTop;
+            }
         }
         this.__canvas__ = [newWidth, newHeight];
-        this.frames = this.__clipped_frames__();
         return this;
     }
 
