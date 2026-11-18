@@ -16,7 +16,7 @@ import { decode as decodeUTF8, encode as encodeUTF8 } from '../util/utf8.ts';
 import { Font, PathCommand } from './font.ts';
 import { base64 } from '../util/bytes.ts';
 import { gunzip } from '../codecs/zlib.ts';
-import { applyFilter, Filter, Primitive, Kind, Input, Transfer, ColorMatrix, Pixmap, Light } from './filter.ts';
+import { applyFilter, FilterBudget, Filter, Primitive, Kind, Input, Transfer, ColorMatrix, Pixmap, Light } from './filter.ts';
 import { Matrix, multiply, invert } from '../util/matrix.ts';
 import { BLEND_MODES, blendPixel } from './blend.ts';
 import { FontFace, FontStyle, fontFace, layOutText, parseFontFamilies, parseVariationSettings, pathLength, placeOutline, colorTablesOf, TextInput, ChunkInput, SpanInput, TextOutput, SpanOutput, Baseline } from './svg-text.ts';
@@ -194,9 +194,10 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         throw new LimitError(`SVG too large to render: ${outWidth}x${outHeight} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
 
     // (rendering is synchronous: the layers allocated until it returns are this render's)
-    const previous = layerBudget, previousCrossings = crossingsLeft;
+    const previous = layerBudget, previousCrossings = crossingsLeft, previousFilterWork = filterWorkLeft;
     layerBudget = { left: maxLayerPixels, limit: maxLayerPixels };
     crossingsLeft = MAX_CROSSINGS;
+    filterWorkLeft = MAX_FILTER_WORK;
     try {
         const canvas = new Layer(outWidth, outHeight);
         // (a transform on the root element (SVG 2) applies before the viewBox mapping)
@@ -205,6 +206,7 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
     } finally {
         layerBudget = previous;
         crossingsLeft = previousCrossings;
+        filterWorkLeft = previousFilterWork;
     }
 }
 
@@ -732,6 +734,27 @@ const MAX_DASHES = 1000000;
 const MAX_CROSSINGS = 2 ** 27;
 // what is left of it in the render that runs (rendering is synchronous), unlimited outside of one
 let crossingsLeft = Infinity;
+// the most pixels the primitives of filters work on in one render (a primitive takes about 0.15 s per megapixel, so
+// about 10 s): hundreds of primitives in a small SVG took minutes. What is left of it in the render that runs
+const MAX_FILTER_WORK = 2 ** 26;
+let filterWorkLeft = Infinity;
+// the work of filters, and the results they keep, against the render's budgets
+const filterBudget: FilterBudget = {
+    work(pixels) {
+        if ((filterWorkLeft -= pixels) < 0)
+            throw new LimitError(`SVG too complex: its filters' primitives work on more than ${MAX_FILTER_WORK} pixels`);
+    },
+    keep(pixels) {
+        const budget = layerBudget;
+        if (!budget) return;
+        if (!(pixels <= budget.left))
+            throw new LimitError(`SVG too complex: its layers (for opacity, masks, filters, ...) exceed ${budget.limit} pixels at once (the render options' maxLayerPixels)`);
+        budget.left -= pixels;
+    },
+    free(pixels) {
+        if (layerBudget) layerBudget.left += pixels;
+    }
+};
 // the most pixels of a pattern's tile
 const MAX_TILE = 4096 * 1024;
 
@@ -1956,7 +1979,7 @@ class Document {
         draw(layer, shifted);
         const pixmap = layer.toPixmap();
         layer.release();
-        for (const filter of filters) applyFilter(filter, shifted, pixmap);
+        for (const filter of filters) applyFilter(filter, shifted, pixmap, filterBudget);
         const result = Layer.fromPixmap(pixmap);
         if (result.x1 <= result.x0) return result.release();
 

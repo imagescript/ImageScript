@@ -209,15 +209,28 @@ const scaleOf = (m: Matrix): [number, number] => [Math.hypot(m[0], m[1]), Math.h
  * Applies a filter to pixels rendered with a matrix (user space to the pixels), in place; an invalid region leaves
  * them transparent (like resvg's apply)
  */
-export function applyFilter(filter: Filter, ts: Matrix, source: Pixmap): void {
-    const result = filterResult(filter, ts, source);
+export function applyFilter(filter: Filter, ts: Matrix, source: Pixmap, budget: FilterBudget = UNBOUNDED): void {
+    const result = filterResult(filter, ts, source, budget);
     source.data.fill(0);
     if (!result) return;
     const { image, region } = result;
     draw(source, inColorSpace(image, false).pixmap, region.x, region.y);
 }
 
-function filterResult(filter: Filter, ts: Matrix, full: Pixmap): { image: Result, region: Rect } | null {
+/**
+ * What a filter may cost: `work(pixels)` is called before a primitive works on that many pixels, `keep(pixels)` for each
+ * result the filter keeps (for `result=` references) until it is done, and `free(pixels)` with all of them then. They
+ * throw to stop a filter that costs too much
+ */
+export interface FilterBudget {
+    work(pixels: number): void;
+    keep(pixels: number): void;
+    free(pixels: number): void;
+}
+
+const UNBOUNDED: FilterBudget = { work() {}, keep() {}, free() {} };
+
+function filterResult(filter: Filter, ts: Matrix, full: Pixmap, budget: FilterBudget): { image: Result, region: Rect } | null {
     // the filter region, within the pixels
     const r = intRect(filter.rect, ts);
     const x0 = Math.max(r.x, 0), y0 = Math.max(r.y, 0), x1 = Math.min(r.x + r.width, full.width), y1 = Math.min(r.y + r.height, full.height);
@@ -244,8 +257,21 @@ function filterResult(filter: Filter, ts: Matrix, full: Pixmap): { image: Result
         return input('SourceGraphic');
     };
 
+    let kept = 0;
+    try {
+        return runPrimitives(filter, matrix, region, outputRegion, input, results, pixels => {
+            budget.keep(pixels);
+            kept += pixels;
+        }, budget);
+    } finally {
+        budget.free(kept);
+    }
+}
+
+function runPrimitives(filter: Filter, matrix: Matrix, region: Rect, outputRegion: Rect, input: (value: Input) => Result, results: Array<{ name: string, image: Result }>, keep: (pixels: number) => void, budget: FilterBudget): { image: Result, region: Rect } | null {
     for (const primitive of filter.primitives) {
         const { kind } = primitive;
+        budget.work(region.width * region.height);
         let subregion = intRect(primitive.rect, matrix);
         if (kind.type === 'offset' && typeof kind.input === 'object') {
             const name = kind.input.result;
@@ -263,6 +289,7 @@ function filterResult(filter: Filter, ts: Matrix, full: Pixmap): { image: Result
             if (kind.type !== 'offset') clearOutside(pixmap, subregion);
             result = { pixmap, region: subregion, linear: result.linear };
         }
+        keep(result.pixmap.width * result.pixmap.height);
         results.push({ name: primitive.result, image: result });
     }
 

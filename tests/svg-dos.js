@@ -146,4 +146,24 @@ const timed = async (name, svg, limit = 5000) => {
         if (Math.abs(beside / (100 * 255) - 0.5) > 0.05) panic(`dashes beside the image: ${beside / 255} pixels covered of the line's 100, expected about half`);
         if (!(across > 0)) panic('the dashed zigzag shows nothing');
     }
+
+    // a filter of hundreds of primitives over a large region: a LimitError (the work is bounded) instead of minutes of
+    // work, and the results it keeps for `result=` references count against maxLayerPixels (600 such pairs over a
+    // megapixel took more than 3 GB, also with a lower maxLayerPixels)
+    // (not under coverage: reaching the budget takes most of what a test may take there)
+    if (!process.env.NODE_V8_COVERAGE) {
+        const chain = n => `<svg ${NS} width="1000" height="1000"><filter id="f">${'<feGaussianBlur stdDeviation="3"/><feMorphology radius="50"/>'.repeat(n)}</filter><rect width="1000" height="1000" filter="url(#f)"/></svg>`;
+        const start = Date.now();
+        let error = null;
+        try { await Image.renderSVG(chain(600)); } catch (err) { error = err; }
+        const time = Date.now() - start;
+        if (!error || error.name !== 'LimitError') panic(`filter chain: expected a LimitError, got ${error} after ${time} ms`);
+        if (time > 15000) panic(`filter chain: took ${time} ms`);
+        error = null;
+        try { await Image.renderSVG(chain(8), {maxLayerPixels: 4e6}); } catch (err) { error = err; }
+        if (!error || error.name !== 'LimitError') panic(`filter chain within maxLayerPixels: expected a LimitError, got ${error}`);
+        // a real filter on a large image still renders
+        const shadow = await Image.renderSVG(`<svg ${NS} width="2000" height="2000"><filter id="s"><feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dx="10" dy="10" result="b"/><feFlood flood-color="#0004"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><rect x="100" y="100" width="1700" height="1700" fill="red" filter="url(#s)"/></svg>`);
+        if (shadow.width !== 2000) panic('a drop shadow on a large image should render');
+    }
 })();
