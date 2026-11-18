@@ -76,6 +76,12 @@ const cases = {
         data.writeUIntBE(0xffffff, clips + 9, 3);
         return data;
     })(),
+    // units per em of 0 made the size of the text NaN by Infinity pixels (a LimitError)
+    'head with 0 units per em': (() => {
+        const data = Buffer.from(fs.readFileSync(fonts + 'carbon phyber.ttf'));
+        data.writeUInt16BE(0, tableOffset(data, 'head') + 18);
+        return data;
+    })(),
     'cmap format 14 with a huge record count': withCount('font features.ttf', 'cmap', cmap14('font features.ttf') + 6, 0xffffffff),
     'cblc with a huge strike count': patched('noto color emoji subset.ttf', [[0x27, 44, 12]])
 };

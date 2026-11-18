@@ -105,6 +105,7 @@ export class Font {
 
         const head = this.tables.head.offset;
         this.unitsPerEm = this.u16(head + 18);
+        if (!this.unitsPerEm) throw new Error('Font: damaged head table (0 units per em)');
         this.indexToLocFormat = this.i16(head + 50);
 
         const hhea = this.tables.hhea.offset;
