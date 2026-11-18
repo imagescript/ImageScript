@@ -737,7 +737,7 @@ const MAX_CROSSINGS = 2 ** 27;
 let crossingsLeft = Infinity;
 // the most pixels the primitives of filters work on in one render (a primitive takes about 0.15 s per megapixel):
 // 2^26 and 16 per pixel of the output, so a small SVG with hundreds of primitives (it took minutes) stops after about
-// 10 s while a drop shadow on a large image has room. What is left of it in the render that runs
+// 10 s while a drop shadow on a large image has room (the time it allows grows with the output's size). What is left of it in the render that runs
 const MAX_FILTER_WORK = 2 ** 26, FILTER_WORK_PER_PIXEL = 16;
 let filterWorkLeft = Infinity;
 // the work of filters, and the results they keep, against the render's budgets
