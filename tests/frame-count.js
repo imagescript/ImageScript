@@ -21,4 +21,16 @@ const panic = message => {
         // a single image isn't charged for it
         await Image.decode(many, {maxPixels: 1});
     }
+
+    // the floor applies while the frames are decoded, not after all of them: 1000000 frames of 1x1 (23 MB) took 77 s and
+    // 1.8 GB before the LimitError
+    {
+        const frame = Buffer.from([0x21, 0xf9, 4, 0, 1, 0, 0, 0, 0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 0x44, 1, 0]);
+        const header = Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 0, 1, 0, 0x80, 0, 0, 0, 0, 0, 255, 255, 255]);
+        const gif = Buffer.concat([header, Buffer.alloc(frame.length * 200000).map((_, i) => frame[i % frame.length]), Buffer.from([0x3b])]);
+        const start = Date.now();
+        let error = null;
+        try { await Animation.decode(gif, {maxPixels: 1024 * 1000}); } catch (err) { error = err; }
+        if (!(error instanceof LimitError) || Date.now() - start > 1000) panic(`200000 GIF frames of 1x1 with room for 1000: ${error} after ${Date.now() - start} ms, expected a LimitError at once`);
+    }
 })();

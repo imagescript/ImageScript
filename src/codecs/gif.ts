@@ -1,7 +1,7 @@
 import { ByteWriter } from '../util/bytes.ts';
 import type { DitherMethod } from '../image.ts';
 import { quantize } from './quantize.ts';
-import { MAX_PIXELS, PixelBudget, checkPixels } from '../util/limits.ts';
+import { MAX_PIXELS, FRAME_PIXELS, PixelBudget, checkPixels } from '../util/limits.ts';
 
 // ImageScript disposal modes (any, keep, previous, background) <-> GIF disposal methods (unspecified, none, background, previous)
 const DISPOSAL_TO_GIF = [0, 1, 3, 2];
@@ -245,7 +245,7 @@ export function decode(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX
     let hasLoopExtension = false;
     let control: GraphicControl | null = null;
     // the frames' color indices, and later a canvas per frame
-    const budget = new PixelBudget(maxPixels);
+    const budget = new PixelBudget(maxPixels, firstFrameOnly ? 0 : FRAME_PIXELS);
 
     try {
         parse();

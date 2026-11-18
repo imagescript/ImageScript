@@ -23,8 +23,9 @@ export const FRAME_PIXELS = 1024;
  * @param count the number of such images (frames of an animation, each counting at least {@link FRAME_PIXELS})
  */
 export function checkPixels(width: number, height: number, limit: number, count = 1): void {
-    if (!((count > 1 ? Math.max(width * height, FRAME_PIXELS) : width * height) * count <= limit))
-        throw new LimitError(`Image too large: ${count > 1 ? `${count} frames of ` : ''}${width}x${height} pixels exceed the limit of ${limit} (the decode options' maxPixels)`);
+    const floor = count > 1 && width * height < FRAME_PIXELS;
+    if (!((floor ? FRAME_PIXELS : width * height) * count <= limit))
+        throw new LimitError(`Image too large: ${count > 1 ? `${count} frames of ` : ''}${width}x${height} pixels exceed the limit of ${limit}${floor ? ` (each frame counts at least ${FRAME_PIXELS})` : ''} (the decode options' maxPixels)`);
 }
 
 /**
@@ -48,19 +49,26 @@ export function checkBytes(bytes: number, limit: number): void {
         throw new LimitError(`Image too large: ${bytes} bytes of samples exceed what the limit of ${limit} pixels allows (the decode options' maxPixels)`);
 }
 
-/** Counts the pixels of decoded frames against a limit */
+/** Counts the pixels of decoded frames against a limit, each frame at least `floor` ({@link FRAME_PIXELS} for animations) */
 export class PixelBudget {
     private left: number;
     private limit: number;
+    private count = 0;
+    private first = 0;
 
-    constructor(limit: number) {
+    constructor(limit: number, private readonly floor = 0) {
         this.limit = this.left = limit;
     }
 
     /** Throws if another frame of the given size would exceed the limit */
     take(width: number, height: number): void {
-        this.left -= width * height;
-        if (!(this.left >= 0)) throw new LimitError(`Image too large: its frames exceed the limit of ${this.limit} pixels (the decode options' maxPixels)`);
+        const pixels = width * height;
+        // (the floor counts from the second frame, for the first one too: a single frame is its pixels, like in
+        // checkPixels)
+        if (++this.count === 1) this.first = pixels;
+        else if (this.count === 2) this.left -= Math.max(0, this.floor - this.first);
+        this.left -= this.count === 1 ? pixels : Math.max(pixels, this.floor);
+        if (!(this.left >= 0)) throw new LimitError(`Image too large: ${this.count} frames exceed the limit of ${this.limit} pixels${this.floor ? `, at least ${this.floor} each` : ''} (the decode options' maxPixels)`);
     }
 }
 
