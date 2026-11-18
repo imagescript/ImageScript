@@ -527,7 +527,7 @@ export class Animation {
      * @ignore
      */
     protected __validate__(format: 'GIF' | 'APNG' | 'WebP'): void {
-        if (!this.length) throw new Error('An animation needs at least one frame');
+        if (!this.length) throw new RangeError('An animation needs at least one frame, not 0');
         for (const frame of this.frames) {
             if (!(frame instanceof Frame)) throw new Error('Animation contains invalid frames');
             fitDuration(frame.duration, format);
@@ -545,8 +545,7 @@ export class Animation {
      * after the frames are composited
      * @param options See {@link GIFAnimationEncodeOptions}; the loop count is the animation's {@link loopCount} (the
      *     streaming {@link gifEncoder} takes it as an option)
-     * @throws `Error` if the animation has no frames
-     * @throws `RangeError` if the loop count or a frame's duration is more than GIF stores, or the canvas is wider or
+     * @throws `RangeError` if the animation has no frames, the loop count or a frame's duration is more than GIF stores, or the canvas is wider or
      * higher than 65535 pixels
      */
     encodeGIF(options?: GIFAnimationEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
@@ -581,8 +580,7 @@ export class Animation {
      * necessarily decode to the same frames
      * @param options See {@link APNGEncodeOptions}; the loop count is the animation's {@link loopCount} (the streaming
      *     {@link apngEncoder} takes it as an option)
-     * @throws `Error` if the animation has no frames
-     * @throws `RangeError` if the loop count or a frame's duration is more than APNG stores
+     * @throws `RangeError` if the animation has no frames, the loop count or a frame's duration is more than APNG stores
      */
     encodeAPNG(options?: APNGEncodeOptions): Promise<Uint8Array<ArrayBuffer>>;
     async encodeAPNG(options: APNGEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
@@ -604,8 +602,7 @@ export class Animation {
      * shows the same animation, but doesn't necessarily decode to the same frames
      * @param options See {@link WebPAnimationEncodeOptions}; the loop count is the animation's {@link loopCount} (the
      *     streaming {@link webpEncoder} takes it as an option)
-     * @throws `Error` if the animation has no frames
-     * @throws `RangeError` if the loop count or a frame's duration is more than WebP stores
+     * @throws `RangeError` if the animation has no frames, the loop count or a frame's duration is more than WebP stores
      */
     async encodeWebP(options: WebPAnimationEncodeOptions = {}): Promise<Uint8Array<ArrayBuffer>> {
         checkOptions(options, 'animation.encodeWebP({ quality: 80 })');

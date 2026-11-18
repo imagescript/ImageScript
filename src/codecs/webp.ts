@@ -461,7 +461,7 @@ export function lossyTolerance(quality: number): number {
  * @param effort For lossless frames: 0 fast, 1 in between, 2 (and above) the most compression
  */
 export async function encodeAnimation(frames: WebPEncodeFrame[], width: number, height: number, plays: number, exif?: Uint8Array, lossy?: LossyOptions, effort = 2): Promise<Uint8Array<ArrayBuffer>> {
-    if (!frames.length) throw new Error('WebP: an animation needs at least one frame');
+    if (!frames.length) throw new RangeError('WebP: an animation needs at least one frame, not 0');
     checkFormatSize('WebP', width, height, 1 << 24);
 
     let alpha = false;

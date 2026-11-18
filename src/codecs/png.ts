@@ -373,7 +373,7 @@ export interface APNGEncodeFrame {
  * @param text tEXt chunks, empty values are skipped
  */
 export async function encodeAnimation(frames: APNGEncodeFrame[], width: number, height: number, plays: number, level: number, text?: EncodeOptions['text']): Promise<Uint8Array<ArrayBuffer>> {
-    if (!frames.length) throw new Error('PNG: an animation needs at least one frame');
+    if (!frames.length) throw new RangeError('PNG: an animation needs at least one frame, not 0');
 
     frames = [coverCanvas(frames[0], width, height), ...frames.slice(1)];
     for (const f of frames) checkFrame(f, width, height);

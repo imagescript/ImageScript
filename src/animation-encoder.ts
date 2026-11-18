@@ -107,13 +107,14 @@ export class AnimationEncoder {
 
     /**
      * Encodes the rest and returns the file. The encoder can't be used afterwards
-     * @throws `Error` if no frame was added, or the encoder is finished already
+     * @throws `RangeError` if no frame was added
+     * @throws `Error` if the encoder is finished already
      */
     async finish(): Promise<Uint8Array<ArrayBuffer>> {
         if (this.finished) throw new Error('The animation encoder is finished');
         this.finished = true;
         await this.queue;
-        if (!this.count) throw new Error('An animation needs at least one frame');
+        if (!this.count) throw new RangeError('An animation needs at least one frame, not 0');
         if (this.optimizer) for (const f of this.optimizer.end()) await this.format.frame(f, true);
         const optimizer = this.optimizer;
         this.optimizer = null;
