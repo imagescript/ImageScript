@@ -8,7 +8,10 @@ const panic = message => {
     process.exit(1);
 };
 
+// (Bun's JavaScriptCore runs the rasterizer several times slower than V8: 12 s where Node takes 2 s)
+const slack = process.versions.bun ? 4 : 1;
 const timed = async (name, svg, limit = 5000) => {
+    limit *= slack;
     const start = Date.now();
     let error = null, image = null;
     try { image = await Image.renderSVG(svg, {width: 100}); } catch (err) { error = err; }
@@ -139,9 +142,20 @@ const timed = async (name, svg, limit = 5000) => {
                 for (let i = 3; i < across.bitmap.length; i += 4) b += across.bitmap[i];
                 console.log(a, b);
             })();`;
-        const child = require('child_process').spawnSync(process.execPath, ['--max-old-space-size=64', '-e', script], {encoding: 'utf8'});
-        if (child.status !== 0) panic(`dashes in a 64 MB heap: ${child.stderr.split('\n').find(line => /heap|Error/.test(line)) ?? child.status}`);
-        const [beside, across] = child.stdout.trim().split(' ').map(Number);
+        // (the heap is limited with Node's flag: Deno and Bun take other ones, they run it in the test's process)
+        let output;
+        if (typeof Deno === 'undefined' && !process.versions.bun) {
+            const child = require('child_process').spawnSync(process.execPath, ['--max-old-space-size=64', '-e', script], {encoding: 'utf8'});
+            if (child.status !== 0) panic(`dashes in a 64 MB heap: ${child.stderr.split('\n').find(line => /heap|Error/.test(line)) ?? child.status}`);
+            output = child.stdout;
+        } else {
+            const log = console.log;
+            output = await new Promise(resolve => {
+                console.log = (...values) => resolve(values.join(' '));
+                new Function('require', script)(require);
+            }).finally(() => { console.log = log; });
+        }
+        const [beside, across] = output.trim().split(' ').map(Number);
         // (half of the line shows: dashes of 0.1 with gaps as long; the zigzag about half of its length too)
         if (Math.abs(beside / (100 * 255) - 0.5) > 0.05) panic(`dashes beside the image: ${beside / 255} pixels covered of the line's 100, expected about half`);
         if (!(across > 0)) panic('the dashed zigzag shows nothing');
@@ -158,7 +172,7 @@ const timed = async (name, svg, limit = 5000) => {
         try { await Image.renderSVG(chain(600)); } catch (err) { error = err; }
         const time = Date.now() - start;
         if (!error || error.name !== 'LimitError') panic(`filter chain: expected a LimitError, got ${error} after ${time} ms`);
-        if (time > 15000) panic(`filter chain: took ${time} ms`);
+        if (time > 15000 * slack) panic(`filter chain: took ${time} ms`);
         error = null;
         try { await Image.renderSVG(chain(8), {maxLayerPixels: 4e6}); } catch (err) { error = err; }
         if (!error || error.name !== 'LimitError') panic(`filter chain within maxLayerPixels: expected a LimitError, got ${error}`);
@@ -168,7 +182,7 @@ const timed = async (name, svg, limit = 5000) => {
         const convolveStart = Date.now();
         error = null;
         try { await Image.renderSVG(convolve); } catch (err) { error = err; }
-        if (!error || error.name !== 'LimitError' || Date.now() - convolveStart > 15000) panic(`a convolution of order 200: expected a LimitError within 15 s, got ${error} after ${Date.now() - convolveStart} ms`);
+        if (!error || error.name !== 'LimitError' || Date.now() - convolveStart > 15000 * slack) panic(`a convolution of order 200: expected a LimitError within 15 s, got ${error} after ${Date.now() - convolveStart} ms`);
         // the work allowed scales with the size of the render: a drop shadow on a 4096x4096 image (rendered by rc.5) stays within it
         {
             const big = await Image.renderSVG(`<svg ${NS} width="4096" height="4096"><filter id="s" x="-10%" y="-10%" width="130%" height="130%"><feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dx="10" dy="10" result="b"/><feFlood flood-color="#0004"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><rect x="100" y="100" width="3800" height="3800" fill="red" filter="url(#s)"/></svg>`);
@@ -183,7 +197,7 @@ const timed = async (name, svg, limit = 5000) => {
             const begin = Date.now();
             error = null;
             try { await Image.renderSVG(`<svg ${NS} width="1000" height="1000"><filter id="f">${filter}</filter><rect width="1000" height="1000" filter="url(#f)"/></svg>`); } catch (err) { error = err; }
-            if (!error || error.name !== 'LimitError' || Date.now() - begin > 15000) panic(`${name}: expected a LimitError within 15 s, got ${error} after ${Date.now() - begin} ms`);
+            if (!error || error.name !== 'LimitError' || Date.now() - begin > 15000 * slack) panic(`${name}: expected a LimitError within 15 s, got ${error} after ${Date.now() - begin} ms`);
         }
         // a filter region is a layer like the others: over maxLayerPixels it's a LimitError, not a silently missing
         // element, and the limit is what the option says (a fixed 2^26 pixels refused a filter on the whole of 6900x6900)
@@ -201,7 +215,7 @@ const timed = async (name, svg, limit = 5000) => {
             const begin = Date.now();
             error = null;
             try { await Image.renderSVG(markers); } catch (err) { error = err; }
-            if (!error || !/markers/.test(error.message) || Date.now() - begin > 30000) panic(`120000 markers: expected the marker limit within 30 s, got ${error} after ${Date.now() - begin} ms`);
+            if (!error || !/markers/.test(error.message) || Date.now() - begin > 30000 * slack) panic(`120000 markers: expected the marker limit within 30 s, got ${error} after ${Date.now() - begin} ms`);
         }
         // a real filter on a large image still renders
         const shadow = await Image.renderSVG(`<svg ${NS} width="2000" height="2000"><filter id="s"><feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dx="10" dy="10" result="b"/><feFlood flood-color="#0004"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><rect x="100" y="100" width="1700" height="1700" fill="red" filter="url(#s)"/></svg>`);
