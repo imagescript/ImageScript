@@ -111,7 +111,7 @@ try {
     for (const [name, font] of Object.entries(cases)) {
         const file = path.join(directory, 'font');
         fs.writeFileSync(file, font);
-        for (const via of ['text', 'svg']) {
+        for (const via of ['text', 'svg', 'option']) {
             let result;
             try {
                 result = child_process.execFileSync(command, [...flags, './tests/util/damaged-font.js', file, via], {timeout: 20000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']}).trim();

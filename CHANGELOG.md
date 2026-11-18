@@ -108,7 +108,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 - **No creation time and no version in encoded files by default**: the encoders only write a creation time when `metadata.creationTime` is given, so the same image encodes to the same bytes, and the default software is `'ImageScript'` without the version. `creationTime: null` and `software: null` leave the field out.
 
-- **Drawing an SVG image that can't be drawn throws**: an `href` that isn't a data URI or one of the `images`, an image that can't be decoded (with the decoding error as its `cause`), an unsupported data URI type or an embedded SVG that can't be read throw once they are drawn (images in `<defs>` or hidden ones don't); they drew nothing before.
+- **Drawing an SVG image that can't be drawn throws**: an `href` that isn't a data URI or one of the `images`, an image that can't be decoded (with the decoding error as its `cause`), an unsupported data URI type or an embedded SVG that can't be read throw once they are drawn (images in `<defs>` or hidden ones don't); they drew nothing before. A font in the `font` option that can't be read throws too, like in `renderText()` (it was left out); damaged fonts that the SVG embeds with `@font-face` are still left out, as in browsers.
 
 - **The encoders return `Promise<Uint8Array<ArrayBuffer>>`** instead of `Promise<Uint8Array>`, so `new Blob()`, `new Response()` and `crypto.subtle` take the output without a cast, also with the stricter DOM types of TypeScript 5.9 and newer. The type needs TypeScript 5.7 or newer.
 

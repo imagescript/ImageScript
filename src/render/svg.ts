@@ -19,7 +19,7 @@ import { gunzip } from '../codecs/zlib.ts';
 import { applyFilter, FilterBudget, Filter, Primitive, Kind, Input, Transfer, ColorMatrix, Pixmap, Light } from './filter.ts';
 import { Matrix, multiply, invert } from '../util/matrix.ts';
 import { BLEND_MODES, blendPixel } from './blend.ts';
-import { FontFace, FontStyle, fontFace, layOutText, parseFontFamilies, parseVariationSettings, pathLength, placeOutline, colorTablesOf, TextInput, ChunkInput, SpanInput, TextOutput, SpanOutput, Baseline } from './svg-text.ts';
+import { FontFace, FontStyle, fontFace, givenFontFace, damaged, layOutText, parseFontFamilies, parseVariationSettings, pathLength, placeOutline, colorTablesOf, TextInput, ChunkInput, SpanInput, TextOutput, SpanOutput, Baseline } from './svg-text.ts';
 import { rasterizeGlyph } from './text.ts';
 import { renderPaintGlyph } from './colr.ts';
 import { decodeSync as decodePNG } from '../codecs/png.ts';
@@ -169,7 +169,7 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
 
     const doc = new Document(root);
     doc.images = images;
-    doc.given = fonts.map(data => fontFace(data)).filter(face => face !== null);
+    doc.given = fonts.map(givenFontFace);
     const { width, height } = documentSize(root);
     if (!(width > 0) || !(height > 0)) throw new Error('SVG: invalid dimensions');
 
@@ -1104,8 +1104,10 @@ class Document {
             try {
                 layout = layOutText(this.textInput(node, style, viewport, scale), fonts);
             } catch (err) {
-                // (damaged fonts: the text isn't shown)
+                // (damaged fonts: the text isn't shown, unless only the caller's fonts were used, whose damage is an
+                // error like in renderText)
                 if (!(err instanceof RangeError)) throw err;
+                if (!this.embedded.length && !(err instanceof LimitError)) throw damaged(err);
             }
         }
         this.texts.set(node, { style, width: viewport.width, height: viewport.height, scale, layout });
@@ -1353,8 +1355,10 @@ class Document {
                 try {
                     this.renderColorGlyph(glyph, span.paint, node, ctx, paint);
                 } catch (err) {
-                    // (damaged fonts: the glyph isn't shown, like text that can't be laid out)
+                    // (damaged fonts: the glyph isn't shown, like text that can't be laid out; one of the caller's
+                    // fonts throws, like in renderText)
                     if (!(err instanceof RangeError) || err instanceof LimitError) throw err;
+                    if (this.given.includes(glyph.face)) throw damaged(err);
                 }
             }
             for (const d of span.after) paint(d.path, d.paint, 'normal');

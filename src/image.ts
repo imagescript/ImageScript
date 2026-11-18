@@ -512,7 +512,8 @@ export interface SVGResourceOptions {
      * other families and text without one get the first font's family; characters a face doesn't have come from the
      * other fonts (TrueType, OpenType or WOFF). Fonts the SVG embeds with `@font-face` (in data: URIs) are used too,
      * before these for their family names. Without any fonts text isn't rendered. One font can be given without an
-     * array
+     * array. A font here that can't be read throws an Error, like in {@link Image.renderText}; a damaged font that the
+     * SVG embeds is left out
      * @defaultValue `[]`
      */
     font?: BinaryData | BinaryData[];

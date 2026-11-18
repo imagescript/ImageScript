@@ -334,6 +334,9 @@ is the image it describes or nothing:
 
 Images that aren't drawn (in `<defs>`, `display="none"`, `visibility="hidden"`) don't throw.
 
+A font in the `font` option that can't be read throws too, like in `renderText()`; 3.x left it out. Damaged fonts that
+the SVG embeds with `@font-face` are still left out, as in browsers.
+
 The new `maxLayerPixels` option limits the layers rendering uses at once, the output included: each group with opacity,
 a mask, a filter or a blend mode is drawn in a layer of its own (16 bytes per pixel), so nested ones multiply the memory
 of a small SVG. The default is `4 * maxPixels`; an SVG over it throws a `RangeError`. For untrusted SVGs, lower
@@ -344,7 +347,8 @@ around 1.5 GB.
 `Image.renderText()` takes `maxPixels` too (default `16383 ** 2`), which counts the outline (`strokeWidth`), checked
 before anything is allocated.
 
-Search your code for: `renderSVG(` with SVGs that reference files or URLs, or that may contain broken images.
+Search your code for: `renderSVG(` with SVGs that reference files or URLs, or that may contain broken images, and with
+fonts in its `font` option that may not load.
 
 ## Removed APIs
 

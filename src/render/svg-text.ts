@@ -80,7 +80,8 @@ function names(font: Font, ids: number): string[] {
 
 /**
  * A font's face: its names, weight, style and stretch from its tables, unless given (@font-face descriptors), and
- * the generic families its OS/2 and post tables say it fits
+ * the generic families its OS/2 and post tables say it fits. Null for a font that can't be read, as browsers leave out
+ * such a font of an SVG
  */
 export function fontFace(data: Uint8Array, descriptors?: { family?: string, weight?: number, style?: FontStyle }): FontFace | null {
     let font: Font;
@@ -98,6 +99,29 @@ export function fontFace(data: Uint8Array, descriptors?: { family?: string, weig
         if (err instanceof RangeError && !(err instanceof LimitError)) return null;
         throw err;
     }
+}
+
+/**
+ * The face of a font the caller gave (renderSVG's `font` option): one that can't be read throws, like in renderText,
+ * instead of being left out without a word
+ */
+export function givenFontFace(data: Uint8Array): FontFace {
+    const font = loadFont(data);
+    const cached = faces.get(font);
+    if (cached) return cached;
+    try {
+        return describeFace(font);
+    } catch (err) {
+        throw damaged(err);
+    }
+}
+
+/**
+ * The error for a font the caller gave that turned out damaged while it was read: reading past its end throws a
+ * RangeError, which becomes an Error like the other damage renderText reports (anything else is returned as it is)
+ */
+export function damaged(err: unknown): unknown {
+    return err instanceof RangeError && !(err instanceof LimitError) ? new Error('Font: damaged (a table lies outside of the font)', { cause: err }) : err;
 }
 
 function describeFace(font: Font, descriptors?: { family?: string, weight?: number, style?: FontStyle }): FontFace {
