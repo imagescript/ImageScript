@@ -26,7 +26,10 @@ const cases = {
     // the CFF table's Top DICT INDEX is empty (the offset of the table after the head is moved)
     'cff without a top dict': patched('sourcesans3 regular.otf', [[0x27, 216, 88]]),
     // a CID-keyed CFF font with an FDArray but no FDSelect (its Top DICT entry is changed to the FDArray operator)
-    'cff fdarray without fdselect': patched('source han sans cid subset.otf', [[0x4f4, 37, 214]])
+    'cff fdarray without fdselect': patched('source han sans cid subset.otf', [[0x4f4, 37, 214]]),
+    // the CBLC table (its offset is moved) holds a strike count of 0x0c000000 and more: a list of that many strikes
+    // ran the process out of memory (a count too big for the sbix table's reads is caught when they leave the font)
+    'cblc with a huge strike count': patched('noto color emoji subset.ttf', [[0x27, 44, 12]])
 };
 
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'damaged-fonts-'));

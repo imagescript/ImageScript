@@ -127,7 +127,10 @@ function parseCBDT(font: Font, size: number): ((glyph: number) => BitmapGlyph | 
     const cblc = font.tables.CBLC?.offset, cbdt = font.tables.CBDT?.offset;
     if (cblc === undefined || cbdt === undefined) return null;
 
-    const ppems = Array.from({ length: font.u32(cblc + 4) }, (_, i) => font.u8(cblc + 8 + i * 48 + 45));
+    // (u8() doesn't throw past the end of the font, so a damaged count would only run out of memory)
+    const strikes = font.u32(cblc + 4);
+    if (cblc + 8 + strikes * 48 > font.data.length) throw new Error('Font: damaged CBLC table');
+    const ppems = Array.from({ length: strikes }, (_, i) => font.u8(cblc + 8 + i * 48 + 45));
     const index = closestStrike(ppems, size);
     if (index < 0) return null;
     const strike = cblc + 8 + index * 48, strikePpem = ppems[index];
