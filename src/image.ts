@@ -481,7 +481,7 @@ export interface FisheyeOptions {
 /** The limits, fonts and images of {@link Image.renderSVG}, part of {@link RenderSVGOptions} */
 export interface SVGResourceOptions {
     /**
-     * Maximum total pixels in the rendered output. Output over the limit throws a RangeError before anything is
+     * Maximum total pixels in the rendered output. Output over the limit throws a {@link LimitError} (a RangeError) before anything is
      * rendered. It's also the default of {@link SVGResourceOptions.maxLayerPixels} and
      * {@link SVGResourceOptions.maxImagePixels}
      * @defaultValue `268402689` (16383²); `Infinity` disables the limit
@@ -491,7 +491,7 @@ export interface SVGResourceOptions {
      * Maximum pixels of the layers rendering uses at once, the output's included. Groups with opacity, masks, clip
      * paths of nested viewports, filters and blend modes are each rendered into a layer of their own (up to the
      * output's size, 16 bytes per pixel) while their content is drawn, so deeply nested ones multiply the memory a
-     * small SVG takes. Exceeding it throws a RangeError. With the defaults, rendering can take about 90 bytes per pixel
+     * small SVG takes. Exceeding it throws a {@link LimitError} (a RangeError). With the defaults, rendering can take about 90 bytes per pixel
      * of `maxPixels` (64 for the layers, up to 20 for the images, 4 for the output): lower `maxPixels` to bound it for
      * untrusted SVGs
      * @defaultValue `4 * maxPixels`; `Infinity` disables the limit
@@ -500,7 +500,7 @@ export interface SVGResourceOptions {
     /**
      * Maximum total pixels of the raster images the SVG references (data URIs and {@link SVGResourceOptions.images}),
      * decoded together; already-decoded {@link Image} values are used as supplied and don't count. Drawing an image
-     * beyond the limit throws a RangeError
+     * beyond the limit throws a {@link LimitError} (a RangeError)
      * @defaultValue `maxPixels`; `Infinity` disables the limit
      */
     maxImagePixels?: number;
@@ -583,7 +583,7 @@ export interface RenderTextOptions extends TextStyleOptions, TextLayoutOptions {
      */
     color?: Color;
     /**
-     * Maximum total pixels of the rendered image (the outline included): larger text throws a RangeError before its
+     * Maximum total pixels of the rendered image (the outline included): larger text throws a {@link LimitError} (a RangeError) before its
      * pixels are allocated
      * @defaultValue `268402689` (16383²); `Infinity` disables the limit
      */
@@ -608,7 +608,7 @@ export interface DecodeOptions {
      */
     applyColorProfile?: boolean;
     /**
-     * The maximum total pixels to decode. An image declaring more pixels throws a RangeError before its pixel buffer
+     * The maximum total pixels to decode. An image declaring more pixels throws a {@link LimitError} (a RangeError) before its pixel buffer
      * is allocated, helping prevent a small or untrusted file from requesting an enormous amount of memory.
      * {@link Animation.decode} counts all frames together because each frame uses a full canvas. The decoded image
      * takes 4 bytes per pixel (about 1 GiB at the default), and decoding needs more while it runs: for 8-bit images,
