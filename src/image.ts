@@ -2049,7 +2049,7 @@ export class Image {
             outHeight = Math.max(1, Math.round(maxY - minY));
             left = minX - (outWidth - (maxX - minX)) / 2;
             top = minY - (outHeight - (maxY - minY)) / 2;
-            if (outWidth * outHeight > MAX_PIXELS) throw new RangeError(`The transformed image would have ${outWidth}x${outHeight} pixels, more than the ${MAX_PIXELS} allowed`);
+            checkGrowth(outWidth, outHeight, 'The transform');
         }
 
         const out = new Image(outWidth, outHeight);

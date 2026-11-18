@@ -1,5 +1,5 @@
 const fs = require('fs');
-const {Image, Frame, Animation, Colors} = require('..');
+const {Image, Frame, Animation, Colors, LimitError} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -72,6 +72,12 @@ const shape = /^[\w() ]+ (must be|takes) .+, not .+$/;
             if (!(error instanceof RangeError)) failures.push(`${name}: ${error?.constructor?.name}: ${error?.message}, not a RangeError`);
             else if (!shape.test(error.message)) failures.push(`${name}: the message doesn't say which argument, what it takes and what it got: ${error.message}`);
         }
+    }
+    // limits of what an image can become are LimitErrors, like the ones of dropShadow() and outline()
+    try {
+        image().transform([1e5, 0, 0, 1e5, 0, 0]);
+    } catch (error) {
+        if (!(error instanceof LimitError)) failures.push(`transform past the limit: ${error.constructor.name}, not a LimitError`);
     }
     if (failures.length) panic(failures.join('\n'));
 })();
