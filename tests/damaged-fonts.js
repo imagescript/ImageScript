@@ -65,6 +65,17 @@ const cases = {
         data.writeUInt32BE(0x80000001, colr + data.readUInt32BE(colr + 22) + 1);
         return data;
     })(),
+    // the clip list holds one clip box, which covers every glyph and lies outside of the font: drawing a color glyph read past its end (an SVG
+    // doesn't show a glyph it can't draw, like text it can't lay out)
+    'colr clip box outside of the font': (() => {
+        const data = Buffer.from(fs.readFileSync(fonts + 'noto colrv1 subset.ttf')), colr = tableOffset(data, 'COLR');
+        const clips = colr + data.readUInt32BE(colr + 22);
+        data.writeUInt32BE(1, clips + 1);
+        data.writeUInt16BE(0, clips + 5);
+        data.writeUInt16BE(0xffff, clips + 7);
+        data.writeUIntBE(0xffffff, clips + 9, 3);
+        return data;
+    })(),
     'cmap format 14 with a huge record count': withCount('font features.ttf', 'cmap', cmap14('font features.ttf') + 6, 0xffffffff),
     'cblc with a huge strike count': patched('noto color emoji subset.ttf', [[0x27, 44, 12]])
 };

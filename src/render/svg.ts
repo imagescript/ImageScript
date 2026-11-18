@@ -1326,7 +1326,14 @@ class Document {
             if (!span.visible) continue;
             for (const d of span.before) paint(d.path, d.paint, 'normal');
             if (span.glyphs.length) paint(span.glyphs, span.paint, span.paint['paint-order']);
-            for (const glyph of span.colors) this.renderColorGlyph(glyph, span.paint, node, ctx, paint);
+            for (const glyph of span.colors) {
+                try {
+                    this.renderColorGlyph(glyph, span.paint, node, ctx, paint);
+                } catch (err) {
+                    // (damaged fonts: the glyph isn't shown, like text that can't be laid out)
+                    if (!(err instanceof RangeError) || err instanceof LimitError) throw err;
+                }
+            }
             for (const d of span.after) paint(d.path, d.paint, 'normal');
         }
     }
