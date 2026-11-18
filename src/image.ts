@@ -855,7 +855,10 @@ function featureList(features: Record<string, boolean | number>): Array<[string,
  * and return it, so calls can be chained
  *
  * @remarks Subclassing is not supported: the methods that make an image ({@link Image.clone}, {@link Image.extract},
- * {@link Image.decode}, ...) return plain `Image`s, without calling a subclass' constructor
+ * {@link Image.decode}, ...) return plain `Image`s, without calling a subclass' constructor.
+ *
+ * The `maxPixels` limits guard what comes from outside: decoding and rendering. `new Image()`, `resize()` and
+ * `scale()` make the size they are asked for, so check sizes that come from users before you pass them on
  */
 export class Image {
     /**
