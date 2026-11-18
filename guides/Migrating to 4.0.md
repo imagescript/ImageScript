@@ -500,7 +500,7 @@ object under the names of their options. The options of each method are on its o
 | `image.composite(logo, 10, 20, { opacity: 0.5 })` | `image.composite(logo, { x: 10, y: 20, opacity: 0.5 })` |
 | `image.rotate(45, false)` | `image.rotate(-45, { expand: false })`: the angle is negated because [`rotate()` turns clockwise](#rotate-turns-clockwise) now |
 | `image.sharpen(2, 3)` | `image.sharpen({ amount: 2, radius: 3 })` |
-| `image.dominantColor(true, true, 15)` | `image.dominantColor({ ignoreBlack: true, ignoreWhite: true, threshold: 60 })`: the threshold is in channel values now, see [below](#dominantcolor-thresholds-are-channel-values) |
+| `image.dominantColor(true, true, 15)` | `image.dominantColor({ ignoreBlack: true, ignoreWhite: true, threshold: 60 })`: the threshold is in channel values now, see [below](#dominantcolor-counts-colors-in-a-histogram-thresholds-are-channel-values) |
 | `image.roundCorners(8)` | `image.roundCorners({ radius: 8 })` |
 | `image.fisheye(3)` | `image.fisheye({ strength: 3 })` |
 | `image.trim(color, options)`, `frame.trim(color, options)` | `image.trim({ color, ...options })`, `frame.trim({ color, ...options })` |
