@@ -14,7 +14,7 @@ const [W, H] = [960, 540];
 const LIBRARIES = {
     ImageScript: {
         load: () => import(process.env.IMAGESCRIPT === 'local' ? '../dist/index.js' : 'imagescript'),
-        job: async ({ Image }) => (await Image.decode(photo)).resize(W, H).encodeJPEG(80)
+        job: async ({ Image }) => (await Image.decode(photo)).resize(W, H).encodeJPEG({ quality: 80 })
     },
     Jimp: {
         load: () => import('jimp'),
