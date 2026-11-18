@@ -338,7 +338,8 @@ export function imageReferences(source: string | Uint8Array): Array<{ href: stri
         const stack = [root];
         while (stack.length) {
             const node = stack.pop() as XNode;
-            stack.push(...node.children);
+            // (a loop, not a spread: an element with 100,000 children would overflow the call stack)
+            for (const child of node.children) stack.push(child);
             if ((node.name !== 'image' && node.name !== 'feImage') || !node.svg) continue;
             const href = (node.attrs.href || node.attrs['xlink:href'] || '').trim();
             if (seen.has(href)) continue;
@@ -821,7 +822,7 @@ class Document {
         const stack = [this.root];
         while (stack.length) {
             const node = stack.pop() as XNode;
-            stack.push(...node.children);
+            for (const child of node.children) stack.push(child);
             if (node.name !== 'feImage' || !node.parent || !node.parent.attrs.id) continue;
             const href = this.href(node)?.trim(), target = href?.startsWith('#') ? this.reference(href) : null;
             if (!target) continue;
@@ -839,11 +840,13 @@ class Document {
             return inline?.important[name] ?? inline?.normal[name] ?? node.attrs[name];
         };
         const descendants = (node: XNode): XNode[] => {
-            const list: XNode[] = [], stack = [...node.children];
+            // (in document order: each element, then its descendants, then its next sibling; a stack instead of
+            // shift/unshift with spreads, which walked the list quadratically and overflowed the call stack for many children)
+            const list: XNode[] = [], stack = [...node.children].reverse();
             while (stack.length) {
-                const n = stack.shift() as XNode;
+                const n = stack.pop() as XNode;
                 list.push(n);
-                stack.unshift(...n.children);
+                for (let i = n.children.length - 1; i >= 0; i--) stack.push(n.children[i]);
             }
             return list;
         };

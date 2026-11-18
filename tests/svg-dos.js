@@ -37,6 +37,12 @@ const timed = async (name, svg, limit = 5000) => {
     {
         let d = '';
         for (let i = 0; i < 80000; i++) d += `M${(i * 7919) % 100000} ${(i * 7) % 30} l4 0 l-2 ${30 + i % 10} z`;
+        // an element with 140000 children: the walks over the tree pushed them with a spread, past the call stack's limit
+        // (a bare RangeError for a 4 MB SVG); a LimitError or a render is the answer
+        {
+            const {error} = await timed('140000 siblings', `<svg ${NS} width="64" height="64"><g>${'<g/>'.repeat(140000)}</g></svg>`);
+            if (error && (error.name !== 'LimitError')) panic(`140000 siblings: ${error.name}: ${error.message}`);
+        }
         const {error} = await timed('80000 triangles', `<svg ${NS} width="100" height="100"><path d="${d}"/></svg>`);
         if (error) panic(`80000 triangles: ${error.message}`);
     }
