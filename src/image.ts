@@ -891,8 +891,8 @@ export class Image {
 
     /**
      * Creates a new image with the given dimensions, all pixels transparent black
-     * @param width The width in pixels
-     * @param height The height in pixels
+     * @param width The width in pixels (a fraction is truncated)
+     * @param height The height in pixels (a fraction is truncated)
      * @throws `TypeError` if the width or height is not a number
      * @throws `RangeError` if the width or height is less than 1, or the image is too large to allocate
      */

@@ -20,7 +20,7 @@ const shape = /^[\w() ]+ (must be|takes) .+, not .+$/;
         'frame.duration': () => { new Frame(image()).duration = -1; },
         'frame.duration NaN': () => { new Frame(image()).duration = NaN; },
         'animation.scale(0)': () => new Animation([new Frame(image())]).scale(0),
-        'animation canvas size': () => new Animation([], {width: 1.5, height: 2}),
+        'animation canvas size': () => new Animation([], {width: 0.5, height: 2}),
         'opacity': () => image().opacity(-1),
         'red': () => image().red(-1),
         'green': () => image().green(-1),

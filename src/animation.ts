@@ -40,7 +40,8 @@ export interface AnimationOptions {
 /** Options of {@link Animation}'s constructor: the canvas size and the loop count */
 export interface AnimationCanvasOptions extends AnimationOptions {
     /**
-     * The canvas width in pixels: frames (or the parts of them) outside the canvas aren't encoded
+     * The canvas width in pixels (a fraction is truncated, like the size of an image): frames (or the parts of them)
+     * outside the canvas aren't encoded
      * @defaultValue The frames' right edge (the largest `xOffset + width`), following the frames until a canvas size is
      *     set
      */
@@ -123,7 +124,7 @@ export class Animation {
         const { loopCount: count = Infinity, width, height } = options;
         const loops = loopCount(count);
         if ((width === undefined) !== (height === undefined)) throw new TypeError('Animation() takes both a canvas width and height, or neither');
-        const canvas = width === undefined ? null : canvasSize(width, height as number);
+        const canvas = width === undefined ? null : canvasSize(Math.floor(finite(width, 'width')), Math.floor(finite(height as number, 'height')));
         this.frames = frames;
         this.__loopCount__ = loops;
         this.__canvas__ = canvas;

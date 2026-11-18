@@ -154,3 +154,11 @@ if (new Animation([new Frame(first.clone(), {duration: 5})]).frames[0].duration 
     if (image.getPixelAt(0, 0) !== 0x0000ffff) panic('flip: an image of several frames should be flipped once');
     if (repeated.frames[0].xOffset !== 5 || repeated.frames[1].xOffset !== 5 || repeated.frames[2].xOffset !== 2) panic(`flip: repeated frames at ${repeated.frames.map(f => f.xOffset)}`);
 }
+
+// a canvas size with a fraction is truncated, like the size of an image (new Image(1.5, 2.9) is 1 by 2), and still
+// has to be at least 1 pixel
+{
+    const truncated = new Animation([], {width: 3.7, height: 2.9});
+    if (truncated.width !== 3 || truncated.height !== 2) panic(`canvas: ${truncated.width}x${truncated.height} for 3.7x2.9`);
+    throwsA(() => new Animation([], {width: 0.9, height: 2}), RangeError, 'a canvas width below 1');
+}
