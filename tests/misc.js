@@ -25,7 +25,7 @@ for (const [x, y, color] of new Image(1, 1).fill(0xff8000ff).pixels())
 if (Colors.fromRGB(0xff, 0x80, 0x00) !== 0xff8000ff)
     panic('rgbToColor failed');
 
-if (Colors.fromHSLA(0, 0, 1, 0xff) !== 0xffffffff)
+if (Colors.fromHSLA(0, 0, 1, 1) !== 0xffffffff)
     panic('hslaToColor for s=0 failed');
 
 {

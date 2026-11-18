@@ -33,7 +33,7 @@ const samePixels = require('./util/pixels');
 
     {
         const image = new Image(512, 512);
-        image.fill((x, y) => Colors.fromRGB(x / 2, y / 2, 255 - x / 2));
+        image.fill((x, y) => Colors.fromRGB(Math.min(x / 2, 255), Math.min(y / 2, 255), 255 - x / 2));
         image.invertValue();
 
         const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});

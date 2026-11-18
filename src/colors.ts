@@ -1,10 +1,5 @@
-import { finite, notNaN, color as checkColor } from './util/options.ts';
+import { finite, notNaN, byte, unitInterval, color as checkColor } from './util/options.ts';
 import type { Color } from './image.ts';
-
-/** Clamps and rounds a channel value to 0..255 */
-export function channel(value: number): number {
-    return value > 255 ? 255 : value > 0 ? Math.round(value) : 0;
-}
 
 // wraps a hue into 0..1 (negative hues included), exactly like (h % 1 + 1) % 1 but without the slow float modulo
 export function wrapHue(h: number): number {
@@ -99,7 +94,7 @@ export class Colors {
     }
 
     /**
-     * Converts RGBA components to an RGBA value, values are rounded and clamped to 0..255
+     * Converts RGBA components to an RGBA value. Fractions are rounded, values outside of 0..255 throw a `RangeError`
      * @param r red (0..255)
      * @param g green (0..255)
      * @param b blue (0..255)
@@ -107,11 +102,7 @@ export class Colors {
      * @returns RGBA value
      */
     static fromRGBA(r: number, g: number, b: number, a: number): Color {
-        r = finite(r, 'red');
-        g = finite(g, 'green');
-        b = finite(b, 'blue');
-        a = finite(a, 'alpha');
-        return (channel(r) << 24 | channel(g) << 16 | channel(b) << 8 | channel(a)) >>> 0;
+        return (byte(r, 'red') << 24 | byte(g, 'green') << 16 | byte(b, 'blue') << 8 | byte(a, 'alpha')) >>> 0;
     }
 
     /**
@@ -128,19 +119,16 @@ export class Colors {
     /**
      * Converts HSLA colors to RGBA colors
      * @param h hue in degrees (0..360, like CSS' `hsl()`: 0 red, 120 green, 240 blue; other values wrap around)
-     * @param s saturation (0..1)
-     * @param l lightness (0..1)
-     * @param a opacity (0..1)
+     * @param s saturation (0..1, else a `RangeError`)
+     * @param l lightness (0..1, else a `RangeError`)
+     * @param a opacity (0..1, else a `RangeError`)
      * @returns color
      */
     static fromHSLA(h: number, s: number, l: number, a: number): Color {
         h = wrapHue(finite(h, 'hue') / 360);
-        s = finite(s, 'saturation');
-        l = finite(l, 'lightness');
-        a = finite(a, 'alpha');
-        s = Math.min(1, Math.max(0, s));
-        l = Math.min(1, Math.max(0, l));
-        a = Math.min(1, Math.max(0, a));
+        s = unitInterval(s, 'saturation');
+        l = unitInterval(l, 'lightness');
+        a = unitInterval(a, 'alpha');
 
         let r: number, g: number, b: number;
 
@@ -161,8 +149,8 @@ export class Colors {
     /**
      * Converts HSL colors to RGBA colors (fully opaque)
      * @param h hue in degrees (0..360, like CSS' `hsl()`; other values wrap around)
-     * @param s saturation (0..1)
-     * @param l lightness (0..1)
+     * @param s saturation (0..1, else a `RangeError`)
+     * @param l lightness (0..1, else a `RangeError`)
      * @returns color
      */
     static fromHSL(h: number, s: number, l: number): Color {

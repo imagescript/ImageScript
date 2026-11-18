@@ -154,7 +154,7 @@ const alphaReferences = {
     if (!await animation.encodeWebP({quality: 200}).then(() => false, e => e instanceof RangeError)) panic('animation quality 200 should throw');
 
     // alphaQuality for animations, also encoded a frame at a time
-    const faded = new Animation([0, 1].map(i => new Frame(new Image(40, 30).fill((x, y) => Colors.fromRGBA(200, 50 * i, 9, x * 6 + y)), {duration: 100})), {loopCount: 0});
+    const faded = new Animation([0, 1].map(i => new Frame(new Image(40, 30).fill((x, y) => Colors.fromRGBA(200, 50 * i, 9, Math.min(x * 6 + y, 255))), {duration: 100})), {loopCount: 0});
     // (the same creation time: it's written in seconds, two encodes can be a second apart)
     const metadata = {creationTime: 0};
     const fadedWebp = await faded.encodeWebP({quality: 80, alphaQuality: 0, optimize: false, metadata});

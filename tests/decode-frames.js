@@ -177,7 +177,7 @@ const throwsA = async (fn, type, label) => {
         new Frame(new Image(12, 8).fill((x, y) => Colors.fromRGBA(x * 20, y * 30, 90, 255)), {duration: 50}),
         new Frame(new Image(5, 4).fill((x, y) => Colors.fromRGBA(255, x * 50, y * 60, 128)), {duration: 70, xOffset: 3, yOffset: 2, disposalMode: 'background'}),
         new Frame(new Image(6, 3).fill(0x00ff00ff), {duration: 40, xOffset: 1, yOffset: 4, disposalMode: 'previous'}),
-        new Frame(new Image(4, 4).fill((x, y) => Colors.fromRGBA(y * 90, 0, 200, 255 - x * 60)), {duration: 60, xOffset: 8, yOffset: 4})
+        new Frame(new Image(4, 4).fill((x, y) => Colors.fromRGBA(Math.min(y * 90, 255), 0, 200, 255 - x * 60)), {duration: 60, xOffset: 8, yOffset: 4})
     ]);
     const movingFiles = {
         GIF: await moving.encodeGIF(),

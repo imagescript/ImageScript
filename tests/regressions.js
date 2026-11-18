@@ -283,7 +283,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         }
 
         // truecolor rows are filtered, which makes smooth gradients tiny
-        const gradient = new Image(512, 512).fill((x, y) => Colors.fromRGB(x / 2, y / 2, (x + y) / 4));
+        const gradient = new Image(512, 512).fill((x, y) => Colors.fromRGB(Math.min(x / 2, 255), Math.min(y / 2, 255), Math.min((x + y) / 4, 255)));
         const size = (await gradient.encodePNG()).length;
         assert(size < 20000, `PNG: gradient should compress well with row filters, got ${size} bytes`);
         assert(Buffer.from((await Image.decode(await gradient.encodePNG({compression: 9}))).bitmap).equals(Buffer.from(gradient.bitmap)), 'PNG: filtered roundtrip failed');
@@ -330,12 +330,19 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
         assert(threw, 'bitmap setter should reject a wrong size');
     }
 
-    // color components are rounded and clamped instead of wrapping
+    // color components are rounded; values outside of their range throw instead of wrapping (or being clamped, as in 3.x)
     {
-        assert(Colors.fromRGBA(256, -1, 127.6, 300) === 0xff0080ff, 'Colors.fromRGBA should clamp and round, got ' + Colors.fromRGBA(256, -1, 127.6, 300).toString(16));
-        let threw = false;
-        try { Colors.fromRGB(NaN, 0, 0); } catch (e) { threw = e instanceof RangeError; }
-        assert(threw, 'Colors.fromRGB(NaN) should throw a RangeError');
+        assert(Colors.fromRGBA(255.4, 0, 127.6, 0.4) === 0xff008000, 'Colors.fromRGBA should round, got ' + Colors.fromRGBA(255.4, 0, 127.6, 0.4).toString(16));
+        const rejects = (name, fn) => {
+            let error;
+            try { fn(); } catch (e) { error = e; }
+            assert(error instanceof RangeError, `${name} should throw a RangeError, got ${error}`);
+        };
+        for (const [name, rgba] of Object.entries({red: [256, 0, 0, 0], green: [0, -1, 0, 0], blue: [0, 0, 255.5, 0], alpha: [0, 0, 0, 300], NaN: [NaN, 0, 0, 0]})) rejects(`fromRGBA(${name})`, () => Colors.fromRGBA(...rgba));
+        rejects('fromRGB(NaN)', () => Colors.fromRGB(NaN, 0, 0));
+        rejects('fromHSLA(saturation 2)', () => Colors.fromHSLA(0, 2, 0.5, 1));
+        rejects('fromHSLA(lightness -1)', () => Colors.fromHSLA(0, 1, -1, 1));
+        rejects('fromHSLA(alpha 255)', () => Colors.fromHSLA(0, 1, 0.5, 255));
     }
 
     // disposal modes read back as the names they are set with
@@ -843,7 +850,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y));
             // noisy rows on top and a noisy strip in the bottom left, the rest transparent
             const image = new Image(width, height).fill((x, y) => {
                 const c = y < rows || y > height * 2 / 3 && x < 64 ? random() * colors | 0 : 0;
-                return c ? Colors.fromRGBA(c * 37, c * 11, c, 255) : 0;
+                return c ? Colors.fromRGBA(Math.min(c * 37, 255), c * 11, c, 255) : 0;
             });
             for (const options of [{}, {quality: 85}]) {
                 const decoded = await Image.decode(await image.encodeWebP(options)).catch(err => assert(false, `WebP ${JSON.stringify(options)} of the ${width}x${height} mask: ${err.message}`));

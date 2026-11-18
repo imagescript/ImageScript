@@ -135,6 +135,14 @@ export function nonNegative(value: number, name: string): number {
     return value;
 }
 
+/** A color channel from 0 to 255 once rounded to a whole number (255.4 is fine, 255.5 isn't): one outside of it throws a RangeError naming the channel */
+export function byte(value: number, name: string): number {
+    finite(value, name);
+    const rounded = Math.round(value);
+    if (rounded < 0 || rounded > 255) throw new RangeError(`${name} must be 0-255, not ${value}`);
+    return rounded;
+}
+
 /** A number from 0 to 1, finite: a number outside of it throws a RangeError naming the argument */
 export function unitInterval(value: number, name: string): number {
     finite(value, name);

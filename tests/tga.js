@@ -53,7 +53,7 @@ const rgba = (image, x, y) => Colors.toRGBA(image.getPixelAt(x, y)).join();
 
     // encoding round trips, opaque images are stored with 24 bits
     for (const image of [
-        new Image(50, 7).fill((x, y) => Colors.fromRGBA(x * 5, y * 30, (x >> 2) * 40, x % 3 ? 255 : 100)),
+        new Image(50, 7).fill((x, y) => Colors.fromRGBA(x * 5, y * 30, Math.min((x >> 2) * 40, 255), x % 3 ? 255 : 100)),
         new Image(300, 2).fill(0x336699ff),
         new Image(1, 1).fill(0x00000000),
         // a header per pixel: one pixel rows, alternating

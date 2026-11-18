@@ -147,7 +147,7 @@ const disc = (size, color) => new Image(size, size).fill((x, y) => {
 
     // a mostly static animation (like a screen recording) only stores what changes
     {
-        const background = new Image(160, 120).fill((x, y) => Colors.fromRGBA(x * 7 ^ y * 13, x * y, y * 5, 255));
+        const background = new Image(160, 120).fill((x, y) => Colors.fromRGBA(Math.min(x * 7 ^ y * 13, 255), Math.min(x * y, 255), Math.min(y * 5, 255), 255));
         const animation = new Animation(Array.from({length: 20}, (_, i) =>
             new Frame(background.clone().composite(new Image(8, 8).fill(0xffffffff), {x: 10 + i * 6, y: 50}), {duration: 50})));
         await check('screen recording', animation);
