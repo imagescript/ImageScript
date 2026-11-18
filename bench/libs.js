@@ -64,9 +64,9 @@ const imageScript = IS => ({
         jxl: image => image.encodeJXL({ quality: JXL_QUALITY }),
         jxlLossless: image => image.encodeJXL()
     },
-    resize: image => image.clone().resize(...RESIZE, { mode: IS.ResizeModes.BILINEAR }),
-    resizeBicubic: image => image.clone().resize(...RESIZE, { mode: IS.ResizeModes.BICUBIC }),
-    cover: image => image.clone().cover(THUMB, THUMB, { mode: IS.ResizeModes.BILINEAR }),
+    resize: image => image.clone().resize(...RESIZE, { mode: 'bilinear' }),
+    resizeBicubic: image => image.clone().resize(...RESIZE, { mode: 'bicubic' }),
+    cover: image => image.clone().resize({ width: THUMB, height: THUMB, fit: 'cover', mode: 'bilinear' }),
     rotate: image => image.clone().rotate(ANGLE),
     rotate90: image => image.clone().rotate(90),
     flip: image => image.clone().flip('horizontal'),
@@ -74,12 +74,12 @@ const imageScript = IS => ({
     sharpen: image => image.clone().sharpen({ amount: 1, radius: 1 }),
     composite: (image, overlay) => image.clone().composite(overlay, { x: AT[0], y: AT[1] }),
     crop: image => image.clone().crop(...CROP),
-    greyscale: image => image.clone().greyscale(),
+    greyscale: image => image.clone().grayscale(),
     adjust: image => image.clone().brightness(ADJUST).contrast(ADJUST),
     // an Ultra HDR photo to a thumbnail that stays HDR: decoded, covered and encoded with its gain map
-    hdrThumbnail: async data => (await IS.Image.decode(data)).cover(THUMB, THUMB, { mode: IS.ResizeModes.BILINEAR }).encodeJPEG({ quality: 80 }),
+    hdrThumbnail: async data => (await IS.Image.decode(data)).resize({ width: THUMB, height: THUMB, fit: 'cover', mode: 'bilinear' }).encodeJPEG({ quality: 80 }),
     text: () => IS.Image.renderText(TEXT, { font, size: TEXT_SIZE }),
-    svg: () => IS.Image.renderSVG(svg, { size: SVG_WIDTH, mode: IS.SVGScaleModes.WIDTH }),
+    svg: () => IS.Image.renderSVG(svg, { width: SVG_WIDTH }),
     animation: {
         decode: data => IS.Animation.decode(data),
         encode: animation => animation.encodeGIF(),
