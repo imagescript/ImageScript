@@ -1126,8 +1126,17 @@ function fromWOFF(data: Uint8Array): Uint8Array {
     const tables: Array<{ tag: number, data: Uint8Array, checksum: number }> = [];
     for (let i = 0; i < count; i++) {
         const e = 44 + i * 20, offset = view.getUint32(e + 4), compressed = view.getUint32(e + 8), length = view.getUint32(e + 12);
+        if (offset + compressed > data.length) throw new Error('Font: damaged or truncated font data');
         const raw = data.subarray(offset, offset + compressed);
-        tables.push({ tag: view.getUint32(e), checksum: view.getUint32(e + 16), data: compressed < length ? decompress(raw, length).subarray(0, length) : raw });
+        let table = raw;
+        if (compressed < length) {
+            try {
+                table = decompress(raw, length).subarray(0, length);
+            } catch (err) {
+                throw new Error('Font: damaged WOFF table', { cause: err });
+            }
+        }
+        tables.push({ tag: view.getUint32(e), checksum: view.getUint32(e + 16), data: table });
     }
     const header = 12 + count * 16;
     let size = header;

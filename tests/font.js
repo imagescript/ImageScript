@@ -496,4 +496,15 @@ const panic = message => {
             if (!(error instanceof type)) panic(`renderText maxPixels ${maxPixels} should throw a ${type.name}`);
         }
     }
+
+    {
+        // a WOFF cut off inside its tables is a damaged font, like a cut-off TrueType file (its zlib error said nothing
+        // about the font)
+        const woff = await fs.readFile('./tests/fonts/noto naskh arabic subset.woff');
+        for (const length of [200, 1000, woff.length - 50]) {
+            let error = null;
+            try { await Image.renderText('hi', {font: woff.subarray(0, length), size: 16}); } catch (err) { error = err; }
+            if (!error || error.constructor !== Error || !error.message.startsWith('Font: ')) panic(`a WOFF cut to ${length} bytes: ${error}, expected a "Font: ..." Error`);
+        }
+    }
 })();
