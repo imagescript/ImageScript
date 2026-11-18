@@ -11,7 +11,8 @@ const out = path.join(root, 'docs');
 const typedoc = path.join(path.dirname(require.resolve('typedoc/package.json')), 'bin/typedoc');
 
 fs.rmSync(out, { recursive: true, force: true });
-execFileSync(process.execPath, [typedoc], { cwd: root, stdio: 'inherit' });
+// (arguments are typedoc's: the docs workflow links the sources of the released tag with --gitRevision)
+execFileSync(process.execPath, [typedoc, ...process.argv.slice(2)], { cwd: root, stdio: 'inherit' });
 
 const site = 'https://imagescript.dev/';
 const description = 'Pure TypeScript image processing that runs everywhere: Node.js, Deno, Bun, browsers and edge runtimes';
