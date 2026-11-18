@@ -264,10 +264,11 @@ export function variedFace(face: FontFace, query: FontQuery, fontSize: number): 
 
 /**
  * The face for a span: the first family that has faces (embedded ones before given ones; a generic family is the
- * first face fitting it and the faces of its family), else the first face's family
+ * first face fitting it and the faces of its family), else the family of `fallback` (the caller's first font, like a
+ * browser's default font; else the first face)
  */
-export function matchFont(fonts: FontFace[], query: FontQuery): FontFace | null {
-    if (!fonts.length) return null;
+export function matchFont(fonts: FontFace[], query: FontQuery, fallback: FontFace | undefined = fonts[0]): FontFace | null {
+    if (!fonts.length || !fallback) return null;
     const family = (name: string): FontFace[] => fonts.filter(f => f.families.includes(name));
     for (const name of query.families) {
         let candidates: FontFace[];
@@ -277,7 +278,7 @@ export function matchFont(fonts: FontFace[], query: FontQuery): FontFace | null 
         } else candidates = family(name);
         if (candidates.length) return bestMatch(candidates, query);
     }
-    return bestMatch(family(fonts[0].families[0]).length ? family(fonts[0].families[0]) : [fonts[0]], query);
+    return bestMatch(family(fallback.families[0]).length ? family(fallback.families[0]) : [fallback], query);
 }
 
 // a fallback face that has a grapheme's characters: not tried yet, of a compatible style (like usvg's)
@@ -999,11 +1000,11 @@ function rectPath(m: Matrix, x: number, y: number, w: number, h: number): PathCo
  * text-anchor, or along a path) and shifted to their baselines; its spans become outlines with their decorations
  * @returns null without fonts or anything to show
  */
-export function layOutText<S>(text: TextInput<S>, fonts: FontFace[]): TextOutput<S> | null {
+export function layOutText<S>(text: TextInput<S>, fonts: FontFace[], fallback: FontFace | undefined = fonts[0]): TextOutput<S> | null {
     if (!fonts.length) return null;
     const primary = new Map<SpanInput<S>, FontFace>();
     for (const chunk of text.chunks) for (const span of chunk.spans) {
-        const face = matchFont(fonts, span.font);
+        const face = matchFont(fonts, span.font, fallback);
         if (face) primary.set(span, variedFace(face, span.font, span.fontSize));
     }
 

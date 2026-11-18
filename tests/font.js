@@ -508,3 +508,19 @@ const panic = message => {
         }
     }
 })();
+
+// text without a font-family gets the first font of renderSVG's font option, also when the SVG embeds fonts of its own
+// (those are used for their family names, like browsers use them): it was the embedded font
+(async () => {
+    const sbix = await fs.readFile('./tests/fonts/sbix.ttf');
+    const other = (await fs.readFile('./tests/fonts/carbon phyber.ttf')).toString('base64');
+    const svg = style => `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="50">${style}<text x="0" y="40" font-size="30">\ue000</text></svg>`;
+    const red = image => {
+        let count = 0;
+        for (let i = 0; i < image.bitmap.length; i += 4) count += image.bitmap[i] > 200 && image.bitmap[i + 1] < 50 && image.bitmap[i + 3] > 200;
+        return count;
+    };
+    const alone = red(await Image.renderSVG(svg(''), {font: sbix}));
+    const embedded = red(await Image.renderSVG(svg(`<style>@font-face{font-family:Other;src:url(data:font/ttf;base64,${other})}</style>`), {font: sbix}));
+    if (!alone || embedded !== alone) panic(`text without a family next to an embedded font: ${embedded} red pixels of the caller's font, ${alone} without the embedded font`);
+})();

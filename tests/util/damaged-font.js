@@ -12,14 +12,17 @@ const fs = require('fs');
     // (U+E000 is the bitmap glyph of tests/fonts/sbix.ttf)
     const text = 'Hello ffi مرحبا 🙂 \u{1F600}\uFE0F 葛\u{E0100} \uE000';
     try {
-        if (via === 'option') {
+        if (via === 'option' || via === 'mixed') {
             let refused = false;
             try {
                 await Image.renderText(text, {font, size: 40});
             } catch {
                 refused = true;
             }
-            await Image.renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="50"><text x="0" y="40" font-size="30">${text}</text></svg>`, {font});
+            // (mixed: the SVG embeds a font of its own too, for another family: that mustn't change what the caller's
+            // damaged font gives)
+            const embedded = via === 'mixed' ? `<style>@font-face{font-family:Other;src:url(data:font/ttf;base64,${fs.readFileSync('./tests/fonts/carbon phyber.ttf').toString('base64')})}</style>` : '';
+            await Image.renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="50">${embedded}<text x="0" y="40" font-size="30">${text}</text></svg>`, {font});
             if (refused) return console.log('renderSVG used a font in its font option that renderText refuses');
         } else if (via === 'svg') {
             await Image.renderSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="50"><style>@font-face{font-family:X;src:url(data:font/ttf;base64,${Buffer.from(font).toString('base64')})}</style><text x="0" y="40" font-family="X" font-size="30">${text}</text></svg>`);

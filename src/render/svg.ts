@@ -1104,16 +1104,27 @@ class Document {
         const fonts = this.fonts;
         if (fonts.length) {
             try {
-                layout = layOutText(this.textInput(node, style, viewport, scale), fonts);
+                layout = layOutText(this.textInput(node, style, viewport, scale), fonts, this.given[0] ?? fonts[0]);
             } catch (err) {
-                // (damaged fonts: the text isn't shown, unless only the caller's fonts were used, whose damage is an
-                // error like in renderText)
+                // (damaged fonts: the text isn't shown, unless the damage is in the caller's fonts, an error like in
+                // renderText: the text is laid out with only those to tell)
                 if (!(err instanceof RangeError)) throw err;
-                if (!this.embedded.length && !(err instanceof LimitError)) throw damaged(err);
+                if (!(err instanceof LimitError) && this.given.length && this.givenFontsFail(node, style, viewport, scale)) throw damaged(err);
             }
         }
         this.texts.set(node, { style, width: viewport.width, height: viewport.height, scale, layout });
         return layout;
+    }
+
+    // whether laying out a text with only the caller's fonts runs into damage in them
+    private givenFontsFail(node: XNode, style: Style, viewport: Viewport, scale: number): boolean {
+        if (!this.embedded.length) return true;
+        try {
+            layOutText(this.textInput(node, style, viewport, scale), this.given);
+            return false;
+        } catch (err) {
+            return err instanceof RangeError && !(err instanceof LimitError);
+        }
     }
 
     // a text element as usvg reads it (crates/usvg/src/parser/text.rs and svgtree/text.rs): its characters with
