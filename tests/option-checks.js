@@ -148,6 +148,8 @@ const rejects = async (name, fn, Type) => {
         await rejects('gradient of 2 at NaN', () => Colors.gradient([0xff0000ff, 0x0000ffff])(NaN), RangeError);
         await rejects('gradient of 3 at NaN', () => Colors.gradient([0xff0000ff, 0x00ff00ff, 0x0000ffff])(NaN), RangeError);
         await rejects('gradient of 1 at NaN', () => Colors.gradient([0xff0000ff])(NaN), RangeError);
+        for (const stops of [[0xff0000ff], [0xff0000ff, 0x0000ffff], [0xff0000ff, 0x00ff00ff, 0x0000ffff]])
+            await rejects(`gradient of ${stops.length} at 'x'`, () => Colors.gradient(stops)('x'), TypeError);
 
         // colors blend premultiplied, like CSS: what fades out leaves no dark color behind
         const fade = Colors.gradient([0x00000000, 0xff0000ff]);

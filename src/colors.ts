@@ -255,6 +255,7 @@ export class Colors {
         };
 
         return position => {
+            checkPosition(position);
             if (position <= minDef) return gradients[0].gradient(0);
             if (position >= maxDef) return gradients[gradients.length - 1].gradient(1);
 
