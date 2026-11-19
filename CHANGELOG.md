@@ -187,6 +187,19 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `renderSVG()` bounds the work of filters: their primitives may work on 2^25 pixels plus 16 per pixel of the output in one render (once per pass: an `feConvolveMatrix` per 9 taps of its kernel, an `feTurbulence` per octave, an `feMerge` per node), more throws a `LimitError`; a filter's region counts against `maxLayerPixels` like the other layers (one of more than 2^26 pixels was left out without a word) (600 blurs and morphologies over a megapixel, 37 KB of SVG, took more than 3 GB and minutes), and the results a filter keeps for `result=` references count against `maxLayerPixels`.
 - `renderSVG()` parses `transform` lists in linear time: a long list of unclosed functions took 4.8 s at 280 KB.
 
+## 3.20.4
+
+### Deprecated
+
+The deprecation hints now lead to the names 4.0 uses, and 3.x takes those names already. 4.0 ignores an option it
+doesn't know, so code that followed the earlier hints (`cropCircle({ size: 'cover' })`) would have changed its output
+there without an error:
+
+- **`cropCircle({ fit })`**: the `size` option is deprecated, `fit` is its name in 4.0. The hint of `cropCircle(max, feathering)` and of the `max` option now names `fit`.
+- **`Image.renderSVG(svg, { width })`, `{ height }` and `{ scale }`**: the `size` and `mode` options (and `SVGScaleMode`, `SVGScaleModes`) are deprecated, these are their names in 4.0. Only one of the three can be given. **`{ font }`** (one font or an array) is the 4.0 name of `fonts`, which is deprecated. `RenderSVGOptions` is the 4.0 name of `SVGOptions`.
+- **`new GainMap(image, { min, max })`** and **`map.min`**, **`map.max`**: the 4.0 names of `gainMapMin` and `gainMapMax`, which are deprecated.
+- **`ResizeModes`**, **`FrameDisposalModes`** and the constants `Image.RESIZE_*`, `Frame.DISPOSAL_*` and `Image.SVG_MODE_*` point to the names 4.0 uses (`'bicubic'`, `'background'`, `{ width }`): 4.0 removes the classes too. `FrameDisposalMode` is the 4.0 name of `FrameDisposalModeName`.
+
 ## 3.20.3
 
 ### Deprecated
