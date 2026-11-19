@@ -200,9 +200,12 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
     // (the work scales with the output: a filter on every pixel of it takes a primitive's worth of work per pixel)
     filterWorkLeft = MAX_FILTER_WORK + FILTER_WORK_PER_PIXEL * outWidth * outHeight;
     paintLeft = MAX_PAINT + PAINT_PER_PIXEL * outWidth * outHeight;
-    pointsLeft = MAX_POINTS + POINTS_PER_PIXEL * outWidth * outHeight;
-    const previousPaths = parsedPaths;
+    const previousPaths = parsedPaths, previousCached = cachedCommands;
+    // (a nested render, of an SVG embedded as an image, takes its points from the render it is in)
+    if (!previousPaths) pointsLeft = MAX_POINTS + POINTS_PER_PIXEL * outWidth * outHeight;
     parsedPaths = new Map();
+    // (a nested render, of an SVG embedded as an image, shares the allowance: the outer paths stay kept meanwhile)
+    if (!previousPaths) cachedCommands = 0;
     try {
         const canvas = new Layer(outWidth, outHeight);
         // (a transform on the root element (SVG 2) applies before the viewBox mapping)
@@ -213,8 +216,9 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         crossingsLeft = previousCrossings;
         filterWorkLeft = previousFilterWork;
         paintLeft = previousPaint;
-        pointsLeft = previousPoints;
+        if (!previousPaths) pointsLeft = previousPoints;
         parsedPaths = previousPaths;
+        cachedCommands = previousCached;
     }
 }
 
@@ -1130,8 +1134,10 @@ class Document {
             } catch (err) {
                 // (damaged fonts: the text isn't shown, unless the damage is in the caller's fonts, an error like in
                 // renderText: the text is laid out with only those to tell)
-                if (!(err instanceof RangeError)) throw err;
-                if (!(err instanceof LimitError) && this.given.length && this.givenFontsFail(node, style, viewport, scale)) throw damaged(err);
+                // (a LimitError of the render's budgets, a textPath's for one, ends the render: it was taken for damage
+                // and only hid the text, to be laid out again for each copy)
+                if (!(err instanceof RangeError) || err instanceof LimitError) throw err;
+                if (this.given.length && this.givenFontsFail(node, style, viewport, scale)) throw damaged(err);
             }
         }
         this.texts.set(node, { style, width: viewport.width, height: viewport.height, scale, layout });
@@ -1364,6 +1370,9 @@ class Document {
         const target = this.reference(this.href(node));
         const raw = target ? shapePath(target, viewport, fontSize) : null;
         if (!target || !raw || !raw.length) return null;
+        // (the text is placed along the path, measured for each copy drawn through <use>: a command takes about the time
+        // of flattening 16 points, measuring its length to place the glyphs)
+        pointCounter()(16 * raw.length);
         const m = target.attrs.transform ? originTransform(target.attrs.transform, target.attrs['transform-origin'], viewport) : null;
         const path = m ? raw.map(c => [c[0], ...transformPoints(c.slice(1) as number[], m)] as PathCommand) : raw;
         const offset = (node.attrs.startOffset ?? '').trim();
@@ -1498,7 +1507,8 @@ class Document {
         const layout = this.textOf(node, style, viewport);
         if (!layout) return null;
         const path: PathCommand[] = [];
-        for (const span of layout.spans) if (span.visible) for (const part of [...span.before, { path: span.glyphs }, ...span.after]) path.push(...part.path);
+        // (loops, not spreads: long text has more commands than a call takes arguments)
+        for (const span of layout.spans) if (span.visible) for (const part of [...span.before, { path: span.glyphs }, ...span.after]) for (const command of part.path) path.push(command);
         return path.length ? path : null;
     }
 
@@ -3308,11 +3318,14 @@ function shapePath(node: XNode, viewport: Viewport, fontSize: number): PathComma
 
     switch (node.name) {
         case 'path': {
-            // (read once a render: a path drawn through <use> was read again for each copy; the commands aren't changed)
+            // (read once a render: a path drawn through <use> was read again for each copy; the commands aren't changed.
+            // The paths kept are at most MAX_CACHED_COMMANDS commands together: more are read each time)
             const d = node.attrs.d || '';
-            let path = parsedPaths?.get(d);
-            if (!path) parsedPaths?.set(d, path = parsePath(d));
-            return path ?? parsePath(d);
+            const cached = parsedPaths?.get(d);
+            if (cached) return cached;
+            const path = parsePath(d);
+            if (parsedPaths && (cachedCommands += path.length) <= MAX_CACHED_COMMANDS) parsedPaths.set(d, path);
+            return path;
         }
 
         case 'rect': {
@@ -3386,8 +3399,10 @@ function shapePath(node: XNode, viewport: Viewport, fontSize: number): PathComma
 // path (its points are in memory at once). What is left of it in the render that runs
 const MAX_POINTS = 2 ** 25, POINTS_PER_PIXEL = 4, MAX_PATH_POINTS = 2 ** 21;
 let pointsLeft = Infinity;
-// the paths read in the render that runs, by their path data
-let parsedPaths: Map<string, PathCommand[]> | null = null;
+// the paths read in the render that runs, by their path data, and how many commands they hold (at most 2^20, about 100
+// MB: the paths of SVGs embedded as images are kept while they render, too)
+let parsedPaths: Map<string, PathCommand[]> | null = null, cachedCommands = 0;
+const MAX_CACHED_COMMANDS = 2 ** 20;
 
 /** counts the points of one path against the render's budget and the limit of a path */
 function pointCounter(): (points: number) => void {
@@ -3412,6 +3427,9 @@ function parsePath(d: string): PathCommand[] {
         end = m.index + m[0].length;
         items.push(m[1] ? { command: m[1] } : m[2]);
     }
+    // (reading takes about the time of flattening 2 points a number or command: it counts against the render's points,
+    // so a path read again and again, the copies of one not kept, or many different ones, is bounded like its points)
+    if ((pointsLeft -= 2 * items.length) < 0) pointCounter()(0);
 
     let i = 0;
     let command: string | null = null;

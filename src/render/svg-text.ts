@@ -83,6 +83,11 @@ function names(font: Font, ids: number): string[] {
  * the generic families its OS/2 and post tables say it fits. Null for a font that can't be read, as browsers leave out
  * such a font of an SVG
  */
+/** appends items to an array (a loop, not a spread: long text has more glyphs than a call takes arguments) */
+function append<T>(target: T[], items: readonly T[]): void {
+    for (const item of items) target.push(item);
+}
+
 export function fontFace(data: Uint8Array, descriptors?: { family?: string, weight?: number, style?: FontStyle }): FontFace | null {
     let font: Font;
     try {
@@ -538,7 +543,7 @@ function shapeChunk<S>(chunk: ChunkInput<S>, fonts: FontFace[], primary: Map<Spa
         const level = levelAt(i);
         let j = i + 1;
         while (j < n && (levels[j] < 0 || levels[j] === level)) j++;
-        script.push(...scripts(cps.slice(i, j)));
+        append(script, scripts(cps.slice(i, j)));
         i = j;
     }
     last = 0;
@@ -588,7 +593,7 @@ function shapeChunk<S>(chunk: ChunkInput<S>, fonts: FontFace[], primary: Map<Spa
         const shaped = shape(base);
         const faces = new Set(faceOf.slice(rs, re));
         if (faces.size === 1) {
-            glyphs.push(...shaped);
+            append(glyphs, shaped);
             continue;
         }
         // every cluster from its span's face: that face's glyphs for the cluster's characters (none if they're in a
@@ -600,12 +605,12 @@ function shapeChunk<S>(chunk: ChunkInput<S>, fonts: FontFace[], primary: Map<Spa
             while (j < shaped.length && shaped[j].cluster === shaped[i].cluster) j++;
             const c = shaped[i].cluster, end = starts.find(v => v > c) ?? re;
             const other = faceOf[c] && others.get(faceOf[c]);
-            if (!other) glyphs.push(...shaped.slice(i, j));
+            if (!other) append(glyphs, shaped.slice(i, j));
             else {
                 const own = other.filter(g => g.cluster >= c && g.cluster < end);
                 const before = other.reduce((m, g) => g.cluster <= c ? Math.max(m, g.cluster) : m, -1);
-                if (own.length) glyphs.push(...own);
-                else if (!(before >= 0 && before < c)) glyphs.push(...shaped.slice(i, j));
+                if (own.length) append(glyphs, own);
+                else if (!(before >= 0 && before < c)) append(glyphs, shaped.slice(i, j));
             }
             i = j;
         }

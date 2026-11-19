@@ -8,7 +8,7 @@ const fs = require('fs');
     const svg = fs.readFileSync(process.argv[2], 'utf8');
     let result = 'ok';
     try {
-        await Image.renderSVG(svg, {width: 50});
+        await Image.renderSVG(svg, {...(/width="10"/.test(svg) ? {maxPixels: 100} : {width: 50}), font: fs.readFileSync('./tests/fonts/resvg/NotoSans-Regular.ttf')});
     } catch (error) {
         result = `${error.name}: ${error.message}`;
     }
