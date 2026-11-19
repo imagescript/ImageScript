@@ -200,10 +200,10 @@ export class Colors {
      * @return The gradient generator. The function argument is the position in the gradient (0..1).
      */
     static gradient(stops: Record<number, Color> | Color[]): (position: number) => Color {
-        if (typeof stops !== 'object' || stops === null) throw new TypeError(`gradient() takes an array of colors or an object of positions and colors, not ${shown(stops)}`);
+        if (typeof stops !== 'object' || stops === null) throw new TypeError(`Colors.gradient() takes an array of colors or an object of positions and colors, not ${shown(stops)}`);
         let colors: Record<number, Color>;
         if (Array.isArray(stops)) {
-            if (!stops.length) throw new RangeError('gradient() takes at least one color, not 0');
+            if (!stops.length) throw new RangeError('Colors.gradient() takes at least one color, not 0');
             // (one color is a gradient of two equal ones)
             const list = stops.length === 1 ? [stops[0], stops[0]] : stops;
             colors = Object.fromEntries(list.map((color, i) => [i / (list.length - 1), color]));
@@ -212,7 +212,7 @@ export class Colors {
         const positions = entries.map(e => finite(parseFloat(e[0]), 'gradient position'));
         const values = entries.map(e => checkColor(e[1]));
 
-        if (positions.length === 0) throw new RangeError('gradient() takes at least one color, not 0');
+        if (positions.length === 0) throw new RangeError('Colors.gradient() takes at least one color, not 0');
         else if (positions.length === 1) {
             return position => {
                 checkPosition(position);

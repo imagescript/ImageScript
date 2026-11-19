@@ -9,7 +9,7 @@ const panic = message => {
 // A value outside of what an argument takes throws a RangeError that says which argument, what it takes, and which
 // value it got: `<name> must be <what it takes>, not <value>` (or `<name> must have <count>, not <count>`, or `<name>
 // takes <what>, not <value>`). Only that shape is checked here, the wording of each message is free
-const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
+const shape = /^[\w(). ]+ (must be|must have|takes) .+, not .+$/;
 
 (async () => {
     const font = fs.readFileSync('./tests/fonts/carbon phyber.ttf');
@@ -105,7 +105,7 @@ const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
     for (const [name, fn, start] of [
         ['image.scale(2 ** 31)', () => image().scale(2 ** 31), 'scale factor'],
         ['animation.scale(2 ** 31)', () => new Animation([new Frame(image())]).scale(2 ** 31), 'scale factor'],
-        ['radialGradient without stops', () => Image.radialGradient(1e6, 1e6, {stops: []}), 'gradient()']
+        ['radialGradient without stops', () => Image.radialGradient(1e6, 1e6, {stops: []}), 'Colors.gradient()']
     ]) {
         try {
             fn();
@@ -137,7 +137,10 @@ const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
         ['creationTime object', () => image().encodePNG({metadata: {creationTime: {}}}), /, not an object$/],
         ['creationTime array', () => image().encodePNG({metadata: {creationTime: []}}), /, not an array$/],
         // a cut string keeps whole characters (no lone half of a surrogate pair)
-        // statics are named with their class, like Image.decode()
+        // statics are named with their class, like Image.decode(), and constructors' examples use new
+        ['Colors.gradient', () => Colors.gradient(5), /^Colors\.gradient\(\) takes/],
+        ['Frame options', () => new Frame(image(), 5), /^Frame\(\) takes an options object, like new Frame\(/],
+        ['Animation options', () => new Animation([], 5), /^Animation\(\) takes an options object, like new Animation\(/],
         ['renderSVG options', () => Image.renderSVG('<svg/>', 5), /^Image\.renderSVG\(\) takes an options object.*, not 5$/],
         ['renderText options', () => Image.renderText('A', 5), /^Image\.renderText\(\) takes an options object.*, not 5$/],
         ['renderText text', () => Image.renderText(5, {}), /^Image\.renderText\(\) takes the text as a string.*, not 5$/],

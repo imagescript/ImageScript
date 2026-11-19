@@ -496,9 +496,11 @@ export interface SVGResourceOptions {
      * about 90 bytes per pixel of `maxPixels` (64 for the layers, up to 20 for the images, 4 for the output): lower
      * `maxPixels` to bound it for untrusted SVGs.
      *
-     * Two limits on the work of a render don't depend on these options, and grow with the size of the output (so
+     * Three limits on the work of a render don't depend on these options, and grow with the size of the output (so
      * lowering `maxPixels` is what bounds them too). Each throws a {@link LimitError} when exceeded:
      * - Painting: shapes and layers may paint 2²⁸ pixels plus 64 per pixel of the output
+     * - Paths: all paths together may be made of 2²⁵ points plus 4 per pixel of the output (curves flattened, each
+     *   copy drawn through `<use>` counted), one path of 2²¹
      * - Filters: all the filters' primitives together may work on 2²⁵ pixels plus 16 per pixel of the output (a
      *   primitive counts its region's pixels once per pass: an `feConvolveMatrix` per 9 taps of its kernel, an
      *   `feTurbulence` per octave, an `feMerge` per node)

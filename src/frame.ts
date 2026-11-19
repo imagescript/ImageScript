@@ -80,7 +80,7 @@ export class Frame {
     constructor(image: Image, options?: FrameOptions);
     constructor(image: Image, options: FrameOptions = {}) {
         if (!(image instanceof Image)) throw new TypeError('A frame takes an Image, like new Frame(image, { duration: 100 })');
-        checkOptions(options, 'Frame(image, { duration: 100 })');
+        checkOptions(options, 'new Frame(image, { duration: 100 })');
         const { duration = 100, xOffset: x = 0, yOffset: y = 0, disposalMode: disposal = 'keep' } = options;
         this.__image__ = image;
         this.duration = duration;

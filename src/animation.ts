@@ -120,7 +120,7 @@ export class Animation {
      */
     constructor(frames: Frame[], options?: AnimationCanvasOptions);
     constructor(frames: Frame[], options: AnimationCanvasOptions = {}) {
-        checkOptions(options, 'Animation(frames, { loopCount: 2 })');
+        checkOptions(options, 'new Animation(frames, { loopCount: 2 })');
         const { loopCount: count = Infinity, width, height } = options;
         const loops = loopCount(count);
         if ((width === undefined) !== (height === undefined)) throw new TypeError('Animation() takes both a canvas width and height, or neither');

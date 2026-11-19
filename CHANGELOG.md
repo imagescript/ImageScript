@@ -136,7 +136,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### Fixes
 
-- `renderSVG()` bounds the curves an arc between far-apart ends is drawn with and the points paths flatten to: a 139-byte path (`M 1e25 100 A 40 30 20 1 1 160 100`, stroked) ran the process out of memory. Too many points throw a `LimitError`.
+- `renderSVG()` bounds the points paths are made of: an arc between far-apart ends is drawn with at most 64 curves a turn (a 139-byte path, `M 1e25 100 A 40 30 20 1 1 160 100`, stroked, ran the process out of memory), and the curves of arcs and the points of all paths, also of each copy drawn through `<use>`, count against 2^25 points plus 4 per pixel of the output in one render and 2^21 in one path. More throw a `LimitError`. A path drawn through `<use>` is read once a render instead of once a copy.
 - `encodeJPEG()` and `encodeWebP()` check the image's size before going over its pixels; `metadata.creationTime` of another type than a `Date`, a number or a string throws a `TypeError` (`true` was 1970).
 - `Colors.gradient()` has the later stop's color at every hard edge (two stops at one position), like CSS, also inside the gradient and with 2 stops.
 - `encodeJPEG()` of an image with transparency composites it onto the background row by row instead of copying the image first: the peak memory of a 6000x6000 image is 378 MB instead of 485 MB, the same as without transparency, and the file is the same (images with a gain map still take the copy).
