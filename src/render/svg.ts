@@ -201,6 +201,8 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
     filterWorkLeft = MAX_FILTER_WORK + FILTER_WORK_PER_PIXEL * outWidth * outHeight;
     paintLeft = MAX_PAINT + PAINT_PER_PIXEL * outWidth * outHeight;
     pointsLeft = MAX_POINTS + POINTS_PER_PIXEL * outWidth * outHeight;
+    const previousPaths = parsedPaths;
+    parsedPaths = new Map();
     try {
         const canvas = new Layer(outWidth, outHeight);
         // (a transform on the root element (SVG 2) applies before the viewBox mapping)
@@ -212,6 +214,7 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         filterWorkLeft = previousFilterWork;
         paintLeft = previousPaint;
         pointsLeft = previousPoints;
+        parsedPaths = previousPaths;
     }
 }
 
@@ -3304,8 +3307,13 @@ function shapePath(node: XNode, viewport: Viewport, fontSize: number): PathComma
     const length = (name: string, axis: 'x' | 'y' | 'diagonal', fallback = 0): number => node.attrs[name] === undefined ? fallback : parseLength(node.attrs[name], viewport, fontSize, axis);
 
     switch (node.name) {
-        case 'path':
-            return parsePath(node.attrs.d || '');
+        case 'path': {
+            // (read once a render: a path drawn through <use> was read again for each copy; the commands aren't changed)
+            const d = node.attrs.d || '';
+            let path = parsedPaths?.get(d);
+            if (!path) parsedPaths?.set(d, path = parsePath(d));
+            return path ?? parsePath(d);
+        }
 
         case 'rect': {
             const x = length('x', 'x'), y = length('y', 'y');
@@ -3372,8 +3380,29 @@ function shapePath(node: XNode, viewport: Viewport, fontSize: number): PathComma
     return null;
 }
 
+// the most points paths may be made of and flattened to in one render: 2^25 and 4 per pixel of the output (a curve
+// gets up to 512, an arc up to 64 curves a turn, and a path drawn through <use> is read and flattened again for each
+// copy, so huge curves far outside the image took gigabytes, and lines drawn without paint minutes), and 2^21 in one
+// path (its points are in memory at once). What is left of it in the render that runs
+const MAX_POINTS = 2 ** 25, POINTS_PER_PIXEL = 4, MAX_PATH_POINTS = 2 ** 21;
+let pointsLeft = Infinity;
+// the paths read in the render that runs, by their path data
+let parsedPaths: Map<string, PathCommand[]> | null = null;
+
+/** counts the points of one path against the render's budget and the limit of a path */
+function pointCounter(): (points: number) => void {
+    let pathPoints = 0;
+    return points => {
+        pathPoints += points;
+        if ((pointsLeft -= points) < 0 || pathPoints > MAX_PATH_POINTS)
+            throw new LimitError(`SVG too complex: its paths are made of more points than a render of this size allows (${MAX_PATH_POINTS} in a path, ${MAX_POINTS} and ${POINTS_PER_PIXEL} per output pixel in all)`);
+    };
+}
+
 function parsePath(d: string): PathCommand[] {
     const path: PathCommand[] = [];
+    // (the curves of arcs count, before they are made: an arc between far-apart ends was 1024 curves a turn)
+    const count = pointCounter();
     // numbers stay strings so compact arc flags can be split later
     const items: Array<string | { command: string }> = [];
     // (anything but separators between the tokens ends the path data there)
@@ -3482,7 +3511,7 @@ function parsePath(d: string): PathCommand[] {
             const large = flag(), sweep = flag();
             const nx = number() + ox, ny = number() + oy;
             if ([rx, ry, rotation, large, sweep, nx, ny].some(isNaN)) return path;
-            arcToCubics(path, x, y, rx, ry, rotation, large, sweep, nx, ny);
+            arcToCubics(path, x, y, rx, ry, rotation, large, sweep, nx, ny, count);
             x = nx;
             y = ny;
         } else return path;
@@ -3494,7 +3523,7 @@ function parsePath(d: string): PathCommand[] {
 }
 
 // SVG implementation notes F.6.5: endpoint to center parameterization, split into <= 90 degree cubic segments
-function arcToCubics(path: PathCommand[], x1: number, y1: number, rx: number, ry: number, rotation: number, large: number, sweep: number, x2: number, y2: number): void {
+function arcToCubics(path: PathCommand[], x1: number, y1: number, rx: number, ry: number, rotation: number, large: number, sweep: number, x2: number, y2: number, count: (points: number) => void = () => {}): void {
     if (x1 === x2 && y1 === y2) return;
     rx = Math.abs(rx);
     ry = Math.abs(ry);
@@ -3534,10 +3563,12 @@ function arcToCubics(path: PathCommand[], x1: number, y1: number, rx: number, ry
     else if (sweep && delta < 0) delta += 2 * Math.PI;
 
     // as many cubics as kurbo makes for usvg (at a tolerance of 0.1), which places mid markers at their ends
-    // (at most 1024 a turn, from a radius of about 1e17: an arc between far-apart ends gets a radius of half their
-    // distance, and the count grew with it without a limit)
-    const perTurn = Math.min(Math.max(Math.pow(1.1163 * Math.max(rx, ry) / 0.1, 1 / 6), 3.999999), 1024);
+    // (at most 64 a turn, from a radius of about 6e9, more than any output resolves: an arc between far-apart ends gets
+    // a radius of half their distance, and the count grew with it without a limit)
+    const perTurn = Math.min(Math.max(Math.pow(1.1163 * Math.max(rx, ry) / 0.1, 1 / 6), 3.999999), 64);
     const segments = Math.max(1, Math.ceil(perTurn * Math.abs(delta) / (2 * Math.PI)));
+    // (a curve's command takes the memory of about 4 points)
+    count(4 * segments);
     const step = delta / segments;
     const k = 4 / 3 * Math.tan(step / 4);
 
@@ -3554,19 +3585,9 @@ function arcToCubics(path: PathCommand[], x1: number, y1: number, rx: number, ry
     }
 }
 
-// the most points paths may be flattened to in one render: 2^25 and 4 per pixel of the output (a curve gets up to 512,
-// so huge curves far outside the image took gigabytes), and 2^22 in one path (its points are in memory at once)
-const MAX_POINTS = 2 ** 25, POINTS_PER_PIXEL = 4, MAX_PATH_POINTS = 2 ** 22;
-let pointsLeft = Infinity;
-
 // flattens path commands into polylines: [{points: [x, y, ...], closed}]
 function flatten(path: PathCommand[], tolerance: number): Subpath[] {
-    let pathPoints = 0;
-    const count = (points: number): void => {
-        pathPoints += points;
-        if ((pointsLeft -= points) < 0 || pathPoints > MAX_PATH_POINTS)
-            throw new LimitError(`SVG too complex: its paths flatten to more points than a render of this size allows (${MAX_PATH_POINTS} in a path, ${MAX_POINTS} and ${POINTS_PER_PIXEL} per output pixel in all)`);
-    };
+    const count = pointCounter();
     const subpaths: Subpath[] = [];
     let current: Subpath | null = null;
     let x = 0, y = 0, sx = 0, sy = 0;
@@ -3582,9 +3603,11 @@ function flatten(path: PathCommand[], tolerance: number): Subpath[] {
             case 'M':
                 x = sx = command[1];
                 y = sy = command[2];
+                count(1);
                 current = start(x, y);
                 break;
             case 'L':
+                count(1);
                 if (!current) current = start(x, y);
                 x = command[1];
                 y = command[2];

@@ -23,7 +23,16 @@ const cases = {
     'arc from 1e300': svg('<path d="M 1e300 100 A 40 30 20 1 1 160 100" fill="none" stroke="gray"/>'),
     'arc of radius 1e300': svg('<path d="M 10 10 A 1e300 1e300 0 1 1 20 20" fill="none" stroke="gray"/>'),
     '1000 arcs between 1e12 and -1e12': svg(`<path d="${many}" fill="none" stroke="red"/>`),
-    'circle of radius 1e30': svg('<circle cx="100" cy="100" r="1e30" fill="none" stroke="red"/>')
+    'circle of radius 1e30': svg('<circle cx="100" cy="100" r="1e30" fill="none" stroke="red"/>'),
+    // many such arcs in one path: their curves were made while the path was read, before any budget counted them
+    '20000 arcs between 1e30 and -1e30': svg(`<path d="M -1e30 100${Array.from({length: 20000}, (_, i) => i & 1 ? 'A1 1 0 1 1-1e30 100' : 'A1 1 0 1 1 1e30 100').join('')}"/>`),
+    '100000 arcs between 1e12 and -1e12': svg(`<path d="M -1e12 100${Array.from({length: 100000}, (_, i) => i & 1 ? 'A1 1 0 1 1-1e12 100' : 'A1 1 0 1 1 1e12 100').join('')}" fill="none" stroke="red"/>`),
+    // a path of lines only, drawn 90000 times through <use> without painting anything: no budget counted its points
+    'lines through use': (() => {
+        let defs = `<path id="g0" d="M0 0${'h1h-1'.repeat(50000)}" fill="none"/>`;
+        for (let i = 1; i <= 4; i++) defs += `<g id="g${i}">${`<use href="#g${i - 1}"/>`.repeat(10)}</g>`;
+        return `<svg viewBox="0 0 10 10" width="10" height="10" ${NS}><defs>${defs}</defs>${'<use href="#g4"/>'.repeat(9)}</svg>`;
+    })()
 };
 const [command, ...flags] = typeof Deno !== 'undefined' ? [process.execPath, 'run', '-A', '--v8-flags=--max-old-space-size=1024'] : [process.execPath, ...(process.versions.bun ? [] : ['--max-old-space-size=1024'])];
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'svg-arcs-'));
@@ -34,7 +43,7 @@ try {
         const begin = Date.now();
         let output;
         try {
-            output = JSON.parse(child_process.execFileSync(command, [...flags, './tests/util/render-svg.js', file], {timeout: 60000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']}).trim());
+            output = JSON.parse(child_process.execFileSync(command, [...flags, './tests/util/render-svg.js', file], {timeout: 60000, maxBuffer: 1 << 24, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']}).trim());
         } catch (error) {
             panic(`${name}: ${error.signal === 'SIGTERM' ? 'hung for 60 s' : `crashed (${error.signal || `exit ${error.status}`})`}`);
         }
