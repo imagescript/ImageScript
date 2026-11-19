@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.20.5
+
+### Fixes
+
+- **`Image.renderSVG()`** bounds the points paths are made of. An arc between far-apart ends gets a radius of half their distance and was drawn with as many curves as that radius took: a 139-byte path (`M 1e25 100 A 40 30 20 1 1 160 100`, stroked) ran the process out of memory. An arc now gets at most 64 curves a turn (from a radius of about 6e9, more than any output resolves), and the points of all paths (path data read, curves flattened, also of each copy drawn through `<use>`) count against 2^25 plus 4 per pixel of the output in one render, and 2^21 in one path (a text's glyphs excepted). More throw a `RangeError` ("SVG too complex").
+
 ## 3.20.4
 
 ### Deprecated
