@@ -262,6 +262,10 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
     // the pixels bitmap glyphs may be decoded and scaled to: 2^28 and 64 per pixel of the image, like the paint of an
     // SVG (1000 glyphs of 2048x2048 without advance took 39 s for a 32x1 image)
     const budget = { left: 2 ** 28 + 64 * width * height, image: width * height };
+    // the bitmap glyphs scaled in this render, by glyph, at most 2^22 pixels of them (16 MB): kept with the font, those of
+    // 64 glyphs from a strike at ppem 1 took 1 GB a size, and were never given back
+    const scaled = new Map<Glyph, ColorBitmap | null>();
+    let scaledPixels = 0;
 
     for (const [n, line] of visible.entries()) {
         const align = layout.horizontalAlign ?? (line.rtl ? 'right' : 'left');
@@ -283,10 +287,18 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
                 if ('bitmap' in g.color) subpixel = 0;
                 const key = 'bitmap' in g.color ? '0' : `${subpixel}:${foreground}`;
                 let bitmap = g.colors.get(key);
-                if (bitmap === undefined) g.colors.set(key, bitmap = 'bitmap' in g.color
-                    ? await scaledBitmap(g.color.bitmap, size / g.color.bitmap.ppem, budget)
-                    : 'layers' in g.color ? layeredGlyph(g, g.color.layers, subpixel / SUBPIXELS, foreground)
-                        : paintedGlyph(g, subpixel / SUBPIXELS, foreground));
+                if ('bitmap' in g.color) {
+                    bitmap = scaled.get(g);
+                    if (bitmap === undefined) {
+                        bitmap = await scaledBitmap(g.color.bitmap, size / g.color.bitmap.ppem, budget);
+                        const pixels = bitmap ? bitmap.width * bitmap.height : 0;
+                        if (scaledPixels + pixels <= 2 ** 22) {
+                            scaledPixels += pixels;
+                            scaled.set(g, bitmap);
+                        }
+                    }
+                } else if (bitmap === undefined) g.colors.set(key, bitmap = 'layers' in g.color ? layeredGlyph(g, g.color.layers, subpixel / SUBPIXELS, foreground)
+                    : paintedGlyph(g, subpixel / SUBPIXELS, foreground));
                 if (bitmap) blitColor(color ??= new Uint8ClampedArray(width * height * 4), width, height, bitmap, pixel + bitmap.left, y - bitmap.top);
                 continue;
             }
