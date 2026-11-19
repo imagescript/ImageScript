@@ -3087,7 +3087,7 @@ export class Image {
      */
     static renderSVG(svg: string | BinaryData, options?: RenderSVGOptions): Promise<Image>;
     static async renderSVG(svg: string | BinaryData, options: RenderSVGOptions = {}): Promise<Image> {
-        checkOptions(options, 'renderSVG(svg, { width: 512 })');
+        checkOptions(options, 'Image.renderSVG(svg, { width: 512 })');
         const { width: givenWidth, height: givenHeight, scale, maxPixels = MAX_PIXELS, font: fonts = [], images: givenImages = {} } = options;
         pixelLimit(maxPixels);
         const { maxLayerPixels = 4 * maxPixels, maxImagePixels = maxPixels } = options;
@@ -3171,8 +3171,9 @@ export class Image {
      *     allocated)
      */
     static async renderText(text: string, options: RenderTextOptions): Promise<Image> {
-        if (typeof text !== 'string' || !isOptions(options)) throw new TypeError('renderText() takes the text and an options object, like renderText(\'Hello\', { font, size: 32 })');
-        if (options.font === undefined) throw new TypeError('renderText(text, options) needs the font in the options');
+        if (typeof text !== 'string') throw new TypeError(`Image.renderText() takes the text as a string, like Image.renderText('Hello', { font, size: 32 }), not ${shown(text)}`);
+        if (!isOptions(options)) throw new TypeError(`Image.renderText() takes an options object, like Image.renderText('Hello', { font, size: 32 }), not ${options === undefined ? 'undefined' : shown(options)}`);
+        if (options.font === undefined) throw new TypeError('Image.renderText(text, options) needs the font in the options');
         const { font, color = 0xffffffff, strokeWidth = 0, strokeColor = 0x000000ff, hinting = true, features = {}, variations = {}, maxPixels = MAX_PIXELS } = options;
         pixelLimit(maxPixels);
         boolean(hinting, 'hinting');

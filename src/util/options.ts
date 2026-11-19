@@ -3,7 +3,11 @@ export function shown(value: unknown): string {
     if (value === null) return 'null';
     if (Array.isArray(value)) return 'an array';
     // (a long string is cut: a message shouldn't carry the megabytes someone passed by mistake)
-    if (typeof value === 'string') return value.length > 40 ? `'${value.slice(0, 40)}...'` : `'${value}'`;
+    // (40 characters, not UTF-16 units: a cut through a surrogate pair would leave half a character)
+    if (typeof value === 'string') {
+        const characters = Array.from(value.length > 80 ? value.slice(0, 82) : value);
+        return characters.length > 40 ? `'${characters.slice(0, 40).join('')}...'` : `'${value}'`;
+    }
     if (typeof value === 'number') return String(value);
     if (typeof value === 'object') return 'an object';
     return typeof value;

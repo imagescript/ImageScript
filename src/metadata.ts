@@ -85,6 +85,11 @@ export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
     const { creationTime, software } = metadata;
     const resolved: ResolvedMetadata = {};
     if (creationTime !== undefined && creationTime !== null) {
+        // (other types than these were turned into a date anyway: true was 1970)
+        if (!(creationTime instanceof Date) && typeof creationTime !== 'number' && typeof creationTime !== 'string') {
+            // eslint-disable-next-line no-restricted-syntax -- the one date in the options
+            throw new TypeError(`creationTime must be a Date, a number or a string, not ${typeof creationTime === 'object' ? shown(creationTime) : typeof creationTime}`);
+        }
         const time = new Date(creationTime);
         // eslint-disable-next-line no-restricted-syntax -- the one date in the options
         if (isNaN(time.getTime())) throw new RangeError(`creationTime must be a date, a timestamp or a date string, not ${shown(creationTime)}`);

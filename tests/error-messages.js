@@ -131,6 +131,17 @@ const shape = /^[\w() ]+ (must be|must have|takes) .+, not .+$/;
         ['font feature value', () => Image.renderText('A', {font, size: 20, features: {liga: 'x'}}), /not 'x'$/],
         ['font variation value', () => Image.renderText('A', {font, size: 20, variations: {wght: 'x'}}), /not 'x'$/],
         ['resize(null)', () => image().resize(null), /^resize\(\)/],
+        // a creation time is a Date, a timestamp or a string: other types throw a TypeError, not a RangeError (and
+        // true isn't 1970)
+        ['creationTime true', () => image().encodePNG({metadata: {creationTime: true}}), /^creationTime must be a Date, a number or a string, not boolean$/],
+        ['creationTime object', () => image().encodePNG({metadata: {creationTime: {}}}), /, not an object$/],
+        ['creationTime array', () => image().encodePNG({metadata: {creationTime: []}}), /, not an array$/],
+        // a cut string keeps whole characters (no lone half of a surrogate pair)
+        // statics are named with their class, like Image.decode()
+        ['renderSVG options', () => Image.renderSVG('<svg/>', 5), /^Image\.renderSVG\(\) takes an options object.*, not 5$/],
+        ['renderText options', () => Image.renderText('A', 5), /^Image\.renderText\(\) takes an options object.*, not 5$/],
+        ['renderText text', () => Image.renderText(5, {}), /^Image\.renderText\(\) takes the text as a string.*, not 5$/],
+        ['cut string', () => Image.decode('x'.repeat(39) + '\u{1F600}' + 'x'.repeat(10)), /not 'x{39}\u{1F600}\.\.\.'$/u],
         // the options check names the method, not its receiver
         ['encodeWebP(5)', () => image().encodeWebP(5), /^encodeWebP\(\) takes an options object, like image\.encodeWebP\(/],
         ['new GainMap(image, 5)', () => new GainMap(new Image(4, 4), 5), /^GainMap\(\) takes an options object/],
