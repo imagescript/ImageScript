@@ -23,6 +23,7 @@ import { FontFace, FontStyle, fontFace, givenFontFace, damaged, layOutText, pars
 import { rasterizeGlyph } from './text.ts';
 import { renderPaintGlyph } from './colr.ts';
 import { decodeSync as decodePNG } from '../codecs/png.ts';
+import { bitmapPixels, MAX_BITMAP_GLYPH_PIXELS } from './color.ts';
 import { MAX_PIXELS, LimitError } from '../util/limits.ts';
 
 const UNSUPPORTED = new Set(['filter', 'pattern', 'marker', 'foreignObject', 'script', 'style', 'title', 'desc', 'metadata',
@@ -3412,10 +3413,9 @@ const glyphPaths = new WeakSet<PathCommand[]>();
 // the bitmap glyphs decoded in the render that runs, by the font data they are in and their offset there (a strike's
 // glyphs are looked up for each size), and their pixels
 let decodedBitmaps: WeakMap<ArrayBufferLike, Map<number, RasterImage | null>> | null = null, decodedBitmapPixels = 0;
-// the most pixels a bitmap glyph may have (emoji fonts have strikes of 160 at most; one that said 16383x16383 took 1 GB),
-// and the pixels of the bitmap glyphs kept in a render (decoded once, an emoji drawn through <use> was decoded for each
+// the pixels of the bitmap glyphs kept in a render (decoded once, an emoji drawn through <use> was decoded for each
 // copy; with its premultiplied floats a pixel takes 20 bytes, so some 80 MB)
-const MAX_BITMAP_GLYPH_PIXELS = 2048 * 2048, MAX_KEPT_BITMAP_PIXELS = 2 ** 22;
+const MAX_KEPT_BITMAP_PIXELS = 2 ** 22;
 
 /** a bitmap glyph's PNG decoded, or null if it can't be (damaged or too large) */
 function decodedBitmap(png: Uint8Array): RasterImage | null {
@@ -3423,14 +3423,16 @@ function decodedBitmap(png: Uint8Array): RasterImage | null {
     const key = png.byteOffset * 2 ** 21 + Math.min(png.length, 2 ** 21 - 1);
     const cached = kept?.get(key);
     if (cached !== undefined) return cached;
-    let decoded: RasterImage | null;
-    try {
-        decoded = decodePNG(png, MAX_BITMAP_GLYPH_PIXELS);
-        // (decoding takes about the time of painting its pixels 4 times)
-        charge(4 * decoded.width * decoded.height);
-    } catch (err) {
-        if (err instanceof LimitError && paintLeft < 0) throw err;
-        decoded = null;
+    let decoded: RasterImage | null = null;
+    // (decoding takes about the time of painting its pixels 4 times, counted before it, as damaged ones take it too)
+    const declared = bitmapPixels(png);
+    if (declared <= MAX_BITMAP_GLYPH_PIXELS) {
+        charge(4 * Math.max(declared, 1));
+        try {
+            decoded = decodePNG(png, MAX_BITMAP_GLYPH_PIXELS);
+        } catch {
+            decoded = null;
+        }
     }
     const pixels = decoded ? decoded.width * decoded.height : 0;
     if (decodedBitmaps && decodedBitmapPixels + pixels <= MAX_KEPT_BITMAP_PIXELS) {

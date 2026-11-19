@@ -5,7 +5,7 @@
 
 import { Font, PathCommand } from './font.ts';
 import { Hinter } from './hinting.ts';
-import { ColorLayer, BitmapGlyph, parseColorLayers, parseBitmaps } from './color.ts';
+import { ColorLayer, BitmapGlyph, parseColorLayers, parseBitmaps, bitmapPixels, MAX_BITMAP_GLYPH_PIXELS } from './color.ts';
 import { Direction } from './buffer.ts';
 import { ShapeFont, shapeFont, shapeRun, isDefaultIgnorableCodepoint, Features } from './shape.ts';
 import { shown } from '../util/options.ts';
@@ -248,7 +248,9 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
     }
 
     // the box's size, else the text's: text without ink (empty, spaces) still makes an image, a transparent pixel wide
-    const width = layout.width ?? Math.max(1, Math.ceil(Math.max(0, ...visible.map(line => line.extent))));
+    let extent = 0;
+    for (const line of visible) extent = Math.max(extent, line.extent);
+    const width = layout.width ?? Math.max(1, Math.ceil(extent));
     const height = layout.height ?? visible.length * lineHeight;
     // the lines placed vertically in the box (a line taller than the box is cut off as the alignment says)
     const free = height - visible.length * lineHeight;
@@ -257,6 +259,9 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
         throw new LimitError(`Text too large to render: ${width + 2 * pad}x${height + 2 * pad} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
     const coverage = new Uint8Array(width * height);
     let color: Uint8ClampedArray | null = null;
+    // the pixels bitmap glyphs may be decoded and scaled to: 2^28 and 64 per pixel of the image, like the paint of an
+    // SVG (1000 glyphs of 2048x2048 without advance took 39 s for a 32x1 image)
+    const budget = { left: 2 ** 28 + 64 * width * height, image: width * height };
 
     for (const [n, line] of visible.entries()) {
         const align = layout.horizontalAlign ?? (line.rtl ? 'right' : 'left');
@@ -279,7 +284,7 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
                 const key = 'bitmap' in g.color ? '0' : `${subpixel}:${foreground}`;
                 let bitmap = g.colors.get(key);
                 if (bitmap === undefined) g.colors.set(key, bitmap = 'bitmap' in g.color
-                    ? await scaledBitmap(g.color.bitmap, size / g.color.bitmap.ppem)
+                    ? await scaledBitmap(g.color.bitmap, size / g.color.bitmap.ppem, budget)
                     : 'layers' in g.color ? layeredGlyph(g, g.color.layers, subpixel / SUBPIXELS, foreground)
                         : paintedGlyph(g, subpixel / SUBPIXELS, foreground));
                 if (bitmap) blitColor(color ??= new Uint8ClampedArray(width * height * 4), width, height, bitmap, pixel + bitmap.left, y - bitmap.top);
@@ -497,15 +502,25 @@ function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => Size
 }
 
 // a bitmap glyph's PNG decoded and scaled from its strike to the font size, premultiplied
-async function scaledBitmap(glyph: BitmapGlyph, scale: number): Promise<ColorBitmap | null> {
+async function scaledBitmap(glyph: BitmapGlyph, scale: number, budget: { left: number, image: number }): Promise<ColorBitmap | null> {
+    const spend = (pixels: number): void => {
+        if ((budget.left -= pixels) < 0) throw new LimitError('Text too complex: its bitmap glyphs take more pixels to decode and scale than an image of this size allows (2^28 and 64 per pixel)');
+    };
+    // (decoding takes about the time of 4 pixels a pixel, counted before it, as damaged ones take it too)
+    const declared = bitmapPixels(glyph.png);
+    if (!(declared <= MAX_BITMAP_GLYPH_PIXELS)) return null;
+    spend(4 * Math.max(declared, 1));
     let decoded;
     try {
-        // (at most 2048x2048: emoji fonts have strikes of 160 at most, and one that said 16383x16383 took 1 GB)
-        decoded = await decodePNG(glyph.png, 2048 * 2048);
+        decoded = await decodePNG(glyph.png, MAX_BITMAP_GLYPH_PIXELS);
     } catch {
         return null;
     }
     const width = Math.max(1, Math.round(decoded.width * scale)), height = Math.max(1, Math.round(decoded.height * scale));
+    // (scaled from its strike to the size: from a strike at ppem 1, a 2048x2048 bitmap became 32768x32768 at size 16. A
+    // glyph larger than 4 times the image, and than the largest bitmap glyph, isn't drawn)
+    if (width * height > Math.max(MAX_BITMAP_GLYPH_PIXELS, 4 * budget.image)) return null;
+    spend(width * height);
     const data = new Uint8ClampedArray(width * height * 4);
     resample(new Uint8ClampedArray(decoded.pixels.buffer, decoded.pixels.byteOffset, decoded.pixels.length), decoded.width, decoded.height, width, height, TRIANGLE, data, true);
     premultiply(data);

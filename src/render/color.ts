@@ -9,6 +9,19 @@ export interface ColorLayer {
 }
 
 /** a glyph's PNG and where it goes, in pixels of its strike */
+/** the most pixels a bitmap glyph may have: emoji fonts have strikes of 160 at most, one that said 16383x16383 took 1 GB */
+export const MAX_BITMAP_GLYPH_PIXELS = 2048 * 2048;
+
+/**
+ * The pixels a bitmap glyph's PNG says it has (its header), what decoding it costs whether it succeeds or not; NaN if it
+ * isn't a PNG
+ */
+export function bitmapPixels(png: Uint8Array): number {
+    if (png.length < 24 || png[12] !== 0x49 || png[13] !== 0x48 || png[14] !== 0x44 || png[15] !== 0x52) return NaN;
+    const view = new DataView(png.buffer, png.byteOffset, png.length);
+    return view.getUint32(16) * view.getUint32(20);
+}
+
 export interface BitmapGlyph {
     png: Uint8Array;
     /** pixels per em of the strike */
