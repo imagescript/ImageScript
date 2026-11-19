@@ -171,7 +171,11 @@ export class Font {
         const cached = base.instances?.get(key);
         if (cached) return cached;
         const instance = Object.create(base) as Font;
-        (base.instances ??= new Map()).set(key, instance);
+        // (at most 16 instances a font, the oldest dropped: a new weight each render kept one for each, with its sizes,
+        // until the process ran out of memory)
+        const instances = base.instances ??= new Map();
+        if (instances.size >= 16) instances.delete(instances.keys().next().value as string);
+        instances.set(key, instance);
         instance.coords = coords;
         instance.outlineCache = new Map();
         // (the metrics MVAR varies)

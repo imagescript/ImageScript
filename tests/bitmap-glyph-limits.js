@@ -3,6 +3,23 @@ const {Image, LimitError} = require('..');
 
 // bitmap glyphs (sbix, CBDT) are bounded like the rest of a render: their PNGs count before they are decoded (also those
 // that turn out damaged), and a glyph scaled from a tiny strike to the font size isn't allocated past the output
+// (Bun's JavaScriptCore rasterizes several times slower than V8)
+const slack = process.versions.bun ? 4 : 1;
+
+// a collection before a memory check, so that the rasters a render made aren't counted as kept (Node and Bun; where
+// no collector can be had, the memory checks are skipped)
+const collect = (() => {
+    try {
+        if (globalThis.Bun) return () => globalThis.Bun.gc(true);
+        if (globalThis.gc) return () => globalThis.gc();
+        require('v8').setFlagsFromString('--expose_gc');
+        const gc = require('vm').runInNewContext('gc');
+        return () => gc();
+    } catch {
+        return null;
+    }
+})();
+
 const panic = message => {
     console.error(message);
     process.exit(1);
@@ -38,13 +55,27 @@ const NS = 'xmlns="http://www.w3.org/2000/svg"';
             const data = fs.readFileSync(`${__dirname}/fonts/noto colrv1 subset.ttf`);
             for (let i = 0; i < 200; i++) await Image.renderText('\u{1F600}', {font: data, size: 500, width: 10, height: 10, maxPixels: 100, color: ((i * 0x01020300 + 0x10000000) | 0xff) >>> 0});
         }],
+        // glyphs too large to keep, over each other (no advance) 1000 times at size 8000: drawn again each time, 260 s
+        ['2000 huge glyphs without advance', () => Image.renderText(text(2).repeat(1000), {font: font('zero'), size: 8000, width: 10, height: 10, maxPixels: 100})],
+        // every weight of a variable font was an instance of its own, kept with the font for good (with its sizes and
+        // glyphs): a new weight each render ran out of memory after 8000
+        ['a variable font at 400 weights', async () => {
+            const data = fs.readFileSync(`${__dirname}/fonts/resvg/RobotoFlex.subset.ttf`);
+            collect?.();
+            const heap = process.memoryUsage().heapUsed;
+            for (let i = 0; i < 400; i++) await Image.renderText('ABCDEFGHIJKLMNOPQRSTUVWXYZ', {font: data, size: 64, variations: {wght: 100 + i * 2}});
+            collect?.();
+            if (collect && process.memoryUsage().heapUsed - heap > 128 * 2 ** 20) panic(`a variable font at 400 weights: kept ${(process.memoryUsage().heapUsed - heap) >> 20} MB of heap`);
+        }],
     ]) {
-        globalThis.gc?.();
+        collect?.();
         const begin = Date.now(), before = process.memoryUsage().arrayBuffers;
         const result = await run().then(() => 'ok', err => err);
         if (result !== 'ok' && !(result instanceof LimitError)) panic(`${name}: ${result}`);
-        if (Date.now() - begin > 20000) panic(`${name}: took ${Date.now() - begin} ms`);
+        if (Date.now() - begin > 20000 * slack) panic(`${name}: took ${Date.now() - begin} ms`);
         globalThis.gc?.();
-        if (process.memoryUsage().arrayBuffers - before > 128 * 2 ** 20) panic(`${name}: kept ${(process.memoryUsage().arrayBuffers - before) >> 20} MB`);
+        collect?.();
+        // (the rasters of a render that weren't kept are freed later, not on the collection: that case's check is its time)
+        if (collect && !name.startsWith('2000 huge') && process.memoryUsage().arrayBuffers - before > 128 * 2 ** 20) panic(`${name}: kept ${(process.memoryUsage().arrayBuffers - before) >> 20} MB`);
     }
 })();

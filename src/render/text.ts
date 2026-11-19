@@ -155,7 +155,11 @@ function sizedFont(data: Uint8Array, size: number, hinting: boolean, variations:
     let shared = colorTables.get(font);
     if (!shared) colorTables.set(font, shared = { layers: parseColorLayers(font), paints: parsePaintGlyphs(font) });
 
-    if (bySize.size >= SIZES) bySize.clear();
+    // (the sizes evicted take their rasters with them: the font's kept bytes start again)
+    if (bySize.size >= SIZES) {
+        bySize.clear();
+        keptBytes.delete(font);
+    }
     bySize.set(key, sized = { font, scale: size / font.unitsPerEm, hinter, layers: shared.layers, bitmaps: parseBitmaps(font, size), paints: shared.paints, shaping: shapeFont(font), glyphs: new Map() });
     return sized;
 }
@@ -315,6 +319,7 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
                     bitmap = local.get(g)?.get(key) as ColorBitmap | null | undefined;
                     if (bitmap === undefined) {
                         const made = 'layers' in g.color ? layeredGlyph(g, g.color.layers, subpixel / SUBPIXELS, foreground) : paintedGlyph(g, subpixel / SUBPIXELS, foreground);
+                        spend(budget, made ? made.width * made.height : 0);
                         // (at most 8 colors a glyph with the font: one for each text color grew without end)
                         bitmap = g.colors.size < 8 ? keep(g, key, made, () => g.colors.set(key, made)) : keep(g, key, made, () => {});
                     }
@@ -327,6 +332,8 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
             if (bitmap === undefined) bitmap = local.get(g)?.get(`${subpixel}`) as GlyphBitmap | null | undefined;
             if (bitmap === undefined) {
                 const made = rasterizeGlyph(g.path, g.scale, subpixel / SUBPIXELS);
+                // (a glyph that isn't kept is rasterized again for each occurrence: 2000 huge ones took 260 s)
+                spend(budget, made ? made.width * made.height : 0);
                 bitmap = keep(g, `${subpixel}`, made, () => g.bitmaps[subpixel] = made);
             }
             if (bitmap) blit(coverage, width, height, bitmap, pixel + bitmap.left, y - bitmap.top);
@@ -549,15 +556,18 @@ function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => Size
     });
 }
 
+/** spends pixels of a render's work budget (decoding, scaling and rasterizing glyphs), a LimitError when it's spent */
+function spend(budget: { left: number }, pixels: number): void {
+    if ((budget.left -= pixels) < 0)
+        throw new LimitError('Text too complex: its glyphs take more work to decode, scale and rasterize than an image of this size allows (2^28 pixels and 64 per pixel of the image)');
+}
+
 // a bitmap glyph's PNG decoded and scaled from its strike to the font size, premultiplied
 async function scaledBitmap(glyph: BitmapGlyph, scale: number, budget: { left: number, image: number }): Promise<ColorBitmap | null> {
-    const spend = (pixels: number): void => {
-        if ((budget.left -= pixels) < 0) throw new LimitError('Text too complex: its bitmap glyphs take more pixels to decode and scale than an image of this size allows (2^28 and 64 per pixel)');
-    };
     // (decoding takes about the time of 4 pixels a pixel, counted before it, as damaged ones take it too)
     const declared = bitmapPixels(glyph.png);
     if (!(declared <= MAX_BITMAP_GLYPH_PIXELS)) return null;
-    spend(4 * Math.max(declared, 1));
+    spend(budget, 4 * Math.max(declared, 1));
     let decoded;
     try {
         decoded = await decodePNG(glyph.png, MAX_BITMAP_GLYPH_PIXELS);
@@ -568,7 +578,7 @@ async function scaledBitmap(glyph: BitmapGlyph, scale: number, budget: { left: n
     // (scaled from its strike to the size: from a strike at ppem 1, a 2048x2048 bitmap became 32768x32768 at size 16. A
     // glyph larger than 4 times the image, and than the largest bitmap glyph, isn't drawn)
     if (width * height > Math.max(MAX_BITMAP_GLYPH_PIXELS, 4 * budget.image)) return null;
-    spend(width * height);
+    spend(budget, width * height);
     const data = new Uint8ClampedArray(width * height * 4);
     resample(new Uint8ClampedArray(decoded.pixels.buffer, decoded.pixels.byteOffset, decoded.pixels.length), decoded.width, decoded.height, width, height, TRIANGLE, data, true);
     premultiply(data);
