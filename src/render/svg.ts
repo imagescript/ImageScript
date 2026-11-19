@@ -204,8 +204,11 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
     // (a nested render, of an SVG embedded as an image, takes its points from the render it is in)
     if (!previousPaths) pointsLeft = MAX_POINTS + POINTS_PER_PIXEL * outWidth * outHeight;
     parsedPaths = new Map();
-    const previousBitmaps = decodedBitmaps;
-    decodedBitmaps ??= new WeakMap();
+    const previousBitmaps = decodedBitmaps, previousBitmapPixels = decodedBitmapPixels;
+    if (!decodedBitmaps) {
+        decodedBitmaps = new WeakMap();
+        decodedBitmapPixels = 0;
+    }
     // (a nested render, of an SVG embedded as an image, shares the allowance: the outer paths stay kept meanwhile)
     if (!previousPaths) cachedCommands = 0;
     try {
@@ -221,6 +224,7 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         if (!previousPaths) pointsLeft = previousPoints;
         parsedPaths = previousPaths;
         decodedBitmaps = previousBitmaps;
+        if (!previousBitmaps) decodedBitmapPixels = previousBitmapPixels;
         cachedCommands = previousCached;
     }
 }
@@ -1442,16 +1446,7 @@ class Document {
             const s = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
             const bitmap = tables.bitmaps(Math.round(s * font.unitsPerEm))?.(g.glyph) ?? tables.bitmaps(g.fontSize)?.(g.glyph);
             if (!bitmap) return;
-            // (decoded once a render: an emoji drawn through <use> was decoded again for each copy)
-            let decoded = decodedBitmaps?.get(bitmap.png);
-            if (decoded === undefined) {
-                try {
-                    decoded = decodePNG(bitmap.png);
-                } catch {
-                    decoded = null;
-                }
-                decodedBitmaps?.set(bitmap.png, decoded);
-            }
+            const decoded = decodedBitmap(bitmap.png);
             if (!decoded) return;
             const k = font.unitsPerEm / bitmap.ppem;
             let left = bitmap.left * k, top = bitmap.top * k;
@@ -3414,8 +3409,37 @@ let pointsLeft = Infinity;
 let parsedPaths: Map<string, PathCommand[]> | null = null, cachedCommands = 0;
 // the paths of texts' glyphs
 const glyphPaths = new WeakSet<PathCommand[]>();
-// the bitmap glyphs decoded in the render that runs, by their PNG data
-let decodedBitmaps: WeakMap<Uint8Array, ReturnType<typeof decodePNG> | null> | null = null;
+// the bitmap glyphs decoded in the render that runs, by the font data they are in and their offset there (a strike's
+// glyphs are looked up for each size), and their pixels
+let decodedBitmaps: WeakMap<ArrayBufferLike, Map<number, RasterImage | null>> | null = null, decodedBitmapPixels = 0;
+// the most pixels a bitmap glyph may have (emoji fonts have strikes of 160 at most; one that said 16383x16383 took 1 GB),
+// and the pixels of the bitmap glyphs kept in a render (decoded once, an emoji drawn through <use> was decoded for each
+// copy; with its premultiplied floats a pixel takes 20 bytes, so some 80 MB)
+const MAX_BITMAP_GLYPH_PIXELS = 2048 * 2048, MAX_KEPT_BITMAP_PIXELS = 2 ** 22;
+
+/** a bitmap glyph's PNG decoded, or null if it can't be (damaged or too large) */
+function decodedBitmap(png: Uint8Array): RasterImage | null {
+    let kept = decodedBitmaps?.get(png.buffer);
+    const key = png.byteOffset * 2 ** 21 + Math.min(png.length, 2 ** 21 - 1);
+    const cached = kept?.get(key);
+    if (cached !== undefined) return cached;
+    let decoded: RasterImage | null;
+    try {
+        decoded = decodePNG(png, MAX_BITMAP_GLYPH_PIXELS);
+        // (decoding takes about the time of painting its pixels 4 times)
+        charge(4 * decoded.width * decoded.height);
+    } catch (err) {
+        if (err instanceof LimitError && paintLeft < 0) throw err;
+        decoded = null;
+    }
+    const pixels = decoded ? decoded.width * decoded.height : 0;
+    if (decodedBitmaps && decodedBitmapPixels + pixels <= MAX_KEPT_BITMAP_PIXELS) {
+        decodedBitmapPixels += pixels;
+        if (!kept) decodedBitmaps.set(png.buffer, kept = new Map<number, RasterImage | null>());
+        kept.set(key, decoded);
+    }
+    return decoded;
+}
 const MAX_CACHED_COMMANDS = 2 ** 20;
 
 /** counts the points of one path against the render's budget and the limit of a path */

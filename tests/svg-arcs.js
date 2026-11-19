@@ -62,6 +62,30 @@ const cases = {
         for (let i = 1; i < 8; i++) d += `<g id="t${i}">${`<use href="#t${i - 1}"/>`.repeat(4)}</g>`;
         return `<svg viewBox="0 0 100 100" width="10" height="10" ${NS}><defs>${d}</defs><use href="#t7"/></svg>`;
     })(),
+    // a large bitmap emoji at many sizes: decoded once, not once a size
+    'large emoji at 12 sizes': (() => {
+        const font = require('fs').readFileSync('./tests/fonts/emoji-4096.ttf').toString('base64');
+        let texts = '';
+        for (let i = 0; i < 12; i++) texts += `<text x="1" y="8" font-family="f" font-size="${8 + i}">\u{1F600}</text>`;
+        return `<svg ${NS} width="10" height="10"><style>@font-face{font-family:f;src:url(data:font/ttf;base64,${font})}</style>${texts}</svg>`;
+    })(),
+    // a bitmap emoji that says it is 16383x16383: not decoded (it was allocated, 1 GB)
+    'huge emoji': (() => {
+        const font = require('fs').readFileSync('./tests/fonts/emoji-4096.ttf');
+        const at = font.indexOf('IHDR');
+        font.writeUInt32BE(16383, at + 4);
+        font.writeUInt32BE(16383, at + 8);
+        let crc = ~0;
+        for (const byte of font.subarray(at, at + 17)) {
+            crc ^= byte;
+            for (let k = 0; k < 8; k++) crc = crc & 1 ? crc >>> 1 ^ 0xedb88320 : crc >>> 1;
+        }
+        font.writeUInt32BE(~crc >>> 0, at + 17);
+        let texts = '';
+        for (let i = 0; i < 4; i++) texts += `<text x="1" y="8" font-family="f${i}" font-size="8">\u{1F600}</text>`;
+        const faces = Array.from({length: 4}, (_, i) => `@font-face{font-family:f${i};src:url(data:font/ttf;base64,${font.toString('base64')})}`).join('');
+        return `<svg ${NS} width="10" height="10"><style>${faces}</style>${texts}</svg>`;
+    })(),
     // many tspans in one text took quadratic time
     'many tspans': `<svg viewBox="0 0 100 100" width="10" height="10" ${NS}><text font-size="1">${'<tspan>A</tspan>'.repeat(10000)}</text></svg>`,
     // a path of lines only, drawn 90000 times through <use> without painting anything: no budget counted its points

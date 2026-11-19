@@ -500,7 +500,8 @@ function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => Size
 async function scaledBitmap(glyph: BitmapGlyph, scale: number): Promise<ColorBitmap | null> {
     let decoded;
     try {
-        decoded = await decodePNG(glyph.png);
+        // (at most 2048x2048: emoji fonts have strikes of 160 at most, and one that said 16383x16383 took 1 GB)
+        decoded = await decodePNG(glyph.png, 2048 * 2048);
     } catch {
         return null;
     }

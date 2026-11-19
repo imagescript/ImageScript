@@ -10,6 +10,19 @@ const panic = message => {
 // call (past the stack's limit), and a failure doesn't blame the font
 (async () => {
 	const font = fs.readFileSync(__dirname + '/fonts/resvg/NotoSans-Regular.ttf');
+	// a bitmap emoji that says it is 16383x16383 isn't decoded (it was allocated, 1 GB)
+	const emoji = fs.readFileSync(__dirname + '/fonts/emoji-4096.ttf'), at = emoji.indexOf('IHDR');
+	emoji.writeUInt32BE(16383, at + 4);
+	emoji.writeUInt32BE(16383, at + 8);
+	let crc = ~0;
+	for (const byte of emoji.subarray(at, at + 17)) {
+		crc ^= byte;
+		for (let k = 0; k < 8; k++) crc = crc & 1 ? crc >>> 1 ^ 0xedb88320 : crc >>> 1;
+	}
+	emoji.writeUInt32BE(~crc >>> 0, at + 17);
+	const before = process.memoryUsage().rss;
+	await Image.renderText('\u{1F600}', {font: emoji, size: 8});
+	if (process.memoryUsage().rss - before > 512 * 2 ** 20) panic(`a huge emoji: took ${(process.memoryUsage().rss - before) >> 20} MB`);
 	for (const [name, text, options] of [
 		['combining marks', 'a' + '\u0301'.repeat(200000), {}],
 		['lines', 'a '.repeat(200000), {width: 1}],
