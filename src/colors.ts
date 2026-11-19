@@ -195,7 +195,8 @@ export class Colors {
      *     or just the colors, evenly spaced (`[0xff0000ff, 0x00ff00ff]`), like {@link GradientOptions.stops}
      * @remarks A stop may lie outside 0..1 (`{ 0: red, 2: blue }`): it is where it says, so the part between 0 and 1
      *     shows only part of the way between its colors. Before the first stop and after the last one, the gradient has
-     *     their colors
+     *     their colors, and at a stop its color. Stops at the same position make a hard edge: the gradient jumps from
+     *     the earlier stop's color to the later one's, which is the color at that position (like CSS)
      * @return The gradient generator. The function argument is the position in the gradient (0..1).
      */
     static gradient(stops: Record<number, Color> | Color[]): (position: number) => Color {
@@ -221,8 +222,9 @@ export class Colors {
             const gradient = gradientBetween(values[0], values[1]);
             return position => {
                 checkPosition(position);
-                if (position <= positions[0]) return values[0];
+                // (at a stop the later stop's color when both are at one position, like CSS)
                 if (position >= positions[1]) return values[1];
+                if (position <= positions[0]) return values[0];
                 return gradient((position - positions[0]) / (positions[1] - positions[0]));
             };
         }
@@ -252,19 +254,22 @@ export class Colors {
         // (every stop at the same position: a hard edge between the first and the last color)
         if (!gradients.length) return position => {
             checkPosition(position);
-            return position <= minDef ? values[0] : values[values.length - 1];
+            return position < minDef ? values[0] : values[values.length - 1];
         };
 
+        // the color at each stop's position: the last stop's there (a hard edge shows the later color, like CSS)
+        const atStop = new Map(positions.map((p, i) => [p, values[i]]));
         return position => {
             checkPosition(position);
             // (before and after the stops their colors, like with 2 stops: interpolating would lose the color of a
-            // transparent stop; at a stop's position, the later stop's color, like CSS)
+            // transparent stop)
             if (position < minDef) return values[0];
             if (position >= maxDef) return values[values.length - 1];
-            if (position === minDef) return values[positions.lastIndexOf(minDef)];
+            const stop = atStop.get(position);
+            if (stop !== undefined) return stop;
 
             for (const gradient of gradients)
-                if (position >= gradient.min && position <= gradient.max)
+                if (position > gradient.min && position < gradient.max)
                     return gradient.gradient((position - gradient.min) / (gradient.max - gradient.min));
             throw new RangeError(`The gradient has no color at position ${position}`);
         };

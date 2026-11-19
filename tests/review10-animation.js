@@ -39,6 +39,18 @@ const noise = (width, height) => new Image(width, height).fill(() => ((random() 
 	const edge = Colors.gradient({0.2: red, 0.5: blue, 0.5000001: 0x00ff00ff, 1: 0x00ff00ff});
 	if (edge(0.5000001) !== 0x00ff00ff) panic('gradient after a hard edge');
 
+	// at a hard edge (two stops at one position) the later stop's color, like CSS: inside, at the ends, with 2 stops
+	// and with every stop at one position; at any stop's position its exact color
+	const green = 0x00ff00ff;
+	const inner = Colors.gradient({0: red, 0.5: blue, '0.5000': green, 1: green});
+	if (inner(0.5) !== green) panic(`gradient at an inner hard edge: ${inner(0.5).toString(16)}`);
+	const two = Colors.gradient({0.5: red, '0.50': blue});
+	if (two(0.5) !== blue || two(0.4) !== red || two(0.6) !== blue) panic(`gradient of 2 stops at one position: ${two(0.5).toString(16)}`);
+	const same = Colors.gradient({0.5: red, '0.50': blue, '0.500': green});
+	if (same(0.5) !== green || same(0.4) !== red) panic(`gradient of stops at one position: ${same(0.5).toString(16)}`);
+	const exact = Colors.gradient({0: red, 0.3: 0x12345678, 1: blue});
+	if (exact(0.3) !== 0x12345678) panic(`gradient at a stop: ${exact(0.3).toString(16)}`);
+
 	// many stops don't overflow the call stack
 	const stops = {};
 	for (let i = 0; i < 200000; i++) stops[i / 200000] = i & 1 ? red : blue;
