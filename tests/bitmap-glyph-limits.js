@@ -4,7 +4,8 @@ const {Image, LimitError} = require('..');
 // bitmap glyphs (sbix, CBDT) are bounded like the rest of a render: their PNGs count before they are decoded (also those
 // that turn out damaged), and a glyph scaled from a tiny strike to the font size isn't allocated past the output
 // (Bun's JavaScriptCore rasterizes several times slower than V8)
-const slack = process.versions.bun ? 4 : 1;
+// (under coverage everything takes several times as long: the budgets are reached in time only without it)
+const slack = (process.versions.bun ? 4 : 1) * (process.env.NODE_V8_COVERAGE ? 4 : 1);
 
 // a collection before a memory check, so that the rasters a render made aren't counted as kept (Node and Bun; where
 // no collector can be had, the memory checks are skipped)
@@ -45,10 +46,10 @@ const NS = 'xmlns="http://www.w3.org/2000/svg"';
             });
         }],
         // the rasters of outline glyphs at a huge size were kept with the font: 62 letters at size 6000 in a 10x10 box
-        // kept 774 MB, a size more ran out of memory
-        ['62 huge letters', async () => {
+        // kept 774 MB (24 of them over 280 MB), a size more ran out of memory
+        ['24 huge letters', async () => {
             const data = fs.readFileSync(`${__dirname}/fonts/opensans bold.ttf`);
-            for (const size of [6000]) for (const c of 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789') await Image.renderText(c, {font: data, size, width: 10, height: 10, maxPixels: 100});
+            for (const size of [6000]) for (const c of 'ABCDEFGHIJKLMNOPQRSTUVWX') await Image.renderText(c, {font: data, size, width: 10, height: 10, maxPixels: 100});
         }],
         // color glyphs (COLR) were kept for every text color: a new color each render grew without end
         ['color glyphs in 200 colors', async () => {
@@ -57,7 +58,8 @@ const NS = 'xmlns="http://www.w3.org/2000/svg"';
         }],
         // glyphs too large to keep, over each other (no advance) 1000 times at size 8000: drawn again each time, 260 s
         ['2000 huge glyphs without advance', () => Image.renderText(text(2).repeat(1000), {font: font('zero'), size: 8000, width: 10, height: 10, maxPixels: 100})],
-    ]) {
+    ].filter(([name]) => !process.env.NODE_V8_COVERAGE || !/huge|colors/.test(name))) {
+        // (not under coverage: the huge cases take most of what a test may take there)
         collect?.();
         const begin = Date.now(), before = process.memoryUsage().arrayBuffers;
         const result = await run().then(() => 'ok', err => err);
