@@ -20,7 +20,7 @@ import type { ToneMapping } from './codecs/hdr.ts';
 import * as quantize from './codecs/quantize.ts';
 import * as textRenderer from './render/text.ts';
 import * as svgRenderer from './render/svg.ts';
-import { BinaryData, view } from './util/mem.ts';
+import { BinaryData, view, isBinaryData } from './util/mem.ts';
 import { cicpTransform, colorSpaceTransform, profileTransform } from './util/icc.ts';
 import { ImageType } from './image-type.ts';
 import { textLayout, TextLayoutOptions } from './text-layout.ts';
@@ -3107,7 +3107,7 @@ export class Image {
         const given = new Map<string, BinaryData | Image>();
         for (const href of Object.keys(givenImages)) {
             const value = givenImages[href];
-            if (!(value instanceof Image) && !(value instanceof ArrayBuffer || ArrayBuffer.isView(value)))
+            if (!(value instanceof Image) && !isBinaryData(value))
                 throw new TypeError(`SVG image ${JSON.stringify(href)} must be BinaryData or an Image`);
             given.set(href, value);
         }

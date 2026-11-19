@@ -86,7 +86,8 @@ export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
     const resolved: ResolvedMetadata = {};
     if (creationTime !== undefined && creationTime !== null) {
         // (other types than these were turned into a date anyway: true was 1970)
-        if (!(creationTime instanceof Date) && typeof creationTime !== 'number' && typeof creationTime !== 'string') {
+        // (a Date by its tag, not instanceof: one of another realm, an iframe's or Jest's, isn't an instance here)
+        if (Object.prototype.toString.call(creationTime) !== '[object Date]' && typeof creationTime !== 'number' && typeof creationTime !== 'string') {
             // eslint-disable-next-line no-restricted-syntax -- the one date in the options
             throw new TypeError(`creationTime must be a Date, a number or a string, not ${typeof creationTime === 'object' ? shown(creationTime) : typeof creationTime}`);
         }
