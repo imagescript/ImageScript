@@ -266,6 +266,20 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
     // 64 glyphs from a strike at ppem 1 took 1 GB a size, and were never given back
     const scaled = new Map<Glyph, ColorBitmap | null>();
     let scaledPixels = 0;
+    // the rasters of glyphs too large to keep with the font, kept for this render (at most 64 MB of them)
+    const local = new Map<Glyph, Map<string, GlyphBitmap | ColorBitmap | null>>();
+    let localBytes = 0;
+    const keep = <T extends GlyphBitmap | ColorBitmap | null>(g: Glyph, key: string, raster: T, withFont: () => void): T => {
+        const bytes = raster ? raster.data.length : 0;
+        if (keptWithFont(g, bytes)) withFont();
+        else if (localBytes + bytes <= 2 ** 26) {
+            localBytes += bytes;
+            let rasters = local.get(g);
+            if (!rasters) local.set(g, rasters = new Map<string, GlyphBitmap | ColorBitmap | null>());
+            rasters.set(key, raster);
+        }
+        return raster;
+    };
 
     for (const [n, line] of visible.entries()) {
         const align = layout.horizontalAlign ?? (line.rtl ? 'right' : 'left');
@@ -297,19 +311,41 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
                             scaled.set(g, bitmap);
                         }
                     }
-                } else if (bitmap === undefined) g.colors.set(key, bitmap = 'layers' in g.color ? layeredGlyph(g, g.color.layers, subpixel / SUBPIXELS, foreground)
-                    : paintedGlyph(g, subpixel / SUBPIXELS, foreground));
+                } else if (bitmap === undefined) {
+                    bitmap = local.get(g)?.get(key) as ColorBitmap | null | undefined;
+                    if (bitmap === undefined) {
+                        const made = 'layers' in g.color ? layeredGlyph(g, g.color.layers, subpixel / SUBPIXELS, foreground) : paintedGlyph(g, subpixel / SUBPIXELS, foreground);
+                        // (at most 8 colors a glyph with the font: one for each text color grew without end)
+                        bitmap = g.colors.size < 8 ? keep(g, key, made, () => g.colors.set(key, made)) : keep(g, key, made, () => {});
+                    }
+                }
                 if (bitmap) blitColor(color ??= new Uint8ClampedArray(width * height * 4), width, height, bitmap, pixel + bitmap.left, y - bitmap.top);
                 continue;
             }
 
-            if (g.bitmaps[subpixel] === undefined) g.bitmaps[subpixel] = rasterizeGlyph(g.path, g.scale, subpixel / SUBPIXELS);
-            const bitmap = g.bitmaps[subpixel];
+            let bitmap: GlyphBitmap | null | undefined = g.bitmaps[subpixel];
+            if (bitmap === undefined) bitmap = local.get(g)?.get(`${subpixel}`) as GlyphBitmap | null | undefined;
+            if (bitmap === undefined) {
+                const made = rasterizeGlyph(g.path, g.scale, subpixel / SUBPIXELS);
+                bitmap = keep(g, `${subpixel}`, made, () => g.bitmaps[subpixel] = made);
+            }
             if (bitmap) blit(coverage, width, height, bitmap, pixel + bitmap.left, y - bitmap.top);
         }
     }
 
     return { width, height, coverage, color };
+}
+
+// the bytes of glyph rasters kept with a font across renders, at all its sizes: 256 KB a raster (512x512 of coverage)
+// and 16 MB a font at most. The others are kept for one render (62 letters at size 6000 kept 774 MB with the font, for
+// good, and one more each size)
+const keptBytes = new WeakMap<Font, number>();
+function keptWithFont(g: Glyph, bytes: number): boolean {
+    if (bytes > 2 ** 18) return false;
+    const kept = (keptBytes.get(g.font.font) ?? 0) + bytes;
+    if (kept > 2 ** 24) return false;
+    keptBytes.set(g.font.font, kept);
+    return true;
 }
 
 /** a paragraph's text with what laying it out needs */

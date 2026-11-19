@@ -1,6 +1,9 @@
 const {Image, LimitError} = require('..');
 const fs = require('fs');
 
+// (Bun's JavaScriptCore runs the layout several times slower than V8)
+const slack = process.versions.bun ? 4 : 1;
+
 const panic = message => {
 	console.error(message);
 	process.exit(1);
@@ -32,6 +35,6 @@ const panic = message => {
 		const begin = Date.now();
 		const result = await Image.renderText(text, {font, size: 1, maxPixels: 1e8, ...options}).then(() => 'ok', err => err);
 		if (result !== 'ok' && !(result instanceof LimitError)) panic(`${name}: ${result}`);
-		if (Date.now() - begin > 15000) panic(`${name}: took ${Date.now() - begin} ms`);
+		if (Date.now() - begin > 15000 * slack) panic(`${name}: took ${Date.now() - begin} ms`);
 	}
 })();

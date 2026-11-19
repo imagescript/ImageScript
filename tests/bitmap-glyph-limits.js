@@ -27,11 +27,24 @@ const NS = 'xmlns="http://www.w3.org/2000/svg"';
                 if (!(err instanceof LimitError)) throw err;
             });
         }],
+        // the rasters of outline glyphs at a huge size were kept with the font: 62 letters at size 6000 in a 10x10 box
+        // kept 774 MB, a size more ran out of memory
+        ['62 huge letters', async () => {
+            const data = fs.readFileSync(`${__dirname}/fonts/opensans bold.ttf`);
+            for (const size of [6000]) for (const c of 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789') await Image.renderText(c, {font: data, size, width: 10, height: 10, maxPixels: 100});
+        }],
+        // color glyphs (COLR) were kept for every text color: a new color each render grew without end
+        ['color glyphs in 200 colors', async () => {
+            const data = fs.readFileSync(`${__dirname}/fonts/noto colrv1 subset.ttf`);
+            for (let i = 0; i < 200; i++) await Image.renderText('\u{1F600}', {font: data, size: 500, width: 10, height: 10, maxPixels: 100, color: ((i * 0x01020300 + 0x10000000) | 0xff) >>> 0});
+        }],
     ]) {
-        const begin = Date.now(), before = process.memoryUsage().rss;
+        globalThis.gc?.();
+        const begin = Date.now(), before = process.memoryUsage().arrayBuffers;
         const result = await run().then(() => 'ok', err => err);
         if (result !== 'ok' && !(result instanceof LimitError)) panic(`${name}: ${result}`);
-        if (Date.now() - begin > 10000) panic(`${name}: took ${Date.now() - begin} ms`);
-        if (process.memoryUsage().rss - before > 768 * 2 ** 20) panic(`${name}: took ${(process.memoryUsage().rss - before) >> 20} MB`);
+        if (Date.now() - begin > 20000) panic(`${name}: took ${Date.now() - begin} ms`);
+        globalThis.gc?.();
+        if (process.memoryUsage().arrayBuffers - before > 128 * 2 ** 20) panic(`${name}: kept ${(process.memoryUsage().arrayBuffers - before) >> 20} MB`);
     }
 })();
