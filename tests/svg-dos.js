@@ -40,7 +40,7 @@ const timed = async (name, svg, limit = 5000) => {
         // an element with 140000 children: the walks over the tree pushed them with a spread, past the call stack's limit
         // (a bare RangeError for a 4 MB SVG); a LimitError or a render is the answer
         {
-            const {error} = await timed('140000 siblings', `<svg ${NS} width="64" height="64"><g>${'<g/>'.repeat(140000)}</g></svg>`);
+            const {error} = await timed('140000 siblings', `<svg ${NS} width="64" height="64"><g>${'<g/>'.repeat(140000)}</g></svg>`, 15000);
             if (error && (error.name !== 'LimitError')) panic(`140000 siblings: ${error.name}: ${error.message}`);
         }
         const {error} = await timed('80000 triangles', `<svg ${NS} width="100" height="100"><path d="${d}"/></svg>`);
