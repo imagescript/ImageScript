@@ -136,6 +136,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### Fixes
 
+- `resize({ fit: 'inside' })` throws for a box side below 1 pixel, like the other fits, instead of making a 1x1 image; `pixels()` goes over the pixels the image has when it's called, also when it's resized before the first value is taken.
 - `Image.renderText()` checks `strokeColor` without a `strokeWidth` too (a wrong color passed until a stroke was set), and an animation encoder whose `finish()` found no frame can still be given frames.
 - A `creationTime` with a year outside 1000-9999 throws a `RangeError` instead of being written wrapped (TGA) or without 4 digits (Exif).
 - An SVG with an element of more than about 100,000 children renders (or throws a `LimitError`) instead of a bare `RangeError` from the call stack.

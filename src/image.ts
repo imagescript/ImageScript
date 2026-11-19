@@ -923,7 +923,8 @@ export class Image {
     /**
      * Extra image data that lets high-dynamic-range (HDR) screens show brighter highlights. Standard screens show the
      * image without the extra brightness. {@link Image.encodeJPEG}, {@link Image.encodeAVIF} and
-     * {@link Image.encodeJXL} can write it. `null` means there is no gain map
+     * {@link Image.encodeJXL} can write it. `null` means there is no gain map. This is the image's own map, not a
+     * copy: changing it (`image.gainMap.max = 3`) changes the image's
      */
     get gainMap(): GainMap | null {
         return this.__gain_map__;
@@ -1002,18 +1003,21 @@ export class Image {
 
     /**
      * Yields an [x, y, color] array for every pixel in the image (0-based), row by row. Resizing the image meanwhile
-     * doesn't affect the iteration (it goes on over the pixels it started with), but other changes to the pixels, like
+     * doesn't affect the iteration (it goes on over the pixels the image had when `pixels()` was called), but other changes to the pixels, like
      * `setPixelAt()`, are seen by the pixels not yet yielded
      * @yields The coordinates and color of the pixel ([x, y, color])
      */
-    *pixels(): Generator<[x: number, y: number, color: Color], void, undefined> {
-        // (the pixels and the size as they are now: resizing the image meanwhile doesn't change what this yields)
+    pixels(): Generator<[x: number, y: number, color: Color], void, undefined> {
+        // (the pixels and the size as they are when this is called, not when the first value is taken: a generator's
+        // body only runs then, so this isn't one)
         const view = new DataView(this.bitmap.buffer, this.bitmap.byteOffset, this.bitmap.byteLength);
         const width = this.width, height = this.height;
-        let offset = 0;
-        for (let y = 0; y < height; y++)
-            for (let x = 0; x < width; x++, offset += 4)
-                yield [x, y, view.getUint32(offset, false)];
+        return (function* () {
+            let offset = 0;
+            for (let y = 0; y < height; y++)
+                for (let x = 0; x < width; x++, offset += 4)
+                    yield [x, y, view.getUint32(offset, false)] as [x: number, y: number, color: Color];
+        })();
     }
 
     /**
@@ -1284,7 +1288,8 @@ export class Image {
      * @ignore
      */
     protected __resized_size__(width: number | undefined, height: number | undefined, fit: 'fill' | 'inside' = 'fill'): [width: number, height: number] {
-        if (fit === 'inside' && width !== undefined && height !== undefined) return insideSize(this.width, this.height, width, height);
+        // (the box is checked like a size: a side below 1 pixel throws, like with the other fits)
+        if (fit === 'inside' && width !== undefined && height !== undefined) return insideSize(this.width, this.height, pixels(width, 'width'), pixels(height, 'height'));
         // a side left out follows the other one, keeping the aspect ratio
         if (width === undefined) return [Math.max(1, Math.round(this.width / this.height * Math.floor(height as number))), height as number];
         if (height === undefined) return [width, Math.max(1, Math.round(this.height / this.width * Math.floor(width)))];
