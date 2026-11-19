@@ -194,12 +194,13 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         throw new LimitError(`SVG too large to render: ${outWidth}x${outHeight} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
 
     // (rendering is synchronous: the layers allocated until it returns are this render's)
-    const previous = layerBudget, previousCrossings = crossingsLeft, previousFilterWork = filterWorkLeft, previousPaint = paintLeft;
+    const previous = layerBudget, previousCrossings = crossingsLeft, previousFilterWork = filterWorkLeft, previousPaint = paintLeft, previousPoints = pointsLeft;
     layerBudget = { left: maxLayerPixels, limit: maxLayerPixels };
     crossingsLeft = MAX_CROSSINGS;
     // (the work scales with the output: a filter on every pixel of it takes a primitive's worth of work per pixel)
     filterWorkLeft = MAX_FILTER_WORK + FILTER_WORK_PER_PIXEL * outWidth * outHeight;
     paintLeft = MAX_PAINT + PAINT_PER_PIXEL * outWidth * outHeight;
+    pointsLeft = MAX_POINTS + POINTS_PER_PIXEL * outWidth * outHeight;
     try {
         const canvas = new Layer(outWidth, outHeight);
         // (a transform on the root element (SVG 2) applies before the viewBox mapping)
@@ -210,6 +211,7 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         crossingsLeft = previousCrossings;
         filterWorkLeft = previousFilterWork;
         paintLeft = previousPaint;
+        pointsLeft = previousPoints;
     }
 }
 
@@ -3532,7 +3534,9 @@ function arcToCubics(path: PathCommand[], x1: number, y1: number, rx: number, ry
     else if (sweep && delta < 0) delta += 2 * Math.PI;
 
     // as many cubics as kurbo makes for usvg (at a tolerance of 0.1), which places mid markers at their ends
-    const perTurn = Math.max(Math.pow(1.1163 * Math.max(rx, ry) / 0.1, 1 / 6), 3.999999);
+    // (at most 1024 a turn, from a radius of about 1e17: an arc between far-apart ends gets a radius of half their
+    // distance, and the count grew with it without a limit)
+    const perTurn = Math.min(Math.max(Math.pow(1.1163 * Math.max(rx, ry) / 0.1, 1 / 6), 3.999999), 1024);
     const segments = Math.max(1, Math.ceil(perTurn * Math.abs(delta) / (2 * Math.PI)));
     const step = delta / segments;
     const k = 4 / 3 * Math.tan(step / 4);
@@ -3550,8 +3554,19 @@ function arcToCubics(path: PathCommand[], x1: number, y1: number, rx: number, ry
     }
 }
 
+// the most points paths may be flattened to in one render: 2^25 and 4 per pixel of the output (a curve gets up to 512,
+// so huge curves far outside the image took gigabytes), and 2^22 in one path (its points are in memory at once)
+const MAX_POINTS = 2 ** 25, POINTS_PER_PIXEL = 4, MAX_PATH_POINTS = 2 ** 22;
+let pointsLeft = Infinity;
+
 // flattens path commands into polylines: [{points: [x, y, ...], closed}]
 function flatten(path: PathCommand[], tolerance: number): Subpath[] {
+    let pathPoints = 0;
+    const count = (points: number): void => {
+        pathPoints += points;
+        if ((pointsLeft -= points) < 0 || pathPoints > MAX_PATH_POINTS)
+            throw new LimitError(`SVG too complex: its paths flatten to more points than a render of this size allows (${MAX_PATH_POINTS} in a path, ${MAX_POINTS} and ${POINTS_PER_PIXEL} per output pixel in all)`);
+    };
     const subpaths: Subpath[] = [];
     let current: Subpath | null = null;
     let x = 0, y = 0, sx = 0, sy = 0;
@@ -3581,6 +3596,7 @@ function flatten(path: PathCommand[], tolerance: number): Subpath[] {
                 const ddx = Math.max(Math.abs(x - 2 * c1x + c2x), Math.abs(c1x - 2 * c2x + ex));
                 const ddy = Math.max(Math.abs(y - 2 * c1y + c2y), Math.abs(c1y - 2 * c2y + ey));
                 const n = Math.min(512, Math.max(1, Math.ceil(Math.sqrt(0.75 * Math.hypot(ddx, ddy) / tolerance))));
+                count(n);
                 for (let i = 1; i <= n; i++) {
                     const t = i / n, mt = 1 - t;
                     current.points.push(

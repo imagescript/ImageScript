@@ -1,0 +1,47 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const child_process = require('child_process');
+
+const panic = message => {
+    console.error(message);
+    process.exit(1);
+};
+
+// Curves between far-apart points: an arc's radius grows to half the distance of its ends, and the number of curves
+// and points it was drawn with grew with the radius, without a limit: a 139-byte path killed the process with an out
+// of memory error. Each renders, or throws a LimitError, in a bounded time and memory (in a process of its own, which
+// can die without taking this one along)
+const NS = 'xmlns="http://www.w3.org/2000/svg"';
+const svg = shape => `<svg viewBox="0 0 200 200" ${NS}>${shape}</svg>`;
+let many = 'M -1e12 100';
+for (let i = 0; i < 1000; i++) many += i & 1 ? ' A 1 1 0 0 1 -1e12 100' : ' A 1 1 0 0 1 1e12 100';
+const cases = {
+    'stroked arc from 1e25': svg('<path d="M 1e25 100 A 40 30 20 1 1 160 100" fill="none" stroke="gray"/>'),
+    'filled arc from 1e25': svg('<path d="M 1e25 100 A 40 30 20 1 1 160 100"/>'),
+    'stroked arc from 301e30': svg('<path d="M 301e30 100 A 40 30 20 1 1 160 100" fill="none" stroke="gray"/>'),
+    'arc from 1e300': svg('<path d="M 1e300 100 A 40 30 20 1 1 160 100" fill="none" stroke="gray"/>'),
+    'arc of radius 1e300': svg('<path d="M 10 10 A 1e300 1e300 0 1 1 20 20" fill="none" stroke="gray"/>'),
+    '1000 arcs between 1e12 and -1e12': svg(`<path d="${many}" fill="none" stroke="red"/>`),
+    'circle of radius 1e30': svg('<circle cx="100" cy="100" r="1e30" fill="none" stroke="red"/>')
+};
+const [command, ...flags] = typeof Deno !== 'undefined' ? [process.execPath, 'run', '-A', '--v8-flags=--max-old-space-size=1024'] : [process.execPath, ...(process.versions.bun ? [] : ['--max-old-space-size=1024'])];
+const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'svg-arcs-'));
+try {
+    for (const [name, document] of Object.entries(cases)) {
+        const file = path.join(directory, 'svg');
+        fs.writeFileSync(file, document);
+        const begin = Date.now();
+        let output;
+        try {
+            output = JSON.parse(child_process.execFileSync(command, [...flags, './tests/util/render-svg.js', file], {timeout: 60000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']}).trim());
+        } catch (error) {
+            panic(`${name}: ${error.signal === 'SIGTERM' ? 'hung for 60 s' : `crashed (${error.signal || `exit ${error.status}`})`}`);
+        }
+        if (output.result !== 'ok' && !output.result.startsWith('LimitError')) panic(`${name}: ${output.result}`);
+        if (output.mb > 768) panic(`${name}: took ${output.mb} MB`);
+        console.log(name, output.result.slice(0, 60), `${Date.now() - begin} ms`, `${output.mb} MB`);
+    }
+} finally {
+    fs.rmSync(directory, {recursive: true, force: true});
+}
