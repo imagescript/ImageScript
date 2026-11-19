@@ -248,7 +248,8 @@ function canvas(widthArgument: number, heightArgument: number, format: 'GIF' | '
 
 // a frame in the WebP codec's terms (odd offsets: one transparent pixel more on the left/top, blending makes it
 // invisible)
-function webpFrame(f: InputFrame): webp.WebPEncodeFrame {
+/** @internal a frame in the WebP codec's terms: odd offsets get one transparent pixel more on the left/top */
+export function webpFrame(f: InputFrame): webp.WebPEncodeFrame {
     let { x, y, width: w, height: h, pixels } = f;
     if (x & 1 || y & 1) {
         const dx = x & 1, dy = y & 1;

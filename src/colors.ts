@@ -227,8 +227,9 @@ export class Colors {
             };
         }
 
-        const minDef = Math.min(...positions);
-        const maxDef = Math.max(...positions);
+        // (sorted: the first and the last; no spread, which overflows the call stack for many stops)
+        const minDef = positions[0];
+        const maxDef = positions[positions.length - 1];
         const gradients: Array<{ min: number, max: number, gradient: (position: number) => Color }> = [];
 
         for (let i = 0; i < positions.length; i++) {
@@ -256,8 +257,11 @@ export class Colors {
 
         return position => {
             checkPosition(position);
-            if (position <= minDef) return gradients[0].gradient(0);
-            if (position >= maxDef) return gradients[gradients.length - 1].gradient(1);
+            // (before and after the stops their colors, like with 2 stops: interpolating would lose the color of a
+            // transparent stop; at a stop's position, the later stop's color, like CSS)
+            if (position < minDef) return values[0];
+            if (position >= maxDef) return values[values.length - 1];
+            if (position === minDef) return values[positions.lastIndexOf(minDef)];
 
             for (const gradient of gradients)
                 if (position >= gradient.min && position <= gradient.max)

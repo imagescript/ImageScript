@@ -9,12 +9,12 @@ import { GainMap } from './gainmap.ts';
 import { Image, DecodeOptions, EncodeOptions, GIFEncodeOptions, ResizeOptions, ResizeToOptions, RotateOptions, TransformOptions, AffineTransform, ShadowOptions, OutlineOptions, TrimOptions, resizeArguments, insideSize, alignedPixels, PNGEncodeOptions, WebPEncodeOptions, FlipDirection, FLIP_DIRECTIONS, TONE_MAPPINGS } from './image.ts';
 import { Frame } from './frame.ts';
 import { ImageType } from './image-type.ts';
-import { optimize, OptimizeOptions, OptimizedFrame } from './util/optimize.ts';
+import { optimize, OptimizeOptions, OptimizedFrame, Compositor } from './util/optimize.ts';
 import { paletteOptions } from './codecs/quantize.ts';
 import { resolveMetadata, pngText, exifData, gifComments } from './metadata.ts';
 import { shown, scaleFactor, checkOptions, oneOf, pixelLimit, checkThreads, pixels, canvasSize, cropBounds, compressionLevel, loopCount, toPlays, fromPlays, fitLoops, fitDuration, maxDuration, boolean, color as checkColor } from './util/options.ts';
 import { MAX_PIXELS, decoding, checkPixels, checkFormatSize } from './util/limits.ts';
-import { AnimationEncoder } from './animation-encoder.ts';
+import { AnimationEncoder, webpFrame } from './animation-encoder.ts';
 import { describe } from './util/inspect.ts';
 
 // frames decoded fully composited, as full canvas frames
@@ -398,7 +398,8 @@ export class Animation {
     /**
      * Trims the canvas: removes the borders of one color around what any frame shows (in the composited animation),
      * like {@link Image.trim}. The frames keep their pixels, the canvas is cropped like {@link Animation.crop}
-     * @param options The color (by default the top left pixel of the first frame) and the tolerance, see
+     * @param options The color (by default the top left pixel of the canvas as the first frame shows it) and the
+     *     tolerance, see
      *     {@link TrimOptions}
      */
     trim(options: TrimOptions = {}): this {
@@ -623,25 +624,14 @@ export class Animation {
      */
     __webpFrames__(): webp.WebPEncodeFrame[] {
         const width = this.width, height = this.height;
-        // WebP knows no "previous" disposal and stores offsets halved: such animations are stored as full frames
-        const clipped = this.__clipped_frames__();
-        const fullFrames = clipped.some(f => f.disposalMode === 'previous' || (f.disposalMode === 'background' && (f.xOffset & 1 || f.yOffset & 1)));
-        if (fullFrames)
-            return png.compositeAnimation({ width, height, frames: this.__apngFrames__() })
-                .map(c => ({ x: 0, y: 0, width, height, duration: c.duration, dispose: true, pixels: c.pixels }));
-
-        return Array.from(clipped, frame => {
-            let { xOffset: x, yOffset: y, width: w, height: h } = frame;
-            let pixels = new Uint8Array(frame.image.bitmap.buffer, frame.image.bitmap.byteOffset, frame.image.bitmap.byteLength);
-            // odd offsets: one transparent pixel more on the left/top (blending makes it invisible)
-            if (x & 1 || y & 1) {
-                const dx = x & 1, dy = y & 1;
-                const padded = new Uint8Array((w + dx) * (h + dy) * 4);
-                for (let row = 0; row < h; row++) padded.set(pixels.subarray(row * w * 4, (row + 1) * w * 4), ((row + dy) * (w + dx) + dx) * 4);
-                pixels = padded;
-                x -= dx; y -= dy; w += dx; h += dy;
-            }
-            return { x, y, width: w, height: h, duration: frame.duration, dispose: frame.disposalMode === 'background', pixels };
+        // WebP knows no "previous" disposal and stores offsets halved: from the first frame it can't store as it is,
+        // the frames are stored as the canvas they show, replacing it (like the streaming encoder, the same file)
+        const compositor = new Compositor(width, height);
+        let full = false;
+        return this.__apngFrames__().map(f => {
+            const shown = compositor.push(f);
+            full ||= f.dispose === 2 || (f.dispose === 1 && !!(f.x & 1 || f.y & 1));
+            return full ? { x: 0, y: 0, width, height, duration: f.duration, dispose: true, blend: false, pixels: shown } : webpFrame(f);
         });
     }
 
