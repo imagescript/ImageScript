@@ -1362,7 +1362,7 @@ class Document {
         collect(root);
 
         const mode = textStyle['writing-mode'];
-        return { chunks, dx, dy, rotate: rotations, vertical: mode === 'tb' || mode === 'tb-rl' || mode === 'vertical-rl' || mode === 'vertical-lr', scale };
+        return { chunks, dx, dy, rotate: rotations, vertical: mode === 'tb' || mode === 'tb-rl' || mode === 'vertical-rl' || mode === 'vertical-lr', scale, charge: pointCounter() };
     }
 
     // a textPath's path (the shape it references, with its transform) and its start offset
@@ -1372,7 +1372,7 @@ class Document {
         if (!target || !raw || !raw.length) return null;
         // (the text is placed along the path, measured for each copy drawn through <use>: a command takes about the time
         // of flattening 16 points, measuring its length to place the glyphs)
-        pointCounter()(16 * raw.length);
+        chargePoints(16 * raw.length);
         const m = target.attrs.transform ? originTransform(target.attrs.transform, target.attrs['transform-origin'], viewport) : null;
         const path = m ? raw.map(c => [c[0], ...transformPoints(c.slice(1) as number[], m)] as PathCommand) : raw;
         const offset = (node.attrs.startOffset ?? '').trim();
@@ -3414,6 +3414,11 @@ function pointCounter(): (points: number) => void {
     };
 }
 
+/** charges points to the render's budget, without the limit of one path */
+function chargePoints(points: number): void {
+    if ((pointsLeft -= points) < 0) pointCounter()(0);
+}
+
 function parsePath(d: string): PathCommand[] {
     const path: PathCommand[] = [];
     // (the curves of arcs count, before they are made: an arc between far-apart ends was 1024 curves a turn)
@@ -3429,7 +3434,7 @@ function parsePath(d: string): PathCommand[] {
     }
     // (reading takes about the time of flattening 2 points a number or command: it counts against the render's points,
     // so a path read again and again, the copies of one not kept, or many different ones, is bounded like its points)
-    if ((pointsLeft -= 2 * items.length) < 0) pointCounter()(0);
+    chargePoints(2 * items.length);
 
     let i = 0;
     let command: string | null = null;

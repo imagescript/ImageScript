@@ -435,6 +435,8 @@ export interface TextInput<S> {
     vertical: boolean;
     /** the scale the text is drawn at, for the precision of text on paths */
     scale: number;
+    /** called with the number of commands of each glyph outline before it is placed, to bound long texts */
+    charge?: (commands: number) => void;
 }
 
 export interface SpanOutput<S> {
@@ -502,7 +504,19 @@ function upright(u: number): boolean {
         || (u >= 0x2460 && u <= 0x24ff) || (u >= 0x2600 && u <= 0x27bf && u !== 0x2771 && u !== 0x2770);
 }
 
-const spanAt = <S>(chunk: ChunkInput<S>, i: number): SpanInput<S> | undefined => chunk.spans.find(s => i >= s.start && i < s.end);
+// (the spans of a chunk are disjoint: found by a binary search over their starts, kept per chunk, as a find over them
+// made many spans, a tspan each, quadratic)
+const sortedSpans = new WeakMap<object, unknown[]>();
+const spanAt = <S>(chunk: ChunkInput<S>, i: number): SpanInput<S> | undefined => {
+    let spans = sortedSpans.get(chunk.spans) as SpanInput<S>[] | undefined;
+    if (!spans) sortedSpans.set(chunk.spans, spans = chunk.spans.slice().sort((a, b) => a.start - b.start));
+    let low = 0, high = spans.length - 1, found = -1;
+    while (low <= high) {
+        const mid = (low + high) >>> 1;
+        if (spans[mid].start <= i) { found = mid; low = mid + 1; } else high = mid - 1;
+    }
+    return found >= 0 && i < spans[found].end ? spans[found] : undefined;
+};
 
 /**
  * Shapes a chunk (in visual order): runs of one embedding level, script and features, and of the span faces or one
@@ -1044,6 +1058,21 @@ export function layOutText<S>(text: TextInput<S>, fonts: FontFace[], fallback: F
         const position = chunk.path ? positionOnPath(text, chunk, clusters, shiftOf) : positionLinear(text, chunk, clusters);
 
         const textMatrix = text.vertical && !chunk.path ? rotate(IDENTITY, 90, x, y) : IDENTITY;
+        // the clusters of each span, by their index (the spans are disjoint, in order): a span looks at its own, not at
+        // all of the chunk's, which took quadratic time for many spans (a tspan each)
+        const owned = new Map<SpanInput<S>, number[]>(), ordered = chunk.spans.slice().sort((a, b) => a.start - b.start);
+        clusters.forEach((c, i) => {
+            let low = 0, high = ordered.length - 1, found = -1;
+            while (low <= high) {
+                const mid = (low + high) >>> 1;
+                if (ordered[mid].start <= c.start) { found = mid; low = mid + 1; } else high = mid - 1;
+            }
+            if (found < 0 || c.start >= ordered[found].end) return;
+            const list = owned.get(ordered[found]);
+            if (list) list.push(i); else owned.set(ordered[found], [i]);
+        });
+        // (the bounding box of all clusters, from the metrics, is the same for spans with the same shift)
+        const boxed = new Set<number>();
         for (const span of chunk.spans) {
             const face = primary.get(span);
             if (!face) continue;
@@ -1055,13 +1084,16 @@ export function layOutText<S>(text: TextInput<S>, fonts: FontFace[], fallback: F
 
             // decorations: one line per run of the span's clusters without relative shifts between them
             const runs: Array<{ width: number, transform: Matrix }> = [];
-            let current: { width: number, transform: Matrix } | null = null;
-            for (const c of clusters) {
-                if (c.start >= span.start && c.start < span.end) {
-                    if (current && c.hasRelativeShift) current = null;
-                    if (!current) runs.push(current = { width: c.advance, transform: c.transform });
-                    else current.width += c.advance;
-                } else current = null;
+            let current: { width: number, transform: Matrix } | null = null, previous = -2;
+            const own = owned.get(span) ?? [];
+            for (const i of own) {
+                const c = clusters[i];
+                // (a cluster of another span between two of this one ends the run)
+                if (i !== previous + 1) current = null;
+                previous = i;
+                if (current && c.hasRelativeShift) current = null;
+                if (!current) runs.push(current = { width: c.advance, transform: c.transform });
+                else current.width += c.advance;
             }
             const decoration = (paint: S | null, offset: number, list: Array<{ path: PathCommand[], paint: S }>): void => {
                 if (!paint || !runs.length) return;
@@ -1077,18 +1109,29 @@ export function layOutText<S>(text: TextInput<S>, fonts: FontFace[], fallback: F
             decoration(span.lineThrough, text.vertical ? 0 : -face.lineThroughPosition * s, out.after);
 
             let any = false;
-            for (const c of clusters) {
+            const shift = chunk.path ? 0 : shiftOf(span);
+            if (!boxed.has(shift)) {
+                boxed.add(shift);
+                for (const c of clusters) {
+                    if (!c.visible) continue;
+                    // (the bounding box from the metrics, of all clusters)
+                    extend(rectPath(multiply(spanMatrix, multiply(c.transform, c.pathTransform)), 0, -c.ascent, c.advance > 0 ? c.advance : 1, c.ascent - c.descent));
+                }
+            }
+            for (const i of own) {
+                const c = clusters[i];
                 if (!c.visible) continue;
-                // (the bounding box from the metrics, of all clusters)
                 const m = multiply(spanMatrix, multiply(c.transform, c.pathTransform));
-                extend(rectPath(m, 0, -c.ascent, c.advance > 0 ? c.advance : 1, c.ascent - c.descent));
-                if (c.start < span.start || c.start >= span.end) continue;
                 any = true;
                 for (const g of c.glyphs) {
                     const gs = c.fontSize / g.face.font.unitsPerEm, matrix = scale(translate(scale(m, gs, gs), g.x, -g.y), 1, -1);
                     const kind = colorKind(g.face, g.glyph, c.fontSize);
                     if (kind) out.colors.push({ face: g.face, glyph: g.glyph, kind, fontSize: c.fontSize, matrix });
-                    else placeOutline(out.glyphs, g.face.font.outline(g.glyph), matrix);
+                    else {
+                        const outline = g.face.font.outline(g.glyph);
+                        text.charge?.(outline.length);
+                        placeOutline(out.glyphs, outline, matrix);
+                    }
                 }
             }
             if (any || out.before.length || out.after.length) spans.push(out);

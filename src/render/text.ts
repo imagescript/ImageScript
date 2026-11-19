@@ -233,7 +233,8 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
     // paragraphs end at hard line breaks (CR LF, CR, LF, NEL, LS, PS)
     const paragraphs = text.split(/\r\n|[\r\n\u0085\u2028\u2029]/);
     const lines: Line[] = [];
-    for (const paragraph of paragraphs) lines.push(...layOutParagraph(analyze(paragraph, fonts.length, font), layout, font, size, features));
+    // (loops, not spreads: 200,000 lines or marks are more than a call takes arguments)
+    for (const paragraph of paragraphs) for (const line of layOutParagraph(analyze(paragraph, fonts.length, font), layout, font, size, features)) lines.push(line);
 
     // lines that fit into the height, chosen by the vertical alignment
     let visible = lines;
@@ -333,7 +334,7 @@ function analyze(text: string, count: number, font: (i: number) => SizedFont): P
         }
         return first;
     };
-    const normalized = (grapheme: number[], form: string): number[] => Array.from(String.fromCodePoint(...grapheme).normalize(form), char => char.codePointAt(0) as number);
+    const normalized = (grapheme: number[], form: string): number[] => Array.from(grapheme.map(c => String.fromCodePoint(c)).join('').normalize(form), char => char.codePointAt(0) as number);
 
     const graphemes = graphemeBoundaries(codepoints), fontOf = new Int32Array(n);
     for (let start = 0; start < n;) {

@@ -48,6 +48,12 @@ const cases = {
     // long text in a clip path and as text: its glyphs were collected with spreads, past the call stack's limit
     'long text in a clip path': `<svg ${NS} width="10" height="10"><clipPath id="c"><text font-size="1" y="5">${'W'.repeat(50000)}</text></clipPath><rect width="10" height="10" clip-path="url(#c)"/></svg>`,
     'long text': `<svg ${NS} width="10" height="10"><text font-size="1" y="5">${'W'.repeat(50000)}</text></svg>`,
+    // a long path with one label (a map's contour line), at a normal size: only many copies of it are too much
+    'textPath on one long path': `<svg viewBox="0 0 100 100" width="100" height="100" ${NS}><defs><path id="p" d="M0 0${'L1 1L0 0'.repeat(80000)}"/></defs><text font-size="5"><textPath href="#p">A</textPath></text></svg>`,
+    // long text builds every glyph's outline: they count against the budget before they are made
+    'long text with complex glyphs': `<svg viewBox="0 0 100 100" width="10" height="10" ${NS}><text font-size="1" font-family="carbon">${'A'.repeat(20000)}</text></svg>`,
+    // many tspans in one text took quadratic time
+    'many tspans': `<svg viewBox="0 0 100 100" width="10" height="10" ${NS}><text font-size="1">${'<tspan>A</tspan>'.repeat(10000)}</text></svg>`,
     // a path of lines only, drawn 90000 times through <use> without painting anything: no budget counted its points
     'lines through use': (() => {
         let defs = `<path id="g0" d="M0 0${'h1h-1'.repeat(50000)}" fill="none"/>`;
@@ -70,6 +76,7 @@ try {
         }
         if (output.result !== 'ok' && !output.result.startsWith('LimitError')) panic(`${name}: ${output.result}`);
         if (name === 'textPath along a too long path' && !output.result.startsWith('LimitError')) panic(`${name}: should throw a LimitError`);
+        if (name === 'textPath on one long path' && output.result !== 'ok') panic(`${name}: ${output.result}, it is a normal document`);
         if (Date.now() - begin > 20000) panic(`${name}: took ${Date.now() - begin} ms`);
         if (output.mb > 768) panic(`${name}: took ${output.mb} MB`);
         console.log(name, output.result.slice(0, 60), `${Date.now() - begin} ms`, `${output.mb} MB`);
