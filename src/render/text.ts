@@ -481,9 +481,10 @@ function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => Size
     }
 
     // every line shaped by itself, with the levels of rule L1
+    // (one array of the levels for all lines, each line sets and reads its own range: one per line took quadratic time)
+    const shifted = new Int8Array(n);
     return ranges.map(([start, end]) => {
         const levels = lineLevels(p.bidi, start, end);
-        const shifted = new Int8Array(n);
         shifted.set(levels, start);
         const { glyphs } = ranges.length === 1 ? whole : shapeRange(p, start, end, shifted, font, size, features);
         let extent = 0, left = Infinity;

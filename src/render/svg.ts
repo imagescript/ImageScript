@@ -204,6 +204,8 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
     // (a nested render, of an SVG embedded as an image, takes its points from the render it is in)
     if (!previousPaths) pointsLeft = MAX_POINTS + POINTS_PER_PIXEL * outWidth * outHeight;
     parsedPaths = new Map();
+    const previousBitmaps = decodedBitmaps;
+    decodedBitmaps ??= new WeakMap();
     // (a nested render, of an SVG embedded as an image, shares the allowance: the outer paths stay kept meanwhile)
     if (!previousPaths) cachedCommands = 0;
     try {
@@ -218,6 +220,7 @@ export function render(source: string | Uint8Array, mode: 'scale' | 'width' | 'h
         paintLeft = previousPaint;
         if (!previousPaths) pointsLeft = previousPoints;
         parsedPaths = previousPaths;
+        decodedBitmaps = previousBitmaps;
         cachedCommands = previousCached;
     }
 }
@@ -1140,6 +1143,7 @@ class Document {
                 if (this.given.length && this.givenFontsFail(node, style, viewport, scale)) throw damaged(err);
             }
         }
+        if (layout) for (const span of layout.spans) glyphPaths.add(span.glyphs);
         this.texts.set(node, { style, width: viewport.width, height: viewport.height, scale, layout });
         return layout;
     }
@@ -1362,7 +1366,7 @@ class Document {
         collect(root);
 
         const mode = textStyle['writing-mode'];
-        return { chunks, dx, dy, rotate: rotations, vertical: mode === 'tb' || mode === 'tb-rl' || mode === 'vertical-rl' || mode === 'vertical-lr', scale, charge: pointCounter() };
+        return { chunks, dx, dy, rotate: rotations, vertical: mode === 'tb' || mode === 'tb-rl' || mode === 'vertical-rl' || mode === 'vertical-lr', scale, charge: commands => chargePoints(GLYPH_COMMAND_POINTS * commands) };
     }
 
     // a textPath's path (the shape it references, with its transform) and its start offset
@@ -1438,12 +1442,17 @@ class Document {
             const s = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
             const bitmap = tables.bitmaps(Math.round(s * font.unitsPerEm))?.(g.glyph) ?? tables.bitmaps(g.fontSize)?.(g.glyph);
             if (!bitmap) return;
-            let decoded;
-            try {
-                decoded = decodePNG(bitmap.png);
-            } catch {
-                return;
+            // (decoded once a render: an emoji drawn through <use> was decoded again for each copy)
+            let decoded = decodedBitmaps?.get(bitmap.png);
+            if (decoded === undefined) {
+                try {
+                    decoded = decodePNG(bitmap.png);
+                } catch {
+                    decoded = null;
+                }
+                decodedBitmaps?.set(bitmap.png, decoded);
             }
+            if (!decoded) return;
             const k = font.unitsPerEm / bitmap.ppem;
             let left = bitmap.left * k, top = bitmap.top * k;
             // sbix bitmaps are shifted by the outline's lower left corner, or (without one) down like macOS seems to
@@ -1509,6 +1518,7 @@ class Document {
         const path: PathCommand[] = [];
         // (loops, not spreads: long text has more commands than a call takes arguments)
         for (const span of layout.spans) if (span.visible) for (const part of [...span.before, { path: span.glyphs }, ...span.after]) for (const command of part.path) path.push(command);
+        glyphPaths.add(path);
         return path.length ? path : null;
     }
 
@@ -3402,6 +3412,10 @@ let pointsLeft = Infinity;
 // the paths read in the render that runs, by their path data, and how many commands they hold (at most 2^20, about 100
 // MB: the paths of SVGs embedded as images are kept while they render, too)
 let parsedPaths: Map<string, PathCommand[]> | null = null, cachedCommands = 0;
+// the paths of texts' glyphs
+const glyphPaths = new WeakSet<PathCommand[]>();
+// the bitmap glyphs decoded in the render that runs, by their PNG data
+let decodedBitmaps: WeakMap<Uint8Array, ReturnType<typeof decodePNG> | null> | null = null;
 const MAX_CACHED_COMMANDS = 2 ** 20;
 
 /** counts the points of one path against the render's budget and the limit of a path */
@@ -3413,6 +3427,10 @@ function pointCounter(): (points: number) => void {
             throw new LimitError(`SVG too complex: its paths are made of more points than a render of this size allows (${MAX_PATH_POINTS} in a path, ${MAX_POINTS} and ${POINTS_PER_PIXEL} per output pixel in all)`);
     };
 }
+
+// what a command of a glyph outline costs: the outlines of the texts are kept until the render ends, about 250 bytes a
+// command, so 2^21 of them at the smallest outputs (some 500 MB), more at larger ones
+const GLYPH_COMMAND_POINTS = 16;
 
 /** charges points to the render's budget, without the limit of one path */
 function chargePoints(points: number): void {
@@ -3610,7 +3628,8 @@ function arcToCubics(path: PathCommand[], x1: number, y1: number, rx: number, ry
 
 // flattens path commands into polylines: [{points: [x, y, ...], closed}]
 function flatten(path: PathCommand[], tolerance: number): Subpath[] {
-    const count = pointCounter();
+    // (a text's glyphs aren't held to the limit of one path: their outlines count against the render's budget already)
+    const count = glyphPaths.has(path) ? chargePoints : pointCounter();
     const subpaths: Subpath[] = [];
     let current: Subpath | null = null;
     let x = 0, y = 0, sx = 0, sy = 0;

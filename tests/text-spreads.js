@@ -1,4 +1,4 @@
-const {Image} = require('..');
+const {Image, LimitError} = require('..');
 const fs = require('fs');
 
 const panic = message => {
@@ -13,9 +13,12 @@ const panic = message => {
 	for (const [name, text, options] of [
 		['combining marks', 'a' + '\u0301'.repeat(200000), {}],
 		['lines', 'a '.repeat(200000), {width: 1}],
+		['marks between letters', 'a\u0301'.repeat(200000), {}],
 	]) {
+		// (and in linear time: 400,000 lines took minutes)
+		const begin = Date.now();
 		const result = await Image.renderText(text, {font, size: 1, maxPixels: 1e8, ...options}).then(() => 'ok', err => err);
-		if (result !== 'ok' && !(result instanceof RangeError && !/damaged/.test(result.message))) panic(`${name}: ${result}`);
-		if (/damaged/.test(String(result.message))) panic(`${name}: blames the font: ${result.message}`);
+		if (result !== 'ok' && !(result instanceof LimitError)) panic(`${name}: ${result}`);
+		if (Date.now() - begin > 15000) panic(`${name}: took ${Date.now() - begin} ms`);
 	}
 })();

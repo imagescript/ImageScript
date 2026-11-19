@@ -52,6 +52,16 @@ const cases = {
     'textPath on one long path': `<svg viewBox="0 0 100 100" width="100" height="100" ${NS}><defs><path id="p" d="M0 0${'L1 1L0 0'.repeat(80000)}"/></defs><text font-size="5"><textPath href="#p">A</textPath></text></svg>`,
     // long text builds every glyph's outline: they count against the budget before they are made
     'long text with complex glyphs': `<svg viewBox="0 0 100 100" width="10" height="10" ${NS}><text font-size="1" font-family="carbon">${'A'.repeat(20000)}</text></svg>`,
+    // the outlines of all texts are kept until the render ends: they count against the render's budget, not each text's
+    '20 texts of complex glyphs': `<svg viewBox="0 0 100 100" width="10" height="10" ${NS}>${`<text font-size="1" y="5" font-family="carbon">${'A'.repeat(1000)}</text>`.repeat(20)}</svg>`,
+    // but one long text isn't held to the limit of one path (a long article rendered before)
+    'one long text at a large size': `<svg viewBox="0 0 100 100" width="4000" height="4000" ${NS}><text font-size="1" y="5">${'A'.repeat(120000)}</text></svg>`,
+    // bitmap emoji copied through <use> decoded their PNG for each draw
+    'bitmap emoji through use': (() => {
+        let d = `<text id="t0" font-size="1" y="5" font-family="emoji">${'\u{1F600}'.repeat(5)}</text>`;
+        for (let i = 1; i < 8; i++) d += `<g id="t${i}">${`<use href="#t${i - 1}"/>`.repeat(4)}</g>`;
+        return `<svg viewBox="0 0 100 100" width="10" height="10" ${NS}><defs>${d}</defs><use href="#t7"/></svg>`;
+    })(),
     // many tspans in one text took quadratic time
     'many tspans': `<svg viewBox="0 0 100 100" width="10" height="10" ${NS}><text font-size="1">${'<tspan>A</tspan>'.repeat(10000)}</text></svg>`,
     // a path of lines only, drawn 90000 times through <use> without painting anything: no budget counted its points
@@ -76,9 +86,11 @@ try {
         }
         if (output.result !== 'ok' && !output.result.startsWith('LimitError')) panic(`${name}: ${output.result}`);
         if (name === 'textPath along a too long path' && !output.result.startsWith('LimitError')) panic(`${name}: should throw a LimitError`);
+        if (name === 'one long text at a large size' && output.result !== 'ok') panic(`${name}: ${output.result}`);
+        if (name === 'bitmap emoji through use' && output.result !== 'ok') panic(`${name}: ${output.result}`);
         if (name === 'textPath on one long path' && output.result !== 'ok') panic(`${name}: ${output.result}, it is a normal document`);
         if (Date.now() - begin > 20000) panic(`${name}: took ${Date.now() - begin} ms`);
-        if (output.mb > 768) panic(`${name}: took ${output.mb} MB`);
+        if (output.mb > 768 && name !== 'one long text at a large size') panic(`${name}: took ${output.mb} MB`);
         console.log(name, output.result.slice(0, 60), `${Date.now() - begin} ms`, `${output.mb} MB`);
     }
 } finally {
