@@ -7,7 +7,7 @@ const panic = message => {
 
 // an image beyond what a format can store throws a RangeError of one shape, naming the format, the limit and the
 // size: `<format>: images can be at most N pixels wide and high, not WxH`
-(async () => {
+const sizes = (async () => {
 	const wide = (width, height = 1) => new Image(width, height).fill(0x336699ff);
 	const cases = [
 		['JPEG', 65535, image => image.encodeJPEG()],
@@ -30,3 +30,24 @@ const panic = message => {
 	// the other limits stay where they were: the formats that take any size
 	for (const format of ['encodePNG', 'encodeBMP']) await wide(70000)[format]();
 })();
+
+// the size is checked before any work on the pixels: a pass over a too large image (a gray check, compositing onto
+// the background, the conversion for lossless WebP) only to throw took seconds and a copy of the image
+sizes.then(async () => {
+	const work = () => { throw new Error('the encoder worked on the pixels before checking the size'); };
+	// (__bytes__ is only a view of the pixels, not a pass over them)
+	for (const name of ['__is_gray__', '__flatRows__', '__flattened__']) {
+		const original = Image.prototype[name];
+		Image.prototype[name] = work;
+		try {
+			for (const [encode, size] of [[image => image.encodeJPEG(), [65536, 1]], [image => image.encodeWebP(), [16385, 1]], [image => image.encodeWebP({quality: 80}), [16384, 1]], [image => image.encodeAVIF({threads: 1}), [65537, 1]], [image => image.encodeTGA(), [65536, 1]], [image => image.encodeGIF(), [65536, 1]]]) {
+				const image = new Image(...size).fill(0x80808080);
+				let error = null;
+				try { await encode(image); } catch (err) { error = err; }
+				if (!(error instanceof RangeError) || !/images can be at most/.test(error.message)) panic(`${name}, ${size[0]}x${size[1]}: ${error?.message}`);
+			}
+		} finally {
+			Image.prototype[name] = original;
+		}
+	}
+});

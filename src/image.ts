@@ -2681,6 +2681,9 @@ export class Image {
         // eslint-disable-next-line no-restricted-syntax -- a limit of the format, not a range of the option
         if (exif && exif.length > 65527) throw new RangeError(`JPEG: the metadata's description, author, copyright, software and creation time must be at most 65533 bytes together in Exif, not ${exif.length + 6}`);
 
+        // (before any pass over the pixels: one over an image the format can't store took seconds)
+        checkFormatSize('JPEG', this.width, this.height, 0xffff);
+
         // without a gain map: the transparent pixels are composited onto the background row by row as the encoder reads
         // them (no copy of the image: __flattened__'s copy of 4 bytes a pixel was the peak memory)
         if (!this.__gain_map__) {
@@ -2796,6 +2799,8 @@ export class Image {
         checkThreads(threads);
         const exif = exifData(resolveMetadata(metadata));
         const lossy = webp.lossyOptions(quality, effort, sharpYuv, alphaQuality);
+        // (before the conversion of the pixels: the limits of the two codecs)
+        checkFormatSize('WebP', this.width, this.height, lossy ? 16383 : 16384);
         if (!lossy) return webp.encode(this.__bytes__(), this.width, this.height, exif, threads, effort);
         return webp.encodeLossy(this.__bytes__(), this.width, this.height, lossy, exif);
     }
