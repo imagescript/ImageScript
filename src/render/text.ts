@@ -343,14 +343,14 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
     return { width, height, coverage, color };
 }
 
-// the bytes of glyph rasters kept with a font across renders, at all its sizes: 256 KB a raster (512x512 of coverage)
-// and 16 MB a font at most. The others are kept for one render (62 letters at size 6000 kept 774 MB with the font, for
+// the bytes of glyph rasters kept with a font (an instance of a variable font) across renders, at all its sizes: 256 KB a
+// raster (512x512 of coverage) and 4 MB a font at most (64 instances of a font may be kept). The others are kept for one render (62 letters at size 6000 kept 774 MB with the font, for
 // good, and one more each size)
 const keptBytes = new WeakMap<Font, number>();
 function keptWithFont(g: Glyph, bytes: number): boolean {
     if (bytes > 2 ** 18) return false;
     const kept = (keptBytes.get(g.font.font) ?? 0) + bytes;
-    if (kept > 2 ** 24) return false;
+    if (kept > 2 ** 22) return false;
     keptBytes.set(g.font.font, kept);
     return true;
 }

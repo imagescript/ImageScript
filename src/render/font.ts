@@ -169,12 +169,18 @@ export class Font {
         const base = Object.getPrototypeOf(this) instanceof Font ? Object.getPrototypeOf(this) as Font : this;
         const key = coords.join(',');
         const cached = base.instances?.get(key);
-        if (cached) return cached;
+        if (cached) {
+            // (the least recently used is the one dropped: used again, an instance goes to the back)
+            base.instances!.delete(key);
+            base.instances!.set(key, cached);
+            return cached;
+        }
         const instance = Object.create(base) as Font;
-        // (at most 16 instances a font, the oldest dropped: a new weight each render kept one for each, with its sizes,
-        // until the process ran out of memory)
+        // (at most 64 instances a font (a chart of 5 sizes and 4 weights is 20, with an optical size axis), the least
+        // recently used dropped: a new weight each render kept one for each, with its sizes, until the process ran out of
+        // memory)
         const instances = base.instances ??= new Map();
-        if (instances.size >= 16) instances.delete(instances.keys().next().value as string);
+        if (instances.size >= 64) instances.delete(instances.keys().next().value as string);
         instances.set(key, instance);
         instance.coords = coords;
         instance.outlineCache = new Map();
