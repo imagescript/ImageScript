@@ -2681,6 +2681,15 @@ export class Image {
         // eslint-disable-next-line no-restricted-syntax -- a limit of the format, not a range of the option
         if (exif && exif.length > 65527) throw new RangeError(`JPEG: the metadata's description, author, copyright, software and creation time must be at most 65533 bytes together in Exif, not ${exif.length + 6}`);
 
+        // without a gain map: the transparent pixels are composited onto the background row by row as the encoder reads
+        // them (no copy of the image: __flattened__'s copy of 4 bytes a pixel was the peak memory)
+        if (!this.__gain_map__) {
+            const flat = this.__flatRows__(backgroundColor);
+            const base = { exif, comment, subsampling };
+            if (!flat) return jpeg.encode(this.__bytes__(), this.width, this.height, quality, { ...base, gray: this.__is_gray__() });
+            return jpeg.encode(flat.pixels, this.width, this.height, quality, { ...base, gray: flat.gray(), rows: flat.row });
+        }
+
         // transparent pixels: composited onto the opaque background (with the gain map, so the HDR light dims alike)
         const source = this.__flattened__(backgroundColor, embed !== null) ?? this;
         const gainMap = source.__gain_map__;
@@ -2710,6 +2719,52 @@ export class Image {
         const px = this.bitmap;
         for (let i = 0; i < px.length; i += 4) if (px[i] !== px[i + 1] || px[i] !== px[i + 2]) return false;
         return true;
+    }
+
+    /**
+     * The image composited onto an opaque color, one row at a time, as `__flattened__` does (the same arithmetic, so the
+     * same pixels), or null if it is opaque already. `pixels` is the scratch row that `row(y)` fills; `gray()` says
+     * whether every composited pixel is gray (streamed, stops at the first colored one)
+     * @internal
+     * @ignore
+     */
+    protected __flatRows__(background: Color): { pixels: Uint8Array, row: (y: number) => void, gray: () => boolean } | null {
+        const src = this.bitmap;
+        let opaque = true;
+        for (let i = 3; i < src.length && opaque; i += 4) opaque = src[i] === 255;
+        if (opaque) return null;
+        const width = this.width, bgR = background >>> 24, bgG = background >>> 16 & 255, bgB = background >>> 8 & 255;
+        const scratch = new Uint8ClampedArray(width * 4);
+        const row = (y: number): void => {
+            // (source over an opaque background, the arithmetic of composite(): a clamped byte per channel)
+            for (let x = 0, s = 4 * y * width, d = 0; x < width; x++, s += 4, d += 4) {
+                const sa = src[s + 3];
+                if (sa === 0) {
+                    scratch[d] = bgR;
+                    scratch[d + 1] = bgG;
+                    scratch[d + 2] = bgB;
+                    continue;
+                }
+                if (sa === 255) {
+                    scratch[d] = src[s];
+                    scratch[d + 1] = src[s + 1];
+                    scratch[d + 2] = src[s + 2];
+                    continue;
+                }
+                const fa = sa / 255, ba = 1 - fa, a = fa + ba;
+                scratch[d] = (src[s] * fa + bgR * ba) / a;
+                scratch[d + 1] = (src[s + 1] * fa + bgG * ba) / a;
+                scratch[d + 2] = (src[s + 2] * fa + bgB * ba) / a;
+            }
+        };
+        const gray = (): boolean => {
+            for (let y = 0; y < this.height; y++) {
+                row(y);
+                for (let d = 0; d < scratch.length; d += 4) if (scratch[d] !== scratch[d + 1] || scratch[d] !== scratch[d + 2]) return false;
+            }
+            return true;
+        };
+        return { pixels: new Uint8Array(scratch.buffer), row, gray };
     }
 
     /**

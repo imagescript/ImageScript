@@ -136,6 +136,7 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 
 ### Fixes
 
+- `encodeJPEG()` of an image with transparency composites it onto the background row by row instead of copying the image first: the peak memory of a 6000x6000 image is 378 MB instead of 485 MB, the same as without transparency, and the file is the same (images with a gain map still take the copy).
 - `encodeWebP({ optimize: false })` makes the same file as `webpEncoder()` for animations with frames WebP can't store as they are (stored as the canvas from the first such frame on, not all of them), and `Colors.gradient()` with 3 or more stops has its first and last stops' exact colors before and after them (a transparent end stop gave `0x00000000`) and takes 200,000 stops without overflowing the call stack.
 - `resize({ fit: 'inside' })` throws for a box side below 1 pixel, like the other fits, instead of making a 1x1 image; `pixels()` goes over the pixels the image has when it's called, also when it's resized before the first value is taken.
 - `Image.renderText()` checks `strokeColor` without a `strokeWidth` too (a wrong color passed until a stroke was set), and an animation encoder whose `finish()` found no frame can still be given frames.

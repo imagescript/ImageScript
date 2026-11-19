@@ -1030,9 +1030,14 @@ export interface EncodeMetadata {
     fullChroma?: boolean;
     /** the chroma subsampling, overriding the default by quality (4:2:0 up to 90, 4:4:4 above) */
     subsampling?: '4:4:4' | '4:2:0';
+    /**
+     * with it, `pixels` is the one row of scratch pixels (width * 4 bytes): `rows(y)` fills it with row y before the
+     * row is read, so the pixels need not be in memory whole (the image composited onto a background, row by row)
+     */
+    rows?: (y: number) => void;
 }
 
-export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment, segments, gray = false, fullChroma = false, subsampling }: EncodeMetadata = {}): Uint8Array<ArrayBuffer> {
+export function encode(pixels: Uint8Array, width: number, height: number, quality = 90, { exif, comment, segments, gray = false, fullChroma = false, subsampling, rows }: EncodeMetadata = {}): Uint8Array<ArrayBuffer> {
     if (!width || !height) throw new RangeError('JPEG: invalid dimensions');
     checkFormatSize('JPEG', width, height, 0xffff);
 
@@ -1062,10 +1067,12 @@ export function encode(pixels: Uint8Array, width: number, height: number, qualit
     const cbRows = subsample ? new Uint8Array(2 * rowWidth) : Cb, crRows = subsample ? new Uint8Array(2 * rowWidth) : Cr;
 
     // (pixels a 32-bit word at a time where they're aligned, little endian)
-    const words = littleEndian && pixels.byteOffset % 4 === 0 ? new Uint32Array(pixels.buffer, pixels.byteOffset, width * height) : null;
+    const words = littleEndian && pixels.byteOffset % 4 === 0 ? new Uint32Array(pixels.buffer, pixels.byteOffset, (rows ? width : width * height)) : null;
     for (let y = 0; y < height; y++) {
+        // (with `rows`, the pixels are the scratch row, filled first)
+        if (rows) rows(y);
         const row = subsample ? (y & 1) * rowWidth : y * CW;
-        let i = y * width * 4, o = y * W, c = row;
+        let i = rows ? 0 : y * width * 4, o = y * W, c = row;
 
         if (words) for (let x = 0, w = i >> 2; x < width; x++, w++, o++, c++) {
             const p = words[w], r = p & 255, g = p >> 8 & 255, b = p >> 16 & 255;
