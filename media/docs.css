@@ -1,5 +1,7 @@
 /* typedoc's custom CSS for imagescript.dev (assets/custom.css, loaded after typedoc's style.css). Colours come from the
-   logo (#141821 tile, #E85D8C / #4C7DF0 / #8E6CEF / #FFC857 squares), darkened or lightened where text needs contrast */
+   logo (#141821 tile, #E85D8C / #4C7DF0 / #8E6CEF / #FFC857 squares), darkened or lightened where text needs contrast.
+   The playground (try.imagescript.dev, src/app.css of imagescript/playground) uses the same base colours, accent, focus
+   colour, fonts and radius: change them in both places */
 
 /* ---------- colours ---------- */
 
