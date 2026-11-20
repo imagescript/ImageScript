@@ -5,11 +5,18 @@
   </picture>
 </h1>
 
-[![Documentation](https://img.shields.io/badge/Documentation-informational?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJJbWFnZVNjcmlwdCI+PHRpdGxlPkltYWdlU2NyaXB0PC90aXRsZT48cGF0aCBkPSJNMTMyIDk2aC0xNGEzNCAzNCAwIDAgMC0zNCAzNHY3NGEzMCAzMCAwIDAgMS0zMCAzMGgtNnY0NGg2YTMwIDMwIDAgMCAxIDMwIDMwdjc0YTM0IDM0IDAgMCAwIDM0IDM0aDE0IE0zODAgOTZoMTRhMzQgMzQgMCAwIDEgMzQgMzR2NzRhMzAgMzAgMCAwIDAgMzAgMzBoNnY0NGgtNmEzMCAzMCAwIDAgMC0zMCAzMHY3NGEzNCAzNCAwIDAgMS0zNCAzNGgtMTQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIzMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PHJlY3QgeD0iMTY0IiB5PSIxNjQiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjI4IiB5PSIxNjQiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjkyIiB5PSIxNjQiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMTY0IiB5PSIyMjgiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjI4IiB5PSIyMjgiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjkyIiB5PSIyMjgiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMTY0IiB5PSIyOTIiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjI4IiB5PSIyOTIiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjkyIiB5PSIyOTIiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PC9zdmc+Cg==)](https://imagescript.dev/)
-[![Playground](https://img.shields.io/badge/Playground-Try%20it%20live-ff2d75?style=for-the-badge&labelColor=ff7a18&logoColor=white&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc%2BPHBhdGggZmlsbD0nd2hpdGUnIGQ9J003IDQuNXYxNWwxMi41LTcuNXonLz48L3N2Zz4%3D)](https://try.imagescript.dev/)
-
-[![Github](https://img.shields.io/badge/Github-Repository-181717?logo=github&style=for-the-badge)](https://github.com/imagescript/ImageScript)
-[![Discord Server](https://img.shields.io/discord/691713541262147687.svg?label=Discord&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2&style=for-the-badge)](https://discord.gg/8hPrwAH)
+<p align="center">
+  <a href="https://imagescript.dev/"><img alt="Documentation" src="https://img.shields.io/badge/Documentation-141821?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJJbWFnZVNjcmlwdCI+PHRpdGxlPkltYWdlU2NyaXB0PC90aXRsZT48cGF0aCBkPSJNMTMyIDk2aC0xNGEzNCAzNCAwIDAgMC0zNCAzNHY3NGEzMCAzMCAwIDAgMS0zMCAzMGgtNnY0NGg2YTMwIDMwIDAgMCAxIDMwIDMwdjc0YTM0IDM0IDAgMCAwIDM0IDM0aDE0IE0zODAgOTZoMTRhMzQgMzQgMCAwIDEgMzQgMzR2NzRhMzAgMzAgMCAwIDAgMzAgMzBoNnY0NGgtNmEzMCAzMCAwIDAgMC0zMCAzMHY3NGEzNCAzNCAwIDAgMS0zNCAzNGgtMTQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIzMCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PHJlY3QgeD0iMTY0IiB5PSIxNjQiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjI4IiB5PSIxNjQiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjkyIiB5PSIxNjQiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMTY0IiB5PSIyMjgiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjI4IiB5PSIyMjgiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjkyIiB5PSIyMjgiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMTY0IiB5PSIyOTIiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjI4IiB5PSIyOTIiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PHJlY3QgeD0iMjkyIiB5PSIyOTIiIHdpZHRoPSI1NiIgaGVpZ2h0PSI1NiIgcng9IjEwIiBmaWxsPSIjZmZmIi8+PC9zdmc+Cg=="></a>
+  <a href="https://try.imagescript.dev/"><img alt="Playground" src="https://img.shields.io/badge/Playground-141821?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc%2BPHBhdGggZmlsbD0nd2hpdGUnIGQ9J003IDQuNXYxNWwxMi41LTcuNXonLz48L3N2Zz4%3D"></a>
+  <a href="https://github.com/imagescript/ImageScript/discussions"><img alt="Discussions" src="https://img.shields.io/badge/Discussions-141821?style=for-the-badge&logo=github&logoColor=white"></a>
+  <a href="https://discord.gg/8hPrwAH"><img alt="Discord" src="https://img.shields.io/badge/Discord-141821?style=for-the-badge&logo=discord&logoColor=white"></a>
+</p>
+<p align="center">
+  <a href="https://www.npmjs.com/package/imagescript"><img alt="npm" src="https://img.shields.io/npm/v/imagescript?style=flat-square&color=e85d8c&label=npm"></a>
+  <a href="https://jsr.io/@matmen/imagescript"><img alt="JSR" src="https://img.shields.io/jsr/v/@matmen/imagescript?style=flat-square&color=4c7df0&label=jsr"></a>
+  <a href="https://github.com/imagescript/ImageScript/actions/workflows/node.yml"><img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/imagescript/ImageScript/node.yml?branch=master&style=flat-square&label=tests"></a>
+  <a href="https://github.com/imagescript/ImageScript/blob/master/LICENSE"><img alt="MIT license" src="https://img.shields.io/npm/l/imagescript?style=flat-square&color=8e6cef&label=license"></a>
+</p>
 
 ---
 
@@ -26,28 +33,6 @@ deno add jsr:@matmen/imagescript     # Deno
 
 Upgrading from 3.x? Read [Migrating to 4.0](https://github.com/imagescript/ImageScript/blob/master/guides/Migrating%20to%204.0.md) first.
 
-Without a bundler, import it from jsDelivr in the browser:
-
-```html
-<script type="module">
-  import { Image } from 'https://cdn.jsdelivr.net/npm/imagescript@4/+esm';
-
-  const image = await Image.decode(await fetch('photo.jpg').then(r => r.arrayBuffer()));
-  image.resize({ width: 256 });
-  const url = URL.createObjectURL(new Blob([await image.encodePNG()], { type: 'image/png' }));
-  document.body.append(Object.assign(document.createElement('img'), { src: url }));
-</script>
-```
-
-The codecs that can use worker threads (large AVIF and JPEG XL images, lossless WebP; the `threads` option) do so in
-Node.js, Deno and Bun, and in browsers on cross-origin isolated pages. Where workers can't start, the work runs on the
-calling thread: the output is the same, only slower, and nothing warns about it. Browsers refuse workers from another
-origin, so the jsDelivr example above runs single-threaded; serve the package from your own origin (on a cross-origin
-isolated page) to get threads.
-
-Bundlers that write one file (esbuild, Rollup, `bun build`) don't copy the worker's module: serve `dist/util/worker.js` next to the
-bundle, or the same single-threaded fallback is used. webpack and Vite emit it.
-
 ---
 
 ### Example
@@ -61,13 +46,26 @@ image.resize({ width: 256 }).roundCorners({ radius: 16 });
 await writeFile('output.png', await image.encodePNG());
 ```
 
-<p align="center">
-  <a href="https://try.imagescript.dev/">
-    <img src="https://github.com/imagescript/ImageScript/raw/master/media/playground-cta.svg" alt="Try ImageScript in the Playground" width="440">
-  </a>
-</p>
-
 [![Example](https://github.com/imagescript/ImageScript/raw/master/tests/targets/readme.png)](https://github.com/imagescript/ImageScript/blob/master/tests/readme.js)
+
+The same code runs everywhere, only reading and writing the bytes differs. `Image.decode()` takes any `ArrayBuffer` or
+typed array (`fetch(url).then(r => r.arrayBuffer())` in a browser or on an edge runtime, `Deno.readFile()`,
+`Bun.file().arrayBuffer()`), and the encoders return a `Uint8Array`. In a browser without a bundler, import it from jsDelivr:
+
+```js
+import { Image } from 'https://cdn.jsdelivr.net/npm/imagescript@4/+esm';
+```
+
+### Threads and bundlers
+
+The codecs that can use worker threads (large AVIF and JPEG XL images, lossless WebP; the `threads` option) do so in
+Node.js, Deno and Bun, and in browsers on cross-origin isolated pages. Where workers can't start, the work runs on the
+calling thread: the output is the same, only slower, and nothing warns about it. Browsers refuse workers from another
+origin, so the jsDelivr import above runs single-threaded; serve the package from your own origin (on a cross-origin
+isolated page) to get threads.
+
+Bundlers that write one file (esbuild, Rollup, `bun build`) don't copy the worker's module: serve `dist/util/worker.js` next to the
+bundle, or the same single-threaded fallback is used. webpack and Vite emit it.
 
 ---
 
@@ -130,7 +128,3 @@ ImageScript builds on [fflate](https://github.com/101arrowz/fflate), libjpeg, [p
 [libjxl](https://github.com/libjxl/libjxl). The TrueType hinting follows [FreeType](https://freetype.org): portions of
 this software are copyright © 2026 The FreeType Project (www.freetype.org). All rights reserved. See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the licenses.
-
----
-
-Questions? Join the [Discord server](https://discord.gg/8hPrwAH).
