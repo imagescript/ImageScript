@@ -655,6 +655,9 @@ grep -rnE 'Array\.isArray|\.slice\(|\.frames\b|\.length\s*=' src
 grep -rnE 'new (Frame|Animation|GIF)\(|Frame\.from\(|Animation\.decode\(' src
 grep -rnE '\.(encodeGIF|encodeAPNG|encodeJPEG|encodePNG)\(\s*[0-9]' src
 
+# metadata given to encodePNG() at the top level, which 4.0 ignores (it goes in `metadata`)
+grep -rnE 'encodePNG\(\s*\{[^}]*\b(title|author|description|copyright|creationTime|software|disclaimer|warning|source|comment)\b' src | grep -v 'metadata'
+
 # options that were positional
 grep -rnE "\.(resize|scale|contain|fit|cover)\([^)]*, *(['\"]|ResizeModes\.|SVGScaleModes\.)" src
 grep -rnE '\.(composite|rotate|sharpen|dominantColor|roundCorners|fisheye|trim|colorToAlpha)\([^)]' src
