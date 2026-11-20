@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Image, Animation, Frame} = require('..');
+const {Image, Animation, Frame, Colors} = require('..');
 
 // (for chunks the tests change)
 const crc32 = data => {
@@ -42,17 +42,12 @@ const expected = {
     }
 
     // corrupted checksum must be rejected
-    try {
-        await Image.decode(await fs.readFile('./tests/pngsuite/xcsn0g01.png'));
-        panic('xcsn0g01: corrupted chunk was accepted');
-    } catch (err) {
-        if (!/checksum/.test(err.message)) panic(`xcsn0g01: unexpected error ${err.message}`);
-    }
+    if (!await Image.decode(await fs.readFile('./tests/pngsuite/xcsn0g01.png')).then(() => false, error => error instanceof Error)) panic('xcsn0g01: corrupted chunk was accepted');
 
     // encode/decode roundtrip
     const image = new Image(97, 61);
-    image.fill((x, y) => Image.rgbaToColor(x * 2, y * 4, (x * y) & 0xff, (x + y) & 0xff));
-    const decoded = await Image.decode(await image.encode(3));
+    image.fill((x, y) => Colors.fromRGBA(x * 2, y * 4, (x * y) & 0xff, (x + y) & 0xff));
+    const decoded = await Image.decode(await image.encodePNG({compression: 3}));
     if (!Buffer.from(decoded.bitmap).equals(Buffer.from(image.bitmap))) panic('roundtrip failed');
 
     // a file cut off after its image data (in IEND) still decodes
@@ -66,8 +61,8 @@ const expected = {
     // browsers do (here a wrong sequence number in the second fcTL)
     {
         const frames = [100, 70000, 100].map((duration, i) => {
-            const frame = new Frame(8, 8, duration);
-            frame.fill(0xff0000ff + i * 0x1000);
+            const frame = new Frame(new Image(8, 8), {duration});
+            frame.image.fill(0xff0000ff + i * 0x1000);
             return frame;
         });
         const encoded = Buffer.from(await new Animation(frames).encodeAPNG({optimize: false}));

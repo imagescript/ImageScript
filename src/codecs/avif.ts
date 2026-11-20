@@ -406,7 +406,7 @@ function convertRowSubsampled(c: Conversion, j: number): void {
     for (let i = 0, p = j * width * 4; i < width; i++, p += 4) {
         const lum = tableY[Y[yRow + i]];
         // bilinear: the nearest chroma sample, the ones next to it in the row and column, the diagonal one
-        const o = uvRow + (i >> 1), adjCol = i === 0 || i === width - 1 && i % 2 ? 0 : i % 2 ? 1 : -1;
+        const o = uvRow + (i >> 1), adjCol = i === 0 || i === width - 1 ? 0 : i % 2 ? 1 : -1;
         const cb = f32(f32(f32(w9[U[o]] + w3[U[o + adjCol]]) + w3[U[o + adjRow]]) + w1[U[o + adjCol + adjRow]]);
         const cr = f32(f32(f32(w9[V[o]] + w3[V[o + adjCol]]) + w3[V[o + adjRow]]) + w1[V[o + adjCol + adjRow]]);
         out[p] = toByte(f32(lum + f32(cr2 * cr)));
@@ -437,7 +437,7 @@ function convertRow(c: Conversion, j: number): void {
             cr = tableUV[V[o]];
         } else {
             // bilinear: the nearest chroma sample, the ones next to it in the row and column, the diagonal one
-            const adjCol = i === 0 || i === width - 1 && i % 2 ? 0 : i % 2 ? 1 : -1;
+            const adjCol = i === 0 || i === width - 1 ? 0 : i % 2 ? 1 : -1;
             cb = f32(f32(f32(f32(tableUV[U[o]] * 0.5625) + f32(tableUV[U[o + adjCol]] * 0.1875)) +
                 f32(tableUV[U[o + adjRow]] * 0.1875)) + f32(tableUV[U[o + adjCol + adjRow]] * 0.0625));
             cr = f32(f32(f32(f32(tableUV[V[o]] * 0.5625) + f32(tableUV[V[o + adjCol]] * 0.1875)) +
@@ -661,6 +661,12 @@ async function decodeGainMap(d: Uint8Array, primary: number, items: Map<number, 
         const params = readISO(data.subarray(1));
         const mapItem = items.get(inputs[1]);
         if (!params || !mapItem) return undefined;
+        // (the colors of the HDR rendition, written again by encodeAVIF)
+        const colors = { primaries: 0, transfer: 0, matrix: 0 } as Yuv;
+        if (tmap.props.some(({ box }) => box.type === 'colr' && box.end - box.start >= 11 && fourcc(d, box.start) === 'nclx')) {
+            applyColr(d, tmap, colors);
+            params.alternate = [colors.primaries, colors.transfer, colors.matrix];
+        }
         const yuv = await decodeItem(d, mapItem, items, idat, maxPixels, null);
         applyColr(d, mapItem, yuv);
         // (its values as they are: no transfer function to tone map)

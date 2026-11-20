@@ -540,7 +540,7 @@ export class LayoutTable {
     // their defaults)
     private featureVariations(table: number): void {
         const f = this.font;
-        for (let i = 0, count = f.u32(table + 4); i < count; i++) {
+        for (let i = 0, count = f.count(f.u32(table + 4), table + 8, 8, 'GSUB table'); i < count; i++) {
             const record = table + 8 + i * 8;
             const conditions = f.u32(record), substitution = f.u32(record + 4);
             let matches = true;
@@ -962,7 +962,7 @@ export class LayoutTable {
                         const second = buffer.info[pos].codepoint;
                         let lo = 0, hi = count - 1, record = -1;
                         while (lo <= hi) {
-                            const mid = lo + hi >> 1, g = f.u16(set + 2 + mid * recordSize);
+                            const mid = lo + hi >>> 1, g = f.u16(set + 2 + mid * recordSize);
                             if (g < second) lo = mid + 1;
                             else if (g > second) hi = mid - 1;
                             else {
@@ -1123,7 +1123,7 @@ export class LayoutTable {
                     if (!isMarkGlyph(info[it.idx])) return false;
                     const j = it.idx;
                     const id1 = ligId(buffer.cur()), id2 = ligId(info[j]), comp1 = ligComp(buffer.cur()), comp2 = ligComp(info[j]);
-                    let good = false;
+                    let good: boolean;
                     if (id1 === id2) good = id1 === 0 || comp1 === comp2;
                     else good = id1 > 0 && !comp1 || id2 > 0 && !comp2;
                     if (!good) return false;

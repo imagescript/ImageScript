@@ -8,6 +8,19 @@ export interface ColorLayer {
     color: number | null;
 }
 
+/** the most pixels a bitmap glyph may have: emoji fonts have strikes of 160 at most, one that said 16383x16383 took 1 GB */
+export const MAX_BITMAP_GLYPH_PIXELS = 2048 * 2048;
+
+/**
+ * The pixels a bitmap glyph's PNG says it has (its header), what decoding it costs whether it succeeds or not; NaN if it
+ * isn't a PNG
+ */
+export function bitmapPixels(png: Uint8Array): number {
+    if (png.length < 24 || png[12] !== 0x49 || png[13] !== 0x48 || png[14] !== 0x44 || png[15] !== 0x52) return NaN;
+    const view = new DataView(png.buffer, png.byteOffset, png.length);
+    return view.getUint32(16) * view.getUint32(20);
+}
+
 /** a glyph's PNG and where it goes, in pixels of its strike */
 export interface BitmapGlyph {
     png: Uint8Array;
@@ -54,7 +67,7 @@ export function parseColorLayers(font: Font): ((glyph: number) => ColorLayer[] |
         result = null;
         // base glyph records are sorted by glyph
         for (let lo = 0, hi = baseCount - 1; lo <= hi;) {
-            const mid = lo + hi >> 1, record = bases + mid * 6, id = font.u16(record);
+            const mid = lo + hi >>> 1, record = bases + mid * 6, id = font.u16(record);
             if (id < glyph) lo = mid + 1;
             else if (id > glyph) hi = mid - 1;
             else {
@@ -95,7 +108,9 @@ function parseSbix(font: Font, size: number): ((glyph: number) => BitmapGlyph | 
     const sbix = font.tables.sbix?.offset;
     if (sbix === undefined) return null;
     const strikes = Array.from({ length: font.u32(sbix + 4) }, (_, i) => sbix + font.u32(sbix + 8 + i * 4));
-    const index = closestStrike(strikes.map(strike => font.u16(strike)), size);
+    const ppems = strikes.map(strike => font.u16(strike));
+    if (ppems.includes(0)) throw new Error('Font: damaged sbix table (a strike of 0 pixels per em)');
+    const index = closestStrike(ppems, size);
     if (index < 0) return null;
     const strike = strikes[index], ppem = font.u16(strike);
 
@@ -127,7 +142,10 @@ function parseCBDT(font: Font, size: number): ((glyph: number) => BitmapGlyph | 
     const cblc = font.tables.CBLC?.offset, cbdt = font.tables.CBDT?.offset;
     if (cblc === undefined || cbdt === undefined) return null;
 
-    const ppems = Array.from({ length: font.u32(cblc + 4) }, (_, i) => font.u8(cblc + 8 + i * 48 + 45));
+    // (u8() doesn't throw past the end of the font, so a damaged count would only run out of memory)
+    const strikes = font.count(font.u32(cblc + 4), cblc + 8, 48, 'CBLC table');
+    const ppems = Array.from({ length: strikes }, (_, i) => font.u8(cblc + 8 + i * 48 + 45));
+    if (ppems.includes(0)) throw new Error('Font: damaged CBLC table (a strike of 0 pixels per em)');
     const index = closestStrike(ppems, size);
     if (index < 0) return null;
     const strike = cblc + 8 + index * 48, strikePpem = ppems[index];

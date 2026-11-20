@@ -1,4 +1,4 @@
-const {Image} = require('..');
+const {Image, Colors} = require('..');
 const fs = require('fs').promises;
 const samePixels = require('./util/pixels');
 
@@ -10,8 +10,8 @@ const panic = message => {
 (async () => {
     {
         const svg = await fs.readFile('./tests/svgs/potato.svg');
-        const image = await Image.renderSVG(svg.toString(), 256 / 36, Image.SVG_MODE_SCALE);
-        const encoded = await image.encode(1, {creationTime: 0, software: ''});
+        const image = await Image.renderSVG(svg.toString(), {scale: 256 / 36});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/potato.png', encoded);
@@ -23,10 +23,10 @@ const panic = message => {
     {
         // gradients, clip paths, masks, style sheets, symbols, strokes and fill rules
         const svg = await fs.readFile('./tests/svgs/features.svg');
-        const image = await Image.renderSVG(svg, 480, Image.SVG_MODE_WIDTH);
+        const image = await Image.renderSVG(svg, {width: 480});
         if (image.width !== 480 || image.height !== 320) panic('features: unexpected size');
 
-        const encoded = await image.encode(1, {creationTime: 0, software: ''});
+        const encoded = await image.encodePNG({compression: 1, metadata: {creationTime: 0, software: ''}});
 
         if (process.env.OVERWRITE_TEST)
             await fs.writeFile('./tests/targets/svg-features.png', encoded);
@@ -41,8 +41,8 @@ const panic = message => {
 
     {
         // images embedded as data URIs: placed at their size, the pixels are the decoded image's
-        const {Animation, Frame} = require('..');
-        const pixel = (x, y, alpha) => Image.rgbaToColor(x * 10, y * 15, 128, alpha && x > 20 ? 0 : 255);
+        const {Animation, Image, Frame} = require('..');
+        const pixel = (x, y, alpha) => Colors.fromRGBA(x * 10, y * 15, 128, alpha && x > 20 ? 0 : 255);
         const source = new Image(24, 16), opaque = new Image(24, 16);
         for (let y = 0; y < 16; y++)
             for (let x = 0; x < 24; x++) {
@@ -50,12 +50,12 @@ const panic = message => {
                 opaque.setPixelAt(x, y, pixel(x, y, false));
             }
         const rect = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16"><rect width="12" height="16" fill="#0f0"/></svg>';
-        const gif = await new Animation([Frame.from(opaque)]).encodeGIF();
-        const jpeg = await opaque.encodeJPEG(90);
+        const gif = await new Animation([new Frame(opaque.clone())]).encodeGIF();
+        const jpeg = await opaque.encodeJPEG({quality: 90});
         const cases = [
-            ['image/png', await source.encode(1), source],
+            ['image/png', await source.encodePNG({compression: 1}), source],
             ['image/webp', await source.encodeWebP(), source],
-            ['image/gif', gif, (await Animation.decode(gif))[0]],
+            ['image/gif', gif, (await Animation.decode(gif)).frames[0].image],
             ['image/jpeg', jpeg, await Image.decode(jpeg)],
             ['image/svg+xml', require('zlib').gzipSync(rect), await Image.renderSVG(rect)]
         ];

@@ -16,7 +16,7 @@ function linearToSRGB(v: number): number {
 
 /**
  * Linear light RGB (3 values per pixel) as sRGB RGBA. Reinhard's extended operator ("Photographic Tone Reproduction
- * for Digital Images", 2002, equation 4) without its automatic exposure, which makes dark scenes like nights grey:
+ * for Digital Images", 2002, equation 4) without its automatic exposure, which makes dark scenes like nights gray:
  * the luminance L becomes L (1 + L / Lw²) / (1 + L), the brightest pixel's (at least 1) Lw white, and the channels are
  * scaled by that, keeping their hue; images no brighter than white stay as they are
  */

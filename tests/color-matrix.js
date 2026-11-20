@@ -1,4 +1,4 @@
-const {Image, Frame, GainMap} = require('..');
+const {Image, Frame, GainMap, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -15,7 +15,7 @@ const throwsA = (fn, type, label) => {
 const px = (image, x, y) => Array.from(image.bitmap.subarray((y * image.width + x) * 4, (y * image.width + x) * 4 + 4));
 const same = (a, b) => a.width === b.width && a.height === b.height && Buffer.from(a.bitmap).equals(Buffer.from(b.bitmap));
 // an opaque image where every pixel is different
-const photo = (width, height) => new Image(width, height).fill((x, y) => Image.rgbaToColor((x * 37 + y * 11) % 256, (x * 5 + y * 91) % 256, (x * y + x) % 256, 255));
+const photo = (width, height) => new Image(width, height).fill((x, y) => Colors.fromRGBA((x * 37 + y * 11) % 256, (x * 5 + y * 91) % 256, (x * y + x) % 256, 255));
 const IDENTITY = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
 
 (async () => {
@@ -43,20 +43,21 @@ const IDENTITY = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
         const sepia = [0.393, 0.769, 0.189, 0, 0, 0.349, 0.686, 0.168, 0, 0, 0.272, 0.534, 0.131, 0, 0, 0, 0, 0, 1, 0];
         check(same(photo(20, 15).colorMatrix(sepia), photo(20, 15).sepia()), 'colorMatrix: the sepia matrix is sepia()');
 
+        // (what isn't an array of numbers is a TypeError, the wrong number of values or a bad value a RangeError)
         for (const [label, bad] of Object.entries({
             'eight values': new Array(8).fill(1), 'twenty-one values': new Array(21).fill(0), 'none': [], 'a number': 5, 'null': null, 'NaN': [...IDENTITY.slice(0, 19), NaN],
             'a string': [...IDENTITY.slice(0, 19), '1'], 'Infinity': [Infinity, ...IDENTITY.slice(1)]
         })) {
             const image = photo(4, 4), before = image.bitmap.slice();
-            throwsA(() => image.colorMatrix(bad), RangeError, `colorMatrix with ${label}`);
+            throwsA(() => image.colorMatrix(bad), Array.isArray(bad) && bad.every(v => typeof v === 'number') ? RangeError : TypeError, `colorMatrix with ${label}`);
             check(Buffer.from(image.bitmap).equals(Buffer.from(before)), `colorMatrix with ${label}: the image should be unchanged`);
         }
 
-        const frame = Frame.from(photo(4, 4), {duration: 40, xOffset: 2, yOffset: 3}).colorMatrix(sepia);
-        check(frame instanceof Frame && frame.duration === 40 && frame.xOffset === 2 && frame.yOffset === 3 && same(frame, photo(4, 4).sepia()), 'colorMatrix on a frame');
+        const frame = new Frame(photo(4, 4).colorMatrix(sepia), {duration: 40, xOffset: 2, yOffset: 3});
+        check(frame instanceof Frame && frame.duration === 40 && frame.xOffset === 2 && frame.yOffset === 3 && same(frame.image, photo(4, 4).sepia()), 'colorMatrix on a frame');
 
         const hdr = photo(8, 8);
-        hdr.gainMap = new GainMap(new Image(4, 4).fill(0xc0c0c0ff), {gainMapMin: 0, gainMapMax: 2});
+        hdr.gainMap = new GainMap(new Image(4, 4).fill(0xc0c0c0ff), {min: 0, max: 2});
         hdr.colorMatrix(sepia);
         check(hdr.gainMap && hdr.gainMap.width === 4 && hdr.gainMap.height === 4, 'colorMatrix with a gain map keeps it');
         check((await Image.decode(await hdr.encodeJPEG())).gainMap, 'colorMatrix: the gain map is still encoded');

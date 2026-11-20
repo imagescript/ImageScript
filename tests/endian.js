@@ -31,7 +31,7 @@ const close = (a, b) => {
         'JPEG XL decoding': async () => (await Image.decode(await fs.readFile('./tests/jxl/jpeg.jxl'))).bitmap,
         'JPEG encoding': () => photo.encodeJPEG({quality: 80, metadata: {creationTime: 0}}),
         'WebP encoding': () => photo.encodeWebP({quality: 75, metadata: {creationTime: 0}}),
-        resizing: () => photo.clone().resize(317, Image.RESIZE_AUTO).bitmap,
+        resizing: () => photo.clone().resize({width: 317}).bitmap,
         blurring: () => photo.clone().blur(4).bitmap,
         rotating: () => photo.clone().rotate(30).bitmap,
     };

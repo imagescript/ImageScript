@@ -44,7 +44,7 @@ const ORDER = new Uint8Array(8);
 
 /**
  * Visits the color indices of a palette block (w x h of t, rows of stride) after the first, in the decoder's wavefront
- * order: with the context and the index's rank in the order of its neighbours' colors (the symbol)
+ * order: with the context and the index's rank in the order of its neighbors' colors (the symbol)
  */
 export function colorRanks(t: Uint8Array, stride: number, w: number, h: number, visit: (ctx: number, rank: number) => void): void {
     const order = ORDER;

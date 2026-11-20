@@ -105,6 +105,7 @@ export class Font {
 
         const head = this.tables.head.offset;
         this.unitsPerEm = this.u16(head + 18);
+        if (!this.unitsPerEm) throw new Error('Font: damaged head table (0 units per em)');
         this.indexToLocFormat = this.i16(head + 50);
 
         const hhea = this.tables.hhea.offset;
@@ -168,9 +169,19 @@ export class Font {
         const base = Object.getPrototypeOf(this) instanceof Font ? Object.getPrototypeOf(this) as Font : this;
         const key = coords.join(',');
         const cached = base.instances?.get(key);
-        if (cached) return cached;
+        if (cached) {
+            // (the least recently used is the one dropped: used again, an instance goes to the back)
+            base.instances!.delete(key);
+            base.instances!.set(key, cached);
+            return cached;
+        }
         const instance = Object.create(base) as Font;
-        (base.instances ??= new Map()).set(key, instance);
+        // (at most 64 instances a font (a chart of 5 sizes and 4 weights is 20, with an optical size axis), the least
+        // recently used dropped: a new weight each render kept one for each, with its sizes, until the process ran out of
+        // memory)
+        const instances = base.instances ??= new Map();
+        if (instances.size >= 64) instances.delete(instances.keys().next().value as string);
+        instances.set(key, instance);
         instance.coords = coords;
         instance.outlineCache = new Map();
         // (the metrics MVAR varies)
@@ -200,6 +211,16 @@ export class Font {
     i16(o: number): number { return this.view.getInt16(o); }
     u32(o: number): number { return this.view.getUint32(o); }
     i32(o: number): number { return this.view.getInt32(o); }
+
+    /**
+     * A count read from the font (`what` is the table it is in, for the error), checked against the font: it can't be
+     * more than the records of `size` bytes that fit after `start`. Counts of damaged fonts can be up to 2^32 - 1, which
+     * made searches over them endless and lists of them run out of memory
+     */
+    count(count: number, start: number, size: number, what: string): number {
+        if (start + count * size > this.data.length) throw new Error(`Font: damaged ${what}`);
+        return count;
+    }
 
     /**
      * @param {number} codepoint
@@ -377,7 +398,7 @@ export class Font {
     private components(offset: number): { components: Array<{ glyph: number, flags: number, arg1: number, arg2: number, matrix: [number, number, number, number] }>, end: number } {
         const components = [];
         const f2dot14 = (o: number): number => this.i16(o) / 16384;
-        let p = offset + 10, flags = 0;
+        let p = offset + 10, flags: number;
         do {
             flags = this.u16(p);
             const glyph = this.u16(p + 2);
@@ -590,7 +611,7 @@ function parseCmap(font: Font, offset: number): (codepoint: number) => number {
             // binary search over segment end codes
             let lo = 0, hi = segments - 1;
             while (lo < hi) {
-                const mid = lo + hi >> 1;
+                const mid = lo + hi >>> 1;
                 if (font.u16(ends + mid * 2) < c) lo = mid + 1;
                 else hi = mid;
             }
@@ -606,11 +627,11 @@ function parseCmap(font: Font, offset: number): (codepoint: number) => number {
             return glyph ? glyph + delta & 0xffff : 0;
         };
     } else {
-        const groups = font.u32(table + 12);
+        const groups = font.count(font.u32(table + 12), table + 16, 12, 'cmap table');
         lookup = (c: number): number => {
             let lo = 0, hi = groups - 1;
             while (lo <= hi) {
-                const mid = lo + hi >> 1;
+                const mid = lo + hi >>> 1;
                 const group = table + 16 + mid * 12;
                 if (c < font.u32(group)) hi = mid - 1;
                 else if (c > font.u32(group + 4)) lo = mid + 1;
@@ -637,20 +658,20 @@ function parseVariations(font: Font, offset: number): ((codepoint: number, selec
     }
     if (table < 0) return null;
     const u24 = (o: number): number => font.u8(o) << 16 | font.u16(o + 1);
-    const records = font.u32(table + 6);
+    const records = font.count(font.u32(table + 6), table + 10, 11, 'cmap table');
     return (codepoint, selector) => {
         let lo = 0, hi = records - 1;
         while (lo <= hi) {
-            const mid = lo + hi >> 1, record = table + 10 + mid * 11, vs = u24(record);
+            const mid = lo + hi >>> 1, record = table + 10 + mid * 11, vs = u24(record);
             if (vs < selector) lo = mid + 1;
             else if (vs > selector) hi = mid - 1;
             else {
                 const defaults = font.u32(record + 3), others = font.u32(record + 7);
                 if (others) {
                     const o = table + others;
-                    let l = 0, h = font.u32(o) - 1;
+                    let l = 0, h = font.count(font.u32(o), o + 4, 5, 'cmap table') - 1;
                     while (l <= h) {
-                        const m = l + h >> 1, u = u24(o + 4 + m * 5);
+                        const m = l + h >>> 1, u = u24(o + 4 + m * 5);
                         if (u < codepoint) l = m + 1;
                         else if (u > codepoint) h = m - 1;
                         else return font.u16(o + 4 + m * 5 + 3);
@@ -658,9 +679,9 @@ function parseVariations(font: Font, offset: number): ((codepoint: number, selec
                 }
                 if (defaults) {
                     const o = table + defaults;
-                    let l = 0, h = font.u32(o) - 1;
+                    let l = 0, h = font.count(font.u32(o), o + 4, 4, 'cmap table') - 1;
                     while (l <= h) {
-                        const m = l + h >> 1, start = u24(o + 4 + m * 4);
+                        const m = l + h >>> 1, start = u24(o + 4 + m * 4);
                         if (codepoint < start) h = m - 1;
                         else if (codepoint > start + font.u8(o + 4 + m * 4 + 3)) l = m + 1;
                         else return -1;
@@ -684,7 +705,7 @@ export function parseCoverage(font: Font, table: number): (glyph: number) => num
     return glyph => {
         let lo = 0, hi = count - 1;
         while (lo <= hi) {
-            const mid = lo + hi >> 1;
+            const mid = lo + hi >>> 1;
             if (format === 1) {
                 const value = font.u16(table + 4 + mid * 2);
                 if (value < glyph) lo = mid + 1;
@@ -713,7 +734,7 @@ export function parseClassDef(font: Font, table: number): (glyph: number) => num
     return glyph => {
         let lo = 0, hi = count - 1;
         while (lo <= hi) {
-            const mid = lo + hi >> 1;
+            const mid = lo + hi >>> 1;
             const range = table + 4 + mid * 6;
             if (font.u16(range + 2) < glyph) lo = mid + 1;
             else if (font.u16(range) > glyph) hi = mid - 1;
@@ -745,7 +766,7 @@ function parseKern(font: Font, kern: number): ((left: number, right: number) => 
         for (const { pairs, start } of tables) {
             let lo = 0, hi = pairs - 1;
             while (lo <= hi) {
-                const mid = lo + hi >> 1;
+                const mid = lo + hi >>> 1;
                 const pair = start + mid * 6;
                 const value = font.u32(pair);
                 if (value < key) lo = mid + 1;
@@ -795,6 +816,7 @@ function parseCFF(font: Font, base: number): CFF {
     const strings = readIndex(topDicts.end);
     const globalSubrs = readIndex(strings.end).items;
 
+    if (!topDicts.items.length) throw new Error('Font: CFF font has no Top DICT');
     const top = parseDict(topDicts.items[0]);
     if (!top[17]) throw new Error('Font: CFF font has no charstrings');
 
@@ -811,19 +833,26 @@ function parseCFF(font: Font, base: number): CFF {
     // CID-keyed fonts select a private dict per glyph
     let privateFor: CFF['privateFor'];
     if (top[1236]) {
+        if (!top[1237]) throw new Error('Font: CID-keyed CFF font has no FDSelect');
         const fdArray = readIndex(base + top[1236][0]).items.map(dict => readPrivate(parseDict(dict)[18]));
         const fdSelect = base + top[1237][0];
         const format = data[fdSelect];
 
+        // (an FDSelect that names a private dict the FDArray doesn't have is damaged data)
+        const fd = (index: number): { subrs: Uint8Array[] } => {
+            const dict = fdArray[index];
+            if (!dict) throw new Error(`Font: damaged CFF font (glyph selects private dict ${index} of ${fdArray.length})`);
+            return dict;
+        };
         privateFor = glyph => {
-            if (format === 0) return fdArray[data[fdSelect + 1 + glyph]];
+            if (format === 0) return fd(data[fdSelect + 1 + glyph]);
             const ranges = font.u16(fdSelect + 1);
             for (let i = 0; i < ranges; i++) {
                 const r = fdSelect + 3 + i * 3;
                 const next = font.u16(r + 3);
-                if (glyph >= font.u16(r) && glyph < next) return fdArray[data[r + 2]];
+                if (glyph >= font.u16(r) && glyph < next) return fd(data[r + 2]);
             }
-            return fdArray[0];
+            return fd(0);
         };
     } else {
         const shared = readPrivate(top[18]);
@@ -853,6 +882,8 @@ function parseDict(bytes: Uint8Array): Dict {
         } else if (b0 === 30) {
             let s = '';
             for (let done = false; !done;) {
+                // (a number that runs past the dict has no terminator: it can't be read)
+                if (i >= bytes.length) throw new Error('Font: damaged CFF dict (a real number without its end)');
                 const byte = bytes[i++];
                 for (const nibble of [byte >> 4, byte & 15]) {
                     if (nibble === 15) {
@@ -1113,8 +1144,17 @@ function fromWOFF(data: Uint8Array): Uint8Array {
     const tables: Array<{ tag: number, data: Uint8Array, checksum: number }> = [];
     for (let i = 0; i < count; i++) {
         const e = 44 + i * 20, offset = view.getUint32(e + 4), compressed = view.getUint32(e + 8), length = view.getUint32(e + 12);
+        if (offset + compressed > data.length) throw new Error('Font: damaged or truncated font data');
         const raw = data.subarray(offset, offset + compressed);
-        tables.push({ tag: view.getUint32(e), checksum: view.getUint32(e + 16), data: compressed < length ? decompress(raw, length).subarray(0, length) : raw });
+        let table = raw;
+        if (compressed < length) {
+            try {
+                table = decompress(raw, length).subarray(0, length);
+            } catch (err) {
+                throw new Error('Font: damaged WOFF table', { cause: err });
+            }
+        }
+        tables.push({ tag: view.getUint32(e), checksum: view.getUint32(e + 16), data: table });
     }
     const header = 12 + count * 16;
     let size = header;

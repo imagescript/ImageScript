@@ -17,7 +17,7 @@ export function graphemeBoundaries(codepoints: ArrayLike<number>): Uint8Array {
         pictographic[i] = valueIndex(extendedPictographic, codepoints[i]) ? 1 : 0;
     }
     // GB11: whether an Extended_Pictographic Extend* is before, and with ZWJ; GB12/13: the regional indicators before
-    let emoji = false, emojiZWJ = false, ri = 0;
+    let emoji = false, emojiZWJ: boolean, ri = 0;
     // GB9c: whether a linker is before (with InCB=Extend characters after it)
     let linker = false;
     for (let i = 1; i < n; i++) {

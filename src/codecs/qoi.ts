@@ -62,7 +62,7 @@ export function decode(d: Uint8Array, maxPixels = MAX_PIXELS): { width: number, 
 }
 
 /** Encodes RGBA pixels into a QOI (3 channels if the image is opaque), byte for byte like the reference encoder */
-export function encode(rgba: Uint8Array, width: number, height: number): Uint8Array {
+export function encode(rgba: Uint8Array, width: number, height: number): Uint8Array<ArrayBuffer> {
     if (width < 1 || height < 1) throw new RangeError('QOI: dimensions must be at least 1');
     const count = width * height;
     let opaque = true;

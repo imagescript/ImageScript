@@ -762,7 +762,7 @@ class TileEncoder {
         return null;
     }
 
-    // the mode contexts of a block (the smooth modes of the neighbours change the edges' filters)
+    // the mode contexts of a block (the smooth modes of the neighbors change the edges' filters)
     private modeContexts(bs: number, b: Block): void {
         const bx4 = this.bx, by4 = this.by & 31, aw = 1 << bdim(bs, 2), lh = 1 << bdim(bs, 3);
         this.aMode.fill(b.yMode, bx4, bx4 + aw);
@@ -1020,7 +1020,7 @@ class TileEncoder {
         const sx = plane ? this.ssx : 0, sy = plane ? this.ssy : 0;
         // (the visible part)
         const vw = Math.max(0, Math.min(w, (f.width + sx >> sx) - px)), vh = Math.max(0, Math.min(h, (f.height + sy >> sy) - py));
-        let eob = -1;
+        let eob: number;
         if (!(this.w && b.skip)) {
             const res = this.res, coefs = this.coefs, q = this.q;
             let sse = 0;
@@ -1286,7 +1286,7 @@ class TileEncoder {
         }
     }
 
-    // a plane's palette (Y or U): its size, the colors of the neighbours' palettes it uses, the others (increasing:
+    // a plane's palette (Y or U): its size, the colors of the neighbors' palettes it uses, the others (increasing:
     // the first one's bits, then the differences); like the decoder's readPalPlane
     private writePalPlane(b: Block, pl: number, szCtx: number, bx4: number, by4: number): void {
         const w = this.w as SymbolEncoder, palSz = b.palSz[pl];

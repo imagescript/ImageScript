@@ -14,8 +14,6 @@
   "files": [
     "dist",
     "LICENSE",
-    "LICENSE.MIT",
-    "LICENSE.AGPL-3.0",
     "THIRD_PARTY_NOTICES.md",
     "licenses",
     "README.md"
@@ -29,7 +27,7 @@
     "test": "npm run build && node ./tests/run.js",
     "coverage": "node scripts/build.js --source-maps && c8 node ./tests/run.js && node scripts/coverage-report.js",
     "prepack": "npm run build",
-    "version": "node scripts/version.js && git add src/version.ts jsr.json"
+    "version": "node scripts/version.js && git add jsr.json"
   },
   "repository": {
     "type": "git",
@@ -79,14 +77,13 @@
     "pbm",
     "pam",
     "pfm",
-    "hdr",
     "radiance",
     "animation",
     "text rendering",
     "font"
   ],
   "author": "Mathis Mensing <mathis@matmen.dev>",
-  "license": "(AGPL-3.0-or-later OR MIT)",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/imagescript/ImageScript/issues"
   },
@@ -95,12 +92,19 @@
     "node": ">=22.13.0"
   },
   "devDependencies": {
-    "@eslint/js": "9.39.5",
+    "@eslint/js": "10.0.1",
     "c8": "12.0.0",
-    "eslint": "9.39.5",
+    "eslint": "10.14.0",
     "eslint-plugin-sonarjs": "4.2.2",
-    "typedoc": "0.27.9",
-    "typescript": "5.7.3",
-    "typescript-eslint": "8.72.0"
+    "typedoc": "0.28.20",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.2"
+  },
+  "overrides": {
+    "minimatch": "11.0.8",
+    "glob": "14.0.5",
+    "typedoc": {
+      "minimatch": "9.0.9"
+    }
   }
 }

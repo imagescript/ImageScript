@@ -283,7 +283,7 @@ export function findPatches(planes: Float32Array[], stride: number, width: numbe
         maxH = Math.max(maxH, p.h);
     }
     let refW = Math.max(maxW, Math.sqrt(total)), refH = Math.max(maxH, Math.sqrt(total));
-    let spots: Array<[number, number]> = [], usedH = 0;
+    let spots: Array<[number, number]> = [], usedH: number;
     for (; ;) {
         refW = Math.floor(refW * 1.05 + 1);
         refH = Math.floor(refH * 1.05 + 1);

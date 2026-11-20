@@ -6,6 +6,7 @@
  */
 import { encodeAV1, encodeAV1Threaded, type AV1Image, type AV1Params } from './av1/encode.ts';
 import { startThreads } from '../util/threads.ts';
+import { checkFormatSize } from '../util/limits.ts';
 import { writeISO, type Params } from './gainmap.ts';
 
 /** Options of the AVIF encoder */
@@ -22,7 +23,7 @@ export interface AVIFOptions {
     exif?: Uint8Array;
     /** at most this many worker threads (1: none) */
     threads: number;
-    /** a gain map (RGBA, grey for one for all channels), written as a tone mapped derived item like libavif does */
+    /** a gain map (RGBA, gray for one for all channels), written as a tone mapped derived item like libavif does */
     gainMap?: { pixels: Uint8Array, width: number, height: number, params: Params, quality: number };
 }
 
@@ -118,7 +119,7 @@ function fillTransparent(rgba: Uint8Array, width: number, height: number): Uint8
         }
         colors = next;
     }
-    // (the transparent pixels smoothed: a few passes of averaging with their neighbours)
+    // (the transparent pixels smoothed: a few passes of averaging with their neighbors)
     const unknown: number[] = [];
     for (let i = 0; i < width * height; i++) if (!rgba[4 * i + 3]) unknown.push(i);
     for (let pass = 0; pass < 4; pass++) {
@@ -182,9 +183,9 @@ function seqMonochrome(d: Uint8Array, o: number): boolean {
 }
 
 /** Encodes RGBA pixels as an AVIF (with an alpha image if the image has transparency) */
-export async function encode(rgba: Uint8Array, width: number, height: number, { quality, alphaQuality, subsampling, effort, exif, threads: maxThreads, gainMap }: AVIFOptions): Promise<Uint8Array> {
+export async function encode(rgba: Uint8Array, width: number, height: number, { quality, alphaQuality, subsampling, effort, exif, threads: maxThreads, gainMap }: AVIFOptions): Promise<Uint8Array<ArrayBuffer>> {
     if (width < 1 || height < 1) throw new RangeError('AVIF: dimensions must be at least 1');
-    if (width > 65536 || height > 65536) throw new RangeError('AVIF: dimensions must be at most 65536');
+    checkFormatSize('AVIF', width, height, 65536);
     let opaque = true;
     for (let i = 3; i < rgba.length; i += 4) if (rgba[i] !== 255) { opaque = false; break; }
     // (lossy: the colors of transparent pixels don't matter, the cheapest are smooth ones)
@@ -218,7 +219,7 @@ export async function encode(rgba: Uint8Array, width: number, height: number, { 
         return encodeAV1(image, params);
     };
     let color: Uint8Array, alpha: Uint8Array | null = null, map: Uint8Array | null = null;
-    // (the gain map: monochrome if grey, else 4:4:4, its values as they are, no transfer)
+    // (the gain map: monochrome if gray, else 4:4:4, its values as they are, no transfer)
     let mapGray = true;
     if (gainMap) for (let i = 0; i < gainMap.pixels.length; i += 4) if (gainMap.pixels[i] !== gainMap.pixels[i + 1] || gainMap.pixels[i] !== gainMap.pixels[i + 2]) { mapGray = false; break; }
     try {
@@ -263,8 +264,9 @@ export async function encode(rgba: Uint8Array, width: number, height: number, { 
             type: 'av01', name: 'GMap', hidden: true, data: [map],
             props: [property(fullBox('ispe', 0, 0, u32(gainMap.width), u32(gainMap.height))), property(av1C(map)) | 0x80, property(nclx(MAP_CICP)), property(pixi(mapGray ? 1 : 3))]
         });
-        // (the HDR rendition's colors: the image's primaries with PQ's transfer, like avifenc assumes for JPEG gain maps)
-        tmapId = items.push({ type: 'tmap', name: 'TMap', data: [[0], writeISO(gainMap.params)], props: [ispe, property(nclx([cicp[0], 16, cicp[2]]))] });
+        // (the HDR rendition's colors: those of the decoded file, else the image's primaries with PQ's transfer, like
+        // avifenc assumes for JPEG gain maps)
+        tmapId = items.push({ type: 'tmap', name: 'TMap', data: [[0], writeISO(gainMap.params)], props: [ispe, property(nclx(gainMap.params.alternate ?? [cicp[0], 16, cicp[2]]))] });
     }
     const exifId = exif?.length ? items.push({ type: 'Exif', name: 'Exif', data: [u32(0), exif], props: [] }) : 0;
     const sizes = items.map(item => item.data.reduce((n, d) => n + d.length, 0));

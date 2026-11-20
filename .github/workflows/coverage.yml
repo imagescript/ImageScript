@@ -1,8 +1,9 @@
 name: coverage
 
 # measures the test coverage (npm run coverage) of every pushed branch and pull requests from forks, and how it
-# changed: compared with the commit before the push on master, else with where the branch (or pull request) left
-# master, measured in the same job. The job summary shows it; pushes to master get it as a commit comment, pushes to a
+# changed, measured in the same job: compared with the commit before the push on master and on branches without a pull
+# request (where the branch left master for a new branch or a force push), else with where the branch (or pull request)
+# left master. The job summary shows it; pushes to master get it as a commit comment, pushes to a
 # branch with a pull request as a comment on it (one, updated by later pushes). Pull requests from forks have no
 # write access: only the job summary
 on:
@@ -39,6 +40,8 @@ jobs:
       run: |
         if [ "$EVENT" = pull_request ]; then base=$(git merge-base "$PR_BASE" HEAD); name="the pull request's base"
         elif [ "$REF" = refs/heads/master ]; then base=$BEFORE; name="the previous commit on master"
+        elif [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+          base=$BEFORE; name="the previous push"
         else base=$(git merge-base origin/master HEAD); name="master where the branch left it"; fi
         if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null || [ "$base" = "$(git rev-parse HEAD)" ]; then
           echo "no base to compare with"; exit 0
@@ -55,6 +58,8 @@ jobs:
         REF: ${{ github.ref }}
         BEFORE: ${{ github.event.before }}
         PR_BASE: ${{ github.event.pull_request.base.sha }}
+        BRANCH: ${{ github.ref_name }}
+        GH_TOKEN: ${{ github.token }}
     - if: steps.base.outputs.summary
       run: node scripts/coverage-report.js "$SUMMARY" "$ROOT"
       env:

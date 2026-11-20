@@ -1,5 +1,5 @@
 const fs = require('fs').promises;
-const {Image, ImageType, Animation} = require('..');
+const {Image, ImageType, Animation, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -42,19 +42,20 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
             const animation = await Animation.decode(binary);
             const references = await Animation.decode(await fs.readFile(`./tests/jxl/${name}.png`));
             if (animation.length !== references.length) panic(`${name}: ${animation.length} frames instead of ${references.length}`);
-            animation.forEach((frame, i) => {
-                if (frame.duration !== references[i].duration) panic(`${name}: frame ${i} lasts ${frame.duration} ms instead of ${references[i].duration}`);
-                max = Math.max(max, difference(frame.bitmap, frame.width, frame.height, references[i]));
+            animation.frames.forEach((frame, i) => {
+                if (frame.duration !== references.frames[i].duration) panic(`${name}: frame ${i} lasts ${frame.duration} ms instead of ${references.frames[i].duration}`);
+                max = Math.max(max, difference(frame.image.bitmap, frame.width, frame.height, references.frames[i].image));
             });
         }
         if (max > (premultiplied ? 2 : 1)) panic(`${name}: differs by ${max} from djxl's`);
     }
 
     // the first frame only; Animation.decode of a still image
-    const first = await Animation.decode(await fs.readFile('./tests/jxl/animation.jxl'), {onlyFirstFrame: true});
-    if (first.length !== 1) panic(`onlyFirstFrame: ${first.length} frames`);
+    const animated = await fs.readFile('./tests/jxl/animation.jxl');
+    const first = await Image.decode(animated);
+    if (first.constructor !== Image || !Buffer.from(first.bitmap).equals(Buffer.from((await Animation.decode(animated)).frames[0].image.bitmap))) panic('Image.decode: the first frame of an animated JPEG XL should be Animation.decode\'s first frame');
     const still = await Animation.decode(await fs.readFile('./tests/jxl/lossy.jxl'));
-    if (still.length !== 1 || still[0].width !== 64) panic('a still JPEG XL as an animation');
+    if (still.length !== 1 || still.frames[0].width !== 64) panic('a still JPEG XL as an animation');
 
     // truncated or corrupted data throws
     const lossy = await fs.readFile('./tests/jxl/lossy.jxl');
@@ -64,10 +65,19 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
     // the pixel limit
     if (await Image.decode(lossy, {maxPixels: 100}).then(() => true, () => false)) panic('maxPixels was ignored');
 
+    // an animation's frames count together, like those of the other formats
+    {
+        const animation = await Animation.decode(animated);
+        const total = animation.frames.reduce((sum, frame) => sum + frame.width * frame.height, 0);
+        if (animation.length < 2) panic('the animated file should have frames');
+        if (await Animation.decode(animated, {maxPixels: total - 1}).then(() => false, error => error.name === 'LimitError') !== true) panic('maxPixels should count every frame');
+        await Animation.decode(animated, {maxPixels: total});
+    }
+
     // threads (groups, Gaborish, EPF and the XYB conversion in parallel, from 4 megapixels): the same pixels as without,
     // lossy (with alpha) and lossless
     const big = new Image(2304, 2048);
-    for (let y = 0; y < big.height; y++) for (let x = 0; x < big.width; x++) big.setPixelAt(x, y, Image.rgbaToColor(x * 7 & 255, (x ^ y) & 255, y * 3 & 255, x < 64 ? 128 : 255));
+    for (let y = 0; y < big.height; y++) for (let x = 0; x < big.width; x++) big.setPixelAt(x, y, Colors.fromRGBA(x * 7 & 255, (x ^ y) & 255, y * 3 & 255, x < 64 ? 128 : 255));
     for (const options of [{quality: 80, effort: 0}, {effort: 0}]) {
         const data = await big.encodeJXL(options);
         const one = await Image.decode(data, {threads: 1}), four = await Image.decode(data, {threads: 4});
@@ -75,7 +85,16 @@ const difference = (bitmap, width, height, reference, step = 1, premultiplied = 
         // (not in shared memory, which some APIs reject)
         if (four.bitmap.buffer instanceof SharedArrayBuffer) panic('threads: the bitmap is in shared memory');
         const animation = await Animation.decode(data, {threads: 4});
-        if (Buffer.compare(Buffer.from(animation[0].bitmap), Buffer.from(one.bitmap))) panic('threads, Animation.decode: different pixels');
+        if (Buffer.compare(Buffer.from(animation.frames[0].image.bitmap), Buffer.from(one.bitmap))) panic('threads, Animation.decode: different pixels');
     }
-    for (const threads of [0, 1.5]) if (!await Image.decode(lossy, {threads}).then(() => false, e => e instanceof RangeError)) panic(`threads ${threads} should throw`);
+
+    // damaged blending info (blendmodes.jxl with flipped bits): a blend alpha channel that doesn't exist is an error,
+    // not a TypeError from the blending
+    for (const name of await fs.readdir('./tests/jxl/damaged')) {
+        const data = await fs.readFile(`./tests/jxl/damaged/${name}`);
+        for (const decode of [() => Image.decode(data, {threads: 1}), () => Animation.decode(data, {threads: 1})]) {
+            const error = await decode().then(() => null, e => e);
+            if (!error || error instanceof TypeError) panic(`damaged/${name}: ${error && error.constructor.name}: ${error && error.message}`);
+        }
+    }
 })();

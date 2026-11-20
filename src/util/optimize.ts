@@ -1,3 +1,4 @@
+import { allocate } from './options.ts';
 // Frame optimization for the animation encoders: the frames are composited, and each is stored as the rectangle that
 // changed since the frame before, with the pixels that didn't change transparent (they compress better, and GIFs keep
 // their palette for the others). Consecutive identical frames become one. The animation looks the same as before
@@ -64,6 +65,11 @@ export interface OptimizeOptions {
      * scattered unchanged pixels costs more than leaving them as they are). Needs `replace`
      */
     tolerance?: number;
+    /**
+     * The longest duration a frame can have (ms): frames that don't change anything are merged into the one before
+     * up to it, longer runs become more frames
+     */
+    maxDuration?: number;
 }
 
 // what transparent pixels make an opaque frame cost: an alpha channel, 4 channels instead of 3 (or a palette entry
@@ -94,8 +100,8 @@ export class Optimizer {
 
     constructor(readonly width: number, readonly height: number, readonly options: OptimizeOptions) {
         const size = width * height * 4;
-        this.canvas = new Uint8Array(size);
-        this.shown = new Uint8Array(size);
+        this.canvas = allocate(width, height, () => new Uint8Array(size));
+        this.shown = allocate(width, height, () => new Uint8Array(size));
         this.state = { canvas32: new Int32Array(this.canvas.buffer), shown32: new Int32Array(this.shown.buffer), width, replace: options.replace, tolerance: options.tolerance };
         this.cleared = { x: 0, y: 0, width, height };
     }
@@ -140,7 +146,8 @@ export class Optimizer {
         const { replace, even, alpha, palette, tolerance } = this.options;
         let changed = bounds(state, { x: 0, y: 0, width, height });
         if (!changed) {
-            if (this.last) this.last.duration += duration;
+            if (this.last && this.last.duration + duration <= (this.options.maxDuration ?? Infinity)) this.last.duration += duration;
+            else if (this.last) this.output(empty(duration));
             else {
                 this.output(empty(duration));
                 this.opaque = false;
@@ -203,7 +210,7 @@ export class Compositor {
     readonly canvas: Uint8Array;
 
     constructor(readonly width: number, readonly height: number) {
-        this.canvas = new Uint8Array(width * height * 4);
+        this.canvas = allocate(width, height, () => new Uint8Array(width * height * 4));
     }
 
     /** the canvas the frame shows (a copy), then its disposal */

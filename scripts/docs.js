@@ -11,7 +11,8 @@ const out = path.join(root, 'docs');
 const typedoc = path.join(path.dirname(require.resolve('typedoc/package.json')), 'bin/typedoc');
 
 fs.rmSync(out, { recursive: true, force: true });
-execFileSync(process.execPath, [typedoc], { cwd: root, stdio: 'inherit' });
+// (arguments are typedoc's: the docs workflow links the sources of the released tag with --gitRevision)
+execFileSync(process.execPath, [typedoc, ...process.argv.slice(2)], { cwd: root, stdio: 'inherit' });
 
 const site = 'https://imagescript.dev/';
 const description = 'Pure TypeScript image processing that runs everywhere: Node.js, Deno, Bun, browsers and edge runtimes';
@@ -45,7 +46,7 @@ for (const page of pages) {
     html = html.replace(/(<a href="[^"]*" class="title">)([^<]+?) - (v[^<]+)<\/a>/, '$1$2 <span class="version">$3</span></a>');
     html = html.replace(/(<div class="tsd-page-title">[\s\S]*?<h1>)(Class|Interface|Function|Type Alias|Variable|Enumeration|Namespace) /,
         '$1<span class="kind">$2</span>');
-    // constants typed as their own literal (RESIZE_AREA: "RESIZE_AREA" = 'RESIZE_AREA') show the value once
+    // constants typed as their own literal (ResizeModes.AREA: "area" = 'area') show the value once
     html = html.replace(/(<span class="tsd-signature-type">(?:&quot;([^&<]*)&quot;|(-?[\d.]+))<\/span>)<span class="tsd-signature-symbol"> = (?:&#39;([^&<]*)&#39;|(-?[\d.]+))<\/span>/g,
         (all, type, typeString, typeNumber, valueString, valueNumber) =>
             (typeString ?? typeNumber) === (valueString ?? valueNumber) ? type : all);
@@ -63,8 +64,9 @@ for (const page of pages) {
 const redirects = {
     'Image.html': ['classes/Image.html', true],
     'Frame.html': ['classes/Frame.html', true],
-    'GIF.html': ['classes/GIF.html', true],
-    'TextLayout.html': ['classes/TextLayout.html', true],
+    'GIF.html': ['classes/Animation.html', true],
+    // (TextLayout isn't exported any more: its options are renderText()'s)
+    'TextLayout.html': ['interfaces/TextLayoutOptions.html', false],
     'global.html': ['functions/decode.html', false]
 };
 

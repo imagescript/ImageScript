@@ -58,13 +58,13 @@ export function parsePaintGlyphs(font: Font): PaintGlyphs | null {
     const baseList = font.u32(colr + 14) ? colr + font.u32(colr + 14) : 0;
     if (!baseList) return null;
     const clipList = font.u32(colr + 22) ? colr + font.u32(colr + 22) : 0;
-    const count = font.u32(baseList), clips = clipList ? font.u32(clipList + 1) : 0;
+    const count = font.count(font.u32(baseList), baseList + 4, 6, 'COLR table'), clips = clipList ? font.count(font.u32(clipList + 1), clipList + 5, 7, 'COLR table') : 0;
 
     return {
         paint: glyph => {
             // records sorted by glyph
             for (let lo = 0, hi = count - 1; lo <= hi;) {
-                const mid = lo + hi >> 1, record = baseList + 4 + mid * 6, id = font.u16(record);
+                const mid = lo + hi >>> 1, record = baseList + 4 + mid * 6, id = font.u16(record);
                 if (id < glyph) lo = mid + 1;
                 else if (id > glyph) hi = mid - 1;
                 else return baseList + font.u32(record + 2);
@@ -73,7 +73,7 @@ export function parsePaintGlyphs(font: Font): PaintGlyphs | null {
         },
         clip: glyph => {
             for (let lo = 0, hi = clips - 1; lo <= hi;) {
-                const mid = lo + hi >> 1, record = clipList + 5 + mid * 7;
+                const mid = lo + hi >>> 1, record = clipList + 5 + mid * 7;
                 if (font.u16(record + 2) < glyph) lo = mid + 1;
                 else if (font.u16(record) > glyph) hi = mid - 1;
                 else {
@@ -523,7 +523,7 @@ function composite(mode: number, source: Layer, backdrop: Layer): Layer {
             else src.fill(0);
             const as = src[3], ab = d[o + 3];
             // Porter-Duff: result = source * fa + backdrop * fb
-            let fa = 0, fb = 0;
+            let fa: number, fb: number;
             switch (mode) {
                 case 0: fa = 0; fb = 0; break;
                 case 1: fa = 1; fb = 0; break;

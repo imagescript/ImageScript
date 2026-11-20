@@ -44,7 +44,7 @@ export class ByteWriter {
     }
 
     /** the written bytes */
-    finish(): Uint8Array {
+    finish(): Uint8Array<ArrayBuffer> {
         return this.buffer.slice(0, this.length);
     }
 }

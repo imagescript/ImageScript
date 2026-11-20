@@ -53,11 +53,11 @@ const difference = (a, b) => {
     const animation = await Animation.decode(await fs.readFile('./tests/icc/display-p3-animated.webp'));
     for (const i of [0, 1]) {
         const ref = await Image.decode(await fs.readFile(`./tests/icc/display-p3-animated-${i + 1}.ref.png`));
-        if (difference(animation[i], ref) > 1) panic(`animated WebP frame ${i + 1}: differs from LittleCMS`);
+        if (difference(animation.frames[i].image, ref) > 1) panic(`animated WebP frame ${i + 1}: differs from LittleCMS`);
     }
     // (JPEG XLs through Animation.decode too)
     const jxlFrames = await Animation.decode(await fs.readFile('./tests/icc/display-p3.jxl'));
-    if (difference(jxlFrames[0], await Image.decode(await fs.readFile('./tests/icc/display-p3.ref.png'))) > 1) panic('JPEG XL through Animation.decode: differs from LittleCMS');
+    if (difference(jxlFrames.frames[0].image, await Image.decode(await fs.readFile('./tests/icc/display-p3.ref.png'))) > 1) panic('JPEG XL through Animation.decode: differs from LittleCMS');
 
     // lossless JPEG XLs in an enumerated color space (no ICC profile, like cjxl writes Display P3): converted to sRGB
     // like an embedded profile. The Display P3 values, losslessly encoded, with the image header's color encoding
@@ -72,7 +72,7 @@ const difference = (a, b) => {
     const p3Decoded = await Image.decode(enumerated);
     if (difference(p3Decoded, p3Ref) > 1) panic(`enumerated Display P3 JPEG XL: differs from LittleCMS by ${difference(p3Decoded, p3Ref)}`);
     if (difference(await Image.decode(enumerated, {applyColorProfile: false}), p3) !== 0) panic('enumerated Display P3 JPEG XL, applyColorProfile: false: should keep the stored colors');
-    if (difference((await Animation.decode(enumerated))[0], p3Ref) > 1) panic('enumerated Display P3 JPEG XL through Animation.decode: differs from LittleCMS');
+    if (difference((await Animation.decode(enumerated)).frames[0].image, p3Ref) > 1) panic('enumerated Display P3 JPEG XL through Animation.decode: differs from LittleCMS');
 })();
 
 // the codestream of a JPEG XL in the container (our encoder's: one jxlc box)

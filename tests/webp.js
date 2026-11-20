@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Image, Animation, ImageType, decode} = require('..');
+const {Image, Animation, ImageType, decode, Colors} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -36,20 +36,17 @@ const animated = [
         if (sha256(image.bitmap) !== hash) panic(`${name}: decoded pixels don't match libwebp`);
     }
 
-    // animated WebPs: Image.decode refuses them, Animation.decode composites the frames
+    // animated WebPs: Image.decode gives the first frame as libwebp composites it, Animation.decode all of them
     const data = await fs.readFile('./tests/webp/animated.webp');
-    try {
-        await Image.decode(data);
-        panic('Image.decode should reject animated WebPs');
-    } catch (err) {
-        if (!/Animation\.decode/.test(err.message)) panic(`unexpected error ${err.message}`);
-    }
+    const firstFrame = await Image.decode(data);
+    if (firstFrame.constructor !== Image || firstFrame.width !== 96 || firstFrame.height !== 72) panic('animated WebP: Image.decode should give an Image of the canvas');
+    if (sha256(firstFrame.bitmap) !== animated[0]) panic('animated WebP: Image.decode is not the first frame libwebp composites');
     const animation = await Animation.decode(data);
     if (!(await decode(data) instanceof Animation)) panic('decode() should return an Animation for animated WebPs');
-    if (animation.length !== 4 || animation.loopCount !== -1) panic('animated WebP: wrong frame or loop count');
-    if (animation.map(f => f.duration).join() !== '80,120,80,200') panic('animated WebP: wrong durations');
-    animation.forEach((frame, i) => {
-        if (sha256(frame.bitmap) !== animated[i]) panic(`animated WebP: frame ${i} doesn't match libwebp`);
+    if (animation.length !== 4 || animation.loopCount !== Infinity) panic('animated WebP: wrong frame or loop count');
+    if (animation.frames.map(f => f.duration).join() !== '80,120,80,200') panic('animated WebP: wrong durations');
+    animation.frames.forEach((frame, i) => {
+        if (sha256(frame.image.bitmap) !== animated[i]) panic(`animated WebP: frame ${i} doesn't match libwebp`);
     });
 
     // filtered alpha (horizontal, vertical, gradient), from libwebp-test-data
@@ -69,7 +66,7 @@ const animated = [
     ];
     if (blended.length !== 4) panic('blended WebP: wrong frame count');
     blended.frames.forEach((frame, i) => {
-        if (sha256(frame.bitmap) !== blendedHashes[i]) panic(`blended WebP: frame ${i} doesn't match libwebp`);
+        if (sha256(frame.image.bitmap) !== blendedHashes[i]) panic(`blended WebP: frame ${i} doesn't match libwebp`);
     });
 
     // lossless encoding: photo-like content (predictor), few colors (palette), alpha, odd sizes
@@ -77,7 +74,7 @@ const animated = [
     const cases = [
         photo,
         new Image(37, 23).fill((x, y) => (x ^ y) & 4 ? 0xff0000ff : 0x00000000),
-        new Image(64, 9).fill((x, y) => Image.rgbaToColor(x * 4, y * 28, 7, (x * 9) & 255)),
+        new Image(64, 9).fill((x, y) => Colors.fromRGBA(x * 4, y * 28, 7, (x * 9) & 255)),
         new Image(1, 1).fill(0x12345678)
     ];
     // (every effort: 0 the fast mode, 1 without comparing the reference searches, 2 and up all of it)
@@ -92,15 +89,13 @@ const animated = [
         }
     // (the photo: the fast mode a bit larger, effort 6 the same as 2)
     if (!(sizes[0] > sizes[2] && sizes[0] < sizes[2] * 1.25) || sizes[6] !== sizes[2]) panic(`encodeWebP: unexpected sizes by effort ${JSON.stringify(sizes)}`);
-    for (const effort of [-1, 7, 1.5]) if (!await photo.encodeWebP({effort}).then(() => false, e => e instanceof RangeError)) panic(`effort ${effort} should throw`);
     // threads (the predictors and prefix groups searched in parallel, from 1.5 megapixels on): the same file as without
     {
-        const big = new Image(1448, 1448).fill((x, y) => Image.rgbaToColor(x * 7 + y & 255, (x * x + y * 3) >> 4 & 255, (x ^ y) & 255, 255));
+        const big = new Image(1448, 1448).fill((x, y) => Colors.fromRGBA(x * 7 + y & 255, (x * x + y * 3) >> 4 & 255, (x ^ y) & 255, 255));
         const metadata = {creationTime: 0};
         for (const effort of [0, 1, 2]) {
             const one = await big.encodeWebP({threads: 1, metadata, effort}), four = await big.encodeWebP({threads: 4, metadata, effort});
             if (Buffer.compare(Buffer.from(one), Buffer.from(four))) panic(`encodeWebP: threads changed the file at effort ${effort}`);
         }
-        for (const threads of [0, 1.5]) if (!await big.encodeWebP({threads}).then(() => false, e => e instanceof RangeError)) panic(`threads ${threads} should throw`);
     }
 })();

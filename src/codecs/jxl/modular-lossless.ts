@@ -216,7 +216,7 @@ const MIN_THREADED_PIXELS = 1 << 19, PIXELS_PER_THREAD = 1 << 17;
  * opaque; a palette of up to 1024 colors, else palettes of the channels using few of their values, YCoCg, the residuals
  * of the weighted predictor in the contexts of its error (groups in up to threads worker threads)
  */
-export async function encodeModular(rgba: Uint8Array, width: number, height: number, threads = 1): Promise<Uint8Array> {
+export async function encodeModular(rgba: Uint8Array, width: number, height: number, threads = 1): Promise<Uint8Array<ArrayBuffer>> {
     if (width < 1 || height < 1) throw new RangeError('JPEG XL: dimensions must be at least 1');
     const n = width * height;
     let grey = true, opaque = true;

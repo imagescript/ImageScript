@@ -8,7 +8,7 @@ import { startThreads } from '../util/threads.ts';
 import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
 import { BitReader } from './jxl/bits.ts';
 import {
-    CS_GREY, CS_RGB, decodeICC, imageHeader, PRI_BT2100, PRI_CUSTOM, PRI_P3, readICC, TF_DCI, TF_HLG, TF_LINEAR, TF_PQ,
+    CS_GRAY, CS_RGB, decodeICC, imageHeader, PRI_BT2100, PRI_CUSTOM, PRI_P3, readICC, TF_DCI, TF_HLG, TF_LINEAR, TF_PQ,
     WP_CUSTOM, WP_DCI, WP_E, type ColourEncoding, type ImageHeader
 } from './jxl/headers.ts';
 import { frameHeader, toc } from './jxl/frame-header.ts';
@@ -34,8 +34,8 @@ export function isJXL(d: Uint8Array): boolean {
  * Encodes RGBA pixels as a JPEG XL, lossless or lossy (with a Butteraugli distance above 0, and an effort 0-2): the
  * codestream, in the container if there is Exif data (a TIFF header and IFDs); lossy with up to threads worker threads
  */
-export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, distance = 0, effort = 1, threads = 1, gainMap?: GainMapInput): Promise<Uint8Array> {
-    const codestreamOf = (pixels: Uint8Array, w: number, h: number, d: number): Promise<Uint8Array> | Uint8Array => d > 0 ? encodeVarDCT(pixels, w, h, { distance: d, effort, threads })
+export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, distance = 0, effort = 1, threads = 1, gainMap?: GainMapInput): Promise<Uint8Array<ArrayBuffer>> {
+    const codestreamOf = (pixels: Uint8Array, w: number, h: number, d: number): Promise<Uint8Array<ArrayBuffer>> | Uint8Array<ArrayBuffer> => d > 0 ? encodeVarDCT(pixels, w, h, { distance: d, effort, threads })
         : effort ? encodeModular(pixels, w, h, threads) : encodeRGBA(pixels, w, h);
     const stream = await codestreamOf(rgba, width, height, distance);
     if (!exif?.length && !gainMap) return stream;
@@ -120,21 +120,21 @@ const PRIMARIES: Record<number, number[][]> = {
  */
 export function colorSpace(image: ImageHeader): ColorSpace | undefined {
     const c: ColourEncoding = image.colour;
-    if (image.xybEncoded || c.wantICC || (c.colourSpace !== CS_RGB && c.colourSpace !== CS_GREY)) return;
+    if (image.xybEncoded || c.wantICC || (c.colourSpace !== CS_RGB && c.colourSpace !== CS_GRAY)) return;
     if (c.transfer === TF_PQ || c.transfer === TF_HLG) return;
     const curve: Curve | null = c.transfer === -1 ? (c.gamma > 0 ? v => v ** (1 / c.gamma) : null)
         : c.transfer === TF_LINEAR ? v => v : c.transfer === TF_DCI ? v => v ** 2.6 : null;
     const white = c.whitePoint === WP_CUSTOM ? c.white : c.whitePoint === WP_E ? [1 / 3, 1 / 3] : c.whitePoint === WP_DCI ? [0.314, 0.351] : null;
-    const primaries = c.colourSpace === CS_GREY ? null : c.primaries === PRI_CUSTOM
+    const primaries = c.colourSpace === CS_GRAY ? null : c.primaries === PRI_CUSTOM
         ? [0, 2, 4].map(i => c.primariesXY.slice(i, i + 2)) : PRIMARIES[c.primaries] ?? null;
     // (sRGB: nothing to convert; gray only by its curve)
-    if (c.colourSpace === CS_GREY) return curve ? { xy: null, curve } : undefined;
+    if (c.colourSpace === CS_GRAY) return curve ? { xy: null, curve } : undefined;
     if (!curve && !white && !primaries) return;
     return { xy: [...primaries ?? [[0.64, 0.33], [0.30, 0.60], [0.15, 0.06]], white ?? WHITE_D65], curve: curve ?? srgbDecode };
 }
 
 /** The frames shown (composited, as RGBA), their durations in milliseconds */
-export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1): AsyncGenerator<{ width: number, height: number, pixels: Uint8Array, duration: number, orientation: number, loopCount: number, icc?: Uint8Array, colorSpace?: ColorSpace }> {
+export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapping: ToneMapping = 'reinhard', threads = 1): AsyncGenerator<{ width: number, height: number, pixels: Uint8Array, duration: number, orientation: number, loopCount: number, animated: boolean, icc?: Uint8Array, colorSpace?: ColorSpace }> {
     const d = codestream(data);
     const r = new BitReader(d);
     const image = imageHeader(r);
@@ -177,7 +177,7 @@ export async function* frames(data: Uint8Array, maxPixels = MAX_PIXELS, toneMapp
                 shown++;
                 yield {
                     width: image.width, height: image.height, pixels: state.output.toRGBA(frame.canvas), duration: frame.header.duration * tick,
-                    orientation: image.orientation, loopCount: a ? a.numLoops : 1, icc, colorSpace: space
+                    orientation: image.orientation, loopCount: a ? a.numLoops : 1, animated: !!a, icc, colorSpace: space
                 };
             }
             if (frame.header.isLast) return;

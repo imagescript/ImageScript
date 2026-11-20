@@ -1,20 +1,41 @@
+import type { DitherMethod } from '../image.ts';
+import { oneOf, finite } from '../util/options.ts';
 
 // perceptual channel weights for squared color distances
 const WR = 3, WG = 4, WB = 2;
 
-/**
- * Reduces RGBA pixel data to an indexed palette
- * Pixels with alpha < 128 are mapped to a dedicated transparent index
- * @param {Uint8Array} pixels RGBA pixel data
- * @param {number} width Image width in pixels (needed for dithering)
- * @param {{maxColors?: number, quality?: number}} [options] quality (1-100) scales the palette size exponentially (1 = 8 colors, 50 = 55, 90 and above = 256)
- * @return {{palette: Uint8Array, indices: Uint8Array, transparentIndex: number}} palette is packed RGB, transparentIndex is -1 if unused
- */
+/** Options of quantize(): the palette size and the dithering */
 export interface QuantizeOptions {
+    /** the most palette entries, the transparent one included */
     maxColors?: number;
-    quality?: number;
+    /** how the rounding error is spread (Floyd-Steinberg by default) */
+    dither?: DitherMethod;
+    /** how strongly (0-1) */
+    ditherStrength?: number;
     /** whether to have a transparent index even if no pixel is transparent */
     transparent?: boolean;
+}
+
+// every DitherMethod (a missing key is a type error)
+const DITHER: Record<DitherMethod, true> = { 'none': true, 'floyd-steinberg': true, 'atkinson': true, 'ordered': true };
+export const DITHER_METHODS = Object.keys(DITHER) as DitherMethod[];
+
+/**
+ * Checks palette options (`colors` from 2 to 256, a dither method, a strength 0-1) before anything changes, with the
+ * messages of Image.quantize()
+ */
+export function paletteOptions(colors: number | undefined, dither: unknown, ditherStrength: number): { colors: number | undefined, dither: DitherMethod, strength: number } {
+    let count: number | undefined;
+    if (colors !== undefined) {
+        count = finite(colors, 'colors');
+        // eslint-disable-next-line no-restricted-syntax -- the palette size is only checked here
+        if (!Number.isInteger(count) || count < 2 || count > 256) throw new RangeError(`colors must be an integer from 2 to 256, not ${colors}`);
+    }
+    oneOf(dither, DITHER_METHODS, 'dither');
+    const strength = finite(ditherStrength, 'ditherStrength');
+    // eslint-disable-next-line no-restricted-syntax -- the dither strength is only checked here
+    if (strength < 0 || strength > 1) throw new RangeError(`ditherStrength must be 0-1, not ${ditherStrength}`);
+    return { colors: count, dither: dither as DitherMethod, strength };
 }
 
 export interface Quantized {
@@ -33,16 +54,30 @@ interface Clusters {
 }
 
 /**
- * Finds the color of the largest cluster among the opaque pixels that pass the filter
- * @return packed RGB, or null if no pixel qualifies
+ * Finds the dominant color among the pixels that are at least half opaque and pass the filter: the colors are counted
+ * in a histogram of 16 levels per channel (4096 bins, like sharp's), and the average of the pixels in the fullest bin
+ * is the result, so it is a color the image has (a cluster's average can lie between two hues)
+ * @return RGB, or null if no pixel qualifies
  */
-export function dominantColor(pixels: Uint8Array, include: (r: number, g: number, b: number) => boolean, clusters = 8): [number, number, number] | null {
-    const { palette, weights } = medianCut(pixels, clusters, 4, include);
-    if (!weights.length) return null;
+export function dominantColor(pixels: Uint8Array, include: (r: number, g: number, b: number) => boolean): [number, number, number] | null {
+    const counts = new Uint32Array(4096), sums = new Float64Array(4096 * 3);
+    let found = false;
+    for (let i = 0; i < pixels.length; i += 4) {
+        if (pixels[i + 3] < 128) continue;
+        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        if (!include(r, g, b)) continue;
+        const bin = (r >> 4) << 8 | (g >> 4) << 4 | b >> 4;
+        counts[bin]++;
+        sums[bin * 3] += r;
+        sums[bin * 3 + 1] += g;
+        sums[bin * 3 + 2] += b;
+        found = true;
+    }
+    if (!found) return null;
 
     let best = 0;
-    for (let i = 1; i < weights.length; i++) if (weights[i] > weights[best]) best = i;
-    return [Math.round(palette[best * 3]), Math.round(palette[best * 3 + 1]), Math.round(palette[best * 3 + 2])];
+    for (let bin = 1; bin < 4096; bin++) if (counts[bin] > counts[best]) best = bin;
+    return [Math.round(sums[best * 3] / counts[best]), Math.round(sums[best * 3 + 1] / counts[best]), Math.round(sums[best * 3 + 2] / counts[best])];
 }
 
 interface Points {
@@ -61,7 +96,11 @@ interface Box {
     error: number;
 }
 
-export function quantize(pixels: Uint8Array, width: number, { maxColors = 256, quality = 95, transparent = false }: QuantizeOptions = {}): Quantized {
+/**
+ * Reduces RGBA pixel data to an indexed palette (packed RGB). Pixels with alpha < 128 are mapped to a dedicated
+ * transparent index (-1 if unused)
+ */
+export function quantize(pixels: Uint8Array, width: number, { maxColors = 256, dither = 'floyd-steinberg', ditherStrength = 0.85, transparent = false }: QuantizeOptions = {}): Quantized {
     const length = pixels.length >> 2;
     let hasTransparency = transparent;
     for (let i = 3; i < pixels.length; i += 4)
@@ -70,16 +109,14 @@ export function quantize(pixels: Uint8Array, width: number, { maxColors = 256, q
             break;
         }
 
-    quality = Math.min(100, Math.max(1, quality));
-    const limit = Math.min(maxColors, Math.round(8 * 32 ** (Math.min(quality, 90) / 90)));
-    const colors = hasTransparency ? limit - 1 : limit;
+    const colors = hasTransparency ? maxColors - 1 : maxColors;
     const exact = exactPalette(pixels, colors);
 
     let palette: Uint8Array, indices: Uint8Array;
     if (exact) ({ palette, indices } = exact);
     else {
-        palette = Uint8Array.from(medianCut(pixels, colors, Math.ceil(quality / 25)).palette, Math.round);
-        indices = ditherMap(pixels, width, palette, palette.length / 3);
+        palette = Uint8Array.from(medianCut(pixels, colors, 4).palette, Math.round);
+        indices = dither === 'floyd-steinberg' ? ditherMap(pixels, width, palette, palette.length / 3, ditherStrength) : paletteIndices(pixels, width, palette, dither, ditherStrength);
     }
 
     let transparentIndex = -1;
@@ -162,10 +199,10 @@ const ATKINSON = [[1, 0, 1 / 8], [2, 0, 1 / 8], [-1, 1, 1 / 8], [0, 1, 1 / 8], [
 /**
  * Replaces the RGB of every pixel with an alpha above 0 by its nearest palette entry (packed RGB), in place. Pixels
  * with alpha 0 are left alone. Dithering: `'floyd-steinberg'` and `'atkinson'` spread each pixel's rounding error to
- * the neighbours that come after it (serpentine: rows alternate direction), `'ordered'` offsets each pixel by a 4x4
+ * the neighbors that come after it (serpentine: rows alternate direction), `'ordered'` offsets each pixel by a 4x4
  * Bayer threshold. `strength` (0-1) scales the spread error and the threshold offset; 0 changes nothing but rounding
  */
-export function applyPalette(pixels: Uint8Array, width: number, height: number, palette: Uint8Array, dither: 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered', strength: number): void {
+export function applyPalette(pixels: Uint8Array, width: number, height: number, palette: Uint8Array, dither: DitherMethod, strength: number): void {
     const entries = palette.length / 3;
     if (!entries) return;
     const nearest = nearestSearch(palette, entries);
@@ -444,15 +481,25 @@ function createLookup(palette: Uint8Array, entries: number): (r: number, g: numb
     };
 }
 
+// the palette indices of the pixels mapped by applyPalette() (no dithering, Atkinson or ordered)
+function paletteIndices(pixels: Uint8Array, width: number, palette: Uint8Array, dither: DitherMethod, strength: number): Uint8Array {
+    const mapped = pixels.slice();
+    applyPalette(mapped, width, (pixels.length >> 2) / width, palette, dither, strength);
+    const lookup = new Map<number, number>();
+    for (let i = palette.length / 3 - 1; i >= 0; i--) lookup.set(palette[i * 3] << 16 | palette[i * 3 + 1] << 8 | palette[i * 3 + 2], i);
+    const indices = new Uint8Array(pixels.length >> 2);
+    for (let p = 0; p < indices.length; p++) indices[p] = lookup.get(mapped[p * 4] << 16 | mapped[p * 4 + 1] << 8 | mapped[p * 4 + 2]) ?? 0;
+    return indices;
+}
+
 // serpentine floyd-steinberg error diffusion
-function ditherMap(pixels: Uint8Array, width: number, palette: Uint8Array, entries: number): Uint8Array {
+function ditherMap(pixels: Uint8Array, width: number, palette: Uint8Array, entries: number, strength: number): Uint8Array {
     const height = (pixels.length >> 2) / width;
     const lookup = createLookup(palette, entries);
     const indices = new Uint8Array(pixels.length >> 2);
 
     let current = new Float32Array((width + 2) * 3);
     let next = new Float32Array((width + 2) * 3);
-    const strength = 0.85;
 
     for (let y = 0; y < height; y++) {
         const reverse = y & 1;

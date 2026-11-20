@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const crypto = require('crypto');
-const {Image, ImageType} = require('..');
+const {Image, ImageType, Colors, LimitError} = require('..');
 
 const panic = message => {
     console.error(message);
@@ -55,18 +55,18 @@ const expected = {
     if (sha(jpeg) !== expected.rgb24jpeg) panic('the embedded JPEG decodes differently than by itself');
 
     // damaged files throw, or decode as far as they can
-    for (const [name, error] of [['shortfile', /truncated/], ['badbitcount', /bit depth/], ['reallybig', /too large/]]) {
-        if (!await Image.decode(await fs.readFile(`./tests/bmp/${name}.bmp`)).then(() => false, e => error.test(e.message))) panic(`${name} should throw ${error}`);
+    for (const [name, type] of [['shortfile', Error], ['badbitcount', Error], ['reallybig', LimitError]]) {
+        if (!await Image.decode(await fs.readFile(`./tests/bmp/${name}.bmp`)).then(() => false, e => e instanceof type)) panic(`${name} should throw a ${type.name}`);
     }
     for (const name of ['badrle4', 'pal8badindex']) await Image.decode(await fs.readFile(`./tests/bmp/${name}.bmp`));
 
     // encoding: the smallest bit depth that holds the image, alpha with a version 4 header
     const cases = [
         [new Image(13, 5).fill((x, y) => (x + y) & 1 ? 0xffffffff : 0x000000ff), 1],
-        [new Image(17, 6).fill((x, y) => Image.rgbaToColor(x % 4 * 80, y % 4 * 80, 40, 255)), 4],
-        [new Image(33, 9).fill((x, y) => Image.rgbaToColor(x * 7, y % 7 * 30, 99, 255)), 8],
-        [new Image(31, 9).fill((x, y) => Image.rgbaToColor(x * 8, y * 28, (x * 13 + y * 7) & 255, 255)), 24],
-        [new Image(29, 6).fill((x, y) => Image.rgbaToColor(x * 8, 200 - y * 30, x * y, (x * 9) & 255)), 32],
+        [new Image(17, 6).fill((x, y) => Colors.fromRGBA(x % 4 * 80, y % 4 * 80, 40, 255)), 4],
+        [new Image(33, 9).fill((x, y) => Colors.fromRGBA(x * 7, y % 7 * 30, 99, 255)), 8],
+        [new Image(31, 9).fill((x, y) => Colors.fromRGBA(x * 8, y * 28, (x * 13 + y * 7) & 255, 255)), 24],
+        [new Image(29, 6).fill((x, y) => Colors.fromRGBA(x * 8, 200 - y * 30, x * y, (x * 9) & 255)), 32],
         [new Image(1, 1).fill(0x123456ff), 1],
     ];
     for (const [image, bits] of cases) {

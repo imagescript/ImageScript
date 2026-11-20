@@ -46,7 +46,7 @@ const withoutExif = data => {
 	for (const [key, hash] of Object.entries(encoded)) {
 		const [name, quality] = key.split('@');
 		const file = name === 'external' ? './tests/targets/external.jpg' : `./tests/jpegs/${name}.jpg`;
-		const data = withoutExif(await (await Image.decode(await fs.readFile(file))).encodeJPEG(Number(quality)));
+		const data = withoutExif(await (await Image.decode(await fs.readFile(file))).encodeJPEG({quality: Number(quality)}));
 		if (crypto.createHash('sha256').update(data).digest('hex') !== hash)
 			panic(`${key}: encoded bytes don't match cjpeg's`);
 	}
@@ -75,26 +75,21 @@ const withoutExif = data => {
 			panic('stray bytes: decoded pixels don\'t match');
 	}
 
-	// a scan with restart markers that ends early (cut, then EOI): what was decoded is kept
+	// a scan with restart markers that ends early (cut, then EOI) is a decoding error, like a cut-off scan without them
 	{
 		const data = await fs.readFile('./tests/jpegs/restart.jpg');
 		const sos = data.indexOf(Buffer.from([0xff, 0xda]));
 		const cut = Buffer.concat([data.subarray(0, sos + (data.length - sos >> 1)), Buffer.from([0xff, 0xd9])]);
-		const decoded = await Image.decode(cut);
-		if (decoded.width !== 227 || decoded.height !== 149) panic('early ending scan: dimensions don\'t match');
+		const error = await Image.decode(cut).then(() => null, e => e);
+		if (!error || error.constructor !== Error) panic(`a scan cut short should throw an Error, got ${error}`);
 	}
 
-	try {
-		await Image.decode(await fs.readFile('./tests/jpegs/arithmetic.jpg'));
-		panic('arithmetic coded JPEG was accepted');
-	} catch (err) {
-		if (!/arithmetic/.test(err.message)) panic(`unexpected error: ${err.message}`);
-	}
+	if (!await Image.decode(await fs.readFile('./tests/jpegs/arithmetic.jpg')).then(() => false, error => error instanceof Error)) panic('arithmetic coded JPEG was accepted');
 
 	// encoding: higher quality must be larger and closer to the source
 	let previous = null;
 	for (const quality of [10, 50, 90, 100]) {
-		const encoded = await image.encodeJPEG(quality);
+		const encoded = await image.encodeJPEG({quality: quality});
 		const decoded = await Image.decode(encoded);
 		if (decoded.width !== image.width || decoded.height !== image.height)
 			panic(`q${quality}: dimensions don't match`);
@@ -109,5 +104,20 @@ const withoutExif = data => {
 		if (previous && (encoded.length <= previous.size || psnr <= previous.psnr))
 			panic(`q${quality}: not better than the previous quality`);
 		previous = {size: encoded.length, psnr};
+	}
+
+	// a frame header cut short is a decoding error of the codec, not a read of missing bytes
+	{
+		const error = await Image.decode(await fs.readFile('./tests/jpegs/damaged-truncated-frame-header.jpg')).then(() => null, e => e);
+		if (!error || error.constructor !== Error) panic(`a truncated frame header should throw an Error, got ${error}`);
+	}
+
+	// a baseline file far too small for the size it declares (every block takes at least 2 bits of scan data) is
+	// refused before its planes are allocated: 19 KB declaring 16383x16383 took 16 s and 1.1 GB to end truncated
+	// (damaged-declares-16383.jpg: a CMYK baseline JPEG of 19 KB)
+	{
+		const start = Date.now();
+		const error = await Image.decode(await fs.readFile('./tests/jpegs/damaged-declares-16383.jpg')).then(() => null, e => e);
+		if (!error || error.constructor !== Error || !/truncated/.test(error.message) || Date.now() - start > 1000) panic(`a 19 KB baseline JPEG declaring 16383x16383 should throw a truncated Error at once, got ${error} after ${Date.now() - start} ms`);
 	}
 })();

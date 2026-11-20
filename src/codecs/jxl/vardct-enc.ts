@@ -316,12 +316,15 @@ export function hfTokenChunks({ types, hf, pw, bw, bh, groupsPerRow }: HFTokenTa
 }
 
 /** Encodes RGBA pixels as a lossy JPEG XL codestream, alpha (if the image has transparency) losslessly */
-export async function encodeVarDCT(rgba: Uint8Array, width: number, height: number, options: VarDCTOptions): Promise<Uint8Array> {
+export async function encodeVarDCT(rgba: Uint8Array, width: number, height: number, options: VarDCTOptions): Promise<Uint8Array<ArrayBuffer>> {
     if (width < 1 || height < 1) throw new RangeError('JPEG XL: dimensions must be at least 1');
     // threads for the XYB planes, the quantization field, the varblock search, the coefficients and their tokens, if
     // they start (the same files). Started first, they load while the work begins here
     const n = Math.min(options.threads, Math.ceil(height / 64), Math.max(4, Math.floor(width * height / PIXELS_PER_THREAD[options.effort])));
-    const pool = { threads: n > 1 && width * height >= MIN_THREADED_PIXELS[options.effort] ? startThreads(n) : null };
+    // (fewer than 4 threads save less than their start costs on smaller images: on 2 cores, effort 1 took 1.3-1.7x as
+    // long with threads from 0.5 to 1 megapixel and broke even at 1.5, where 12 threads already win at 0.5)
+    const minimum = n < 4 ? Math.max(MIN_THREADED_PIXELS[options.effort], MIN_THREADED_PIXELS[0]) : MIN_THREADED_PIXELS[options.effort];
+    const pool = { threads: n > 1 && width * height >= minimum ? startThreads(n) : null };
     try {
         return await encode(rgba, width, height, options, pool);
     } finally {
@@ -329,7 +332,7 @@ export async function encodeVarDCT(rgba: Uint8Array, width: number, height: numb
     }
 }
 
-async function encode(rgba: Uint8Array, width: number, height: number, { distance, effort }: VarDCTOptions, pool: { threads: Thread[] | null }): Promise<Uint8Array> {
+async function encode(rgba: Uint8Array, width: number, height: number, { distance, effort }: VarDCTOptions, pool: { threads: Thread[] | null }): Promise<Uint8Array<ArrayBuffer>> {
     const bw = Math.ceil(width / 8), bh = Math.ceil(height / 8), pw = bw * 8;
     // (a stage in the threads; if they fail, like workers whose module can't be loaded, it and the rest run here)
     const parallel = async <R>(run: (threads: Thread[] | null) => Promise<R>): Promise<R> => {

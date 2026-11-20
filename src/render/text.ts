@@ -5,9 +5,10 @@
 
 import { Font, PathCommand } from './font.ts';
 import { Hinter } from './hinting.ts';
-import { ColorLayer, BitmapGlyph, parseColorLayers, parseBitmaps } from './color.ts';
+import { ColorLayer, BitmapGlyph, parseColorLayers, parseBitmaps, bitmapPixels, MAX_BITMAP_GLYPH_PIXELS } from './color.ts';
 import { Direction } from './buffer.ts';
 import { ShapeFont, shapeFont, shapeRun, isDefaultIgnorableCodepoint, Features } from './shape.ts';
+import { shown } from '../util/options.ts';
 import './shapers/index.ts';
 import { classOf, resolve, lineLevels, Paragraph as BidiParagraph } from './bidi.ts';
 import { lineBreaks, Break } from './linebreak.ts';
@@ -15,14 +16,17 @@ import { graphemeBoundaries, scripts } from './segment.ts';
 import { PaintGlyphs, parsePaintGlyphs, paintExtent, renderPaintGlyph } from './colr.ts';
 import { decode as decodePNG } from '../codecs/png.ts';
 import { resample, TRIANGLE } from '../util/resample.ts';
+import { MAX_PIXELS, LimitError } from '../util/limits.ts';
 
+/** the layout options checked and with their defaults (see textLayout() in text-layout.ts) */
 export interface Layout {
-    maxWidth: number;
-    maxHeight: number;
+    /** the box the text is wrapped to, cut off at and aligned in (the image's size inside the outline); undefined: the text's size */
+    width: number | undefined;
+    height: number | undefined;
     wrapStyle: 'word' | 'char';
-    horizontalAlign: 'left' | 'center' | 'right';
+    /** undefined: the start of each paragraph's direction (left for left-to-right text, right for right-to-left) */
+    horizontalAlign: 'left' | 'center' | 'right' | undefined;
     verticalAlign: 'top' | 'middle' | 'bottom';
-    wrapHardBreaks: boolean;
 }
 
 export interface GlyphBitmap {
@@ -87,6 +91,10 @@ interface Line {
     glyphs: PlacedGlyph[];
     /** the right edge of the ink */
     extent: number;
+    /** the left edge of the ink of a right-to-left line (a space at a wrap point sits there, before the ink), else 0 */
+    start: number;
+    /** whether the line's paragraph runs right to left (its start is on the right) */
+    rtl: boolean;
 }
 
 // glyphs are rasterized at quarter pixel offsets
@@ -122,7 +130,8 @@ export function axisValues(variations: Record<string, number | boolean>): Record
         const tag = AXES[key] ?? (key.length === 4 ? key : null);
         if (!tag) throw new RangeError(`Unknown font variation ${key}: use weight, width, slant, italic, opticalSize or an axis tag`);
         const v = typeof value === 'boolean' ? +value : value;
-        if (typeof v !== 'number' || !Number.isFinite(v)) throw new RangeError(`Invalid font variation ${key}: ${String(value)}`);
+        if (typeof v !== 'number') throw new TypeError(`The font variation ${key} must be a number or a boolean, not ${shown(v)}`);
+        if (!Number.isFinite(v)) throw new RangeError(`Invalid font variation ${key}: ${String(value)}`);
         values[tag] = v;
     }
     return values;
@@ -146,7 +155,11 @@ function sizedFont(data: Uint8Array, size: number, hinting: boolean, variations:
     let shared = colorTables.get(font);
     if (!shared) colorTables.set(font, shared = { layers: parseColorLayers(font), paints: parsePaintGlyphs(font) });
 
-    if (bySize.size >= SIZES) bySize.clear();
+    // (the sizes evicted take their rasters with them: the font's kept bytes start again)
+    if (bySize.size >= SIZES) {
+        bySize.clear();
+        keptBytes.delete(font);
+    }
     bySize.set(key, sized = { font, scale: size / font.unitsPerEm, hinter, layers: shared.layers, bitmaps: parseBitmaps(font, size), paints: shared.paints, shaping: shapeFont(font), glyphs: new Map() });
     return sized;
 }
@@ -199,23 +212,21 @@ function glyphOf(f: SizedFont, index: number, size: number): Glyph {
  * @param hinting Whether to run TrueType fonts' hinting instructions, the glyphs of hinted fonts are then placed on
  *     whole pixels (fonts without instructions render as without hinting)
  * @param foreground RGBA color (0xrrggbbaa) of color glyph layers drawn in the text color
+ * @param maxPixels the most pixels of the image the text becomes, with `pad` pixels more on every side (its outline):
+ *     larger text throws a LimitError before anything that size is allocated
  * @return the coverage of the outline glyphs, and the premultiplied RGBA pixels of color glyphs (null without any)
  */
-export async function render(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting = false, foreground = 0xffffffff, features: Features = [], variations: Record<string, number> = {}): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
+export async function render(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting = false, foreground = 0xffffffff, features: Features = [], variations: Record<string, number> = {}, maxPixels = MAX_PIXELS, pad = 0): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
     // reading past the end of damaged or truncated font data throws a RangeError
     try {
-        return await layOut(fonts, size, text, layout, hinting, foreground, features, variations);
+        return await layOut(fonts, size, text, layout, hinting, foreground, features, variations, maxPixels, pad);
     } catch (err) {
-        if (err instanceof RangeError && !(err instanceof TooLarge)) throw new Error('Font: damaged or truncated font data', { cause: err });
+        if (err instanceof RangeError && !(err instanceof LimitError)) throw new Error('Font: damaged or truncated font data', { cause: err });
         throw err;
     }
 }
 
-// rendered text larger than 2^28 pixels (16384 square)
-const MAX_PIXELS = 1 << 28;
-class TooLarge extends RangeError {}
-
-async function layOut(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting: boolean, foreground: number, features: Features, variations: Record<string, number>): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
+async function layOut(fonts: Uint8Array[], size: number, text: string, layout: Layout, hinting: boolean, foreground: number, features: Features, variations: Record<string, number>, maxPixels: number, pad: number): Promise<{ width: number, height: number, coverage: Uint8Array, color: Uint8ClampedArray | null }> {
     const sized: SizedFont[] = [];
     const font = (i: number): SizedFont => sized[i] ??= sizedFont(fonts[i], size, hinting, variations);
     const primary = font(0);
@@ -223,15 +234,16 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
     // (at least a pixel, damaged fonts can have any metrics)
     const lineHeight = Math.max(1, Math.ceil((primary.font.ascender - primary.font.descender + primary.font.lineGap) * primary.scale));
 
-    // paragraphs end at hard line breaks (CR LF, CR, LF, NEL, LS, PS) unless they are ignored
-    const paragraphs = layout.wrapHardBreaks ? text.split(/\r\n|[\r\n\u0085\u2028\u2029]/) : [text.replace(/\r\n|[\r\n\u0085\u2028\u2029]/g, '')];
+    // paragraphs end at hard line breaks (CR LF, CR, LF, NEL, LS, PS)
+    const paragraphs = text.split(/\r\n|[\r\n\u0085\u2028\u2029]/);
     const lines: Line[] = [];
-    for (const paragraph of paragraphs) lines.push(...layOutParagraph(analyze(paragraph, fonts.length, font), layout, font, size, features));
+    // (loops, not spreads: 200,000 lines or marks are more than a call takes arguments)
+    for (const paragraph of paragraphs) for (const line of layOutParagraph(analyze(paragraph, fonts.length, font), layout, font, size, features)) lines.push(line);
 
-    // lines that fit into maxHeight, chosen by the vertical alignment
+    // lines that fit into the height, chosen by the vertical alignment
     let visible = lines;
-    if (isFinite(layout.maxHeight)) {
-        const count = Math.max(1, Math.floor(layout.maxHeight / lineHeight));
+    if (layout.height !== undefined) {
+        const count = Math.max(1, Math.floor(layout.height / lineHeight));
         if (count < lines.length) {
             const start = layout.verticalAlign === 'bottom' ? lines.length - count
                 : layout.verticalAlign === 'middle' ? lines.length - count >> 1 : 0;
@@ -239,18 +251,45 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
         }
     }
 
-    // text without ink (empty, spaces) still makes an image, a transparent pixel wide
-    const width = Math.max(1, Math.ceil(Math.max(0, ...visible.map(line => line.extent))));
-    const height = visible.length * lineHeight;
-    if (!(width * height <= MAX_PIXELS)) throw new TooLarge(`Text too large to render (${width}x${height} pixels)`);
+    // the box's size, else the text's: text without ink (empty, spaces) still makes an image, a transparent pixel wide
+    let extent = 0;
+    for (const line of visible) extent = Math.max(extent, line.extent);
+    const width = layout.width ?? Math.max(1, Math.ceil(extent));
+    const height = layout.height ?? visible.length * lineHeight;
+    // the lines placed vertically in the box (a line taller than the box is cut off as the alignment says)
+    const free = height - visible.length * lineHeight;
+    const top = layout.verticalAlign === 'bottom' ? free : layout.verticalAlign === 'middle' ? Math.floor(free / 2) : 0;
+    if (!((width + 2 * pad) * (height + 2 * pad) <= maxPixels))
+        throw new LimitError(`Text too large to render: ${width + 2 * pad}x${height + 2 * pad} pixels exceed the limit of ${maxPixels} (the render options' maxPixels)`);
     const coverage = new Uint8Array(width * height);
     let color: Uint8ClampedArray | null = null;
+    // the pixels bitmap glyphs may be decoded and scaled to: 2^28 and 64 per pixel of the image, like the paint of an
+    // SVG (1000 glyphs of 2048x2048 without advance took 39 s for a 32x1 image)
+    const budget = { left: 2 ** 28 + 64 * width * height, image: width * height };
+    // the bitmap glyphs scaled in this render, by glyph, at most 2^22 pixels of them (16 MB): kept with the font, those of
+    // 64 glyphs from a strike at ppem 1 took 1 GB a size, and were never given back
+    const scaled = new Map<Glyph, ColorBitmap | null>();
+    let scaledPixels = 0;
+    // the rasters of glyphs too large to keep with the font, kept for this render (at most 64 MB of them)
+    const local = new Map<Glyph, Map<string, GlyphBitmap | ColorBitmap | null>>();
+    let localBytes = 0;
+    const keep = <T extends GlyphBitmap | ColorBitmap | null>(g: Glyph, key: string, raster: T, withFont: () => void): T => {
+        const bytes = raster ? raster.data.length : 0;
+        if (keptWithFont(g, bytes)) withFont();
+        else if (localBytes + bytes <= 2 ** 26) {
+            localBytes += bytes;
+            let rasters = local.get(g);
+            if (!rasters) local.set(g, rasters = new Map<string, GlyphBitmap | ColorBitmap | null>());
+            rasters.set(key, raster);
+        }
+        return raster;
+    };
 
     for (const [n, line] of visible.entries()) {
-        let offset = layout.horizontalAlign === 'right' ? width - line.extent
-            : layout.horizontalAlign === 'center' ? (width - line.extent) / 2 : 0;
+        const align = layout.horizontalAlign ?? (line.rtl ? 'right' : 'left');
+        let offset = align === 'right' ? width - line.extent : align === 'center' ? (width - line.extent - line.start) / 2 : -line.start;
         if (primary.hinter) offset = Math.round(offset);
-        const baseline = ascent + n * lineHeight;
+        const baseline = top + ascent + n * lineHeight;
 
         for (const { x, dx, dy, glyph: g } of line.glyphs) {
             if (!g.ink) continue;
@@ -266,21 +305,54 @@ async function layOut(fonts: Uint8Array[], size: number, text: string, layout: L
                 if ('bitmap' in g.color) subpixel = 0;
                 const key = 'bitmap' in g.color ? '0' : `${subpixel}:${foreground}`;
                 let bitmap = g.colors.get(key);
-                if (bitmap === undefined) g.colors.set(key, bitmap = 'bitmap' in g.color
-                    ? await scaledBitmap(g.color.bitmap, size / g.color.bitmap.ppem)
-                    : 'layers' in g.color ? layeredGlyph(g, g.color.layers, subpixel / SUBPIXELS, foreground)
-                        : paintedGlyph(g, subpixel / SUBPIXELS, foreground));
+                if ('bitmap' in g.color) {
+                    bitmap = scaled.get(g);
+                    if (bitmap === undefined) {
+                        bitmap = await scaledBitmap(g.color.bitmap, size / g.color.bitmap.ppem, budget);
+                        const pixels = bitmap ? bitmap.width * bitmap.height : 0;
+                        if (scaledPixels + pixels <= 2 ** 22) {
+                            scaledPixels += pixels;
+                            scaled.set(g, bitmap);
+                        }
+                    }
+                } else if (bitmap === undefined) {
+                    bitmap = local.get(g)?.get(key) as ColorBitmap | null | undefined;
+                    if (bitmap === undefined) {
+                        const made = 'layers' in g.color ? layeredGlyph(g, g.color.layers, subpixel / SUBPIXELS, foreground) : paintedGlyph(g, subpixel / SUBPIXELS, foreground);
+                        spend(budget, made ? made.width * made.height : 0);
+                        // (at most 8 colors a glyph with the font: one for each text color grew without end)
+                        bitmap = g.colors.size < 8 ? keep(g, key, made, () => g.colors.set(key, made)) : keep(g, key, made, () => {});
+                    }
+                }
                 if (bitmap) blitColor(color ??= new Uint8ClampedArray(width * height * 4), width, height, bitmap, pixel + bitmap.left, y - bitmap.top);
                 continue;
             }
 
-            if (g.bitmaps[subpixel] === undefined) g.bitmaps[subpixel] = rasterizeGlyph(g.path, g.scale, subpixel / SUBPIXELS);
-            const bitmap = g.bitmaps[subpixel];
+            let bitmap: GlyphBitmap | null | undefined = g.bitmaps[subpixel];
+            if (bitmap === undefined) bitmap = local.get(g)?.get(`${subpixel}`) as GlyphBitmap | null | undefined;
+            if (bitmap === undefined) {
+                const made = rasterizeGlyph(g.path, g.scale, subpixel / SUBPIXELS);
+                // (a glyph that isn't kept is rasterized again for each occurrence: 2000 huge ones took 260 s)
+                spend(budget, made ? made.width * made.height : 0);
+                bitmap = keep(g, `${subpixel}`, made, () => g.bitmaps[subpixel] = made);
+            }
             if (bitmap) blit(coverage, width, height, bitmap, pixel + bitmap.left, y - bitmap.top);
         }
     }
 
     return { width, height, coverage, color };
+}
+
+// the bytes of glyph rasters kept with a font (an instance of a variable font) across renders, at all its sizes: 256 KB a
+// raster (512x512 of coverage) and 4 MB a font at most (64 instances of a font may be kept). The others are kept for one render (62 letters at size 6000 kept 774 MB with the font, for
+// good, and one more each size)
+const keptBytes = new WeakMap<Font, number>();
+function keptWithFont(g: Glyph, bytes: number): boolean {
+    if (bytes > 2 ** 18) return false;
+    const kept = (keptBytes.get(g.font.font) ?? 0) + bytes;
+    if (kept > 2 ** 22) return false;
+    keptBytes.set(g.font.font, kept);
+    return true;
 }
 
 /** a paragraph's text with what laying it out needs */
@@ -322,7 +394,7 @@ function analyze(text: string, count: number, font: (i: number) => SizedFont): P
         }
         return first;
     };
-    const normalized = (grapheme: number[], form: string): number[] => Array.from(String.fromCodePoint(...grapheme).normalize(form), char => char.codePointAt(0) as number);
+    const normalized = (grapheme: number[], form: string): number[] => Array.from(grapheme.map(c => String.fromCodePoint(c)).join('').normalize(form), char => char.codePointAt(0) as number);
 
     const graphemes = graphemeBoundaries(codepoints), fontOf = new Int32Array(n);
     for (let start = 0; start < n;) {
@@ -420,7 +492,8 @@ const isSpace = (codepoint: number): boolean => codepoint === 0x20 || codepoint 
 /** breaks a paragraph into lines and shapes them (reordered by the bidirectional algorithm) */
 function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => SizedFont, size: number, features: Features): Line[] {
     const n = p.codepoints.length;
-    if (!n) return [{ glyphs: [], extent: 0 }];
+    const rtl = (p.bidi.level & 1) === 1;
+    if (!n) return [{ glyphs: [], extent: 0, start: 0, rtl }];
 
     // the width of each character's cluster in the paragraph shaped as one line (characters within a cluster have
     // none, and lines can't break inside clusters)
@@ -446,11 +519,11 @@ function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => Size
             const end = i + 1;
             if (!starts[end]) continue;
             // mandatory breaks (line separators) end the line
-            if (p.breaks[end] === Break.Mandatory && end < n && layout.wrapHardBreaks) {
+            if (p.breaks[end] === Break.Mandatory && end < n) {
                 fit = end;
                 break;
             }
-            const fits = used - trailing <= layout.maxWidth;
+            const fits = used - trailing <= (layout.width ?? Infinity);
             if (!fits) break;
             if (canBreak(end)) fit = end;
             if (p.graphemes[end]) emergency = end;
@@ -468,26 +541,44 @@ function layOutParagraph(p: Paragraph, layout: Layout, font: (i: number) => Size
     }
 
     // every line shaped by itself, with the levels of rule L1
+    // (one array of the levels for all lines, each line sets and reads its own range: one per line took quadratic time)
+    const shifted = new Int8Array(n);
     return ranges.map(([start, end]) => {
         const levels = lineLevels(p.bidi, start, end);
-        const shifted = new Int8Array(n);
         shifted.set(levels, start);
         const { glyphs } = ranges.length === 1 ? whole : shapeRange(p, start, end, shifted, font, size, features);
-        let extent = 0;
-        for (const { x, dx, glyph } of glyphs) if (glyph.ink) extent = Math.max(extent, x + dx + glyph.ink.right);
-        return { glyphs, extent };
+        let extent = 0, left = Infinity;
+        for (const { x, dx, glyph } of glyphs) if (glyph.ink) {
+            extent = Math.max(extent, x + dx + glyph.ink.right);
+            left = Math.min(left, x + dx + glyph.ink.left);
+        }
+        return { glyphs, extent, start: rtl && left < Infinity ? Math.max(0, left) : 0, rtl };
     });
 }
 
+/** spends pixels of a render's work budget (decoding, scaling and rasterizing glyphs), a LimitError when it's spent */
+function spend(budget: { left: number }, pixels: number): void {
+    if ((budget.left -= pixels) < 0)
+        throw new LimitError('Text too complex: its glyphs take more work to decode, scale and rasterize than an image of this size allows (2^28 pixels and 64 per pixel of the image)');
+}
+
 // a bitmap glyph's PNG decoded and scaled from its strike to the font size, premultiplied
-async function scaledBitmap(glyph: BitmapGlyph, scale: number): Promise<ColorBitmap | null> {
+async function scaledBitmap(glyph: BitmapGlyph, scale: number, budget: { left: number, image: number }): Promise<ColorBitmap | null> {
+    // (decoding takes about the time of 4 pixels a pixel, counted before it, as damaged ones take it too)
+    const declared = bitmapPixels(glyph.png);
+    if (!(declared <= MAX_BITMAP_GLYPH_PIXELS)) return null;
+    spend(budget, 4 * Math.max(declared, 1));
     let decoded;
     try {
-        decoded = await decodePNG(glyph.png);
+        decoded = await decodePNG(glyph.png, MAX_BITMAP_GLYPH_PIXELS);
     } catch {
         return null;
     }
     const width = Math.max(1, Math.round(decoded.width * scale)), height = Math.max(1, Math.round(decoded.height * scale));
+    // (scaled from its strike to the size: from a strike at ppem 1, a 2048x2048 bitmap became 32768x32768 at size 16. A
+    // glyph larger than 4 times the image, and than the largest bitmap glyph, isn't drawn)
+    if (width * height > Math.max(MAX_BITMAP_GLYPH_PIXELS, 4 * budget.image)) return null;
+    spend(budget, width * height);
     const data = new Uint8ClampedArray(width * height * 4);
     resample(new Uint8ClampedArray(decoded.pixels.buffer, decoded.pixels.byteOffset, decoded.pixels.length), decoded.width, decoded.height, width, height, TRIANGLE, data, true);
     premultiply(data);

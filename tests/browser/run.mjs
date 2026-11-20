@@ -24,6 +24,23 @@ try {
 }
 if (!fs.readdirSync(path.join(out, 'assets')).some(f => f.startsWith('worker'))) throw new Error('Vite did not bundle the worker');
 
+// "sideEffects": false of the build lets bundlers drop what isn't used: a page that only needs Colors doesn't get the library
+{
+    const small = path.join(here, 'dist-small');
+    fs.writeFileSync(path.join(here, 'small.html'), '<!doctype html><script type="module">import { Colors } from "imagescript"; document.title = String(Colors.fromRGBA(1, 2, 3, 4));</script>\n');
+    try {
+        await build({
+            root: here, logLevel: 'error', build: { outDir: small, emptyOutDir: true, target: 'es2022', rollupOptions: { input: path.join(here, 'small.html') } },
+            resolve: { alias: { imagescript: path.join(here, '../../dist/index.js') } }
+        });
+        const bytes = fs.readdirSync(path.join(small, 'assets')).filter(f => f.endsWith('.js')).reduce((sum, f) => sum + fs.statSync(path.join(small, 'assets', f)).size, 0);
+        if (bytes > 20000) throw new Error(`a page that only uses Colors bundles ${bytes} bytes of JavaScript: tree shaking doesn't work (sideEffects in dist/package.json?)`);
+    } finally {
+        fs.rmSync(path.join(here, 'small.html'));
+        fs.rmSync(small, { recursive: true, force: true });
+    }
+}
+
 let failed = false;
 const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
 try {

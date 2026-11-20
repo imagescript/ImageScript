@@ -1,6 +1,18 @@
-import { VERSION } from './version.ts';
 import { encode as utf8 } from './util/utf8.ts';
+import { shown } from './util/options.ts';
 import * as exif from './codecs/exif.ts';
+
+/** whether a value is a Date, also one of another realm (an iframe's or Jest's isn't an instance here) */
+function isDate(value: unknown): value is Date {
+    if (typeof value !== 'object' || value === null) return false;
+    try {
+        // (getTime() checks it is a Date: the tag, which any object can claim, doesn't)
+        Date.prototype.getTime.call(value);
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 /**
  * Metadata written by the encoders. Each format stores the fields it has a place for:
@@ -13,8 +25,20 @@ import * as exif from './codecs/exif.ts';
  * | GIF | software, comment (comment extensions) |
  * | TGA | author, comment, creation time, software (extension area) |
  *
- * Empty fields are left out
+ * The Exif and TGA text fields are ASCII in the file format; other characters are written as UTF-8, which readers
+ * that follow the format show wrongly. PNG text chunks take any text.
+ *
+ * Decoding doesn't read metadata: it applies the orientation and the ICC profile to the pixels and drops the rest
+ * (Exif, XMP, text), so a decoded image is written with only the metadata given to the encoder.
+ *
+ * Some formats limit the length: in JPEG the comment and the Exif fields together hold up to 65533 bytes each, and
+ * longer ones throw a `RangeError` before encoding. TGA cuts the author and the software to 40 bytes and the comment to
+ * 4 lines of 80 bytes.
+ *
+ * Empty fields (and `null` ones) are left out. Without metadata, the files only say which software made them (`software`), so the same
+ * image always encodes to the same bytes
  */
+
 export interface Metadata {
     /** The image's title */
     title?: string;
@@ -24,10 +48,17 @@ export interface Metadata {
     description?: string;
     /** The image's copyright info */
     copyright?: string;
-    /** The image's creation time. Default: now */
-    creationTime?: string | number | Date;
-    /** The software used to create the image. Default: `'ImageScript vX.X.X'`, `''` leaves it out */
-    software?: string;
+    /**
+     * The image's creation time (a date, a timestamp or a date string, in the years 1000 to 9999: the formats write
+     * the year with 4 digits)
+     * @defaultValue None (`null` leaves it out, too)
+     */
+    creationTime?: string | number | Date | null;
+    /**
+     * The software used to create the image
+     * @defaultValue `'ImageScript'` (without a version), `null` leaves it out
+     */
+    software?: string | null;
     /** A disclaimer for the image */
     disclaimer?: string;
     /** A warning for the image */
@@ -47,7 +78,7 @@ export interface ResolvedMetadata {
     author?: string;
     description?: string;
     copyright?: string;
-    creationTime: Date;
+    creationTime?: Date;
     software?: string;
     disclaimer?: string;
     warning?: string;
@@ -62,14 +93,30 @@ const TEXT_FIELDS = ['title', 'author', 'description', 'copyright', 'software', 
  * @ignore
  */
 export function resolveMetadata(metadata: Metadata = {}): ResolvedMetadata {
-    const { creationTime, software } = metadata || {};
-    const time = new Date(creationTime === undefined ? Date.now() : creationTime);
-    if (isNaN(time.getTime())) throw new RangeError('Invalid creation time');
-
-    const resolved: ResolvedMetadata = { creationTime: time };
+    if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata))
+        throw new TypeError(`metadata takes an object, like { title: 'Sunset' }, not ${shown(metadata)}`);
+    const { creationTime, software } = metadata;
+    const resolved: ResolvedMetadata = {};
+    if (creationTime !== undefined && creationTime !== null) {
+        // (other types than these were turned into a date anyway: true was 1970)
+        if (!isDate(creationTime) && typeof creationTime !== 'number' && typeof creationTime !== 'string') {
+            // eslint-disable-next-line no-restricted-syntax -- the one date in the options
+            throw new TypeError(`creationTime must be a Date, a number or a string, not ${typeof creationTime === 'object' ? shown(creationTime) : typeof creationTime}`);
+        }
+        const time = new Date(creationTime);
+        // eslint-disable-next-line no-restricted-syntax -- the one date in the options
+        if (isNaN(time.getTime())) throw new RangeError(`creationTime must be a date, a timestamp or a date string, not ${shown(creationTime)}`);
+        // (the year has 4 digits in Exif and PNG's text, and TGA stores it in 16 bits: years outside of them were written wrapped)
+        const year = time.getUTCFullYear();
+        // eslint-disable-next-line no-restricted-syntax -- the year is part of the one date in the options
+        if (year < 1000 || year > 9999) throw new RangeError(`creationTime's year must be from 1000 to 9999, not ${year}`);
+        resolved.creationTime = time;
+    }
     for (const key of TEXT_FIELDS) {
-        const value = key === 'software' && software === undefined ? `ImageScript v${VERSION}` : metadata?.[key];
-        if (value) resolved[key] = String(value);
+        const value = key === 'software' && software === undefined ? 'ImageScript' : metadata[key];
+        if (value === undefined || value === null || value === '') continue;
+        if (typeof value !== 'string') throw new TypeError(`metadata ${key} must be a string, not ${shown(value)}`);
+        resolved[key] = value;
     }
     return resolved;
 }
@@ -84,7 +131,7 @@ export function pngText(m: ResolvedMetadata): Record<string, string | undefined>
         Author: m.author,
         Description: m.description,
         Copyright: m.copyright,
-        'Creation Time': m.creationTime.toUTCString(),
+        'Creation Time': m.creationTime?.toUTCString(),
         Software: m.software,
         Disclaimer: m.disclaimer,
         Warning: m.warning,
@@ -97,7 +144,9 @@ export function pngText(m: ResolvedMetadata): Record<string, string | undefined>
  * @internal Exif data (a TIFF header and IFDs) for JPEG, WebP, AVIF and JPEG XL
  * @ignore
  */
-export function exifData(m: ResolvedMetadata): Uint8Array {
+export function exifData(m: ResolvedMetadata): Uint8Array | undefined {
+    // (an Exif block without any field is left out)
+    if (!m.description && !m.software && !m.creationTime && !m.author && !m.copyright) return undefined;
     return exif.encode({
         description: m.description,
         software: m.software,

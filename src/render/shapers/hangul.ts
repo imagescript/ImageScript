@@ -112,7 +112,7 @@ function preprocessText(_plan: Plan, buffer: Buffer, font: ShapeFont): void {
                     let i = start;
                     info[i++].category = Jamo.LJMO;
                     info[i++].category = Jamo.VJMO;
-                    if (i < end) info[i++].category = Jamo.TJMO;
+                    if (i < end) info[i].category = Jamo.TJMO;
                     buffer.mergeOutClusters(start, end);
                     continue;
                 }

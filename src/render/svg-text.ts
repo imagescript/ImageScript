@@ -16,6 +16,7 @@ import { loadFont } from './text.ts';
 import { parseColorLayers, parseBitmaps, ColorLayer, BitmapGlyph } from './color.ts';
 import { parsePaintGlyphs, PaintGlyphs } from './colr.ts';
 import { Matrix, multiply } from '../util/matrix.ts';
+import { LimitError } from '../util/limits.ts';
 
 export interface BBox {
     x: number;
@@ -79,8 +80,14 @@ function names(font: Font, ids: number): string[] {
 
 /**
  * A font's face: its names, weight, style and stretch from its tables, unless given (@font-face descriptors), and
- * the generic families its OS/2 and post tables say it fits
+ * the generic families its OS/2 and post tables say it fits. Null for a font that can't be read, as browsers leave out
+ * such a font of an SVG
  */
+/** appends items to an array (a loop, not a spread: long text has more glyphs than a call takes arguments) */
+function append<T>(target: T[], items: readonly T[]): void {
+    for (const item of items) target.push(item);
+}
+
 export function fontFace(data: Uint8Array, descriptors?: { family?: string, weight?: number, style?: FontStyle }): FontFace | null {
     let font: Font;
     try {
@@ -90,6 +97,44 @@ export function fontFace(data: Uint8Array, descriptors?: { family?: string, weig
     }
     const cached = !descriptors && faces.get(font);
     if (cached) return cached;
+    // (reading past the end of a damaged font throws a RangeError: the font isn't used, like one that doesn't load)
+    try {
+        return describeFace(font, descriptors);
+    } catch (err) {
+        if (err instanceof RangeError && !(err instanceof LimitError)) return null;
+        throw err;
+    }
+}
+
+/**
+ * The face of a font the caller gave (renderSVG's `font` option): one that can't be read throws, like in renderText,
+ * instead of being left out without a word
+ */
+export function givenFontFace(data: Uint8Array): FontFace {
+    let font: Font;
+    try {
+        font = loadFont(data);
+    } catch (err) {
+        throw damaged(err);
+    }
+    const cached = faces.get(font);
+    if (cached) return cached;
+    try {
+        return describeFace(font);
+    } catch (err) {
+        throw damaged(err);
+    }
+}
+
+/**
+ * The error for a font the caller gave that turned out damaged while it was read: reading past its end throws a
+ * RangeError, which becomes an Error like the other damage renderText reports (anything else is returned as it is)
+ */
+export function damaged(err: unknown): unknown {
+    return err instanceof RangeError && !(err instanceof LimitError) ? new Error('Font: damaged (a table lies outside of the font)', { cause: err }) : err;
+}
+
+function describeFace(font: Font, descriptors?: { family?: string, weight?: number, style?: FontStyle }): FontFace {
 
     const os2 = font.tables['OS/2'] && font.tables['OS/2'].length >= 78 ? font.tables['OS/2'].offset : -1;
     const post = font.tables.post && font.tables.post.length >= 16 ? font.tables.post.offset : -1;
@@ -224,10 +269,11 @@ export function variedFace(face: FontFace, query: FontQuery, fontSize: number): 
 
 /**
  * The face for a span: the first family that has faces (embedded ones before given ones; a generic family is the
- * first face fitting it and the faces of its family), else the first face's family
+ * first face fitting it and the faces of its family), else the family of `fallback` (the caller's first font, like a
+ * browser's default font; else the first face)
  */
-export function matchFont(fonts: FontFace[], query: FontQuery): FontFace | null {
-    if (!fonts.length) return null;
+export function matchFont(fonts: FontFace[], query: FontQuery, fallback: FontFace | undefined = fonts[0]): FontFace | null {
+    if (!fonts.length || !fallback) return null;
     const family = (name: string): FontFace[] => fonts.filter(f => f.families.includes(name));
     for (const name of query.families) {
         let candidates: FontFace[];
@@ -237,7 +283,7 @@ export function matchFont(fonts: FontFace[], query: FontQuery): FontFace | null 
         } else candidates = family(name);
         if (candidates.length) return bestMatch(candidates, query);
     }
-    return bestMatch(family(fonts[0].families[0]).length ? family(fonts[0].families[0]) : [fonts[0]], query);
+    return bestMatch(family(fallback.families[0]).length ? family(fallback.families[0]) : [fallback], query);
 }
 
 // a fallback face that has a grapheme's characters: not tried yet, of a compatible style (like usvg's)
@@ -389,6 +435,8 @@ export interface TextInput<S> {
     vertical: boolean;
     /** the scale the text is drawn at, for the precision of text on paths */
     scale: number;
+    /** called with the number of commands of each glyph outline before it is placed, to bound long texts */
+    charge?: (commands: number) => void;
 }
 
 export interface SpanOutput<S> {
@@ -456,7 +504,19 @@ function upright(u: number): boolean {
         || (u >= 0x2460 && u <= 0x24ff) || (u >= 0x2600 && u <= 0x27bf && u !== 0x2771 && u !== 0x2770);
 }
 
-const spanAt = <S>(chunk: ChunkInput<S>, i: number): SpanInput<S> | undefined => chunk.spans.find(s => i >= s.start && i < s.end);
+// (the spans of a chunk are disjoint: found by a binary search over their starts, kept per chunk, as a find over them
+// made many spans, a tspan each, quadratic)
+const sortedSpans = new WeakMap<object, unknown[]>();
+const spanAt = <S>(chunk: ChunkInput<S>, i: number): SpanInput<S> | undefined => {
+    let spans = sortedSpans.get(chunk.spans) as SpanInput<S>[] | undefined;
+    if (!spans) sortedSpans.set(chunk.spans, spans = chunk.spans.slice().sort((a, b) => a.start - b.start));
+    let low = 0, high = spans.length - 1, found = -1;
+    while (low <= high) {
+        const mid = (low + high) >>> 1;
+        if (spans[mid].start <= i) { found = mid; low = mid + 1; } else high = mid - 1;
+    }
+    return found >= 0 && i < spans[found].end ? spans[found] : undefined;
+};
 
 /**
  * Shapes a chunk (in visual order): runs of one embedding level, script and features, and of the span faces or one
@@ -497,7 +557,7 @@ function shapeChunk<S>(chunk: ChunkInput<S>, fonts: FontFace[], primary: Map<Spa
         const level = levelAt(i);
         let j = i + 1;
         while (j < n && (levels[j] < 0 || levels[j] === level)) j++;
-        script.push(...scripts(cps.slice(i, j)));
+        append(script, scripts(cps.slice(i, j)));
         i = j;
     }
     last = 0;
@@ -547,7 +607,7 @@ function shapeChunk<S>(chunk: ChunkInput<S>, fonts: FontFace[], primary: Map<Spa
         const shaped = shape(base);
         const faces = new Set(faceOf.slice(rs, re));
         if (faces.size === 1) {
-            glyphs.push(...shaped);
+            append(glyphs, shaped);
             continue;
         }
         // every cluster from its span's face: that face's glyphs for the cluster's characters (none if they're in a
@@ -559,12 +619,12 @@ function shapeChunk<S>(chunk: ChunkInput<S>, fonts: FontFace[], primary: Map<Spa
             while (j < shaped.length && shaped[j].cluster === shaped[i].cluster) j++;
             const c = shaped[i].cluster, end = starts.find(v => v > c) ?? re;
             const other = faceOf[c] && others.get(faceOf[c]);
-            if (!other) glyphs.push(...shaped.slice(i, j));
+            if (!other) append(glyphs, shaped.slice(i, j));
             else {
                 const own = other.filter(g => g.cluster >= c && g.cluster < end);
                 const before = other.reduce((m, g) => g.cluster <= c ? Math.max(m, g.cluster) : m, -1);
-                if (own.length) glyphs.push(...own);
-                else if (!(before >= 0 && before < c)) glyphs.push(...shaped.slice(i, j));
+                if (own.length) append(glyphs, own);
+                else if (!(before >= 0 && before < c)) append(glyphs, shaped.slice(i, j));
             }
             i = j;
         }
@@ -959,11 +1019,11 @@ function rectPath(m: Matrix, x: number, y: number, w: number, h: number): PathCo
  * text-anchor, or along a path) and shifted to their baselines; its spans become outlines with their decorations
  * @returns null without fonts or anything to show
  */
-export function layOutText<S>(text: TextInput<S>, fonts: FontFace[]): TextOutput<S> | null {
+export function layOutText<S>(text: TextInput<S>, fonts: FontFace[], fallback: FontFace | undefined = fonts[0]): TextOutput<S> | null {
     if (!fonts.length) return null;
     const primary = new Map<SpanInput<S>, FontFace>();
     for (const chunk of text.chunks) for (const span of chunk.spans) {
-        const face = matchFont(fonts, span.font);
+        const face = matchFont(fonts, span.font, fallback);
         if (face) primary.set(span, variedFace(face, span.font, span.fontSize));
     }
 
@@ -998,6 +1058,21 @@ export function layOutText<S>(text: TextInput<S>, fonts: FontFace[]): TextOutput
         const position = chunk.path ? positionOnPath(text, chunk, clusters, shiftOf) : positionLinear(text, chunk, clusters);
 
         const textMatrix = text.vertical && !chunk.path ? rotate(IDENTITY, 90, x, y) : IDENTITY;
+        // the clusters of each span, by their index (the spans are disjoint, in order): a span looks at its own, not at
+        // all of the chunk's, which took quadratic time for many spans (a tspan each)
+        const owned = new Map<SpanInput<S>, number[]>(), ordered = chunk.spans.slice().sort((a, b) => a.start - b.start);
+        clusters.forEach((c, i) => {
+            let low = 0, high = ordered.length - 1, found = -1;
+            while (low <= high) {
+                const mid = (low + high) >>> 1;
+                if (ordered[mid].start <= c.start) { found = mid; low = mid + 1; } else high = mid - 1;
+            }
+            if (found < 0 || c.start >= ordered[found].end) return;
+            const list = owned.get(ordered[found]);
+            if (list) list.push(i); else owned.set(ordered[found], [i]);
+        });
+        // (the bounding box of all clusters, from the metrics, is the same for spans with the same shift)
+        const boxed = new Set<number>();
         for (const span of chunk.spans) {
             const face = primary.get(span);
             if (!face) continue;
@@ -1009,13 +1084,16 @@ export function layOutText<S>(text: TextInput<S>, fonts: FontFace[]): TextOutput
 
             // decorations: one line per run of the span's clusters without relative shifts between them
             const runs: Array<{ width: number, transform: Matrix }> = [];
-            let current: { width: number, transform: Matrix } | null = null;
-            for (const c of clusters) {
-                if (c.start >= span.start && c.start < span.end) {
-                    if (current && c.hasRelativeShift) current = null;
-                    if (!current) runs.push(current = { width: c.advance, transform: c.transform });
-                    else current.width += c.advance;
-                } else current = null;
+            let current: { width: number, transform: Matrix } | null = null, previous = -2;
+            const own = owned.get(span) ?? [];
+            for (const i of own) {
+                const c = clusters[i];
+                // (a cluster of another span between two of this one ends the run)
+                if (i !== previous + 1) current = null;
+                previous = i;
+                if (current && c.hasRelativeShift) current = null;
+                if (!current) runs.push(current = { width: c.advance, transform: c.transform });
+                else current.width += c.advance;
             }
             const decoration = (paint: S | null, offset: number, list: Array<{ path: PathCommand[], paint: S }>): void => {
                 if (!paint || !runs.length) return;
@@ -1031,18 +1109,29 @@ export function layOutText<S>(text: TextInput<S>, fonts: FontFace[]): TextOutput
             decoration(span.lineThrough, text.vertical ? 0 : -face.lineThroughPosition * s, out.after);
 
             let any = false;
-            for (const c of clusters) {
+            const shift = chunk.path ? 0 : shiftOf(span);
+            if (!boxed.has(shift)) {
+                boxed.add(shift);
+                for (const c of clusters) {
+                    if (!c.visible) continue;
+                    // (the bounding box from the metrics, of all clusters)
+                    extend(rectPath(multiply(spanMatrix, multiply(c.transform, c.pathTransform)), 0, -c.ascent, c.advance > 0 ? c.advance : 1, c.ascent - c.descent));
+                }
+            }
+            for (const i of own) {
+                const c = clusters[i];
                 if (!c.visible) continue;
-                // (the bounding box from the metrics, of all clusters)
                 const m = multiply(spanMatrix, multiply(c.transform, c.pathTransform));
-                extend(rectPath(m, 0, -c.ascent, c.advance > 0 ? c.advance : 1, c.ascent - c.descent));
-                if (c.start < span.start || c.start >= span.end) continue;
                 any = true;
                 for (const g of c.glyphs) {
                     const gs = c.fontSize / g.face.font.unitsPerEm, matrix = scale(translate(scale(m, gs, gs), g.x, -g.y), 1, -1);
                     const kind = colorKind(g.face, g.glyph, c.fontSize);
                     if (kind) out.colors.push({ face: g.face, glyph: g.glyph, kind, fontSize: c.fontSize, matrix });
-                    else placeOutline(out.glyphs, g.face.font.outline(g.glyph), matrix);
+                    else {
+                        const outline = g.face.font.outline(g.glyph);
+                        text.charge?.(outline.length);
+                        placeOutline(out.glyphs, outline, matrix);
+                    }
                 }
             }
             if (any || out.before.length || out.after.length) spans.push(out);

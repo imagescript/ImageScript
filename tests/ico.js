@@ -32,7 +32,8 @@ const expected = {
     for (const [name, [type, size, hash]] of Object.entries(expected)) {
         const binary = await fs.readFile(`./tests/ico/${name}`);
         if (ImageType.getType(binary) !== type) panic(`${name}: not detected as ${type}`);
-        if (!ImageType.isICO(binary)) panic(`${name}: isICO should be true`);
+        if (ImageType.isICO(binary) !== (type === 'ico')) panic(`${name}: isICO should match the file type`);
+        if (ImageType.isCUR(binary) !== (type === 'cur')) panic(`${name}: isCUR should match the file type`);
         const image = await Image.decode(binary);
         if (image.width !== size || image.height !== size) panic(`${name}: ${image.width}x${image.height} instead of ${size}x${size}`);
         if (sha(image) !== hash) panic(`${name}: decoded pixels don't match`);

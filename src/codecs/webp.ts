@@ -9,8 +9,8 @@ import * as vp8 from './vp8.ts';
 import { encodeVP8, encodeAlpha } from './vp8-enc.ts';
 import { rgbaToYUV } from './vp8-enc-dsp.ts';
 import { orientation as exifOrientation } from './exif.ts';
-import { MAX_PIXELS, checkPixels } from '../util/limits.ts';
-import { effort as checkEffort, quality as checkQuality } from '../util/options.ts';
+import { MAX_PIXELS, checkPixels, checkFormatSize } from '../util/limits.ts';
+import { effort as checkEffort, quality as checkQuality, boolean as checkBoolean } from '../util/options.ts';
 import { startThreads } from '../util/threads.ts';
 
 const fourCC = (s: string): number => s.charCodeAt(0) | s.charCodeAt(1) << 8 | s.charCodeAt(2) << 16 | s.charCodeAt(3) << 24;
@@ -40,7 +40,8 @@ export interface WebPAnimation {
     loopCount: number;
     /** ARGB background color hint (decoders, like browsers, are free to ignore it) */
     background: number;
-    frames: WebPFrame[];
+    /** decoded one at a time as they are iterated (once), so compositing doesn't hold all of them */
+    frames: Iterable<WebPFrame>;
     /** the embedded ICC profile */
     icc?: Uint8Array;
     /** Exif orientation (1-8) */
@@ -50,6 +51,8 @@ export interface WebPAnimation {
 interface Chunk {
     type: number;
     data: Uint8Array;
+    /** the chunk is cut off: the data ends before its size says */
+    cut?: boolean;
 }
 
 function chunks(data: Uint8Array, start: number, end: number): Chunk[] {
@@ -61,7 +64,7 @@ function chunks(data: Uint8Array, start: number, end: number): Chunk[] {
         const size = view.getUint32(offset + 4, true);
         const dataStart = offset + 8;
         // tolerate a truncated last chunk, the bitstream decoders report missing data
-        out.push({ type, data: data.subarray(dataStart, Math.min(end, dataStart + size)) });
+        out.push({ type, data: data.subarray(dataStart, Math.min(end, dataStart + size)), cut: dataStart + size > end });
         offset = dataStart + size + (size & 1);
     }
     return out;
@@ -83,6 +86,8 @@ const u24 = (d: Uint8Array, o: number): number => d[o] | d[o + 1] << 8 | d[o + 2
 function decodeBitstream(list: Chunk[], maxPixels: number): { width: number, height: number, pixels: Uint8Array } {
     let alpha: Chunk | null = null;
     for (const chunk of list) {
+        // (the bitstream decoders read missing bytes as zeros, so a chunk that ends before its size says is cut off)
+        if ((chunk.type === ALPH || chunk.type === VP8L || chunk.type === VP8) && chunk.cut) throw new Error('WebP: the image data is truncated');
         if (chunk.type === ALPH) alpha ??= chunk;
         else if (chunk.type === VP8L) {
             const { width, height, argb } = vp8l.decode(chunk.data, maxPixels);
@@ -181,9 +186,10 @@ export function decode(data: Uint8Array, maxPixels = MAX_PIXELS): { width: numbe
 }
 
 /**
- * Decodes an animated WebP into its frames (not composited); still WebPs become a single frame
+ * Decodes an animated WebP into its frames (not composited, decoded one at a time as they are iterated); still WebPs
+ * become a single frame
  */
-export function decodeAnimation(data: Uint8Array, onlyFirstFrame = false, maxPixels = MAX_PIXELS): WebPAnimation {
+export function decodeAnimation(data: Uint8Array, firstFrameOnly = false, maxPixels = MAX_PIXELS): WebPAnimation {
     const list = container(data);
     const header = list[0];
     if (!header || header.type !== VP8X || !list.some(c => c.type === ANMF)) {
@@ -194,21 +200,24 @@ export function decodeAnimation(data: Uint8Array, onlyFirstFrame = false, maxPix
     if (header.data.length < 10) throw new Error('WebP: invalid VP8X chunk');
     const width = u24(header.data, 4) + 1, height = u24(header.data, 7) + 1;
     // every frame is composited onto a canvas of its own
-    checkPixels(width, height, maxPixels, onlyFirstFrame ? 1 : list.filter(c => c.type === ANMF).length);
+    checkPixels(width, height, maxPixels, firstFrameOnly ? 1 : list.filter(c => c.type === ANMF).length);
     let loopCount = 0, background = 0;
-    const frames: WebPFrame[] = [];
+    const anim = list.find(c => c.type === ANIM && c.data.length >= 6);
+    if (anim) {
+        const d = anim.data;
+        // stored as BGRA
+        background = (d[3] << 24 | d[2] << 16 | d[1] << 8 | d[0]) >>> 0;
+        loopCount = d[4] | d[5] << 8;
+    }
+    // (a frame whose chunk is cut off is incomplete: the whole ones before it are the animation)
+    const anmf = list.filter(c => c.type === ANMF && !c.cut);
+    if (!anmf.length && list.some(c => c.type === ANMF)) throw new Error('WebP: unexpected end of data');
+    for (const { data } of anmf) if (data.length < 16) throw new Error('WebP: invalid ANMF chunk');
 
-    for (const chunk of list) {
-        if (chunk.type === ANIM && chunk.data.length >= 6) {
-            const d = chunk.data;
-            // stored as BGRA
-            background = (d[3] << 24 | d[2] << 16 | d[1] << 8 | d[0]) >>> 0;
-            loopCount = d[4] | d[5] << 8;
-        } else if (chunk.type === ANMF) {
-            const d = chunk.data;
-            if (d.length < 16) throw new Error('WebP: invalid ANMF chunk');
+    function* frames(): Generator<WebPFrame> {
+        for (const { data: d } of anmf) {
             const frame = decodeBitstream(chunks(d, 16, d.length), maxPixels);
-            frames.push({
+            yield {
                 x: u24(d, 0) * 2,
                 y: u24(d, 3) * 2,
                 width: frame.width,
@@ -217,13 +226,12 @@ export function decodeAnimation(data: Uint8Array, onlyFirstFrame = false, maxPix
                 blend: (d[15] & 2) === 0,
                 dispose: (d[15] & 1) === 1,
                 pixels: frame.pixels
-            });
-            if (onlyFirstFrame) break;
+            };
+            if (firstFrameOnly) return;
         }
     }
 
-    if (!frames.length) throw new Error('WebP: animation without frames');
-    return { width, height, loopCount, background, frames, icc: list.find(c => c.type === ICCP)?.data, orientation: orientationOf(list) };
+    return { width, height, loopCount, background, frames: frames(), icc: list.find(c => c.type === ICCP)?.data, orientation: orientationOf(list) };
 }
 
 // the Exif orientation of a WebP's chunks, 1 without one
@@ -234,7 +242,7 @@ function orientationOf(list: Chunk[]): number {
 
 /**
  * Composites animation frames onto the canvas like browsers do (transparent background, the background color hint
- * is ignored as the spec allows)
+ * is ignored as the spec allows). Each frame is let go once it is composited
  */
 export function composite({ width, height, frames }: WebPAnimation): Array<{ pixels: Uint8Array, duration: number }> {
     const canvas = new Uint8Array(width * height * 4);
@@ -302,7 +310,7 @@ function concat(parts: Uint8Array[]): Uint8Array {
     return out;
 }
 
-function riff(chunks: Uint8Array[]): Uint8Array {
+function riff(chunks: Uint8Array[]): Uint8Array<ArrayBuffer> {
     let size = 4;
     for (const c of chunks) size += c.length;
     const out = new Uint8Array(8 + size);
@@ -340,7 +348,7 @@ const MIN_THREADED_PIXELS = 1536 << 10, PIXELS_PER_THREAD = 512 << 10;
  * @param exif Exif data (a TIFF header and IFDs), needs the extended format (VP8X)
  * @param effort 0 fast, 1 in between, 2 (and above) the most compression
  */
-export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, threads = 1, effort = 2): Promise<Uint8Array> {
+export async function encode(rgba: Uint8Array, width: number, height: number, exif?: Uint8Array, threads = 1, effort = 2): Promise<Uint8Array<ArrayBuffer>> {
     const n = Math.min(threads, Math.floor(width * height / PIXELS_PER_THREAD));
     const pool = n > 1 && width * height >= MIN_THREADED_PIXELS ? startThreads(n) : null;
     let stream: Uint8Array;
@@ -377,14 +385,17 @@ export interface LossyOptions {
 
 /**
  * Checks the options of lossy images and frames (quality and alpha quality 0-100, effort 0-6)
- * @returns undefined without a quality: lossless
+ * @returns undefined without a quality or with 100: lossless
  */
 export function lossyOptions(quality: number | undefined, effort: number, sharp: boolean, alphaQuality: number): LossyOptions | undefined {
-    // (checked for lossless images too, which don't use it)
+    // (checked for lossless images too, which don't use them)
     checkEffort(effort, 6);
+    const a = checkQuality(alphaQuality, 'alphaQuality');
+    checkBoolean(sharp, 'sharpYuv');
     if (quality === undefined) return undefined;
-    const q = checkQuality(quality), a = checkQuality(alphaQuality, 'alphaQuality');
-    return { quality: q, method: effort, sharp, alphaQuality: Math.round(a) };
+    const q = checkQuality(quality);
+    // (100 is lossless, like for AVIF and JPEG XL)
+    return q === 100 ? undefined : { quality: q, method: effort, sharp, alphaQuality: Math.round(a) };
 }
 
 /**
@@ -392,7 +403,7 @@ export function lossyOptions(quality: number | undefined, effort: number, sharp:
  * isn't opaque)
  * @param exif Exif data (a TIFF header and IFDs), needs the extended format (VP8X)
  */
-export async function encodeLossy(rgba: Uint8Array, width: number, height: number, lossy: LossyOptions, exif?: Uint8Array): Promise<Uint8Array> {
+export async function encodeLossy(rgba: Uint8Array, width: number, height: number, lossy: LossyOptions, exif?: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
     const { alpha, chunks } = await lossyChunks(rgba, width, height, lossy);
     if (!alpha && !exif) return riff(chunks);
 
@@ -405,7 +416,7 @@ export async function encodeLossy(rgba: Uint8Array, width: number, height: numbe
 
 // the ALPH (if not opaque) and VP8 chunks of a lossy image
 async function lossyChunks(rgba: Uint8Array, width: number, height: number, { quality, method, sharp, alphaQuality }: LossyOptions): Promise<{ alpha: boolean, chunks: Uint8Array[] }> {
-    if (width > 16383 || height > 16383) throw new RangeError('WebP: lossy images can be at most 16383 pixels wide and high');
+    checkFormatSize('WebP', width, height, 16383);
     const picture = rgbaToYUV(rgba, width, height, sharp);
     const frame = encodeVP8(picture, quality, method);
     // (libwebp counts the padding byte in the chunk's size)
@@ -449,9 +460,9 @@ export function lossyTolerance(quality: number): number {
  * @param lossy For lossy frames
  * @param effort For lossless frames: 0 fast, 1 in between, 2 (and above) the most compression
  */
-export async function encodeAnimation(frames: WebPEncodeFrame[], width: number, height: number, plays: number, exif?: Uint8Array, lossy?: LossyOptions, effort = 2): Promise<Uint8Array> {
-    if (!frames.length) throw new Error('WebP: an animation needs at least one frame');
-    if (width > 1 << 24 || height > 1 << 24) throw new RangeError('WebP: canvas too large');
+export async function encodeAnimation(frames: WebPEncodeFrame[], width: number, height: number, plays: number, exif?: Uint8Array, lossy?: LossyOptions, effort = 2): Promise<Uint8Array<ArrayBuffer>> {
+    if (!frames.length) throw new RangeError('WebP: an animation needs at least one frame, not 0');
+    checkFormatSize('WebP', width, height, 1 << 24);
 
     let alpha = false;
     for (const [i, f] of frames.entries()) alpha ||= needsAlpha(f, i === 0, width, height);
@@ -487,7 +498,7 @@ export async function frameChunk(f: WebPEncodeFrame, lossy?: LossyOptions, effor
 }
 
 /** An animation's file from its frames' ANMF chunks */
-export function animationFile(frames: Uint8Array[], width: number, height: number, plays: number, alpha: boolean, exif?: Uint8Array): Uint8Array {
+export function animationFile(frames: Uint8Array[], width: number, height: number, plays: number, alpha: boolean, exif?: Uint8Array): Uint8Array<ArrayBuffer> {
     const vp8x = new Uint8Array(10);
     vp8x[0] = 2 | (alpha ? 16 : 0) | (exif ? 8 : 0); // animation, alpha, exif
     set24(vp8x, 4, width - 1);

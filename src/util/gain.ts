@@ -14,7 +14,7 @@ const LUMA = [0.2126, 0.7152, 0.0722];
 
 // per channel: the log2 gain of a stored value
 const gainTables = (map: GainMap): Float32Array[] => [0, 1, 2].map(c => {
-    const min = map.gainMapMin[c], max = map.gainMapMax[c], gamma = map.gamma[c];
+    const min = map.__min__[c], max = map.__max__[c], gamma = map.__gamma__[c];
     return new Float32Array(256).map((_, v) => min + (max - min) * (v / 255) ** (1 / gamma));
 });
 
@@ -36,7 +36,7 @@ export function decodeGains(map: GainMap): Float32Array {
  * values), one value per pixel for a single channel map
  */
 export function encodeGains(map: GainMap, gains: Float32Array, width: number, height: number, single: boolean): void {
-    const min = map.gainMapMin.slice(), max = map.gainMapMax.slice();
+    const min = map.__min__.slice(), max = map.__max__.slice();
     for (let g = 0; g < gains.length; g += 3)
         for (let c = 0; c < 3; c++) {
             const v = gains[g + c];
@@ -47,17 +47,17 @@ export function encodeGains(map: GainMap, gains: Float32Array, width: number, he
         const lo = Math.min(...min), hi = Math.max(...max);
         min.fill(lo);
         max.fill(hi);
-        const gamma = map.gamma[0];
-        map.gamma = [gamma, gamma, gamma];
+        const gamma = map.__gamma__[0];
+        map.__gamma__ = [gamma, gamma, gamma];
     }
-    map.gainMapMin = min;
-    map.gainMapMax = max;
+    map.__min__ = min;
+    map.__max__ = max;
     const image = map.image.width === width && map.image.height === height ? map.image : new Image(width, height);
     const out = image.bitmap;
     for (let i = 0, g = 0; i < out.length; i += 4, g += 3) {
         for (let c = 0; c < 3; c++) {
             const t = max[c] > min[c] ? (gains[g + c] - min[c]) / (max[c] - min[c]) : 0;
-            out[i + c] = 255 * Math.min(1, Math.max(0, t)) ** map.gamma[c];
+            out[i + c] = 255 * Math.min(1, Math.max(0, t)) ** map.__gamma__[c];
         }
         out[i + 3] = 255;
     }
@@ -80,8 +80,8 @@ export function neutralMap(like: GainMap, likeWidth: number, width: number, heig
     }
     map.image = image;
     // (no boost has to be in the range)
-    map.gainMapMin = map.gainMapMin.map(v => Math.min(v, 0));
-    map.gainMapMax = map.gainMapMax.map(v => Math.max(v, 0));
+    map.__min__ = map.__min__.map(v => Math.min(v, 0));
+    map.__max__ = map.__max__.map(v => Math.max(v, 0));
     return map;
 }
 
@@ -105,7 +105,7 @@ export function redraw(image: Image, map: GainMap, left: number, top: number, ri
     const mapWidth = map.width, mapHeight = map.height;
     const sx = mapWidth / width, sy = mapHeight / height;
     const oS = map.offsetSDR, oH = map.offsetHDR;
-    const lo = Math.min(0, ...map.gainMapMin), hi = Math.max(0, ...map.gainMapMax, extraMax);
+    const lo = Math.min(0, ...map.__min__), hi = Math.max(0, ...map.__max__, extraMax);
     const S = [0, 0, 0], H = [0, 0, 0], sumS = [0, 0, 0], sumH = [0, 0, 0];
     const i0 = Math.max(0, Math.floor(left * sx)), i1 = Math.min(mapWidth, Math.ceil(right * sx));
     const j0 = Math.max(0, Math.floor(top * sy)), j1 = Math.min(mapHeight, Math.ceil(bottom * sy));
@@ -148,7 +148,7 @@ export function redraw(image: Image, map: GainMap, left: number, top: number, ri
 
     // when the new gains are in the map's range (usual: drawing seldom brightens beyond the highlights), only those
     // pixels are stored and the others stay as they are
-    const { gainMapMin: min, gainMapMax: max, gamma } = map;
+    const { __min__: min, __max__: max, gamma } = map;
     let fits = !single || (min[0] === min[1] && min[1] === min[2] && max[0] === max[1] && max[1] === max[2] && gamma[0] === gamma[1] && gamma[1] === gamma[2]);
     for (let g = 0; fits && g < next.length; g += 3)
         for (let c = 0; c < 3; c++) if (!(next[g + c] >= min[c] && next[g + c] <= max[c])) fits = false;
@@ -251,7 +251,7 @@ export function recolor(map: GainMap, before: Image, apply: (proxy: Image) => vo
     }
     let changedPeak = 1;
     for (let g = 0; g < changed.length; g++) changedPeak = Math.max(changedPeak, changed[g]);
-    const lo = Math.min(0, ...map.gainMapMin), hi = Math.max(Math.log2(Math.max(peak, changedPeak)), ...map.gainMapMax);
+    const lo = Math.min(0, ...map.__min__), hi = Math.max(Math.log2(Math.max(peak, changedPeak)), ...map.__max__);
     const single = map.channels === 1;
     for (let g = 0; g < gains.length; g += 3) {
         if (single) {

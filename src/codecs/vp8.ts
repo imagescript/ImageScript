@@ -357,7 +357,7 @@ export function decode(data: Uint8Array, maxPixels = MAX_PIXELS): { width: numbe
             }
         }
 
-        if (tokens.exhausted && d.exhausted) throw new Error('VP8: unexpected end of data');
+        if (tokens.exhausted || d.exhausted) throw new Error('VP8: unexpected end of data');
     }
 
     // a frame level of 0 disables the filter, whatever the segments say (RFC 6386 section 15)

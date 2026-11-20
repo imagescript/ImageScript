@@ -51,18 +51,15 @@ export function lineBreaks(codepoints: ArrayLike<number>): Uint8Array {
         }
     }
 
-    // the character before index i, skipping attached marks (-1 at the start)
-    const before = (i: number): number => {
-        let j = i - 1;
-        while (j >= 0 && attached[j]) j--;
-        return j;
-    };
-    // the character from index i on that isn't an attached mark (n at the end)
-    const after = (i: number): number => {
-        let j = i;
-        while (j < n && attached[j]) j++;
-        return j;
-    };
+    // the character before index i, skipping attached marks (-1 at the start), and the one from index i on that isn't
+    // an attached mark (n at the end): precomputed, a walk for each index took quadratic time for many marks
+    const previous = new Int32Array(n + 1), next = new Int32Array(n + 1);
+    previous[0] = -1;
+    for (let i = 1; i <= n; i++) previous[i] = attached[i - 1] ? previous[i - 1] : i - 1;
+    next[n] = n;
+    for (let i = n - 1; i >= 0; i--) next[i] = attached[i] ? next[i + 1] : i;
+    const before = (i: number): number => i <= 0 ? -1 : previous[Math.min(i, n)];
+    const after = (i: number): number => i >= n ? n : next[Math.max(i, 0)];
     // the character before index i, skipping spaces (and attached marks)
     const beforeSpaces = (i: number): number => {
         let j = before(i);

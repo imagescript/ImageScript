@@ -5,6 +5,8 @@ name: release
 # the tag's version to npm (with provenance, through trusted publishing) and JSR (through GitHub OIDC, no tokens),
 # then the docs are deployed and, for regular releases, the version is committed to the default branch, the playground
 # is updated to it and the benchmark in bench/ is run against the release
+# The package's README and changelog link to files on the default branch (the migration guide): merge what a release
+# links to into it before publishing the release, or the pages on npm and JSR link to a 404 until the merge
 on:
   release:
     types: [published]

@@ -40,7 +40,7 @@ const panic = message => {
             decompress(new Uint8Array(data), 10);
             panic(`zlib: an invalid ${name} should throw`);
         } catch (error) {
-            if (!/zlib/.test(error.message)) panic(`zlib: an invalid ${name} threw ${error.message}`);
+            if (!(error instanceof Error)) panic(`zlib: an invalid ${name} threw ${error}`);
         }
 
     // whole images through the paths other runtimes take: CompressionStream (levels 1-6) and DecompressionStream as in

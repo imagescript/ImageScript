@@ -107,7 +107,7 @@ function inflate(dat: Uint8Array, buf: Uint8Array): Uint8Array {
     if (!sl) return buf.subarray(0, 0);
 
     const tbts = sl * 8;
-    let final = 0, pos = 0, bt = 0;
+    let final: number, pos = 0, bt = 0;
 
     do {
         let lm: Uint16Array, dm: Uint16Array, lbt: number, dbt: number;

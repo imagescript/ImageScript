@@ -201,8 +201,10 @@ export function decodeDIB(d: Uint8Array, o: number, pixelOffset: number | null, 
                     : (a << 24 | sample(cb, v) << 16 | sample(cg, v) << 8 | sample(cr, v)) >>> 0;
             }
         }
-        // an alpha channel that is zero everywhere is unused (writers that don't know about it leave it zero)
-        if (ca.max && !alphaSeen) for (let i = 0; i < out.length; i++) out[i] |= 0xff000000;
+        // an alpha channel that is zero everywhere is unused when the header doesn't declare it (writers that don't know
+        // about it leave it zero: the implicit alpha of 32-bit icons); a declared mask (bit fields, as encode() writes) is
+        // what it says
+        if (ca.max && !alphaSeen && !info.masks) for (let i = 0; i < out.length; i++) out[i] |= 0xff000000;
         if (ico && bits === 32 && alphaSeen) return { width, height, pixels };
     }
 
@@ -264,7 +266,7 @@ export function decode(d: Uint8Array, maxPixels = MAX_PIXELS): Decoded {
  * Encodes RGBA pixels into a BMP: a palette of 2, 16 or 256 colors if an opaque image has at most that many, else
  * 24 bit pixels, or 32 bit ones with an alpha mask (a version 4 header) if the image has transparency
  */
-export function encode(rgba: Uint8Array, width: number, height: number): Uint8Array {
+export function encode(rgba: Uint8Array, width: number, height: number): Uint8Array<ArrayBuffer> {
     if (width < 1 || height < 1) throw new RangeError('BMP: dimensions must be at least 1');
     const count = width * height;
     if (rgba.byteOffset % 4) rgba = rgba.slice(0, count * 4);

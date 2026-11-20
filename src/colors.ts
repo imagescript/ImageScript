@@ -1,10 +1,5 @@
-import { finite, color as checkColor } from './util/options.ts';
+import { shown, finite, notNaN, byte, unitInterval, color as checkColor } from './util/options.ts';
 import type { Color } from './image.ts';
-
-/** Clamps and rounds a channel value to 0..255 */
-export function channel(value: number): number {
-    return value > 255 ? 255 : value > 0 ? Math.round(value) : 0;
-}
 
 // wraps a hue into 0..1 (negative hues included), exactly like (h % 1 + 1) % 1 but without the slow float modulo
 export function wrapHue(h: number): number {
@@ -62,21 +57,29 @@ export function rgbaToHSLA(r: number, g: number, b: number, a: number): [h: numb
     return [h, s, l, a / 255];
 }
 
-function gradientBetween(startColor: Color, endColor: Color): (position: number) => Color {
-    const sr = startColor >>> 24;
-    const sg = startColor >> 16 & 0xff;
-    const sb = startColor >> 8 & 0xff;
-    const sa = startColor & 0xff;
-    const er = (endColor >>> 24) - sr;
-    const eg = (endColor >> 16 & 0xff) - sg;
-    const eb = (endColor >> 8 & 0xff) - sb;
-    const ea = (endColor & 0xff) - sa;
+/** A position along a gradient: a number (the infinities are fine, they reach the ends), not NaN */
+function checkPosition(position: number): void {
+    notNaN(position, 'gradient position');
+}
 
+function gradientBetween(startColor: Color, endColor: Color): (position: number) => Color {
+    const sr = startColor >>> 24, sg = startColor >> 16 & 0xff, sb = startColor >> 8 & 0xff, sa = startColor & 0xff;
+    const er = (endColor >>> 24) - sr, eg = (endColor >> 16 & 0xff) - sg, eb = (endColor >> 8 & 0xff) - sb, ea = (endColor & 0xff) - sa;
+
+    // opaque colors blend directly
+    if (sa === 255 && ea === 0) return position => {
+        const r = sr + position * er, g = sg + position * eg, b = sb + position * eb;
+        return (((r & 0xff) << 24) | ((g & 0xff) << 16) | ((b & 0xff) << 8) | 0xff) >>> 0;
+    };
+
+    // with transparency the colors blend premultiplied (like CSS does), so a color doesn't leak from what is invisible
+    const pr = sr * sa / 255, pg = sg * sa / 255, pb = sb * sa / 255;
+    const dr = (er + sr) * (ea + sa) / 255 - pr, dg = (eg + sg) * (ea + sa) / 255 - pg, db = (eb + sb) * (ea + sa) / 255 - pb;
     return position => {
-        const r = sr + position * er;
-        const g = sg + position * eg;
-        const b = sb + position * eb;
         const a = sa + position * ea;
+        if (a <= 0) return 0;
+        const k = 255 / a;
+        const r = Math.min(255, (pr + position * dr) * k + 1e-9), g = Math.min(255, (pg + position * dg) * k + 1e-9), b = Math.min(255, (pb + position * db) * k + 1e-9);
         return (((r & 0xff) << 24) | ((g & 0xff) << 16) | ((b & 0xff) << 8) | (a & 0xff)) >>> 0;
     };
 }
@@ -86,10 +89,12 @@ function gradientBetween(startColor: Color, endColor: Color): (position: number)
  * and return, and gradients between colors
  */
 export class Colors {
-    private constructor() {}
+    private constructor() {
+        throw new TypeError('Colors only has static methods, like Colors.fromRGBA()');
+    }
 
     /**
-     * Converts RGBA components to an RGBA value, values are rounded and clamped to 0..255
+     * Converts RGBA components to an RGBA value. Fractions are rounded, values outside of 0..255 throw a `RangeError`
      * @param r red (0..255)
      * @param g green (0..255)
      * @param b blue (0..255)
@@ -97,11 +102,7 @@ export class Colors {
      * @returns RGBA value
      */
     static fromRGBA(r: number, g: number, b: number, a: number): Color {
-        r = finite(r, 'red');
-        g = finite(g, 'green');
-        b = finite(b, 'blue');
-        a = finite(a, 'alpha');
-        return (channel(r) << 24 | channel(g) << 16 | channel(b) << 8 | channel(a)) >>> 0;
+        return (byte(r, 'red') << 24 | byte(g, 'green') << 16 | byte(b, 'blue') << 8 | byte(a, 'alpha')) >>> 0;
     }
 
     /**
@@ -117,20 +118,17 @@ export class Colors {
 
     /**
      * Converts HSLA colors to RGBA colors
-     * @param h hue (0..1)
-     * @param s saturation (0..1)
-     * @param l lightness (0..1)
-     * @param a opacity (0..1)
+     * @param h hue in degrees (0..360, like CSS' `hsl()`: 0 red, 120 green, 240 blue; other values wrap around)
+     * @param s saturation (0..1, else a `RangeError`)
+     * @param l lightness (0..1, else a `RangeError`)
+     * @param a opacity (0..1, else a `RangeError`)
      * @returns color
      */
     static fromHSLA(h: number, s: number, l: number, a: number): Color {
-        h = wrapHue(finite(h, 'hue'));
-        s = finite(s, 'saturation');
-        l = finite(l, 'lightness');
-        a = finite(a, 'alpha');
-        s = Math.min(1, Math.max(0, s));
-        l = Math.min(1, Math.max(0, l));
-        a = Math.min(1, Math.max(0, a));
+        h = wrapHue(finite(h, 'hue') / 360);
+        s = unitInterval(s, 'saturation');
+        l = unitInterval(l, 'lightness');
+        a = unitInterval(a, 'alpha');
 
         let r: number, g: number, b: number;
 
@@ -149,10 +147,10 @@ export class Colors {
     }
 
     /**
-     * Converts HSL colors to RGBA colors (assuming an opacity of 255)
-     * @param h hue (0..1)
-     * @param s saturation (0..1)
-     * @param l lightness (0..1)
+     * Converts HSL colors to RGBA colors (fully opaque)
+     * @param h hue in degrees (0..360, like CSS' `hsl()`; other values wrap around)
+     * @param s saturation (0..1, else a `RangeError`)
+     * @param l lightness (0..1, else a `RangeError`)
      * @returns color
      */
     static fromHSL(h: number, s: number, l: number): Color {
@@ -170,7 +168,7 @@ export class Colors {
     }
 
     /**
-     * Converts a color value to an array of RGB values (ignoring the colors alpha)
+     * Converts a color value to an array of RGB values (ignoring the color's alpha)
      * @param color The color value to convert
      * @returns The RGB values ([R, G, B])
      */
@@ -182,38 +180,58 @@ export class Colors {
     /**
      * Converts a color to an array of HSLA values
      * @param color The color value to convert
-     * @returns The HSLA values ([H, S, L, A]), H and S and L and A in 0..1
+     * @returns The HSLA values ([H, S, L, A]): H in degrees (0..360, like CSS' `hsl()`), S, L and A in 0..1
      */
     static toHSLA(color: Color): [h: number, s: number, l: number, a: number] {
         const [r, g, b, a] = Colors.toRGBA(color);
-        return rgbaToHSLA(r, g, b, a);
+        const [h, s, l, alpha] = rgbaToHSLA(r, g, b, a);
+        return [h * 360, s, l, alpha];
     }
 
 
     /**
      * Creates a multi-point gradient generator
-     * @param colors The gradient points to use (e.g. `{0: 0xff0000ff, 1: 0x00ff00ff}`)
+     * @param stops The colors along the gradient: their positions (0..1) and colors (`{ 0: 0xff0000ff, 1: 0x00ff00ff }`),
+     *     or just the colors, evenly spaced (`[0xff0000ff, 0x00ff00ff]`), like {@link GradientOptions.stops}
+     * @remarks A stop may lie outside 0..1 (`{ 0: red, 2: blue }`): it is where it says, so the part between 0 and 1
+     *     shows only part of the way between its colors. Before the first stop and after the last one, the gradient has
+     *     their colors, and at a stop its color. Stops at the same position make a hard edge: the gradient jumps from
+     *     the earlier stop's color to the later one's, which is the color at that position (like CSS)
      * @return The gradient generator. The function argument is the position in the gradient (0..1).
      */
-    static gradient(colors: Record<number, Color>): (position: number) => Color {
+    static gradient(stops: Record<number, Color> | Color[]): (position: number) => Color {
+        if (typeof stops !== 'object' || stops === null) throw new TypeError(`Colors.gradient() takes an array of colors or an object of positions and colors, not ${shown(stops)}`);
+        let colors: Record<number, Color>;
+        if (Array.isArray(stops)) {
+            if (!stops.length) throw new RangeError('Colors.gradient() takes at least one color, not 0');
+            // (one color is a gradient of two equal ones)
+            const list = stops.length === 1 ? [stops[0], stops[0]] : stops;
+            colors = Object.fromEntries(list.map((color, i) => [i / (list.length - 1), color]));
+        } else colors = stops;
         const entries = Object.entries(colors).sort((a, b) => Number(a[0]) - Number(b[0]));
         const positions = entries.map(e => finite(parseFloat(e[0]), 'gradient position'));
         const values = entries.map(e => checkColor(e[1]));
 
-        if (positions.length === 0) throw new RangeError('Invalid gradient point count');
+        if (positions.length === 0) throw new RangeError('Colors.gradient() takes at least one color, not 0');
         else if (positions.length === 1) {
-            return () => values[0];
+            return position => {
+                checkPosition(position);
+                return values[0];
+            };
         } else if (positions.length === 2) {
             const gradient = gradientBetween(values[0], values[1]);
             return position => {
-                if (position <= positions[0]) return values[0];
+                checkPosition(position);
+                // (at a stop the later stop's color when both are at one position, like CSS)
                 if (position >= positions[1]) return values[1];
+                if (position <= positions[0]) return values[0];
                 return gradient((position - positions[0]) / (positions[1] - positions[0]));
             };
         }
 
-        const minDef = Math.min(...positions);
-        const maxDef = Math.max(...positions);
+        // (sorted: the first and the last; no spread, which overflows the call stack for many stops)
+        const minDef = positions[0];
+        const maxDef = positions[positions.length - 1];
         const gradients: Array<{ min: number, max: number, gradient: (position: number) => Color }> = [];
 
         for (let i = 0; i < positions.length; i++) {
@@ -221,6 +239,8 @@ export class Colors {
             if (minPos === undefined) continue;
 
             const maxPos = positions[i];
+            // (two stops at the same position: a hard edge, nothing in between)
+            if (maxPos === minPos) continue;
 
             let minVal = values[i - 1];
             if (minVal === undefined) minVal = values[i];
@@ -231,14 +251,27 @@ export class Colors {
             gradients.push({min: minPos, max: maxPos, gradient});
         }
 
+        // (every stop at the same position: a hard edge between the first and the last color)
+        if (!gradients.length) return position => {
+            checkPosition(position);
+            return position < minDef ? values[0] : values[values.length - 1];
+        };
+
+        // the color at each stop's position: the last stop's there (a hard edge shows the later color, like CSS)
+        const atStop = new Map(positions.map((p, i) => [p, values[i]]));
         return position => {
-            if (position <= minDef) return gradients[0].gradient(0);
-            if (position >= maxDef) return gradients[gradients.length - 1].gradient(1);
+            checkPosition(position);
+            // (before and after the stops their colors, like with 2 stops: interpolating would lose the color of a
+            // transparent stop)
+            if (position < minDef) return values[0];
+            if (position >= maxDef) return values[values.length - 1];
+            const stop = atStop.get(position);
+            if (stop !== undefined) return stop;
 
             for (const gradient of gradients)
-                if (position >= gradient.min && position <= gradient.max)
+                if (position > gradient.min && position < gradient.max)
                     return gradient.gradient((position - gradient.min) / (gradient.max - gradient.min));
-            throw new RangeError(`Invalid gradient position: ${position}`);
+            throw new RangeError(`The gradient has no color at position ${position}`);
         };
     }
 }
