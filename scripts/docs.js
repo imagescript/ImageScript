@@ -1,5 +1,5 @@
 // builds the documentation site into docs/ with typedoc, then adds what typedoc can't: a description and link previews
-// (Open Graph) on every page, the icons browsers look for at the root, the README's wordmark following the docs' theme,
+// (Open Graph) on every page, structured data (JSON-LD) on the start page, the icons browsers look for at the root, the README's wordmark following the docs' theme,
 // and redirects from the pages of the old jsdoc site (imagescript.dev/Image.html#resize -> classes/Image.html#resize)
 // so existing links keep working
 const fs = require('fs');
@@ -14,7 +14,7 @@ fs.rmSync(out, { recursive: true, force: true });
 execFileSync(process.execPath, [typedoc], { cwd: root, stdio: 'inherit' });
 
 const site = 'https://imagescript.dev/';
-const description = 'Pure TypeScript image processing that runs everywhere: Node.js, Deno, Bun, browsers and edge runtimes';
+const description = 'Decode, resize, edit and encode PNG, JPEG, WebP, AVIF and GIF in pure TypeScript. No dependencies; runs on Node.js, Deno, Bun, browsers and edge runtimes.';
 for (const file of ['favicon.ico', 'apple-touch-icon.png', 'social-preview.png'])
     fs.copyFileSync(path.join(root, 'media', file), path.join(out, file));
 
@@ -23,10 +23,29 @@ const pages = fs.readdirSync(out, { recursive: true }).filter(file => file.endsW
 for (const page of pages) {
     const file = path.join(out, page);
     let html = fs.readFileSync(file, 'utf8');
-    const title = html.match(/<title>(.*?)<\/title>/)?.[1] ?? 'ImageScript';
+    // typedoc titles carry the version ('Image | ImageScript - v3.20.5'); the version changes every release, so it stays out
+    const title = page === 'index.html' ? 'ImageScript: Pure TypeScript image processing that runs everywhere'
+        : (html.match(/<title>(.*?)<\/title>/)?.[1] ?? 'ImageScript').replace(/ - v[^<]*$/, '');
+    html = html.replace(/<title>.*?<\/title>/, `<title>${escape(title)}</title>`);
     const url = site + page.split(path.sep).join('/').replace(/^index\.html$/, '');
     html = html.replace(/<meta name="description" content="[^"]*"\/>/, `<meta name="description" content="${escape(description)}"/>`);
+    // what the start page is, for search engines (https://schema.org/SoftwareApplication)
+    const structured = page !== 'index.html' ? '' : `<script type="application/ld+json">${JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'ImageScript',
+        description,
+        url: site,
+        image: `${site}social-preview.png`,
+        applicationCategory: 'DeveloperApplication',
+        operatingSystem: 'Any',
+        softwareVersion: require('../package.json').version,
+        license: 'https://opensource.org/license/mit',
+        offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' },
+        sameAs: ['https://github.com/imagescript/ImageScript', 'https://www.npmjs.com/package/imagescript', 'https://jsr.io/@matmen/imagescript']
+    }).replace(/</g, '\\u003c')}</script>`;
     html = html.replace('</head>', [
+        structured,
         `<meta property="og:type" content="website"/>`,
         `<meta property="og:site_name" content="ImageScript"/>`,
         `<meta property="og:title" content="${title}"/>`,
