@@ -1,3 +1,7 @@
+---
+group: Guides
+---
+
 # Choosing ImageScript
 
 ImageScript decodes, edits and encodes images in TypeScript, with no WebAssembly, no native binaries and no
@@ -6,7 +10,7 @@ when you depend on it.
 
 ## When it fits
 
-- **Where native libraries can't run:** Cloudflare Workers, Vercel's Edge Runtime, Deno Deploy and browsers. There is
+- **Where native libraries can't run:** Cloudflare Workers and other edge runtimes, and browsers. There is
   nothing to compile, download at install time or match to the platform.
 - **Where installs should stay small and simple:** one package of 2.6 MB on disk, no install scripts, the same files
   on every operating system and CPU.
@@ -31,8 +35,7 @@ Every change runs the full test suite on:
 
 - Node.js 22.13, 24 and 26 on Linux, and Node.js 26 on macOS and Windows
 - Deno and Bun
-- Cloudflare's workerd (through Miniflare, with and without Node.js compatibility) and Vercel's Edge Runtime, bundled
-  the way they are deployed
+- Cloudflare's workerd (through Miniflare, with and without Node.js compatibility), bundled the way it is deployed
 - Chromium, bundled by Vite, with and without worker threads
 
 The decoders are ports of the reference implementations (libjpeg, libwebp, dav1d, libjxl and jxl-oxide; HarfBuzz for

@@ -19,6 +19,8 @@
     "includeGroups": true
   },
   "groupOrder": [
+    "Guides",
+    "Examples",
     "Classes",
     "Functions",
     "Interfaces",

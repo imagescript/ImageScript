@@ -1,3 +1,7 @@
+---
+group: Guides
+---
+
 # Migrating to 4.0
 
 ImageScript 4.0 removes everything 3.x deprecated, reshapes parts of the API, and changes eighteen behaviors. Most of the

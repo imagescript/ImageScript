@@ -2,6 +2,7 @@
  * @packageDocumentation
  * @document ../guides/Choosing ImageScript.md
  * @document ../guides/Coming from Jimp.md
+ * @document ../guides/Social cards for static sites.md
  * @document ../guides/Migrating to 4.0.md
  */
 // (the guide is attached to the entry module: as a project document it turned the docs into a module "index", every

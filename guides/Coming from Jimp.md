@@ -1,3 +1,7 @@
+---
+group: Guides
+---
+
 # Coming from Jimp
 
 ImageScript and Jimp solve the same problem the same way: images are decoded into an RGBA bitmap in JavaScript, edited
