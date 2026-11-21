@@ -2,6 +2,8 @@
  * @packageDocumentation
  * @document ../guides/Choosing ImageScript.md
  * @document ../guides/Coming from Jimp.md
+ * @document ../guides/Generate favicons.md
+ * @document ../guides/Shrink images before upload.md
  * @document ../guides/Social cards for static sites.md
  * @document ../guides/Migrating to 4.0.md
  */
