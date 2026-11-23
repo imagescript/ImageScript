@@ -130,10 +130,6 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `RenderSVGOptions` is a union of the sizes (`width`, `height` or `scale`, TypeScript reports a call with more than one, which throws at runtime) and `SVGResourceOptions`, the limits, fonts and images.
 - `renderSVG({ font })` takes a single font without an array, like `renderText()`.
 
-### Performance
-
-- Lossy JPEG XL encoding starts no worker threads below 1.5 megapixels when fewer than 4 threads are used (a machine with 2 or 3, or `threads: 2`): there the threads took 1.3-1.7x as long as one on images from 0.5 to 1 megapixel. With 4 threads or more, nothing changes (threads win from 0.5 megapixels).
-
 ### Fixes
 
 - `renderSVG()` bounds the points paths are made of: an arc between far-apart ends is drawn with at most 64 curves a turn (a 139-byte path, `M 1e25 100 A 40 30 20 1 1 160 100`, stroked, ran the process out of memory), and the curves of arcs and the points of all paths, also of each copy drawn through `<use>`, count against 2^25 points plus 4 per pixel of the output in one render and 2^21 in one path. Reading path data and placing text along a `<textPath>` count, too, and SVGs embedded as images share the budget of the render they are in. More throw a `LimitError` (which a text's layout no longer takes for a damaged font). A path drawn through `<use>` is read once a render instead of once a copy.
@@ -193,6 +189,10 @@ Upgrading from 3.x? Upgrade to the latest 3.x release first, fix the deprecation
 - `renderSVG()` bounds the work of markers: their elements count against the 100,000 elements of `<use>` references, and one render draws at most 10,000 markers (120,000 vertices with `marker-mid` took 135 s).
 - `renderSVG()` bounds the work of filters: their primitives may work on 2^25 pixels plus 16 per pixel of the output in one render (once per pass: an `feConvolveMatrix` per 9 taps of its kernel, an `feTurbulence` per octave, an `feMerge` per node), more throws a `LimitError`; a filter's region counts against `maxLayerPixels` like the other layers (one of more than 2^26 pixels was left out without a word) (600 blurs and morphologies over a megapixel, 37 KB of SVG, took more than 3 GB and minutes), and the results a filter keeps for `result=` references count against `maxLayerPixels`.
 - `renderSVG()` parses `transform` lists in linear time: a long list of unclosed functions took 4.8 s at 280 KB.
+
+### Performance
+
+- Lossy JPEG XL encoding starts no worker threads below 1.5 megapixels when fewer than 4 threads are used (a machine with 2 or 3, or `threads: 2`): there the threads took 1.3-1.7x as long as one on images from 0.5 to 1 megapixel. With 4 threads or more, nothing changes (threads win from 0.5 megapixels).
 
 ## 3.20.5
 
