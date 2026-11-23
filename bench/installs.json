@@ -1,12 +1,12 @@
 {
   "ImageScript": {
-    "package": "imagescript@3.20.5",
-    "bytes": 2558857,
+    "package": "imagescript@4.0.0",
+    "bytes": 2570883,
     "packages": 1
   },
   "Jimp": {
     "package": "jimp@1.6.1",
-    "bytes": 26777389,
+    "bytes": 26771422,
     "packages": 64
   },
   "image-js": {
@@ -35,8 +35,8 @@
     "packages": 3
   },
   "@napi-rs/canvas": {
-    "package": "@napi-rs/canvas@1.0.11",
-    "bytes": 34977407,
+    "package": "@napi-rs/canvas@1.1.0",
+    "bytes": 37046151,
     "packages": 2
   }
 }
