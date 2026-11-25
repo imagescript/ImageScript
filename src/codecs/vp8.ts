@@ -11,12 +11,12 @@ import { littleEndian } from '../util/alpha.ts';
  * Boolean entropy decoder, RFC 6386 section 7
  */
 class BoolDecoder {
-    private data: Uint8Array;
-    private pos: number;
-    private end: number;
-    private value: number;
-    private range = 255;
-    private bitCount = 0;
+    data: Uint8Array;
+    pos: number;
+    end: number;
+    value: number;
+    range = 255;
+    bitCount = 0;
 
     constructor(data: Uint8Array, start: number, end: number) {
         this.data = data;
@@ -371,14 +371,65 @@ export function decode(data: Uint8Array, maxPixels = MAX_PIXELS): { width: numbe
  * @return the position after the last decoded token (index of the end of block)
  */
 function readCoefficients(d: BoolDecoder, probs: Uint8Array, type: number, ctx: number, first: number, dcFactor: number, acFactor: number, out: Int16Array, offset: number): number {
+    // (BoolDecoder.read inlined, with its state in local variables, like libwebp's GetCoeffs)
+    const data = d.data, end = d.end;
+    let pos = d.pos, value = d.value, range = d.range, bitCount = d.bitCount;
+    let bit = 0;
+
     let i = first;
     let p = ((type * 8 + BANDS[i]) * 3 + ctx) * 11;
     let previousZero = false;
 
     for (; i < 16; i++) {
-        if (!previousZero && !d.read(probs[p])) return i; // end of block
+        if (!previousZero) {
+            {
+                const split = 1 + ((range - 1) * (probs[p]) >> 8), bigSplit = split << 8;
+                if (value >= bigSplit) {
+                    bit = 1;
+                    range -= split;
+                    value -= bigSplit;
+                } else {
+                    bit = 0;
+                    range = split;
+                }
+                if (range < 128) {
+                    const shift = Math.clz32(range) - 24;
+                    range <<= shift;
+                    value <<= shift;
+                    bitCount += shift;
+                    if (bitCount >= 8) {
+                        bitCount -= 8;
+                        value |= (pos < end ? data[pos] : 0) << bitCount;
+                        pos++;
+                    }
+                }
+            }
+            if (!bit) break; // end of block
+        }
 
-        if (!d.read(probs[p + 1])) {
+        {
+            const split = 1 + ((range - 1) * (probs[p + 1]) >> 8), bigSplit = split << 8;
+            if (value >= bigSplit) {
+                bit = 1;
+                range -= split;
+                value -= bigSplit;
+            } else {
+                bit = 0;
+                range = split;
+            }
+            if (range < 128) {
+                const shift = Math.clz32(range) - 24;
+                range <<= shift;
+                value <<= shift;
+                bitCount += shift;
+                if (bitCount >= 8) {
+                    bitCount -= 8;
+                    value |= (pos < end ? data[pos] : 0) << bitCount;
+                    pos++;
+                }
+            }
+        }
+        if (!bit) {
             // zero, the next token can't be the end of block
             previousZero = true;
             p = ((type * 8 + BANDS[i + 1]) * 3) * 11;
@@ -386,27 +437,286 @@ function readCoefficients(d: BoolDecoder, probs: Uint8Array, type: number, ctx: 
         }
 
         let v: number;
-        if (!d.read(probs[p + 2])) v = 1;
-        else if (!d.read(probs[p + 3])) v = d.read(probs[p + 4]) ? 3 + d.read(probs[p + 5]) : 2;
+        {
+            const split = 1 + ((range - 1) * (probs[p + 2]) >> 8), bigSplit = split << 8;
+            if (value >= bigSplit) {
+                bit = 1;
+                range -= split;
+                value -= bigSplit;
+            } else {
+                bit = 0;
+                range = split;
+            }
+            if (range < 128) {
+                const shift = Math.clz32(range) - 24;
+                range <<= shift;
+                value <<= shift;
+                bitCount += shift;
+                if (bitCount >= 8) {
+                    bitCount -= 8;
+                    value |= (pos < end ? data[pos] : 0) << bitCount;
+                    pos++;
+                }
+            }
+        }
+        if (!bit) v = 1;
         else {
-            let category: number;
-            if (!d.read(probs[p + 6])) category = d.read(probs[p + 7]);
-            else if (!d.read(probs[p + 8])) category = 2 + d.read(probs[p + 9]);
-            else category = 4 + d.read(probs[p + 10]);
+            {
+                const split = 1 + ((range - 1) * (probs[p + 3]) >> 8), bigSplit = split << 8;
+                if (value >= bigSplit) {
+                    bit = 1;
+                    range -= split;
+                    value -= bigSplit;
+                } else {
+                    bit = 0;
+                    range = split;
+                }
+                if (range < 128) {
+                    const shift = Math.clz32(range) - 24;
+                    range <<= shift;
+                    value <<= shift;
+                    bitCount += shift;
+                    if (bitCount >= 8) {
+                        bitCount -= 8;
+                        value |= (pos < end ? data[pos] : 0) << bitCount;
+                        pos++;
+                    }
+                }
+            }
+            if (!bit) {
+                {
+                    const split = 1 + ((range - 1) * (probs[p + 4]) >> 8), bigSplit = split << 8;
+                    if (value >= bigSplit) {
+                        bit = 1;
+                        range -= split;
+                        value -= bigSplit;
+                    } else {
+                        bit = 0;
+                        range = split;
+                    }
+                    if (range < 128) {
+                        const shift = Math.clz32(range) - 24;
+                        range <<= shift;
+                        value <<= shift;
+                        bitCount += shift;
+                        if (bitCount >= 8) {
+                            bitCount -= 8;
+                            value |= (pos < end ? data[pos] : 0) << bitCount;
+                            pos++;
+                        }
+                    }
+                }
+                if (bit) {
+                    {
+                        const split = 1 + ((range - 1) * (probs[p + 5]) >> 8), bigSplit = split << 8;
+                        if (value >= bigSplit) {
+                            bit = 1;
+                            range -= split;
+                            value -= bigSplit;
+                        } else {
+                            bit = 0;
+                            range = split;
+                        }
+                        if (range < 128) {
+                            const shift = Math.clz32(range) - 24;
+                            range <<= shift;
+                            value <<= shift;
+                            bitCount += shift;
+                            if (bitCount >= 8) {
+                                bitCount -= 8;
+                                value |= (pos < end ? data[pos] : 0) << bitCount;
+                                pos++;
+                            }
+                        }
+                    }
+                    v = 3 + bit;
+                } else v = 2;
+            } else {
+                let category: number;
+                {
+                    const split = 1 + ((range - 1) * (probs[p + 6]) >> 8), bigSplit = split << 8;
+                    if (value >= bigSplit) {
+                        bit = 1;
+                        range -= split;
+                        value -= bigSplit;
+                    } else {
+                        bit = 0;
+                        range = split;
+                    }
+                    if (range < 128) {
+                        const shift = Math.clz32(range) - 24;
+                        range <<= shift;
+                        value <<= shift;
+                        bitCount += shift;
+                        if (bitCount >= 8) {
+                            bitCount -= 8;
+                            value |= (pos < end ? data[pos] : 0) << bitCount;
+                            pos++;
+                        }
+                    }
+                }
+                if (!bit) {
+                    {
+                        const split = 1 + ((range - 1) * (probs[p + 7]) >> 8), bigSplit = split << 8;
+                        if (value >= bigSplit) {
+                            bit = 1;
+                            range -= split;
+                            value -= bigSplit;
+                        } else {
+                            bit = 0;
+                            range = split;
+                        }
+                        if (range < 128) {
+                            const shift = Math.clz32(range) - 24;
+                            range <<= shift;
+                            value <<= shift;
+                            bitCount += shift;
+                            if (bitCount >= 8) {
+                                bitCount -= 8;
+                                value |= (pos < end ? data[pos] : 0) << bitCount;
+                                pos++;
+                            }
+                        }
+                    }
+                    category = bit;
+                } else {
+                    {
+                        const split = 1 + ((range - 1) * (probs[p + 8]) >> 8), bigSplit = split << 8;
+                        if (value >= bigSplit) {
+                            bit = 1;
+                            range -= split;
+                            value -= bigSplit;
+                        } else {
+                            bit = 0;
+                            range = split;
+                        }
+                        if (range < 128) {
+                            const shift = Math.clz32(range) - 24;
+                            range <<= shift;
+                            value <<= shift;
+                            bitCount += shift;
+                            if (bitCount >= 8) {
+                                bitCount -= 8;
+                                value |= (pos < end ? data[pos] : 0) << bitCount;
+                                pos++;
+                            }
+                        }
+                    }
+                    if (!bit) {
+                        {
+                            const split = 1 + ((range - 1) * (probs[p + 9]) >> 8), bigSplit = split << 8;
+                            if (value >= bigSplit) {
+                                bit = 1;
+                                range -= split;
+                                value -= bigSplit;
+                            } else {
+                                bit = 0;
+                                range = split;
+                            }
+                            if (range < 128) {
+                                const shift = Math.clz32(range) - 24;
+                                range <<= shift;
+                                value <<= shift;
+                                bitCount += shift;
+                                if (bitCount >= 8) {
+                                    bitCount -= 8;
+                                    value |= (pos < end ? data[pos] : 0) << bitCount;
+                                    pos++;
+                                }
+                            }
+                        }
+                        category = 2 + bit;
+                    } else {
+                        {
+                            const split = 1 + ((range - 1) * (probs[p + 10]) >> 8), bigSplit = split << 8;
+                            if (value >= bigSplit) {
+                                bit = 1;
+                                range -= split;
+                                value -= bigSplit;
+                            } else {
+                                bit = 0;
+                                range = split;
+                            }
+                            if (range < 128) {
+                                const shift = Math.clz32(range) - 24;
+                                range <<= shift;
+                                value <<= shift;
+                                bitCount += shift;
+                                if (bitCount >= 8) {
+                                    bitCount -= 8;
+                                    value |= (pos < end ? data[pos] : 0) << bitCount;
+                                    pos++;
+                                }
+                            }
+                        }
+                        category = 4 + bit;
+                    }
+                }
 
-            const extra = PCAT[category];
-            let e = 0;
-            for (let k = 0; k < extra.length; k++) e = e << 1 | d.read(extra[k]);
-            v = CATEGORY_BASE[category] + e;
+                const extra = PCAT[category];
+                let e = 0;
+                for (let k = 0; k < extra.length; k++) {
+                    {
+                        const split = 1 + ((range - 1) * (extra[k]) >> 8), bigSplit = split << 8;
+                        if (value >= bigSplit) {
+                            bit = 1;
+                            range -= split;
+                            value -= bigSplit;
+                        } else {
+                            bit = 0;
+                            range = split;
+                        }
+                        if (range < 128) {
+                            const shift = Math.clz32(range) - 24;
+                            range <<= shift;
+                            value <<= shift;
+                            bitCount += shift;
+                            if (bitCount >= 8) {
+                                bitCount -= 8;
+                                value |= (pos < end ? data[pos] : 0) << bitCount;
+                                pos++;
+                            }
+                        }
+                    }
+                    e = e << 1 | bit;
+                }
+                v = CATEGORY_BASE[category] + e;
+            }
         }
 
-        if (d.read(128)) v = -v;
+        {
+            const split = 1 + ((range - 1) * (128) >> 8), bigSplit = split << 8;
+            if (value >= bigSplit) {
+                bit = 1;
+                range -= split;
+                value -= bigSplit;
+            } else {
+                bit = 0;
+                range = split;
+            }
+            if (range < 128) {
+                const shift = Math.clz32(range) - 24;
+                range <<= shift;
+                value <<= shift;
+                bitCount += shift;
+                if (bitCount >= 8) {
+                    bitCount -= 8;
+                    value |= (pos < end ? data[pos] : 0) << bitCount;
+                    pos++;
+                }
+            }
+        }
+        if (bit) v = -v;
         out[offset + ZIGZAG[i]] = v * (i > 0 ? acFactor : dcFactor);
         previousZero = false;
         p = ((type * 8 + BANDS[i + 1]) * 3 + (v === 1 || v === -1 ? 1 : 2)) * 11;
     }
 
-    return 16;
+    d.pos = pos;
+    d.value = value;
+    d.range = range;
+    d.bitCount = bitCount;
+    return i;
 }
 
 // inverse Walsh-Hadamard transform of the Y2 block (RFC 6386 section 14.3), the results become the Y blocks' DCs
