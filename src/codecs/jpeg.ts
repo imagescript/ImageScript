@@ -969,6 +969,73 @@ function upsample(component: Component, frame: Frame): Samples {
     };
 }
 
+/** Whether the luma is at full resolution and both chroma planes have half its width, and its height or half of it */
+function subsampledChroma({ components, hmax, vmax }: Frame): boolean {
+    const [y, cb, cr] = components;
+    return y.h === hmax && y.v === vmax && cb.h === cr.h && cb.v === cr.v && hmax === 2 * cb.h && (vmax === cb.v || vmax === 2 * cb.v)
+        // (narrower chroma is replicated, see upsample)
+        && cb.width > 2 && cr.width > 2;
+}
+
+/**
+ * YCbCr to RGBA for 4:2:2 and 4:2:0 (see subsampledChroma), with libjpeg's fancy upsampling of the chroma (the same as
+ * upsample) done in the same loop: each chroma column gives two output pixels
+ */
+function convertSubsampled(frame: Frame, pixels: Uint8Array): void {
+    const { width, height, components } = frame;
+    const luma = buildPlane(components[0]), blue = buildPlane(components[1]), red = buildPlane(components[2]);
+    const Y = luma.plane, B = blue.plane, R = red.plane;
+    const cw = components[1].width, ch = components[1].height, stride = blue.stride;
+    const vertical = frame.vmax === 2 * components[1].v;
+    const words = new Uint32Array(pixels.buffer, pixels.byteOffset, width * height);
+
+    const pixel = (a: number, b: number, c: number): number =>
+        (CLAMP[a + crR[c]] | CLAMP[a + (cbG[b] + crG[c] >> 16)] << 8 | CLAMP[a + cbB[b]] << 16 | 0xff000000) >>> 0;
+
+    for (let y = 0; y < height; y++) {
+        const l = y * luma.stride, w = y * width;
+        if (vertical) {
+            // the nearer chroma row counts three times, the other one once, then the same horizontally (h2v2 fancy)
+            const i = (y >> 1) * stride;
+            const other = (y & 1 ? Math.min(ch - 1, (y >> 1) + 1) : Math.max(0, (y >> 1) - 1)) * stride;
+            let thisB = B[i] * 3 + B[other], nextB = B[i + 1] * 3 + B[other + 1];
+            let thisR = R[i] * 3 + R[other], nextR = R[i + 1] * 3 + R[other + 1];
+            words[w] = pixel(Y[l] + CLAMP_OFFSET, thisB * 4 + 8 >> 4, thisR * 4 + 8 >> 4);
+            if (width > 1) words[w + 1] = pixel(Y[l + 1] + CLAMP_OFFSET, thisB * 3 + nextB + 7 >> 4, thisR * 3 + nextR + 7 >> 4);
+            let lastB = thisB, lastR = thisR;
+            thisB = nextB;
+            thisR = nextR;
+            for (let x = 1; x < cw - 1; x++) {
+                nextB = B[i + x + 1] * 3 + B[other + x + 1];
+                nextR = R[i + x + 1] * 3 + R[other + x + 1];
+                const o = 2 * x;
+                if (o < width) words[w + o] = pixel(Y[l + o] + CLAMP_OFFSET, thisB * 3 + lastB + 8 >> 4, thisR * 3 + lastR + 8 >> 4);
+                if (o + 1 < width) words[w + o + 1] = pixel(Y[l + o + 1] + CLAMP_OFFSET, thisB * 3 + nextB + 7 >> 4, thisR * 3 + nextR + 7 >> 4);
+                lastB = thisB;
+                lastR = thisR;
+                thisB = nextB;
+                thisR = nextR;
+            }
+            const o = 2 * cw - 2;
+            if (o < width) words[w + o] = pixel(Y[l + o] + CLAMP_OFFSET, thisB * 3 + lastB + 8 >> 4, thisR * 3 + lastR + 8 >> 4);
+            if (o + 1 < width) words[w + o + 1] = pixel(Y[l + o + 1] + CLAMP_OFFSET, thisB * 4 + 7 >> 4, thisR * 4 + 7 >> 4);
+        } else {
+            // h2v1 fancy: three times the nearer chroma sample and once the other
+            const i = y * stride;
+            words[w] = pixel(Y[l] + CLAMP_OFFSET, B[i], R[i]);
+            if (width > 1) words[w + 1] = pixel(Y[l + 1] + CLAMP_OFFSET, B[i] * 3 + B[i + 1] + 2 >> 2, R[i] * 3 + R[i + 1] + 2 >> 2);
+            for (let x = 1; x < cw - 1; x++) {
+                const b = B[i + x] * 3, r = R[i + x] * 3, o = 2 * x;
+                if (o < width) words[w + o] = pixel(Y[l + o] + CLAMP_OFFSET, b + B[i + x - 1] + 1 >> 2, r + R[i + x - 1] + 1 >> 2);
+                if (o + 1 < width) words[w + o + 1] = pixel(Y[l + o + 1] + CLAMP_OFFSET, b + B[i + x + 1] + 2 >> 2, r + R[i + x + 1] + 2 >> 2);
+            }
+            const o = 2 * cw - 2;
+            if (o < width) words[w + o] = pixel(Y[l + o] + CLAMP_OFFSET, B[i + cw - 1] * 3 + B[i + cw - 2] + 1 >> 2, R[i + cw - 1] * 3 + R[i + cw - 2] + 1 >> 2);
+            if (o + 1 < width) words[w + o + 1] = pixel(Y[l + o + 1] + CLAMP_OFFSET, B[i + cw - 1], R[i + cw - 1]);
+        }
+    }
+}
+
 // libjpeg's fixed point YCbCr -> RGB tables
 const crR = new Int32Array(256);
 const cbB = new Int32Array(256);
@@ -989,7 +1056,6 @@ for (let i = 0; i < 768; i++) CLAMP[i] = clamp8(i - CLAMP_OFFSET);
 
 function output(frame: Frame, adobe: { transform: number } | null, jfif: boolean, override: DecodeOptions['transform']): Uint8Array {
     const { width, height, components } = frame;
-    const planes = components.map(component => upsample(component, frame));
     const pixels = new Uint8Array(width * height * 4);
     const count = components.length;
 
@@ -1003,6 +1069,13 @@ function output(frame: Frame, adobe: { transform: number } | null, jfif: boolean
     } else if (count === 4) transform = adobe && adobe.transform === 2 ? 'ycck' : 'cmyk';
     else throw new Error(`JPEG: ${count} color components are not supported`);
 
+    // YCbCr with both chroma planes subsampled horizontally (4:2:2) or both ways (4:2:0): upsampled while converting
+    if (transform === 'ycc' && littleEndian && subsampledChroma(frame)) {
+        convertSubsampled(frame, pixels);
+        return pixels;
+    }
+
+    const planes = components.map(component => upsample(component, frame));
     const [p0, p1, p2, p3] = planes;
 
     // one loop per transform: deciding per pixel costs more than the conversion
