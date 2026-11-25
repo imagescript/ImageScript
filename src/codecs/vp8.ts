@@ -374,7 +374,7 @@ function readCoefficients(d: BoolDecoder, probs: Uint8Array, type: number, ctx: 
     // (BoolDecoder.read inlined, with its state in local variables, like libwebp's GetCoeffs)
     const data = d.data, end = d.end;
     let pos = d.pos, value = d.value, range = d.range, bitCount = d.bitCount;
-    let bit = 0;
+    let bit: number;
 
     let i = first;
     let p = ((type * 8 + BANDS[i]) * 3 + ctx) * 11;
