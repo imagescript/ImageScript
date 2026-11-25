@@ -508,7 +508,7 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
     for (const component of components) component.pred = 0;
 
     const perRow = single ? components[0].blocksPerLine : frame.mcusPerLine;
-    const reader: BitReader = { pos: 0, buffer: 0, bits: 0, padding: 0, broken: false };
+    const reader: BitReader = { pos: 0, buffer: 0, bits: 0, padding: 0, broken: false, eobrun: 0 };
     for (let unit = 0; unit < total;) {
         for (let n = 0; n < interval && unit < total; n++, unit++) {
             // sequential scans decode runs of MCUs up to the end of a row (or of the restart interval) at once
@@ -525,6 +525,21 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
                 unit += decoded - 1;
                 n += decoded - 1;
                 if ((unit + 1) % perRow === 0) finish();
+                continue;
+            }
+
+            // and progressive AC scans (of one component) runs of blocks up to the end of the restart interval
+            if (!sequential && single && ss > 0 && !broken) {
+                const count = Math.min(interval - n, total - unit);
+                reader.pos = pos;
+                reader.buffer = buffer;
+                reader.bits = bits;
+                reader.padding = padding;
+                reader.eobrun = eobrun;
+                const decoded = decodeProgressive(data, reader, components[0], ah === 0, ss, se, al, unit, count, restartInterval !== 0);
+                ({ pos, buffer, bits, padding, broken, eobrun } = reader);
+                unit += decoded - 1;
+                n += decoded - 1;
                 continue;
             }
 
@@ -592,6 +607,8 @@ interface BitReader {
     bits: number;
     padding: number;
     broken: boolean;
+    /** progressive AC scans: the blocks left in the current end-of-band run */
+    eobrun: number;
 }
 
 /**
@@ -712,6 +729,274 @@ function decodeSequential(data: Uint8Array, reader: BitReader, components: Compo
     reader.padding = padding;
     reader.broken = broken;
     return m;
+}
+
+/**
+ * Decodes the blocks `unit` to `unit + count - 1` of a progressive AC scan (always of one component): its first scan
+ * of the coefficients ss to se (`first`), or a refinement scan of them; the same as decodeScan's decodeACFirst and
+ * decodeACSuccessive, with the bit reader in local variables. Stops after the block in which a code is invalid
+ * @return the blocks decoded
+ */
+function decodeProgressive(data: Uint8Array, reader: BitReader, component: Component, first: boolean, ss: number, se: number, al: number, unit: number, count: number, resync: boolean): number {
+    let { pos, buffer, bits, padding, eobrun } = reader;
+    let broken = false;
+    const length = data.length;
+    const coefficients = component.coefficients, line = component.blocksPerLine, stride = component.blocksPerLineForMcu;
+    const p1 = 1 << al, m1 = -1 << al;
+
+    let b = 0;
+    for (; b < count && !broken; b++) {
+        const offset = (((unit + b) / line | 0) * stride + (unit + b) % line) * 64;
+
+        if (first) {
+            if (eobrun > 0) {
+                eobrun--;
+                continue;
+            }
+            for (let k = ss; k <= se;) {
+                const table = component.acTable;
+                if (!table) throw new Error('JPEG: missing huffman table');
+                let rs: number;
+                if (bits < 16) {
+                    while (bits <= 24) {
+                        let byte = 0;
+                        if (pos < length) {
+                            byte = data[pos];
+                            if (byte === 0xff) {
+                                if (data[pos + 1] === 0x00) pos += 2;
+                                else { byte = 0; padding++; }
+                            } else pos++;
+                        } else padding++;
+                        buffer = buffer << 8 | byte;
+                        bits += 8;
+                    }
+                }
+                const entry = table.lookup[buffer >>> bits - 9 & 511];
+                if (entry) {
+                    bits -= entry >> 8;
+                    rs = entry & 255;
+                } else {
+                    let size = 10;
+                    let code = buffer >>> bits - 10 & 1023;
+                    while (code > table.maxCode[size] && size <= 16) {
+                        if (++size > 16) break;
+                        code = buffer >>> bits - size & (1 << size) - 1;
+                    }
+                    if (size > 16) {
+                        if (!resync) throw new Error('JPEG: invalid huffman code');
+                        broken = true;
+                        rs = 0;
+                    } else {
+                        bits -= size;
+                        rs = table.values[code + table.valueOffset[size]];
+                    }
+                }
+                const s = rs & 15, r = rs >> 4;
+                if (s === 0) {
+                    if (r < 15) {
+                        eobrun = (1 << r) - 1;
+                        if (r) {
+                            if (bits < r) {
+                                while (bits <= 24) {
+                                    let byte = 0;
+                                    if (pos < length) {
+                                        byte = data[pos];
+                                        if (byte === 0xff) {
+                                            if (data[pos + 1] === 0x00) pos += 2;
+                                            else { byte = 0; padding++; }
+                                        } else pos++;
+                                    } else padding++;
+                                    buffer = buffer << 8 | byte;
+                                    bits += 8;
+                                }
+                            }
+                            bits -= r;
+                            const extra = buffer >>> bits & (1 << r) - 1;
+                            eobrun += extra;
+                        }
+                        break;
+                    }
+                    k += 16;
+                    continue;
+                }
+                k += r;
+                if (k > 63) break;
+                let value: number;
+                if (bits < s) {
+                    while (bits <= 24) {
+                        let byte = 0;
+                        if (pos < length) {
+                            byte = data[pos];
+                            if (byte === 0xff) {
+                                if (data[pos + 1] === 0x00) pos += 2;
+                                else { byte = 0; padding++; }
+                            } else pos++;
+                        } else padding++;
+                        buffer = buffer << 8 | byte;
+                        bits += 8;
+                    }
+                }
+                bits -= s;
+                value = buffer >>> bits & (1 << s) - 1;
+                if (value < 1 << s - 1) value += (-1 << s) + 1;
+                coefficients[offset + ZIGZAG[k++]] = value * (1 << al);
+            }
+            continue;
+        }
+
+        let k = ss;
+        if (eobrun === 0) {
+            for (; k <= se; k++) {
+                const table = component.acTable;
+                if (!table) throw new Error('JPEG: missing huffman table');
+                let rs: number;
+                if (bits < 16) {
+                    while (bits <= 24) {
+                        let byte = 0;
+                        if (pos < length) {
+                            byte = data[pos];
+                            if (byte === 0xff) {
+                                if (data[pos + 1] === 0x00) pos += 2;
+                                else { byte = 0; padding++; }
+                            } else pos++;
+                        } else padding++;
+                        buffer = buffer << 8 | byte;
+                        bits += 8;
+                    }
+                }
+                const entry = table.lookup[buffer >>> bits - 9 & 511];
+                if (entry) {
+                    bits -= entry >> 8;
+                    rs = entry & 255;
+                } else {
+                    let size = 10;
+                    let code = buffer >>> bits - 10 & 1023;
+                    while (code > table.maxCode[size] && size <= 16) {
+                        if (++size > 16) break;
+                        code = buffer >>> bits - size & (1 << size) - 1;
+                    }
+                    if (size > 16) {
+                        if (!resync) throw new Error('JPEG: invalid huffman code');
+                        broken = true;
+                        rs = 0;
+                    } else {
+                        bits -= size;
+                        rs = table.values[code + table.valueOffset[size]];
+                    }
+                }
+                let r = rs >> 4;
+                let s = rs & 15;
+
+                if (s) {
+                    if (bits < 1) {
+                        while (bits <= 24) {
+                            let byte = 0;
+                            if (pos < length) {
+                                byte = data[pos];
+                                if (byte === 0xff) {
+                                    if (data[pos + 1] === 0x00) pos += 2;
+                                    else { byte = 0; padding++; }
+                                } else pos++;
+                            } else padding++;
+                            buffer = buffer << 8 | byte;
+                            bits += 8;
+                        }
+                    }
+                    bits -= 1;
+                    const bit = buffer >>> bits & 1;
+                    s = bit ? p1 : m1;
+                } else if (r !== 15) {
+                    eobrun = 1 << r;
+                    if (r) {
+                        if (bits < r) {
+                            while (bits <= 24) {
+                                let byte = 0;
+                                if (pos < length) {
+                                    byte = data[pos];
+                                    if (byte === 0xff) {
+                                        if (data[pos + 1] === 0x00) pos += 2;
+                                        else { byte = 0; padding++; }
+                                    } else pos++;
+                                } else padding++;
+                                buffer = buffer << 8 | byte;
+                                bits += 8;
+                            }
+                        }
+                        bits -= r;
+                        const extra = buffer >>> bits & (1 << r) - 1;
+                        eobrun += extra;
+                    }
+                    break;
+                }
+
+                // skip r zero coefficients, refining the nonzero ones passed on the way
+                do {
+                    const z = offset + ZIGZAG[k];
+                    const c = coefficients[z];
+
+                    if (c !== 0) {
+                        if (bits < 1) {
+                            while (bits <= 24) {
+                                let byte = 0;
+                                if (pos < length) {
+                                    byte = data[pos];
+                                    if (byte === 0xff) {
+                                        if (data[pos + 1] === 0x00) pos += 2;
+                                        else { byte = 0; padding++; }
+                                    } else pos++;
+                                } else padding++;
+                                buffer = buffer << 8 | byte;
+                                bits += 8;
+                            }
+                        }
+                        bits -= 1;
+                        const bit = buffer >>> bits & 1;
+                        if (bit && (c & p1) === 0) coefficients[z] = c >= 0 ? c + p1 : c + m1;
+                    } else if (--r < 0) break;
+
+                    k++;
+                } while (k <= se);
+
+                if (s && k <= se) coefficients[offset + ZIGZAG[k]] = s;
+            }
+        }
+
+        if (eobrun > 0) {
+            for (; k <= se; k++) {
+                const z = offset + ZIGZAG[k];
+                const c = coefficients[z];
+                if (c !== 0) {
+                    if (bits < 1) {
+                        while (bits <= 24) {
+                            let byte = 0;
+                            if (pos < length) {
+                                byte = data[pos];
+                                if (byte === 0xff) {
+                                    if (data[pos + 1] === 0x00) pos += 2;
+                                    else { byte = 0; padding++; }
+                                } else pos++;
+                            } else padding++;
+                            buffer = buffer << 8 | byte;
+                            bits += 8;
+                        }
+                    }
+                    bits -= 1;
+                    const bit = buffer >>> bits & 1;
+                    if (bit && (c & p1) === 0) coefficients[z] = c >= 0 ? c + p1 : c + m1;
+                }
+            }
+
+            eobrun--;
+        }
+    }
+
+    reader.pos = pos;
+    reader.buffer = buffer;
+    reader.bits = bits;
+    reader.padding = padding;
+    reader.broken = broken;
+    reader.eobrun = eobrun;
+    return b;
 }
 
 // a sequential scan's decoded block rows (`count` of them, in the coefficient buffer from its first row) into the
