@@ -489,72 +489,88 @@ function lzw(input: Uint8Array, expected: number): Uint8Array {
     const out = new Uint8Array(expected);
     // pre-5.0 libtiff wrote LSB first codes without early change
     const compat = input[0] === 0 && (input[1] & 1) === 1;
+    // new style LZW switches to the next code size one code early
+    const early = compat ? 0 : 1;
 
-    const prefix = new Uint16Array(4096);
-    const suffix = new Uint8Array(4096);
-    const first = new Uint8Array(4096);
+    // every string in the table is a run of the output written before: an entry is its start there and its length
+    // (codes below 256 are single bytes), so decoding a code copies bytes forward instead of walking a prefix chain
+    const starts = new Int32Array(4096);
     const lengths = new Uint16Array(4096);
-    for (let i = 0; i < 256; i++) {
-        suffix[i] = first[i] = i;
-        lengths[i] = 1;
-    }
 
-    let codeSize = 9, next = 258, previous = -1;
+    let codeSize = 9, mask = 511, limit = 512 - early, next = 258, previous = -1, previousStart = 0;
     let buffer = 0, bits = 0, position = 0, written = 0;
+    const end = input.length;
 
     while (written < expected) {
-        while (bits < codeSize) {
-            if (position >= input.length) return out.subarray(0, written);
-            buffer = compat ? buffer | input[position++] << bits : (buffer << 8 | input[position++]) & 0xffffff;
-            bits += 8;
+        if (bits < codeSize) {
+            if (position >= end) break;
+            if (compat) {
+                buffer |= input[position++] << bits;
+                bits += 8;
+                if (bits < codeSize) {
+                    if (position >= end) break;
+                    buffer |= input[position++] << bits;
+                    bits += 8;
+                }
+            } else {
+                buffer = (buffer << 8 | input[position++]) & 0xffffff;
+                bits += 8;
+                if (bits < codeSize) {
+                    if (position >= end) break;
+                    buffer = (buffer << 8 | input[position++]) & 0xffffff;
+                    bits += 8;
+                }
+            }
         }
 
         let code;
         if (compat) {
-            code = buffer & (1 << codeSize) - 1;
+            code = buffer & mask;
             buffer >>>= codeSize;
-        } else code = buffer >> bits - codeSize & (1 << codeSize) - 1;
+        } else code = buffer >> bits - codeSize & mask;
         bits -= codeSize;
 
-        if (code === 256) {
+        const start = written;
+        if (code < 256) out[written++] = code;
+        else if (code === 256) {
             codeSize = 9;
+            mask = 511;
+            limit = 512 - early;
             next = 258;
             previous = -1;
             continue;
+        } else if (code === 257 || previous === -1 || code > next) break; // the end, or an invalid code
+        else {
+            // (the code being defined right now is the previous string and its own first byte, which the forward copy
+            // reads after writing it)
+            let from, length;
+            if (code === next) {
+                from = previousStart;
+                length = start - previousStart + 1;
+            } else {
+                from = starts[code];
+                length = lengths[code];
+            }
+            const stop = start + length > expected ? expected : start + length;
+            if (length > 16 && from + length <= start) out.copyWithin(start, from, from + stop - start);
+            else for (let i = from; written < stop;) out[written++] = out[i++];
+            written = start + length;
         }
-
-        if (code === 257) break;
-
-        let entry;
-        if (previous === -1) {
-            if (code > 255) break;
-            entry = code;
-        } else if (code < next) entry = code;
-        else if (code === next) entry = previous;
-        else break; // invalid code
-
-        const length = lengths[entry];
-        let c = entry;
-        for (let i = written + length - 1; i >= written; i--) {
-            if (i < expected) out[i] = suffix[c];
-            c = prefix[c];
-        }
-        written += length;
-
-        if (code === next && written < expected) out[written] = first[previous];
-        if (code === next) written++;
 
         if (previous !== -1 && next < 4096) {
-            prefix[next] = previous;
-            suffix[next] = first[code === next ? previous : code];
-            first[next] = first[previous];
-            lengths[next] = lengths[previous] + 1;
+            // the previous string and the first byte of this one, which follow each other in the output
+            starts[next] = previousStart;
+            lengths[next] = start - previousStart + 1;
             next++;
         }
 
-        // new style LZW switches code size one code early
-        if (next + (compat ? 0 : 1) >= 1 << codeSize && codeSize < 12) codeSize++;
+        if (next >= limit && codeSize < 12) {
+            codeSize++;
+            mask = (1 << codeSize) - 1;
+            limit = (1 << codeSize) - early;
+        }
         previous = code;
+        previousStart = start;
     }
 
     return out.subarray(0, Math.min(written, expected));
