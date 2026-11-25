@@ -6,6 +6,7 @@
 
 - TIFF decoding is 1.5 to 4.5 times faster for 8- and 16-bit gray and RGB images, with or without alpha: their samples are converted to RGBA a row at a time instead of one sample at a time (a 4000x2667 RGB image: 136 to 45 ms uncompressed, 311 to 154 ms with deflate and a predictor; 16-bit RGB 325 to 71 ms)
 - LZW-compressed TIFFs decode about 15% faster: each code copies its bytes from where its string was written before, instead of following a chain of table entries back to front (a 4000x2667 RGB image: 339 to 297 ms)
+- Baseline JPEGs decode 8 to 15% faster: their entropy-coded data is read with the bit reader in local variables, a run of MCUs at a time (a 6000x4000 photo: 838 to 727 ms; 2400x1600: 76 to 67 ms)
 
 ## 4.0.0
 

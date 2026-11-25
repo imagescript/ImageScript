@@ -403,27 +403,6 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
 
     let eobrun = 0;
 
-    const decodeBaseline = (component: Component, offset: number): void => {
-        const coefficients = component.coefficients;
-        const t = huffman(component.dcTable);
-        coefficients[offset] = component.pred += receiveExtend(t);
-
-        for (let k = 1; k < 64;) {
-            const rs = huffman(component.acTable);
-            const s = rs & 15, r = rs >> 4;
-
-            if (s === 0) {
-                if (r < 15) break;
-                k += 16;
-                continue;
-            }
-
-            k += r;
-            if (k > 63) break;
-            coefficients[offset + ZIGZAG[k++]] = receiveExtend(s);
-        }
-    };
-
     const decodeDCFirst = (component: Component, offset: number): void => {
         const t = huffman(component.dcTable);
         component.coefficients[offset] = (component.pred += receiveExtend(t)) * (1 << al);
@@ -507,8 +486,8 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
         }
     };
 
-    const decodeBlock = !frame.progressive ? decodeBaseline
-        : ss === 0 ? (ah === 0 ? decodeDCFirst : decodeDCSuccessive)
+    // (sequential scans: decodeSequential)
+    const decodeBlock = ss === 0 ? (ah === 0 ? decodeDCFirst : decodeDCSuccessive)
             : (ah === 0 ? decodeACFirst : decodeACSuccessive);
 
     const single = components.length === 1;
@@ -528,15 +507,33 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
 
     for (const component of components) component.pred = 0;
 
+    const perRow = single ? components[0].blocksPerLine : frame.mcusPerLine;
+    const reader: BitReader = { pos: 0, buffer: 0, bits: 0, padding: 0, broken: false };
     for (let unit = 0; unit < total;) {
         for (let n = 0; n < interval && unit < total; n++, unit++) {
+            // sequential scans decode runs of MCUs up to the end of a row (or of the restart interval) at once
+            if (sequential && !broken) {
+                const count = Math.min(interval - n, perRow - unit % perRow, total - unit);
+                pending = unit / perRow | 0;
+                reader.pos = pos;
+                reader.buffer = buffer;
+                reader.bits = bits;
+                reader.padding = padding;
+                const decoded = decodeSequential(data, reader, components, single, unit % perRow, count, restartInterval !== 0);
+                ({ pos, buffer, bits, padding, broken } = reader);
+                // (the loop's increment counts the last of them)
+                unit += decoded - 1;
+                n += decoded - 1;
+                if ((unit + 1) % perRow === 0) finish();
+                continue;
+            }
+
             if (single) {
                 const component = components[0];
                 const row = unit / component.blocksPerLine | 0;
                 const column = unit % component.blocksPerLine;
                 if (sequential) {
                     pending = row;
-                    if (!broken) decodeBlock(component, column * 64);
                     if (column === component.blocksPerLine - 1) finish();
                 } else if (!broken) decodeBlock(component, (row * component.blocksPerLineForMcu + column) * 64);
             } else {
@@ -587,6 +584,134 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
     if (!broken) checkComplete();
     finish();
     return pos;
+}
+
+interface BitReader {
+    pos: number;
+    buffer: number;
+    bits: number;
+    padding: number;
+    broken: boolean;
+}
+
+/**
+ * Decodes `count` MCUs of a sequential scan from MCU column `column` on (or blocks, for a single component's scan) into
+ * the components' coefficient buffers, with the bit reader of decodeScan in local variables (decodeScan's are shared
+ * by its closures). Stops after the MCU in which a code is invalid (`broken`, with restart markers: that block's
+ * remaining codes are still decoded, the other blocks of the restart interval are left empty)
+ * @return the MCUs decoded
+ */
+function decodeSequential(data: Uint8Array, reader: BitReader, components: Component[], single: boolean, column: number, count: number, resync: boolean): number {
+    let { pos, buffer, bits, padding } = reader;
+    let broken = false;
+    const length = data.length;
+
+    let m = 0;
+    for (; m < count && !broken; m++) {
+        for (let c = 0; c < components.length && !broken; c++) {
+            const component = components[c];
+            const blocksAcross = single ? 1 : component.h, blocksDown = single ? 1 : component.v;
+            const coefficients = component.coefficients;
+
+            for (let v = 0; v < blocksDown && !broken; v++)
+                for (let h = 0; h < blocksAcross && !broken; h++) {
+                    const offset = single ? (column + m) * 64 : (v * component.blocksPerLineForMcu + (column + m) * component.h + h) * 64;
+
+                    // the DC: a huffman coded size, then that many bits
+                    let table = component.dcTable;
+                    if (!table) throw new Error('JPEG: missing huffman table');
+                    for (let k = 0; k < 64;) {
+                        if (bits < 16) {
+                            while (bits <= 24) {
+                                let byte = 0;
+                                if (pos < length) {
+                                    byte = data[pos];
+                                    if (byte === 0xff) {
+                                        if (data[pos + 1] === 0x00) pos += 2;
+                                        else { byte = 0; padding++; } // marker reached, feed zeros
+                                    } else pos++;
+                                } else padding++;
+                                buffer = buffer << 8 | byte;
+                                bits += 8;
+                            }
+                        }
+
+                        let symbol;
+                        const entry = table.lookup[buffer >>> bits - 9 & 511];
+                        if (entry) {
+                            bits -= entry >> 8;
+                            symbol = entry & 255;
+                        } else {
+                            let size = 10;
+                            let code = buffer >>> bits - 10 & 1023;
+                            while (code > table.maxCode[size] && size <= 16) {
+                                if (++size > 16) break;
+                                code = buffer >>> bits - size & (1 << size) - 1;
+                            }
+                            if (size > 16) {
+                                if (!resync) throw new Error('JPEG: invalid huffman code');
+                                broken = true;
+                                symbol = 0;
+                            } else {
+                                bits -= size;
+                                symbol = table.values[code + table.valueOffset[size]];
+                            }
+                        }
+
+                        // the extra bits: the DC difference, or the AC coefficient after a run of zeros (an end of block
+                        // or a run of 16 zeros has none, neither has a run past the end)
+                        let extra = symbol;
+                        if (k > 0) {
+                            extra = symbol & 15;
+                            if (extra === 0) {
+                                if (symbol >> 4 < 15) break; // end of block
+                                k += 16;
+                                continue;
+                            }
+                            k += symbol >> 4;
+                            if (k > 63) break;
+                        }
+                        let value = 0;
+                        if (extra) {
+                            if (bits < extra) {
+                                while (bits <= 24) {
+                                    let byte = 0;
+                                    if (pos < length) {
+                                        byte = data[pos];
+                                        if (byte === 0xff) {
+                                            if (data[pos + 1] === 0x00) pos += 2;
+                                            else { byte = 0; padding++; }
+                                        } else pos++;
+                                    } else padding++;
+                                    buffer = buffer << 8 | byte;
+                                    bits += 8;
+                                }
+                            }
+                            bits -= extra;
+                            value = buffer >>> bits & (1 << extra) - 1;
+                            if (value < 1 << extra - 1) value += (-1 << extra) + 1;
+                        }
+
+                        if (k === 0) {
+                            coefficients[offset] = component.pred += value;
+                            table = component.acTable;
+                            if (!table) throw new Error('JPEG: missing huffman table');
+                            k = 1;
+                            continue;
+                        }
+
+                        coefficients[offset + ZIGZAG[k++]] = value;
+                    }
+                }
+        }
+    }
+
+    reader.pos = pos;
+    reader.buffer = buffer;
+    reader.bits = bits;
+    reader.padding = padding;
+    reader.broken = broken;
+    return m;
 }
 
 // a sequential scan's decoded block rows (`count` of them, in the coefficient buffer from its first row) into the
