@@ -1,6 +1,7 @@
 import { decompressAsync } from './zlib.ts';
 import * as jpeg from './jpeg.ts';
 import { MAX_PIXELS, checkPixels, checkBytes } from '../util/limits.ts';
+import { littleEndian } from '../util/alpha.ts';
 
 const TYPE_SIZES: Record<number, number> = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8, 13: 4, 16: 8, 17: 8, 18: 8 };
 
@@ -278,6 +279,12 @@ export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS): Promise<
     // read samples into RGBA
     // the floating point predictor reassembles samples as little endian
     const sampleLittle = predictor === 3 ? true : little;
+
+    // gray and RGB with 8 or 16 unsigned bits per sample, interleaved: the common layouts, converted a row at a time
+    if (!planar && (bps === 8 || bps === 16) && sampleFormat !== 2 && sampleFormat !== 3 && photometric <= 2) {
+        rowsToRGBA(raw, width, height, rowBytes, samplesPerPixel, bps === 16 ? (sampleLittle ? 1 : 0) : -1, photometric, alphaChannel, alphaType === 1, pixels);
+        return { width, height, pixels, orientation, icc };
+    }
     const readSample = sampleReader(raw, bps, sampleFormat, sampleLittle, sampleFormat === 3 ? floatRange(raw, bps, sampleLittle) : null);
     const sampleAt = planar
         ? (x: number, y: number, s: number) => readSample(s * planeBytes + y * rowBytes, x)
@@ -322,6 +329,63 @@ export async function decode(data: Uint8Array, maxPixels = MAX_PIXELS): Promise<
     }
 
     return { width, height, pixels, orientation, icc };
+}
+
+// associated (premultiplied) alpha: UNPREMULTIPLY[alpha << 8 | v] = min(255, round(v * 255 / alpha)), 0 for alpha 0
+let UNPREMULTIPLY: Uint8Array | undefined;
+function unpremultiplyTable(): Uint8Array {
+    if (!UNPREMULTIPLY) {
+        UNPREMULTIPLY = new Uint8Array(65536);
+        for (let alpha = 1; alpha < 256; alpha++)
+            for (let v = 0; v < 256; v++) UNPREMULTIPLY[alpha << 8 | v] = Math.min(255, Math.round(v * 255 / alpha));
+    }
+    return UNPREMULTIPLY;
+}
+
+/**
+ * Converts interleaved gray (photometric 0 or 1) or RGB (2) samples of 8 or 16 bits to RGBA, with the same results as
+ * the generic sample reader: 16-bit samples become their high byte (`high` is its offset in the sample, -1 for 8-bit
+ * samples), alpha is the sample at `alphaChannel` (-1 without), premultiplied if `associated`
+ */
+function rowsToRGBA(raw: Uint8Array, width: number, height: number, rowBytes: number, samples: number, high: number, photometric: number, alphaChannel: number, associated: boolean, pixels: Uint8Array): void {
+    const size = high < 0 ? 1 : 2, offset = high < 0 ? 0 : high;
+    const step = samples * size;
+    const rgb = photometric === 2, invert = photometric === 0 ? 255 : 0;
+    const g = rgb ? size + offset : offset, b = rgb ? 2 * size + offset : offset, a = alphaChannel * size + offset;
+    const table = associated ? unpremultiplyTable() : null;
+    const words = littleEndian && pixels.byteOffset % 4 === 0 ? new Uint32Array(pixels.buffer, pixels.byteOffset, width * height) : null;
+
+    for (let y = 0, p = 0; y < height; y++) {
+        let i = y * rowBytes + offset;
+        if (words && !table) {
+            if (alphaChannel < 0) {
+                if (rgb) for (let x = 0; x < width; x++, i += step) words[p++] = (raw[i] | raw[i - offset + g] << 8 | raw[i - offset + b] << 16 | 0xff000000) >>> 0;
+                else for (let x = 0; x < width; x++, i += step) { const v = raw[i] ^ invert; words[p++] = (v | v << 8 | v << 16 | 0xff000000) >>> 0; }
+            } else {
+                if (rgb) for (let x = 0; x < width; x++, i += step) words[p++] = (raw[i] | raw[i - offset + g] << 8 | raw[i - offset + b] << 16 | raw[i - offset + a] << 24) >>> 0;
+                else for (let x = 0; x < width; x++, i += step) { const v = raw[i] ^ invert; words[p++] = (v | v << 8 | v << 16 | raw[i - offset + a] << 24) >>> 0; }
+            }
+            continue;
+        }
+
+        for (let x = 0, o = p * 4; x < width; x++, i += step, o += 4) {
+            const r = raw[i] ^ invert;
+            pixels[o] = r;
+            pixels[o + 1] = rgb ? raw[i - offset + g] : r;
+            pixels[o + 2] = rgb ? raw[i - offset + b] : r;
+            if (alphaChannel < 0) pixels[o + 3] = 0xff;
+            else {
+                const alpha = pixels[o + 3] = raw[i - offset + a];
+                if (table) {
+                    const row = alpha << 8;
+                    pixels[o] = table[row | pixels[o]];
+                    pixels[o + 1] = table[row | pixels[o + 1]];
+                    pixels[o + 2] = table[row | pixels[o + 2]];
+                }
+            }
+        }
+        p += width;
+    }
 }
 
 // returns a function reading the n-th sample of a row as {raw, value} with value scaled to 8 bits

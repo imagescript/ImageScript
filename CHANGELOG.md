@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.1
+
+### Performance
+
+- TIFF decoding is 1.5 to 4.5 times faster for 8- and 16-bit gray and RGB images, with or without alpha: their samples are converted to RGBA a row at a time instead of one sample at a time (a 4000x2667 RGB image: 136 to 45 ms uncompressed, 311 to 154 ms with deflate and a predictor; 16-bit RGB 325 to 71 ms)
+
 ## 4.0.0
 
 ### Breaking changes
