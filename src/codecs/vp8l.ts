@@ -500,28 +500,50 @@ function select(l: number, t: number, tl: number): number {
 // adds two ARGB pixels per channel, modulo 256
 const addPixels = (a: number, b: number): number => ((a & 0xff00ff00) + (b & 0xff00ff00) & 0xff00ff00 | (a & 0x00ff00ff) + (b & 0x00ff00ff) & 0x00ff00ff) >>> 0;
 
-// predictions of `n` pixels from index i on (not in the first row or column) into out, from the pixels in p; with
-// out === p, every pixel is the residual plus its prediction from the pixels already restored (decoding)
+// predictions of `n` pixels from index i on (not in the first row or column) into out, from the pixels in p (encoding)
 function predictRun(mode: number, p: Uint32Array, i: number, n: number, width: number, out: Uint32Array, o: number): void {
-    const restore = out === p;
     const end = i + n;
     // the switch runs once per run instead of once per pixel
     switch (mode) {
-        case 1: for (; i < end; i++, o++) out[o] = restore ? addPixels(p[i], p[i - 1]) : p[i - 1]; return;
-        case 2: for (; i < end; i++, o++) out[o] = restore ? addPixels(p[i], p[i - width]) : p[i - width]; return;
-        case 3: for (; i < end; i++, o++) out[o] = restore ? addPixels(p[i], p[i - width + 1]) : p[i - width + 1]; return;
-        case 4: for (; i < end; i++, o++) out[o] = restore ? addPixels(p[i], p[i - width - 1]) : p[i - width - 1]; return;
-        case 5: for (; i < end; i++, o++) { const v = average2(average2(p[i - 1], p[i - width + 1]), p[i - width]); out[o] = restore ? addPixels(p[i], v) : v; } return;
-        case 6: for (; i < end; i++, o++) { const v = average2(p[i - 1], p[i - width - 1]); out[o] = restore ? addPixels(p[i], v) : v; } return;
-        case 7: for (; i < end; i++, o++) { const v = average2(p[i - 1], p[i - width]); out[o] = restore ? addPixels(p[i], v) : v; } return;
-        case 8: for (; i < end; i++, o++) { const v = average2(p[i - width - 1], p[i - width]); out[o] = restore ? addPixels(p[i], v) : v; } return;
-        case 9: for (; i < end; i++, o++) { const v = average2(p[i - width], p[i - width + 1]); out[o] = restore ? addPixels(p[i], v) : v; } return;
-        case 10: for (; i < end; i++, o++) { const v = average2(average2(p[i - 1], p[i - width - 1]), average2(p[i - width], p[i - width + 1])); out[o] = restore ? addPixels(p[i], v) : v; } return;
-        case 11: for (; i < end; i++, o++) { const v = select(p[i - 1], p[i - width], p[i - width - 1]); out[o] = restore ? addPixels(p[i], v) : v; } return;
-        case 12: for (; i < end; i++, o++) { const v = clampAddSubtractFull(p[i - 1], p[i - width], p[i - width - 1]); out[o] = restore ? addPixels(p[i], v) : v; } return;
-        case 13: for (; i < end; i++, o++) { const v = clampAddSubtractHalf(average2(p[i - 1], p[i - width]), p[i - width - 1]); out[o] = restore ? addPixels(p[i], v) : v; } return;
+        case 1: for (; i < end; i++, o++) out[o] = p[i - 1]; return;
+        case 2: for (; i < end; i++, o++) out[o] = p[i - width]; return;
+        case 3: for (; i < end; i++, o++) out[o] = p[i - width + 1]; return;
+        case 4: for (; i < end; i++, o++) out[o] = p[i - width - 1]; return;
+        case 5: for (; i < end; i++, o++) out[o] = average2(average2(p[i - 1], p[i - width + 1]), p[i - width]); return;
+        case 6: for (; i < end; i++, o++) out[o] = average2(p[i - 1], p[i - width - 1]); return;
+        case 7: for (; i < end; i++, o++) out[o] = average2(p[i - 1], p[i - width]); return;
+        case 8: for (; i < end; i++, o++) out[o] = average2(p[i - width - 1], p[i - width]); return;
+        case 9: for (; i < end; i++, o++) out[o] = average2(p[i - width], p[i - width + 1]); return;
+        case 10: for (; i < end; i++, o++) out[o] = average2(average2(p[i - 1], p[i - width - 1]), average2(p[i - width], p[i - width + 1])); return;
+        case 11: for (; i < end; i++, o++) out[o] = select(p[i - 1], p[i - width], p[i - width - 1]); return;
+        case 12: for (; i < end; i++, o++) out[o] = clampAddSubtractFull(p[i - 1], p[i - width], p[i - width - 1]); return;
+        case 13: for (; i < end; i++, o++) out[o] = clampAddSubtractHalf(average2(p[i - 1], p[i - width]), p[i - width - 1]); return;
         // mode 0, and modes 14 and 15 (not defined, libwebp predicts black like mode 0)
-        default: for (; i < end; i++, o++) out[o] = restore ? addPixels(p[i], 0xff000000) : 0xff000000;
+        default: for (; i < end; i++, o++) out[o] = 0xff000000;
+    }
+}
+
+// restores `n` pixels from index i on (not in the first row or column): each is the residual plus its prediction from
+// the pixels already restored (decoding; the same predictions as predictRun)
+function restoreRun(mode: number, p: Uint32Array, i: number, n: number, width: number): void {
+    const end = i + n;
+    // the switch runs once per run instead of once per pixel
+    switch (mode) {
+        case 1: for (; i < end; i++) p[i] = addPixels(p[i], p[i - 1]); return;
+        case 2: for (; i < end; i++) p[i] = addPixels(p[i], p[i - width]); return;
+        case 3: for (; i < end; i++) p[i] = addPixels(p[i], p[i - width + 1]); return;
+        case 4: for (; i < end; i++) p[i] = addPixels(p[i], p[i - width - 1]); return;
+        case 5: for (; i < end; i++) { const v = average2(average2(p[i - 1], p[i - width + 1]), p[i - width]); p[i] = addPixels(p[i], v); } return;
+        case 6: for (; i < end; i++) { const v = average2(p[i - 1], p[i - width - 1]); p[i] = addPixels(p[i], v); } return;
+        case 7: for (; i < end; i++) { const v = average2(p[i - 1], p[i - width]); p[i] = addPixels(p[i], v); } return;
+        case 8: for (; i < end; i++) { const v = average2(p[i - width - 1], p[i - width]); p[i] = addPixels(p[i], v); } return;
+        case 9: for (; i < end; i++) { const v = average2(p[i - width], p[i - width + 1]); p[i] = addPixels(p[i], v); } return;
+        case 10: for (; i < end; i++) { const v = average2(average2(p[i - 1], p[i - width - 1]), average2(p[i - width], p[i - width + 1])); p[i] = addPixels(p[i], v); } return;
+        case 11: for (; i < end; i++) { const v = select(p[i - 1], p[i - width], p[i - width - 1]); p[i] = addPixels(p[i], v); } return;
+        case 12: for (; i < end; i++) { const v = clampAddSubtractFull(p[i - 1], p[i - width], p[i - width - 1]); p[i] = addPixels(p[i], v); } return;
+        case 13: for (; i < end; i++) { const v = clampAddSubtractHalf(average2(p[i - 1], p[i - width]), p[i - width - 1]); p[i] = addPixels(p[i], v); } return;
+        // mode 0, and modes 14 and 15 (not defined, libwebp predicts black like mode 0)
+        default: for (; i < end; i++) p[i] = addPixels(p[i], 0xff000000);
     }
 }
 
@@ -539,27 +561,28 @@ function inversePredictor(p: Uint32Array, width: number, height: number, bits: n
         const modeRow = (y >> bits) * blocksPerRow;
         for (let x = 1; x < width;) {
             const end = Math.min(width, (x >> bits) + 1 << bits);
-            predictRun(modes[modeRow + (x >> bits)] >> 8 & 15, p, row + x, end - x, width, p, row + x);
+            restoreRun(modes[modeRow + (x >> bits)] >> 8 & 15, p, row + x, end - x, width);
             x = end;
         }
     }
 }
 
-// (t * c) >> 5 with both as signed 8 bit values
-const colorDelta = (t: number, c: number): number => ((t << 24 >> 24) * (c << 24 >> 24)) >> 5;
-
 function inverseColorTransform(p: Uint32Array, width: number, height: number, bits: number, elements: Uint32Array): void {
     const blocksPerRow = subSize(width, bits);
     for (let y = 0; y < height; y++) {
         const elementRow = (y >> bits) * blocksPerRow;
-        for (let x = 0; x < width; x++) {
+        // the multipliers once per block; each delta is (t * c) >> 5 with both as signed 8 bit values
+        for (let x = 0; x < width;) {
             const e = elements[elementRow + (x >> bits)];
-            const greenToRed = e & 255, greenToBlue = e >> 8 & 255, redToBlue = e >> 16 & 255;
-            const i = y * width + x, argb = p[i];
-            const green = argb >> 8 & 255;
-            const red = (argb >> 16) + colorDelta(greenToRed, green) & 255;
-            const blue = (argb & 255) + colorDelta(greenToBlue, green) + colorDelta(redToBlue, red) & 255;
-            p[i] = (argb & 0xff00ff00 | red << 16 | blue) >>> 0;
+            const greenToRed = e << 24 >> 24, greenToBlue = e << 16 >> 24, redToBlue = e << 8 >> 24;
+            for (let i = y * width + x, end = y * width + Math.min(width, (x >> bits) + 1 << bits); i < end; i++) {
+                const argb = p[i];
+                const green = argb << 16 >> 24;
+                const red = (argb >> 16) + (greenToRed * green >> 5) & 255;
+                const blue = (argb & 255) + (greenToBlue * green >> 5) + (redToBlue * (red << 24 >> 24) >> 5) & 255;
+                p[i] = (argb & 0xff00ff00 | red << 16 | blue) >>> 0;
+            }
+            x = (x >> bits) + 1 << bits;
         }
     }
 }
