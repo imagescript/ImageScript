@@ -11,6 +11,7 @@
 - Progressive JPEGs decode 1.2 to 1.5 times faster: their AC scans are read with the bit reader in local variables too, and refinement scans stop at each block's last nonzero coefficient instead of going through the zeros after it (a 6000x4000 photo: 1529 to 1250 ms; 2400x1600: 116 to 78 ms)
 - Lossy WebP decodes 3 to 14% faster (more at higher qualities): the coefficients are read with the boolean decoder's state in local variables, like libwebp does
 - Encoding opaque truecolor PNGs is 4 to 8% faster: once only the opacity of the remaining pixels is unknown, their alpha is checked a word at a time
+- Lossless WebP decodes 7 to 16% faster: the pixels are read with the bit reader's state in local variables, as libwebp does
 - PNG encoding is 2 to 4 times faster for large images under Node.js and Bun: more than 2 MiB of image data is compressed in 1 MiB pieces on zlib's thread pool at the same time, the way pigz does (a 4000x2667 photo: 655 to 265 ms in Node.js, 601 to 157 ms in Bun). The files are a few bytes larger or smaller and no longer byte for byte the same as from 4.0.0; the pixels are
 
 ## 4.0.0

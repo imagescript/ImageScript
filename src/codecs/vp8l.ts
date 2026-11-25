@@ -47,8 +47,8 @@ export class BitReader {
     data: Uint8Array;
     pos = 0;
     // bits not consumed yet, the next one is the lowest
-    private buffer = 0;
-    private count = 0;
+    buffer = 0;
+    count = 0;
 
     constructor(data: Uint8Array, offset = 0) {
         this.data = data;
@@ -94,7 +94,7 @@ export class BitReader {
 
 // two level huffman lookup table: entries are (symbol << 4 | length) for codes up to ROOT_BITS long,
 // longer codes point to a second level table ((offset << 4 | bits) with the 0x8000_0000 flag)
-const ROOT_BITS = 8;
+const ROOT_BITS = 8, ROOT_MASK = (1 << ROOT_BITS) - 1;
 const SUBTABLE = 0x40000000;
 
 /** canonical prefix code as lookup table */
@@ -253,14 +253,6 @@ function readCode(reader: BitReader, alphabetSize: number): PrefixCode {
 
 const subSize = (size: number, bits: number): number => (size + (1 << bits) - 1) >> bits;
 
-// length and distance values: a prefix symbol plus extra bits (RFC 9649 section 3.6.1)
-function prefixValue(reader: BitReader, symbol: number): number {
-    if (symbol < 4) return symbol + 1;
-    const extra = (symbol - 2) >> 1;
-    const offset = (2 + (symbol & 1)) << extra;
-    return offset + reader.read(extra) + 1;
-}
-
 /**
  * Decodes the pixels of an entropy coded image: the main image (with meta prefix codes) or a transform's sub-image
  */
@@ -304,41 +296,173 @@ function decodeImage(reader: BitReader, width: number, height: number, isMain: b
     const prefixMask = (1 << prefixBits) - 1;
     let group = groups[0];
 
-    for (let i = 0, x = 0, y = 0; i < total;) {
-        if (groupImage && (x & prefixMask) === 0) group = groups[groupImage[(y >> prefixBits) * prefixWidth + (x >> prefixBits)]];
+    // (BitReader and readSymbol inlined, with the reader's state in local variables, as in libwebp's DecodeImageData)
+    const data = reader.data, length = data.length;
+    let pos = reader.pos, buffer = reader.buffer, count = reader.count;
+    const sync = (): void => {
+        reader.pos = pos;
+        reader.buffer = buffer;
+        reader.count = count;
+    };
 
-        const green = readSymbol(reader, group[0]);
-        if (green < NUM_LITERAL_CODES) {
-            const red = readSymbol(reader, group[1]);
-            const blue = readSymbol(reader, group[2]);
-            const alpha = readSymbol(reader, group[3]);
-            pixels[i++] = (alpha << 24 | red << 16 | green << 8 | blue) >>> 0;
-            if (++x === width) { x = 0; y++; }
-        } else if (green < NUM_LITERAL_CODES + NUM_LENGTH_CODES) {
-            const length = prefixValue(reader, green - NUM_LITERAL_CODES);
-            const distanceSymbol = readSymbol(reader, group[4]);
-            let distance = prefixValue(reader, distanceSymbol);
-            if (distance > 120) distance -= 120;
+    try {
+        for (let i = 0, x = 0, y = 0; i < total;) {
+            if (groupImage && (x & prefixMask) === 0) group = groups[groupImage[(y >> prefixBits) * prefixWidth + (x >> prefixBits)]];
+
+            let green: number;
+            if (group[0].single >= 0) green = group[0].single;
             else {
-                const dx = DISTANCE_MAP[2 * distance - 2], dy = DISTANCE_MAP[2 * distance - 1];
-                distance = Math.max(1, dy * width + dx);
+                if (count < 24) {
+                    while (count <= 24) {
+                        const byte = pos < length ? data[pos] : 0;
+                        if (pos > length + 8) throw new Error('VP8L: unexpected end of data');
+                        pos++;
+                        buffer |= byte << count;
+                        count += 8;
+                    }
+                }
+                let entry = group[0].table[buffer & ROOT_MASK];
+                if (entry & SUBTABLE) entry = group[0].table[((entry & ~SUBTABLE) >> 4) + (buffer >> ROOT_BITS & (1 << (entry & 15)) - 1)];
+                buffer >>>= entry & 15;
+                count -= entry & 15;
+                green = entry >> 4;
+            }
+            if (green < NUM_LITERAL_CODES) {
+                let red: number;
+                if (group[1].single >= 0) red = group[1].single;
+                else {
+                    if (count < 24) {
+                        while (count <= 24) {
+                            const byte = pos < length ? data[pos] : 0;
+                            if (pos > length + 8) throw new Error('VP8L: unexpected end of data');
+                            pos++;
+                            buffer |= byte << count;
+                            count += 8;
+                        }
+                    }
+                    let entry = group[1].table[buffer & ROOT_MASK];
+                    if (entry & SUBTABLE) entry = group[1].table[((entry & ~SUBTABLE) >> 4) + (buffer >> ROOT_BITS & (1 << (entry & 15)) - 1)];
+                    buffer >>>= entry & 15;
+                    count -= entry & 15;
+                    red = entry >> 4;
+                }
+                let blue: number;
+                if (group[2].single >= 0) blue = group[2].single;
+                else {
+                    if (count < 24) {
+                        while (count <= 24) {
+                            const byte = pos < length ? data[pos] : 0;
+                            if (pos > length + 8) throw new Error('VP8L: unexpected end of data');
+                            pos++;
+                            buffer |= byte << count;
+                            count += 8;
+                        }
+                    }
+                    let entry = group[2].table[buffer & ROOT_MASK];
+                    if (entry & SUBTABLE) entry = group[2].table[((entry & ~SUBTABLE) >> 4) + (buffer >> ROOT_BITS & (1 << (entry & 15)) - 1)];
+                    buffer >>>= entry & 15;
+                    count -= entry & 15;
+                    blue = entry >> 4;
+                }
+                let alpha: number;
+                if (group[3].single >= 0) alpha = group[3].single;
+                else {
+                    if (count < 24) {
+                        while (count <= 24) {
+                            const byte = pos < length ? data[pos] : 0;
+                            if (pos > length + 8) throw new Error('VP8L: unexpected end of data');
+                            pos++;
+                            buffer |= byte << count;
+                            count += 8;
+                        }
+                    }
+                    let entry = group[3].table[buffer & ROOT_MASK];
+                    if (entry & SUBTABLE) entry = group[3].table[((entry & ~SUBTABLE) >> 4) + (buffer >> ROOT_BITS & (1 << (entry & 15)) - 1)];
+                    buffer >>>= entry & 15;
+                    count -= entry & 15;
+                    alpha = entry >> 4;
+                }
+                pixels[i++] = (alpha << 24 | red << 16 | green << 8 | blue) >>> 0;
+                if (++x === width) { x = 0; y++; }
+            } else if (green < NUM_LITERAL_CODES + NUM_LENGTH_CODES) {
+                // length and distance values: a prefix symbol plus extra bits (RFC 9649 section 3.6.1)
+                const lengthSymbol = green - NUM_LITERAL_CODES;
+                let run: number;
+                if (lengthSymbol < 4) run = lengthSymbol + 1;
+                else {
+                    const extra = (lengthSymbol - 2) >> 1;
+                    if (count < extra) {
+                        while (count <= 24) {
+                            const byte = pos < length ? data[pos] : 0;
+                            if (pos > length + 8) throw new Error('VP8L: unexpected end of data');
+                            pos++;
+                            buffer |= byte << count;
+                            count += 8;
+                        }
+                    }
+                    run = ((2 + (lengthSymbol & 1)) << extra) + (buffer & (1 << extra) - 1) + 1;
+                    buffer >>>= extra;
+                    count -= extra;
+                }
+                let distanceSymbol: number;
+                if (group[4].single >= 0) distanceSymbol = group[4].single;
+                else {
+                    if (count < 24) {
+                        while (count <= 24) {
+                            const byte = pos < length ? data[pos] : 0;
+                            if (pos > length + 8) throw new Error('VP8L: unexpected end of data');
+                            pos++;
+                            buffer |= byte << count;
+                            count += 8;
+                        }
+                    }
+                    let entry = group[4].table[buffer & ROOT_MASK];
+                    if (entry & SUBTABLE) entry = group[4].table[((entry & ~SUBTABLE) >> 4) + (buffer >> ROOT_BITS & (1 << (entry & 15)) - 1)];
+                    buffer >>>= entry & 15;
+                    count -= entry & 15;
+                    distanceSymbol = entry >> 4;
+                }
+                let distance: number;
+                if (distanceSymbol < 4) distance = distanceSymbol + 1;
+                else {
+                    const extra = (distanceSymbol - 2) >> 1;
+                    if (count < extra) {
+                        while (count <= 24) {
+                            const byte = pos < length ? data[pos] : 0;
+                            if (pos > length + 8) throw new Error('VP8L: unexpected end of data');
+                            pos++;
+                            buffer |= byte << count;
+                            count += 8;
+                        }
+                    }
+                    distance = ((2 + (distanceSymbol & 1)) << extra) + (buffer & (1 << extra) - 1) + 1;
+                    buffer >>>= extra;
+                    count -= extra;
+                }
+                if (distance > 120) distance -= 120;
+                else {
+                    const dx = DISTANCE_MAP[2 * distance - 2], dy = DISTANCE_MAP[2 * distance - 1];
+                    distance = Math.max(1, dy * width + dx);
+                }
+
+                if (distance > i || i + run > total) throw new Error('VP8L: invalid backward reference');
+                for (let k = 0; k < run; k++, i++) pixels[i] = pixels[i - distance];
+                x += run;
+                while (x >= width) { x -= width; y++; }
+                // the prefix group can change within the copied run, it is looked up again at the next block start
+                if (groupImage) group = groups[groupImage[(y >> prefixBits) * prefixWidth + (x >> prefixBits)]];
+            } else {
+                if (!cache) throw new Error('VP8L: invalid color cache symbol');
+                // bring the cache up to date before looking anything up in it
+                for (; cached < i; cached++) cache[Math.imul(pixels[cached], 0x1e35a7bd) >>> cacheShift] = pixels[cached];
+                pixels[i++] = cache[green - NUM_LITERAL_CODES - NUM_LENGTH_CODES];
+                if (++x === width) { x = 0; y++; }
             }
 
-            if (distance > i || i + length > total) throw new Error('VP8L: invalid backward reference');
-            for (let k = 0; k < length; k++, i++) pixels[i] = pixels[i - distance];
-            x += length;
-            while (x >= width) { x -= width; y++; }
-            // the prefix group can change within the copied run, it is looked up again at the next block start
-            if (groupImage) group = groups[groupImage[(y >> prefixBits) * prefixWidth + (x >> prefixBits)]];
-        } else {
-            if (!cache) throw new Error('VP8L: invalid color cache symbol');
-            // bring the cache up to date before looking anything up in it
-            for (; cached < i; cached++) cache[Math.imul(pixels[cached], 0x1e35a7bd) >>> cacheShift] = pixels[cached];
-            pixels[i++] = cache[green - NUM_LITERAL_CODES - NUM_LENGTH_CODES];
-            if (++x === width) { x = 0; y++; }
+            if (pos - (count >> 3) > length) throw new Error('VP8L: unexpected end of data');
         }
-
-        if (reader.overrun) throw new Error('VP8L: unexpected end of data');
+    } finally {
+        sync();
     }
 
     return pixels;
