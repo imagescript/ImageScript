@@ -4,7 +4,7 @@ import { concat } from '../util/mem.ts';
 import { littleEndian } from '../util/alpha.ts';
 import { encode as utf8, decode as utf8Decode } from '../util/utf8.ts';
 import { orientation as exifOrientation, xmpOrientation } from './exif.ts';
-import { compressAsync, decompressAsync, decompress } from './zlib.ts';
+import { compressParallel, decompressAsync, decompress } from './zlib.ts';
 
 const HEAD = Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10);
 const IHDR = 0x49484452;
@@ -146,10 +146,10 @@ const SAMPLE_ROWS = 32, SAMPLE_STEP = 512;
  */
 async function compressRows(data: Uint8Array, width: number, height: number, channels: number, depth: number, level: number, filterRows: boolean): Promise<Uint8Array> {
     const rowBytes = Math.ceil(width * channels * depth / 8), bpp = Math.max(1, channels * depth / 8);
-    if (!filterRows) return compressAsync(prefix(data, rowBytes, 0, height), level);
+    if (!filterRows) return compressParallel(prefix(data, rowBytes, 0, height), level);
     // (small images: the smaller of both)
     if (height <= SAMPLE_ROWS) {
-        const [unfiltered, filtered] = await Promise.all([compressAsync(prefix(data, rowBytes, 0, height), level), compressAsync(filter(data, rowBytes, 0, height, bpp), level)]);
+        const [unfiltered, filtered] = await Promise.all([compressParallel(prefix(data, rowBytes, 0, height), level), compressParallel(filter(data, rowBytes, 0, height, bpp), level)]);
         return unfiltered.length < filtered.length ? unfiltered : filtered;
     }
     const unfilteredSamples: Uint8Array[] = [], filteredSamples: Uint8Array[] = [];
@@ -158,8 +158,8 @@ async function compressRows(data: Uint8Array, width: number, height: number, cha
         unfilteredSamples.push(prefix(data, rowBytes, y, end));
         filteredSamples.push(filter(data, rowBytes, y, end, bpp));
     }
-    const [unfiltered, filtered] = await Promise.all([compressAsync(concat(unfilteredSamples), level), compressAsync(concat(filteredSamples), level)]);
-    return compressAsync(unfiltered.length < filtered.length ? prefix(data, rowBytes, 0, height) : filter(data, rowBytes, 0, height, bpp), level);
+    const [unfiltered, filtered] = await Promise.all([compressParallel(concat(unfilteredSamples), level), compressParallel(concat(filteredSamples), level)]);
+    return compressParallel(unfiltered.length < filtered.length ? prefix(data, rowBytes, 0, height) : filter(data, rowBytes, 0, height, bpp), level);
 }
 
 function chunk(type: number, body: Uint8Array): Uint8Array {

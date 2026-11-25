@@ -651,11 +651,15 @@ export function gunzip(data: Uint8Array, limit: number): Uint8Array {
 // definitions: node:zlib (Node, Bun and Deno expose it through process.getBuiltinModule, without an import) is the
 // fastest and honors compression levels; DecompressionStream is part of the web platform
 
+type NodeCallback = (error: Error | null, result: Uint8Array) => void;
+
 interface NodeZlib {
     deflateSync(data: Uint8Array, options: { level: number }): Uint8Array;
+    deflate?(data: Uint8Array, options: { level: number }, callback: NodeCallback): void;
+    deflateRaw?(data: Uint8Array, options: { level: number, dictionary?: Uint8Array, finishFlush: number }, callback: NodeCallback): void;
     crc32?(data: Uint8Array): number;
     inflateSync(data: Uint8Array, options: { maxOutputLength: number, finishFlush: number }): Uint8Array;
-    constants: { Z_SYNC_FLUSH: number };
+    constants: { Z_SYNC_FLUSH: number, Z_FINISH: number };
 }
 
 interface StreamReader {
@@ -707,6 +711,53 @@ export async function compressAsync(data: Uint8Array, level: number): Promise<Ui
         return out;
     }
     return compress(data, level);
+}
+
+// pieces compressed in parallel: fixed in size, so the output doesn't depend on how many threads there are, and each
+// primed with the window of data before it, so matches can reach back into the piece before
+const PIECE = 1 << 20, WINDOW = 1 << 15;
+
+/**
+ * Compresses data into a zlib stream like {@link compressAsync}, but where node:zlib is available off the main thread,
+ * and data of 2 MiB and more in 1 MiB pieces at the same time (pigz's approach: each piece is a raw deflate stream
+ * ending with a sync flush, so they concatenate; one zlib header and one Adler-32 of all data around them). The output
+ * is a valid zlib stream of the same data; its bytes differ from a single stream's
+ * @param level compression level 0-9
+ */
+export async function compressParallel(data: Uint8Array, level: number): Promise<Uint8Array> {
+    level = Math.min(9, Math.max(0, level | 0));
+    const zlib = nodeZlib;
+    if (!zlib || !zlib.deflate || !zlib.deflateRaw) return compressAsync(data, level);
+    const done = (resolve: (data: Uint8Array) => void, reject: (error: Error) => void): NodeCallback => (error, result) => error ? reject(error) : resolve(plain(result));
+
+    if (data.length < 2 * PIECE) return new Promise((resolve, reject) => zlib.deflate?.(data, { level }, done(resolve, reject)));
+
+    const count = Math.ceil(data.length / PIECE);
+    const pieces = await Promise.all(Array.from({ length: count }, (_, i) => {
+        const start = i * PIECE;
+        const options: { level: number, dictionary?: Uint8Array, finishFlush: number } = { level, finishFlush: i === count - 1 ? zlib.constants.Z_FINISH : zlib.constants.Z_SYNC_FLUSH };
+        if (i) options.dictionary = data.subarray(start - WINDOW, start);
+        return new Promise<Uint8Array>((resolve, reject) => zlib.deflateRaw?.(data.subarray(start, start + PIECE), options, done(resolve, reject)));
+    }));
+
+    let length = 6;
+    for (const piece of pieces) length += piece.length;
+    const out = new Uint8Array(length);
+    // zlib header with the compression level hint, as compress writes it
+    const hint = level === 0 ? 0 : level < 6 ? 1 : level === 9 ? 3 : 2;
+    out[0] = 120;
+    out[1] = hint << 6 | (hint ? 32 - 2 * hint : 1);
+    let offset = 2;
+    for (const piece of pieces) {
+        out.set(piece, offset);
+        offset += piece.length;
+    }
+    const checksum = adler32(data);
+    out[offset] = checksum >>> 24;
+    out[offset + 1] = checksum >> 16 & 255;
+    out[offset + 2] = checksum >> 8 & 255;
+    out[offset + 3] = checksum & 255;
+    return out;
 }
 
 /**
