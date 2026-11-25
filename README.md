@@ -20,11 +20,9 @@
 
 ---
 
-**ImageScript** decodes, edits and encodes images in pure TypeScript: no WebAssembly, no native binaries, and no
-runtime dependencies. It runs in Node.js 22.13+, Deno, Bun, browsers and edge runtimes (such as Cloudflare
-Workers), works with `import` and, on supported Node.js versions, `require()`, and ships with type
-definitions (TypeScript 5.7 or newer; CommonJS projects need `module: nodenext` and 5.8 or newer to `import` it (`module: node16` can't). With older versions and `skipLibCheck`, the encoders' return types become `any`). Large AVIF and JPEG XL operations, and lossless WebP encoding, can use multiple CPU cores when the runtime
-supports it.
+**ImageScript** decodes, edits and encodes images in pure TypeScript: no WebAssembly, no native binaries, no runtime
+dependencies. It runs on Node.js 22.13+, Deno, Bun, browsers and edge runtimes, and ships with TypeScript type
+definitions.
 
 ```sh
 npm install imagescript              # Node.js, Bun and bundlers
@@ -59,10 +57,11 @@ import { Image } from 'https://cdn.jsdelivr.net/npm/imagescript@4/+esm';
 ### Threads and bundlers
 
 The codecs that can use worker threads (large AVIF and JPEG XL images, lossless WebP; the `threads` option) do so in
-Node.js, Deno and Bun, and in browsers on cross-origin isolated pages. Where workers can't start, the work runs on the
-calling thread: the output is the same, only slower, and nothing warns about it. Browsers refuse workers from another
-origin, so the jsDelivr import above runs single-threaded; serve the package from your own origin (on a cross-origin
-isolated page) to get threads.
+Node.js, Deno and Bun, and in browsers on cross-origin isolated pages. Large PNGs are compressed in parallel on the zlib
+threads of Node.js (4 unless `UV_THREADPOOL_SIZE` says otherwise) and Bun instead, without a `threads` option. Where
+workers can't start, the work runs on the calling thread: the output is the same, only slower, and nothing warns about
+it. Browsers refuse workers from another origin, so the jsDelivr import above runs single-threaded; serve the package
+from your own origin (on a cross-origin isolated page) to get threads.
 
 Bundlers that write one file (esbuild, Rollup, `bun build`) don't copy the worker's module: serve `dist/util/worker.js` next to the
 bundle, or the same single-threaded fallback is used. webpack and Vite emit it.
