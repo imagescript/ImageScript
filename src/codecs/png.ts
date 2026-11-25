@@ -263,8 +263,20 @@ export class FormatScanner {
                 if (this.colors.size === 256) this.colors = null;
                 else this.colors.set(value, this.colors.size);
             }
-            // nothing left to find out: RGBA it is
-            if (!this.colors && !this.opaque && !this.gray) return;
+            if (!this.colors && !this.gray) {
+                // nothing left to find out: RGBA it is
+                if (!this.opaque) return;
+                // only whether every pixel is opaque: their alpha bytes, a word at a time
+                if (littleEndian) {
+                    let all = -1;
+                    for (let j = i + 1; j < pixels.length; j++) all &= pixels[j];
+                    this.opaque = all >>> 24 === 255;
+                } else for (let j = (i + 1) * 4 + 3; j < rgba.length; j += 4) if (rgba[j] !== 255) {
+                    this.opaque = false;
+                    break;
+                }
+                return;
+            }
         }
     }
 

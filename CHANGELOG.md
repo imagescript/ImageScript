@@ -10,6 +10,7 @@
 - JPEGs with 4:2:0 or 4:2:2 chroma subsampling decode another 5 to 7% faster: the chroma is upsampled in the same loop that converts the pixels to RGB
 - Progressive JPEGs decode 1.2 to 1.5 times faster: their AC scans are read with the bit reader in local variables too, and refinement scans stop at each block's last nonzero coefficient instead of going through the zeros after it (a 6000x4000 photo: 1529 to 1250 ms; 2400x1600: 116 to 78 ms)
 - Lossy WebP decodes 3 to 14% faster (more at higher qualities): the coefficients are read with the boolean decoder's state in local variables, like libwebp does
+- Encoding opaque truecolor PNGs is 4 to 8% faster: once only the opacity of the remaining pixels is unknown, their alpha is checked a word at a time
 
 ## 4.0.0
 
