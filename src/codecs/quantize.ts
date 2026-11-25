@@ -211,11 +211,22 @@ export function applyPalette(pixels: Uint8Array, width: number, height: number, 
     if (dither === 'none' || dither === 'ordered') {
         // the offsets span about one step between the palette's levels per channel
         const spread = dither === 'ordered' ? strength * 255 / Math.cbrt(entries) : 0;
+        // the nearest entry only depends on the pixel's RGB and its Bayer cell: remembered for the last such pair
+        // that fell into each slot of a small hash table
+        const slots = new Int32Array(1 << 16).fill(-1), found = new Uint16Array(1 << 16);
         for (let y = 0, p = 0; y < height; y++) {
             for (let x = 0; x < width; x++, p++) {
                 if (!pixels[p * 4 + 3]) continue;
-                const offset = spread ? ((BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16 - 0.5) * spread : 0;
-                const index = nearest(clampFloat(pixels[p * 4] + offset), clampFloat(pixels[p * 4 + 1] + offset), clampFloat(pixels[p * 4 + 2] + offset));
+                const cell = spread ? (y & 3) * 4 + (x & 3) : 0;
+                const key = (pixels[p * 4] << 16 | pixels[p * 4 + 1] << 8 | pixels[p * 4 + 2]) << 4 | cell;
+                const slot = Math.imul(key, 0x9e3779b1) >>> 16;
+                let index: number;
+                if (slots[slot] === key) index = found[slot];
+                else {
+                    const offset = spread ? ((BAYER[cell] + 0.5) / 16 - 0.5) * spread : 0;
+                    index = found[slot] = nearest(clampFloat(pixels[p * 4] + offset), clampFloat(pixels[p * 4 + 1] + offset), clampFloat(pixels[p * 4 + 2] + offset));
+                    slots[slot] = key;
+                }
                 pixels[p * 4] = palette[index * 3];
                 pixels[p * 4 + 1] = palette[index * 3 + 1];
                 pixels[p * 4 + 2] = palette[index * 3 + 2];
@@ -243,16 +254,19 @@ export function applyPalette(pixels: Uint8Array, width: number, height: number, 
             const b = clampFloat(pixels[p * 4 + 2] + current[e + 2]);
 
             const index = nearest(r, g, b);
-            const errors = [r - palette[index * 3], g - palette[index * 3 + 1], b - palette[index * 3 + 2]];
+            const er = r - palette[index * 3], eg = g - palette[index * 3 + 1], eb = b - palette[index * 3 + 2];
             pixels[p * 4] = palette[index * 3];
             pixels[p * 4 + 1] = palette[index * 3 + 1];
             pixels[p * 4 + 2] = palette[index * 3 + 2];
 
-            for (const [dx, dy, weight] of pattern) {
+            for (let k = 0; k < pattern.length; k++) {
+                const [dx, dy, weight] = pattern[k];
                 const tx = x + dx * direction, ty = y + dy;
                 if (tx < 0 || tx >= width || ty >= height) continue;
                 const target = rows[ty % 3], t = tx * 3;
-                for (let c = 0; c < 3; c++) target[t + c] += errors[c] * weight * strength;
+                target[t] += er * weight * strength;
+                target[t + 1] += eg * weight * strength;
+                target[t + 2] += eb * weight * strength;
             }
         }
 
@@ -428,14 +442,17 @@ function nearestSearch(palette: ArrayLike<number>, entries: number): (r: number,
     const order = Int32Array.from({ length: entries }, (_, i) => i).sort((a, b) => palette[a * 3 + axis] - palette[b * 3 + axis]);
     const keys = Float64Array.from(order, i => palette[i * 3 + axis]);
     const weight = weights[axis];
+    // the entries' channels in sorted order, read one after the other while searching outwards
+    const sr = Float64Array.from(order, i => palette[i * 3]), sg = Float64Array.from(order, i => palette[i * 3 + 1]), sb = Float64Array.from(order, i => palette[i * 3 + 2]);
 
     return (r: number, g: number, b: number): number => {
         const key = axis === 0 ? r : axis === 1 ? g : b;
         let best = 0, bestDistance = Infinity;
 
-        const test = (i: number): void => {
-            const dr = r - palette[i * 3], dg = g - palette[i * 3 + 1], db = b - palette[i * 3 + 2];
+        const test = (k: number): void => {
+            const dr = r - sr[k], dg = g - sg[k], db = b - sb[k];
             const distance = WR * dr * dr + WG * dg * dg + WB * db * db;
+            const i = order[k];
             if (distance < bestDistance || (distance === bestDistance && i < best)) {
                 bestDistance = distance;
                 best = i;
@@ -455,12 +472,12 @@ function nearestSearch(palette: ArrayLike<number>, entries: number): (r: number,
             if (up < entries) {
                 const d = key - keys[up];
                 if (weight * d * d > bestDistance) up = entries;
-                else test(order[up++]);
+                else test(up++);
             }
             if (down >= 0) {
                 const d = key - keys[down];
                 if (weight * d * d > bestDistance) down = -1;
-                else test(order[down--]);
+                else test(down--);
             }
         }
 
