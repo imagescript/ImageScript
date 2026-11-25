@@ -13,6 +13,7 @@
 - Encoding opaque truecolor PNGs is 4 to 8% faster: once only the opacity of the remaining pixels is unknown, their alpha is checked a word at a time
 - Lossless WebP decodes 18 to 29% faster: the pixels are read with the bit reader's state in local variables, as libwebp does, the predictors restore pixels in loops of their own, and the color transform unpacks its multipliers once per block
 - Palette and grayscale PNGs (up to 8 bits) decode 1.2 to 1.7 times faster: each pixel is copied from a table as a 32-bit word
+- `composite()` is up to 1.5 times faster for opaque sources: their pixels are copied as 32-bit words
 - `quantize()` is up to 2.3 times faster without dithering, 1.4 times with `'ordered'` and 1.2 times with `'atkinson'`: the nearest palette entry of each color and Bayer cell is remembered, the palette is searched in sorted arrays, and the spread errors aren't put in an array per pixel
 - PNG encoding is 2 to 4 times faster for large images under Node.js and Bun: more than 2 MiB of image data is compressed in 1 MiB pieces on zlib's thread pool at the same time, the way pigz does (a 4000x2667 photo: 655 to 265 ms in Node.js, 601 to 157 ms in Bun). The files are a few bytes larger or smaller and no longer byte for byte the same as from 4.0.0; the pixels are
 

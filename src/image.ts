@@ -1651,11 +1651,19 @@ export class Image {
         const dst = this.bitmap;
         // (a source sharing the destination's memory, itself or through the bitmap setter, is read before it is written)
         const src = source.bitmap.buffer === dst.buffer ? source.bitmap.slice() : source.bitmap;
+        // opaque source pixels at full opacity are copied as 32-bit words (their four bytes, in any byte order)
+        const words = opacity === 1 && !(src.byteOffset & 3) && !(dst.byteOffset & 3);
+        const srcWords = words ? new Uint32Array(src.buffer, src.byteOffset, src.length >> 2) : null;
+        const dstWords = words ? new Uint32Array(dst.buffer, dst.byteOffset, dst.length >> 2) : null;
 
         for (let row = top; row < bottom; row++) {
             for (let column = left, s = 4 * ((row - y) * source.width + left - x), d = 4 * (row * this.width + left); column < right; column++, s += 4, d += 4) {
                 const sa = src[s + 3];
                 if (sa === 0) continue;
+                if (sa === 255 && dstWords && srcWords) {
+                    dstWords[d >> 2] = srcWords[s >> 2];
+                    continue;
+                }
 
                 const da = dst[d + 3];
                 if ((sa === 255 && opacity === 1) || da === 0) {
