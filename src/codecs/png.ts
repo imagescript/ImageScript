@@ -1013,7 +1013,23 @@ function createConverter(colorType: number, depth: number, palette: Uint8Array |
             lut[i * 4 + 3] = transparency && i < transparency.length ? transparency[i] : 0xff;
         }
 
+        // whole rows: a pixel at a time as a 32-bit word (copying the entry's four bytes, in any byte order)
+        const words = new Uint32Array(lut.buffer);
+
         return (pixels, rowBytes, w, h, out, place) => {
+            if (place.step === 4 && !(out.byteOffset & 3)) {
+                const target = new Uint32Array(out.buffer, out.byteOffset, out.length >> 2);
+                for (let y = 0; y < h; y++) {
+                    const s = y * rowBytes, o = place.row(y) >> 2;
+                    if (depth === 8) for (let x = 0; x < w; x++) target[o + x] = words[pixels[s + x]];
+                    else {
+                        const row = pixels.subarray(s, s + rowBytes);
+                        for (let x = 0; x < w; x++) target[o + x] = words[sample(row, x)];
+                    }
+                }
+                return;
+            }
+
             for (let y = 0; y < h; y++) {
                 const row = pixels.subarray(y * rowBytes, (y + 1) * rowBytes);
 
@@ -1031,7 +1047,32 @@ function createConverter(colorType: number, depth: number, palette: Uint8Array |
     if (colorType === 0) {
         const key = transparency && transparency.length >= 2 ? (transparency[0] << 8 | transparency[1]) & maxValue : -1;
 
+        // up to 8 bits: every sample's pixel from a table, a 32-bit word at a time (as for palettes)
+        let words: Uint32Array | null = null;
+        if (depth <= 8) {
+            const lut = new Uint8Array(256 * 4);
+            for (let raw = 0; raw <= maxValue; raw++) {
+                const v = scale(raw);
+                lut[raw * 4] = lut[raw * 4 + 1] = lut[raw * 4 + 2] = v;
+                lut[raw * 4 + 3] = raw === key ? 0 : 0xff;
+            }
+            words = new Uint32Array(lut.buffer);
+        }
+
         return (pixels, rowBytes, w, h, out, place) => {
+            if (words && place.step === 4 && !(out.byteOffset & 3)) {
+                const target = new Uint32Array(out.buffer, out.byteOffset, out.length >> 2);
+                for (let y = 0; y < h; y++) {
+                    const s = y * rowBytes, o = place.row(y) >> 2;
+                    if (depth === 8) for (let x = 0; x < w; x++) target[o + x] = words[pixels[s + x]];
+                    else {
+                        const row = pixels.subarray(s, s + rowBytes);
+                        for (let x = 0; x < w; x++) target[o + x] = words[sample(row, x)];
+                    }
+                }
+                return;
+            }
+
             for (let y = 0; y < h; y++) {
                 const row = pixels.subarray(y * rowBytes, (y + 1) * rowBytes);
 
