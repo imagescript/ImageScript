@@ -47,6 +47,11 @@ interface Component {
      * which the decoder turns into `plane` (the samples) as soon as the row is complete
      */
     coefficients: Int16Array;
+    /**
+     * progressive: per block, the zigzag position of its last nonzero AC coefficient (0: none), so refinement passes
+     * know where only zeros follow
+     */
+    last?: Uint8Array;
     /** sequential: the sample plane, and which of its block rows are done (the others stay mid gray) */
     plane?: Uint8Array;
     done?: Uint8Array;
@@ -293,6 +298,7 @@ function createFrame(progressive: boolean, height: number, width: number, compon
             blocksPerColumnForMcu,
             // progressive scans refine all coefficients, sequential ones are done with a row of MCUs at a time
             coefficients: new Int16Array(blocksPerLineForMcu * (progressive ? blocksPerColumnForMcu : c.v) * 64),
+            last: progressive ? new Uint8Array(blocksPerLineForMcu * blocksPerColumnForMcu) : undefined,
             plane: progressive ? undefined : new Uint8Array(blocksPerLineForMcu * 8 * blocksPerColumnForMcu * 8),
             done: progressive ? undefined : new Uint8Array(blocksPerColumnForMcu),
             pred: 0
@@ -403,6 +409,11 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
 
     let eobrun = 0;
 
+    const raise = (component: Component, offset: number, k: number): void => {
+        const last = component.last as Uint8Array;
+        if (k > last[offset >> 6]) last[offset >> 6] = k;
+    };
+
     const decodeDCFirst = (component: Component, offset: number): void => {
         const t = huffman(component.dcTable);
         component.coefficients[offset] = (component.pred += receiveExtend(t)) * (1 << al);
@@ -436,6 +447,7 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
 
             k += r;
             if (k > 63) break;
+            raise(component, offset, k);
             coefficients[offset + ZIGZAG[k++]] = receiveExtend(s) * (1 << al);
         }
     };
@@ -471,7 +483,10 @@ function decodeScan(data: Uint8Array, offset: number, frame: Frame, components: 
                     k++;
                 } while (k <= se);
 
-                if (s && k <= se) coefficients[offset + ZIGZAG[k]] = s;
+                if (s && k <= se) {
+                    raise(component, offset, k);
+                    coefficients[offset + ZIGZAG[k]] = s;
+                }
             }
         }
 
@@ -742,6 +757,10 @@ function decodeProgressive(data: Uint8Array, reader: BitReader, component: Compo
     let broken = false;
     const length = data.length;
     const coefficients = component.coefficients, line = component.blocksPerLine, stride = component.blocksPerLineForMcu;
+    const last = component.last as Uint8Array;
+    // (a damaged scan header can ask for positions past 63: those aren't zeros, they don't exist, and the refinement
+    // reads a bit for each, as it always did)
+    const bounded = se <= 63;
     const p1 = 1 << al, m1 = -1 << al;
 
     let b = 0;
@@ -839,6 +858,7 @@ function decodeProgressive(data: Uint8Array, reader: BitReader, component: Compo
                 bits -= s;
                 value = buffer >>> bits & (1 << s) - 1;
                 if (value < 1 << s - 1) value += (-1 << s) + 1;
+                if (k > last[offset >> 6]) last[offset >> 6] = k;
                 coefficients[offset + ZIGZAG[k++]] = value * (1 << al);
             }
             continue;
@@ -929,8 +949,15 @@ function decodeProgressive(data: Uint8Array, reader: BitReader, component: Compo
                     break;
                 }
 
-                // skip r zero coefficients, refining the nonzero ones passed on the way
+                // skip r zero coefficients, refining the nonzero ones passed on the way (after the last nonzero one
+                // there are only zeros: the r-th of them is r positions on)
+                const end = bounded ? last[offset >> 6] : 255;
                 do {
+                    if (k > end) {
+                        k += r;
+                        if (k > se) k = se + 1;
+                        break;
+                    }
                     const z = offset + ZIGZAG[k];
                     const c = coefficients[z];
 
@@ -957,12 +984,16 @@ function decodeProgressive(data: Uint8Array, reader: BitReader, component: Compo
                     k++;
                 } while (k <= se);
 
-                if (s && k <= se) coefficients[offset + ZIGZAG[k]] = s;
+                if (s && k <= se) {
+                    if (k > last[offset >> 6]) last[offset >> 6] = k;
+                    coefficients[offset + ZIGZAG[k]] = s;
+                }
             }
         }
 
         if (eobrun > 0) {
-            for (; k <= se; k++) {
+            // (no nonzero coefficient after the last one)
+            for (const end = bounded ? Math.min(se, last[offset >> 6]) : se; k <= end; k++) {
                 const z = offset + ZIGZAG[k];
                 const c = coefficients[z];
                 if (c !== 0) {

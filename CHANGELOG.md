@@ -8,7 +8,7 @@
 - LZW-compressed TIFFs decode about 15% faster: each code copies its bytes from where its string was written before, instead of following a chain of table entries back to front (a 4000x2667 RGB image: 339 to 297 ms)
 - Baseline JPEGs decode 8 to 15% faster: their entropy-coded data is read with the bit reader in local variables, a run of MCUs at a time (a 6000x4000 photo: 838 to 727 ms; 2400x1600: 76 to 67 ms)
 - JPEGs with 4:2:0 or 4:2:2 chroma subsampling decode another 5 to 7% faster: the chroma is upsampled in the same loop that converts the pixels to RGB
-- Progressive JPEGs decode 8 to 16% faster: their AC scans are read with the bit reader in local variables too
+- Progressive JPEGs decode 1.2 to 1.5 times faster: their AC scans are read with the bit reader in local variables too, and refinement scans stop at each block's last nonzero coefficient instead of going through the zeros after it (a 6000x4000 photo: 1529 to 1250 ms; 2400x1600: 116 to 78 ms)
 
 ## 4.0.0
 
