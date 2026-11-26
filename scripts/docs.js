@@ -1,7 +1,8 @@
 // builds the documentation site into docs/ with typedoc, then adds what typedoc can't: a description and link previews
 // (Open Graph) on every page, structured data (JSON-LD) on the start page, the icons browsers look for at the root, the README's wordmark following the docs' theme,
 // and redirects from the pages of the old jsdoc site (imagescript.dev/Image.html#resize -> classes/Image.html#resize)
-// so existing links keep working
+// and of the documented 3.x API that moved (classes/GIF.html -> classes/Animation.html) so existing links keep working,
+// a 404 page, and the start page as `/` in the sitemap (where its canonical URL points, not `/index.html`)
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
@@ -86,7 +87,12 @@ const redirects = {
     'GIF.html': ['classes/Animation.html', true],
     // (TextLayout isn't exported any more: its options are renderText()'s)
     'TextLayout.html': ['interfaces/TextLayoutOptions.html', false],
-    'global.html': ['functions/decode.html', false]
+    'global.html': ['functions/decode.html', false],
+    // typedoc's pages of 3.x and the 4.0 release candidates, whose APIs were renamed (the ones removed without a
+    // replacement, like AdjustOptions, are gone: the 404 page)
+    'classes/GIF.html': ['/classes/Animation.html', false],
+    'classes/TextLayout.html': ['/interfaces/TextLayoutOptions.html', false],
+    'interfaces/TextOptions.html': ['/interfaces/RenderTextOptions.html', false]
 };
 
 for (const [from, [to, keepAnchor]] of Object.entries(redirects)) {
@@ -94,9 +100,40 @@ for (const [from, [to, keepAnchor]] of Object.entries(redirects)) {
     fs.writeFileSync(path.join(out, from), `<!doctype html>
 <meta charset="utf-8">
 <title>Moved</title>
-<link rel="canonical" href="${to}">
+<link rel="canonical" href="${to.startsWith('/') ? site.slice(0, -1) + to : to}">
 <noscript><meta http-equiv="refresh" content="0; url=${to}"></noscript>
 <script>location.replace('${to}'${anchor});</script>
 <p>This page moved to <a href="${to}">${to}</a>.</p>
 `);
 }
+
+// GitHub Pages serves this for every address without a page (the paths are absolute: it is shown at any depth)
+fs.writeFileSync(path.join(out, '404.html'), `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Page not found | ImageScript</title>
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<style>
+body { font: 16px/1.6 system-ui, sans-serif; max-width: 36rem; margin: 15vh auto; padding: 0 1.5rem; color: #222; background: #fff; }
+@media (prefers-color-scheme: dark) { body { color: #e6e6e6; background: #141821; } a { color: #8ab4ff; } }
+h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+</style>
+</head>
+<body>
+<h1>Page not found</h1>
+<p>There is no page here. If you followed a link to the documentation of ImageScript 3.x, the API changed in 4.0: classes and options were renamed or removed.</p>
+<ul>
+<li><a href="/">Documentation</a></li>
+<li><a href="/modules.html">All exports</a></li>
+<li><a href="/documents/Migrating_to_4.0.html">Migrating to 4.0</a></li>
+</ul>
+</body>
+</html>
+`);
+
+// the sitemap lists the start page by its canonical address
+const sitemap = path.join(out, 'sitemap.xml');
+if (fs.existsSync(sitemap)) fs.writeFileSync(sitemap, fs.readFileSync(sitemap, 'utf8').replace(`<loc>${site}index.html</loc>`, `<loc>${site}</loc>`));
