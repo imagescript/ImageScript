@@ -5,9 +5,9 @@
     "packages": 1
   },
   "Jimp": {
-    "package": "jimp@1.6.1",
-    "bytes": 26775318,
-    "packages": 64
+    "package": "jimp@2.2.0",
+    "bytes": 35801276,
+    "packages": 72
   },
   "image-js": {
     "package": "image-js@1.7.1",
@@ -15,8 +15,8 @@
     "packages": 55
   },
   "PureJsImage": {
-    "package": "purejsimage@0.17.0",
-    "bytes": 6658152,
+    "package": "purejsimage@0.18.0",
+    "bytes": 8983137,
     "packages": 1
   },
   "Photon": {
@@ -35,8 +35,8 @@
     "packages": 3
   },
   "@napi-rs/canvas": {
-    "package": "@napi-rs/canvas@1.1.0",
-    "bytes": 37046151,
+    "package": "@napi-rs/canvas@1.2.1",
+    "bytes": 36064048,
     "packages": 2
   }
 }
